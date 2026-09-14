@@ -54,6 +54,26 @@ paths work inside the bundle as described in the
 Build each OS download on that OS. The **Release Vela Server** GitHub Actions
 workflow builds and smoke-tests Windows, Linux and macOS on native runners.
 
+On Windows x64, install [Inno Setup 6](https://jrsoftware.org/isdl.php) to build
+the installer from the same bundle:
+
+```powershell
+python scripts/build-windows-installer.py
+python scripts/test-windows-distribution.py
+```
+
+Set `ISCC_PATH` if the compiler is outside its normal installation directory.
+The setup EXE and checksum also appear in `.local/releases/`. Windows uses the
+existing `docs/images/logo.png`, converted into a multi-resolution ICO during
+packaging. Its tray dependencies are included by `requirements-build.txt`.
+The PyInstaller console is hidden on double-click and retained when launched
+from a terminal; `--no-tray` provides the foreground server mode.
+
+The Windows distribution check verifies embedded logo/version resources, real
+tray startup and graceful shutdown, installation, upgrade, sign-in cleanup and
+data preservation on uninstall. It uses disposable data, a separate installer
+identity and startup value, and no Start/desktop shortcuts.
+
 ## Development and automatic releases
 
 1. Push work to `dev` (or merge a feature PR into `dev`). Keep user-facing notes
@@ -61,7 +81,8 @@ workflow builds and smoke-tests Windows, Linux and macOS on native runners.
 2. Open a PR from `dev` into `main`. Review the changes and let Checks pass.
 3. Merge the PR. The push to `main` automatically runs **Release Vela Server**.
 4. After all three platform builds and smoke tests pass, the workflow publishes
-   a GitHub Release with executable archives and their SHA-256 files attached.
+   a GitHub Release with a Windows setup EXE, all three portable archives and
+   their SHA-256 files attached. Windows installation checks must also pass.
 
 No manual tag or asset upload is needed. The first release uses the current
 server version; later releases increment the latest patch unless a larger
@@ -85,5 +106,6 @@ is required. If branch rules disallow the release bot's metadata commit to
 `main`, the push will fail explicitly. Configure those rules deliberately—do
 not disable branch protection as a workaround in the workflow.
 
-The first distributions are portable archives. OS installers, code signing,
-macOS notarization, background services and automatic updates are not implemented.
+Windows has a per-user installer and tray controls with optional start at sign in.
+macOS/Linux currently use portable archives. Code signing, macOS notarization,
+background system services and automatic updates are not implemented.

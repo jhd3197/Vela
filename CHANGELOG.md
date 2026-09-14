@@ -6,6 +6,19 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- Windows installer with the Vela sail icon, Start menu integration and optional
+  startup at sign-in. Windows portable downloads remain available.
+- Windows tray controls for server status, opening the dashboard, starting and
+  stopping the server, sign-in startup and logs, without keeping a terminal open.
+
+### Changed
+
+- Automatic releases now require the tested Windows installer alongside all
+  three portable downloads and checksums. Windows upgrades and uninstall keep
+  existing apps and data; installers and executables carry Vela branding.
+
 ## 0.1.0 - 2026-09-14
 
 ### Added

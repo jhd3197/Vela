@@ -31,14 +31,15 @@ Your server keeps your apps, settings and data in one place, on your own machine
 ## 🚀 Quick Start
 
 1. **Download Vela Server** for your computer from [Releases](https://github.com/jhd3197/vela/releases).
-2. **Extract the download and open Vela.** On Windows, double-click `Vela.exe`.
+2. **Install and open Vela.** On Windows, run the `windows-x64-setup.exe` download. Portable archives are also available.
 3. **Your dashboard opens in your browser.** Add an app from the Library and start using it.
 
 The server download includes everything it needs. No Python, Node.js or Git setup.
 Keep Vela Server running while you use your apps.
 
-> **Preview:** server downloads are portable archives. Keep the server window open
-> while using Vela. [Developers can run or build it from source](docs/DEVELOPMENT.md).
+On Windows, Vela runs beside the clock. Its tray menu opens the dashboard,
+starts or stops the server, and lets you turn on **Start at sign in**.
+On macOS/Linux, extract the archive and run `./Vela` in a terminal.
 
 [Server guide](docs/SERVER.md) · [Build from source](docs/DEVELOPMENT.md)
 

@@ -71,6 +71,12 @@ jobs:
       - run: node --test tests/bridge.test.mjs
       - run: python scripts/build-server.py
       - run: python scripts/test-server-bundle.py
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        run: python scripts/build-windows-installer.py
+      - name: Verify Windows tray, installer and uninstall
+        if: runner.os == 'Windows'
+        run: python scripts/test-windows-distribution.py
       - uses: actions/upload-artifact@v4
         with:
           name: vela-server-${{ runner.os }}-${{ runner.arch }}
