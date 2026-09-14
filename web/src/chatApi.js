@@ -11,6 +11,11 @@ async function readError(res) {
     const body = await res.json();
     if (body && typeof body.detail === 'string') detail = body.detail;
     else if (body && typeof body.error === 'string') detail = body.error;
+    else if (Array.isArray(body?.detail)) {
+      // FastAPI validation errors arrive as a list of {loc, msg} objects.
+      const parts = body.detail.map((d) => d?.msg).filter(Boolean);
+      if (parts.length) detail = `${detail}: ${parts.join('; ')}`;
+    }
   } catch {
     // Non-JSON error body; keep the status-based message.
   }
@@ -56,7 +61,10 @@ export async function streamChat({ message, conversationId, signal, onEvent }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       signal,
-      body: JSON.stringify(conversationId ? { message, conversationId } : { message }),
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: message }],
+        conversationId: conversationId ?? null,
+      }),
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;

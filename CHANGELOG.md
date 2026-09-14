@@ -29,6 +29,13 @@ until the release workflow prepares a tested server version.
   three portable downloads and checksums. Windows upgrades and uninstall keep
   existing apps and data; installers and executables carry Vela branding.
 
+### Fixed
+
+- The dashboard Ask page can talk to the local model again. Sending a message
+  failed immediately with "Request failed (422)" because the dashboard posted a
+  request shape the server rejected. Failed requests now also show the server's
+  explanation instead of only a status code.
+
 ## 0.1.0 - 2026-09-14
 
 ### Added
