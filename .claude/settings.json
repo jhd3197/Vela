@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python -m unittest discover -s tests)",
+      "Bash(python -m unittest discover -s tests *)",
+      "Bash(node --test tests/bridge.test.mjs)",
+      "Bash(npm --prefix web run build)",
+      "Bash(npm --prefix web ci)",
+      "Bash(npm --prefix web install)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  }
+}

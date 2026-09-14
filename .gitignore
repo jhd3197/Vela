@@ -57,3 +57,6 @@ scratch.*
 
 # Local planning and implementation history (never publish)
 /plans/
+
+# Personal Claude Code overrides
+/.claude/settings.local.json

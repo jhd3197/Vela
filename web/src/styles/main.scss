@@ -1,0 +1,30 @@
+// Vela dashboard styles. Module order preserves the existing cascade.
+// Keep runtime theme values in tokens; add feature rules to their owning module.
+
+@use 'tokens';
+@use 'base';
+@use 'layout/page';
+@use 'layout/sidebar';
+@use 'layout/topbar';
+@use 'components/controls';
+@use 'components/app-icon';
+@use 'pages/home';
+@use 'components/app-list';
+@use 'components/switch';
+@use 'pages/automations';
+@use 'components/panels';
+@use 'pages/app-view';
+@use 'components/states';
+@use 'components/drawer';
+@use 'components/install';
+@use 'components/toasts';
+@use 'layout/tabbar';
+@use 'layout/touch';
+@use 'layout/responsive';
+@use 'pages/ask';
+@use 'components/forms';
+@use 'pages/backups';
+@use 'components/search-results';
+@use 'components/notifications';
+@use 'components/releases';
+@use 'components/dialog';

@@ -1,0 +1,83 @@
+/* Vela hub shell (v3) — Nocturne design language.
+   Inter, Phosphor icons, blurple accent, gradient app tiles.
+   Light theme by default; [data-theme="dark"] follows the Home prototype. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --bg: #e4e7f5;
+  --bg-sidebar: rgba(255, 255, 255, 0.72);
+  --bg-header: rgba(255, 255, 255, 0.6);
+  --bg-card: #f3f5fe;
+  --bg-inset: #e4e7f5;
+  --bg-pop: #f3f5fe;
+  --border: #cfd3e5;
+  --border-strong: #b2b6ca;
+  --text: #292b31;
+  --text-dim: #595d6c;
+  --text-faint: #75798c;
+
+  --accent: #796cbf;
+  --accent-strong: #5d5294;
+  --accent-soft: #e7e5fe;
+  --accent-line: #968ae0;
+  --nav-active-text: #5d5294;
+  --nav-active-bg: #e7e5fe;
+  --nav-active-bar: #796cbf;
+
+  --green: #21a377;
+  --green-soft: rgba(33, 163, 119, 0.12);
+  --red: #d5483a;
+  --red-soft: rgba(213, 72, 58, 0.1);
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow-card: 0 0 0 1px var(--border), 0 6px 18px rgba(41, 43, 49, 0.06);
+  --shadow-pop: 0 0 0 1px var(--border), 0 16px 44px rgba(41, 43, 49, 0.18);
+  --sidebar-w: 224px;
+
+  --glow:
+    radial-gradient(720px 320px at 24% -10%, rgba(139, 92, 246, 0.14), transparent 68%),
+    radial-gradient(480px 280px at 96% 4%, rgba(55, 213, 245, 0.1), transparent 70%);
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #161826;
+  --bg-sidebar: rgba(11, 14, 24, 0.55);
+  --bg-header: rgba(22, 24, 38, 0.72);
+  --bg-card: #232532;
+  --bg-inset: #1b1e2e;
+  --bg-pop: #262836;
+  --border: color-mix(in srgb, #e9e9ed 14%, transparent);
+  --border-strong: color-mix(in srgb, #e9e9ed 28%, transparent);
+  --text: #e9e9ed;
+  --text-dim: #b2b6ca;
+  --text-faint: #9397ab;
+
+  --accent: #9184d9;
+  --accent-strong: #d2cefd;
+  --accent-soft: color-mix(in srgb, #9184d9 14%, transparent);
+  --accent-line: #9184d9;
+  --nav-active-text: #d2cefd;
+  --nav-active-bg: color-mix(in srgb, #9184d9 14%, transparent);
+  --nav-active-bar: #9184d9;
+
+  --green: #33d69f;
+  --green-soft: rgba(51, 214, 159, 0.12);
+  --red: #e5604f;
+  --red-soft: rgba(229, 96, 79, 0.1);
+
+  --shadow-card: 0 0 0 1px var(--border);
+  --shadow-pop: 0 0 0 1px var(--border-strong), 0 16px 44px rgba(0, 0, 0, 0.6);
+
+  --glow:
+    radial-gradient(760px 320px at 28% -12%, rgba(145, 132, 217, 0.16), transparent 70%),
+    radial-gradient(520px 260px at 96% 4%, rgba(55, 213, 245, 0.07), transparent 70%);
+
+  color-scheme: dark;
+}

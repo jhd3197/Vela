@@ -1,5 +1,13 @@
+import LoadingState from '../components/ui/LoadingState.jsx';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CaretRight, CloudSlash, HardDrives, Plus, ShieldCheck } from '@phosphor-icons/react';
+import {
+  ArrowRight,
+  CaretRight,
+  CloudSlash,
+  HardDrives,
+  Plus,
+  ShieldCheck,
+} from '@phosphor-icons/react';
 import { formatBytes, platformLabel } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
@@ -41,43 +49,60 @@ export default function Home() {
         {running.length > 0 && (
           <div className="activity-pulse">
             <span className="activity-pulse-label">
-              {running.length === 1 ? `${running[0].name} · running` : `${running.length} apps running`}
+              {running.length === 1
+                ? `${running[0].name} · running`
+                : `${running.length} apps running`}
             </span>
             <span className="activity-pulse-bar" aria-hidden="true" />
           </div>
         )}
       </header>
 
-      {apps === null && (
-        <div className="state-block">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading apps…</p>
-        </div>
-      )}
+      {apps === null && <LoadingState>Loading apps…</LoadingState>}
 
       {apps !== null && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="page-head-row" style={{ alignItems: 'baseline' }}>
             <h2 className="section-head">Your apps</h2>
-            <Link to="/apps" style={{ fontSize: 12, textDecoration: 'none' }}>Manage</Link>
+            <Link to="/apps" style={{ fontSize: 12, textDecoration: 'none' }}>
+              Manage
+            </Link>
           </div>
           {installed.length === 0 ? (
             <div className="state-block">
               <div className="empty-mark" aria-hidden="true">
-                <img src="/vela-mark.png" alt="" width={44} height={44} style={{ margin: '0 auto' }} />
+                <img
+                  src="/vela-mark.png"
+                  alt=""
+                  width={44}
+                  height={44}
+                  style={{ margin: '0 auto' }}
+                />
               </div>
               <h2>Nothing installed yet</h2>
-              <p>Your hub is empty. Browse the Library to install your first app — it will run right here, on your machine.</p>
-              <Link className="btn btn-primary" to="/library">Browse Library</Link>
+              <p>
+                Your hub is empty. Browse the Library to install your first app — it will run right
+                here, on your machine.
+              </p>
+              <Link className="btn btn-primary" to="/library">
+                Browse Library
+              </Link>
             </div>
           ) : (
             <div className="tiles-grid">
               {installed.map((app) => (
-                <Link key={app.id} to={`/app/${app.id}`} state={{ returnTo: '/' }} className="tile-card">
+                <Link
+                  key={app.id}
+                  to={`/app/${app.id}`}
+                  state={{ returnTo: '/' }}
+                  className="tile-card"
+                >
                   <AppIcon app={app} size={38} />
                   <span className="tile-card-text">
                     <span className="tile-card-name">{app.name}</span>
-                    <span className={`tile-card-meta${app.running ? ' tile-card-meta-running' : ''}`}>
+                    <span
+                      className={`tile-card-meta${app.running ? ' tile-card-meta-running' : ''}`}
+                    >
                       {app.running ? 'Running' : `v${app.version}`}
                       {app.category ? ` · ${app.category}` : ''}
                     </span>
@@ -102,21 +127,34 @@ export default function Home() {
               <span className={`status-dot${engine ? ' status-dot-ok' : ' status-dot-bad'}`} />
             </div>
             <div className="widget-value">
-              <span className="widget-value-num">{engine ? formatBytes(engine.storage_bytes) : '—'}</span>
+              <span className="widget-value-num">
+                {engine ? formatBytes(engine.storage_bytes) : '—'}
+              </span>
               <span className="widget-value-unit">stored locally</span>
             </div>
             <div className="widget-rows">
               <span className="widget-row">
-                <span className="widget-row-label"><ShieldCheck size={15} />Engine</span>
+                <span className="widget-row-label">
+                  <ShieldCheck size={15} />
+                  Engine
+                </span>
                 <span className="widget-row-value">{engine ? 'Running' : 'Unreachable'}</span>
               </span>
               <span className="widget-row">
-                <span className="widget-row-label"><CloudSlash size={15} />Sync</span>
+                <span className="widget-row-label">
+                  <CloudSlash size={15} />
+                  Sync
+                </span>
                 <span className="widget-row-value">All data local</span>
               </span>
               <span className="widget-row">
-                <span className="widget-row-label"><HardDrives size={15} />Platform</span>
-                <span className="widget-row-value">{platform ? platformLabel(platform.current) : '—'}</span>
+                <span className="widget-row-label">
+                  <HardDrives size={15} />
+                  Platform
+                </span>
+                <span className="widget-row-value">
+                  {platform ? platformLabel(platform.current) : '—'}
+                </span>
               </span>
             </div>
           </article>
@@ -124,14 +162,22 @@ export default function Home() {
           <article className="widget">
             <div className="widget-head">
               <span className="card-kicker">Running now</span>
-              <Link to="/apps" style={{ fontSize: 12, textDecoration: 'none' }}>All apps</Link>
+              <Link to="/apps" style={{ fontSize: 12, textDecoration: 'none' }}>
+                All apps
+              </Link>
             </div>
             {running.length === 0 ? (
               <p className="panel-note">Nothing is running. Open an app and it shows up here.</p>
             ) : (
               <div className="widget-rows" style={{ borderTop: 'none', paddingTop: 0 }}>
                 {running.map((app) => (
-                  <Link key={app.id} to={`/app/${app.id}`} state={{ returnTo: '/' }} className="widget-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <Link
+                    key={app.id}
+                    to={`/app/${app.id}`}
+                    state={{ returnTo: '/' }}
+                    className="widget-row"
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
                     <span className="widget-row-label">
                       <AppIcon app={app} size={22} />
                       {app.name}
@@ -150,7 +196,10 @@ export default function Home() {
           <div className="gs-banner-text">
             <h2 className="gs-banner-title">Fill out your Vela</h2>
             <p className="gs-banner-sub">
-              {available.map((a) => a.name).slice(0, 4).join(', ')}
+              {available
+                .map((a) => a.name)
+                .slice(0, 4)
+                .join(', ')}
               {available.length > 4 ? ` and ${available.length - 4} more` : ''}{' '}
               {available.length === 1 ? 'is' : 'are'} ready to install from the Library.
             </p>

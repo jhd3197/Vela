@@ -1,0 +1,228 @@
+/* ---------- Automations ---------- */
+
+.auto-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.auto-summary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.auto-summary-title {
+  font-size: 13px;
+}
+
+.auto-summary-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.sparkline {
+  margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+}
+
+.sparkline-bar {
+  flex: 1;
+  width: 9px;
+  border-radius: 1px;
+  background: var(--accent-line);
+  opacity: 0.55;
+}
+
+.sparkline-bar-hot {
+  background: var(--accent);
+  opacity: 1;
+}
+
+.auto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auto-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.auto-card-paused {
+  opacity: 0.72;
+}
+
+.auto-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auto-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.auto-title {
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.auto-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.auto-sub-running {
+  color: var(--accent-strong);
+}
+
+.auto-side {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auto-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+}
+
+.step-arrow {
+  color: var(--text-faint);
+}
+
+.auto-pulse {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #8b5cf6, #c4a7ff, #37d5f5, #8b5cf6);
+  background-size: 200% 100%;
+  animation: velaFlow 2.4s linear infinite;
+}
+
+.blueprints {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-line);
+  background: linear-gradient(100deg, var(--accent-soft), transparent 60%);
+}
+
+.blueprints-title {
+  margin: 0 0 3px;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.blueprints-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.blueprints-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.auto-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 244px;
+  gap: 26px;
+  align-items: start;
+}
+
+.auto-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.activity-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 12.5px;
+}
+
+.rail-item {
+  display: flex;
+  gap: 10px;
+}
+
+.rail-item .ph {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.rail-item-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-item-sub {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.rail-divider {
+  height: 1px;
+  background: var(--border);
+}
+
+.rail-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.rail-stat {
+  display: flex;
+  justify-content: space-between;
+}

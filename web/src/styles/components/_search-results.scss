@@ -1,0 +1,12 @@
+/* ---------- Palette data hits ---------- */
+
+.search-hit-glyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  flex-shrink: 0;
+}

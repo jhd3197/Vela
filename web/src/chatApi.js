@@ -60,7 +60,7 @@ export async function streamChat({ message, conversationId, signal, onEvent }) {
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
-    throw new Error('Cannot reach the Vela backend.');
+    throw new Error('Cannot reach the Vela backend.', { cause: err });
   }
   if (!res.ok || !res.body) throw await readError(res);
 

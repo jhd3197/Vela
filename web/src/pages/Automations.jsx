@@ -1,3 +1,4 @@
+import Button from '../components/ui/Button.jsx';
 import { useMemo, useState } from 'react';
 import {
   ArrowRight,
@@ -89,8 +90,18 @@ const BLUEPRINTS = [
 
 const ACTIVITY = [
   { icon: CircleNotch, color: 'var(--accent)', title: 'Apple Health import', sub: 'Running now' },
-  { icon: CheckCircle, color: 'var(--green)', title: 'Snapshot before update', sub: 'Sample run · 03:00' },
-  { icon: CheckCircle, color: 'var(--green)', title: 'Grocery list built', sub: 'Sample run · yesterday' },
+  {
+    icon: CheckCircle,
+    color: 'var(--green)',
+    title: 'Snapshot before update',
+    sub: 'Sample run · 03:00',
+  },
+  {
+    icon: CheckCircle,
+    color: 'var(--green)',
+    title: 'Grocery list built',
+    sub: 'Sample run · yesterday',
+  },
 ];
 
 const FILTERS = [
@@ -101,7 +112,9 @@ const FILTERS = [
 
 export default function Automations() {
   const [filter, setFilter] = useState('all');
-  const [enabled, setEnabled] = useState(() => new Set(AUTOMATIONS.filter((a) => !a.paused).map((a) => a.id)));
+  const [enabled, setEnabled] = useState(
+    () => new Set(AUTOMATIONS.filter((a) => !a.paused).map((a) => a.id)),
+  );
 
   const toggle = (id) => {
     setEnabled((prev) => {
@@ -123,24 +136,29 @@ export default function Automations() {
       <header className="page-head-row">
         <div>
           <h1 className="page-title">
-            Automations <span className="tag tag-accent" style={{ verticalAlign: 'middle' }}>Preview</span>
+            Automations{' '}
+            <span className="tag tag-accent" style={{ verticalAlign: 'middle' }}>
+              Preview
+            </span>
           </h1>
           <p className="page-sub">
             Rules wired between your apps, running on your machine. The engine isn't built yet —
             these are example rules to show the design.
           </p>
         </div>
-        <button className="btn btn-primary" disabled title="Coming with the automations engine">
+        <Button variant="primary" disabled title="Coming with the automations engine">
           <Plus size={15} />
           New automation
-        </button>
+        </Button>
       </header>
 
       <div className="auto-columns">
         <div className="auto-main">
           <div className="auto-summary">
             <span className="auto-summary-text">
-              <span className="auto-summary-title">{enabled.size} of {AUTOMATIONS.length} rules active</span>
+              <span className="auto-summary-title">
+                {enabled.size} of {AUTOMATIONS.length} rules active
+              </span>
               <span className="auto-summary-sub">Everything runs locally on this machine</span>
             </span>
             <span className="sparkline" aria-hidden="true">
@@ -226,10 +244,10 @@ export default function Automations() {
             </div>
             <div className="blueprints-actions">
               {BLUEPRINTS.map((b) => (
-                <button key={b.label} className="btn" disabled title="Coming with the automations engine">
+                <Button key={b.label} disabled title="Coming with the automations engine">
                   <b.icon size={15} />
                   {b.label}
-                </button>
+                </Button>
               ))}
             </div>
           </section>
@@ -250,13 +268,22 @@ export default function Automations() {
           </div>
           <span className="rail-divider" />
           <div className="rail-stats">
-            <span className="rail-stat"><span>Runs this week</span><span>—</span></span>
-            <span className="rail-stat"><span>Failures</span><span>—</span></span>
-            <span className="rail-stat"><span>Average run</span><span>—</span></span>
+            <span className="rail-stat">
+              <span>Runs this week</span>
+              <span>—</span>
+            </span>
+            <span className="rail-stat">
+              <span>Failures</span>
+              <span>—</span>
+            </span>
+            <span className="rail-stat">
+              <span>Average run</span>
+              <span>—</span>
+            </span>
           </div>
-          <button className="btn btn-block" disabled title="Coming with the automations engine">
+          <Button block disabled title="Coming with the automations engine">
             Open run log
-          </button>
+          </Button>
         </aside>
       </div>
     </div>

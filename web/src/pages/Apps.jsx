@@ -1,3 +1,6 @@
+import LoadingState from '../components/ui/LoadingState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import EmptyState from '../components/ui/EmptyState.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus } from '@phosphor-icons/react';
@@ -17,7 +20,9 @@ const FILTERS = [
 export default function Apps() {
   const { apps, busyIds, runAction } = useApps();
   const [filter, setFilter] = useState(() => sessionStorage.getItem('vela.apps.filter') || 'all');
-  useEffect(() => { sessionStorage.setItem('vela.apps.filter', filter); }, [filter]);
+  useEffect(() => {
+    sessionStorage.setItem('vela.apps.filter', filter);
+  }, [filter]);
   const [selected, setSelected] = useState(null);
 
   const { installed, available } = useMemo(() => {
@@ -37,43 +42,43 @@ export default function Apps() {
 
   return (
     <div className="page-inner">
-      <header className="page-head-row">
-        <div>
-          <h1 className="page-title">Apps</h1>
-          <p className="page-sub">Everything on this machine — open, stop, or remove.</p>
-        </div>
-        <div className="seg" role="tablist">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              role="tab"
-              aria-selected={filter === f.key}
-              className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </header>
+      <PageHeader
+        title="Apps"
+        description="Everything on this machine — open, stop, or remove."
+        actions={
+          <div className="seg" role="tablist">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                role="tab"
+                aria-selected={filter === f.key}
+                className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
-      {apps === null && (
-        <div className="state-block">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading apps…</p>
-        </div>
-      )}
+      {apps === null && <LoadingState>Loading apps…</LoadingState>}
 
       {empty && (
-        <div className="state-block">
-          <h2>{filter === 'all' ? 'No apps yet' : 'Nothing here'}</h2>
-          <p>
-            {filter === 'all'
+        <EmptyState
+          title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
+          description={
+            filter === 'all'
               ? 'Install apps from the Library and they will show up here.'
-              : 'No apps match this filter right now.'}
-          </p>
-          {filter === 'all' && <Link className="btn btn-primary" to="/library">Browse Library</Link>}
-        </div>
+              : 'No apps match this filter right now.'
+          }
+        >
+          {filter === 'all' && (
+            <Link className="btn btn-primary" to="/library">
+              Browse Library
+            </Link>
+          )}
+        </EmptyState>
       )}
 
       {installed.length > 0 && (

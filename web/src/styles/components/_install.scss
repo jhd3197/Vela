@@ -1,0 +1,52 @@
+/* ---------- Add to Home Screen ---------- */
+
+.a2hs-steps {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.a2hs-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.a2hs-steps strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.a2hs-step-num {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.a2hs-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.a2hs-note strong {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.a2hs .btn {
+  margin-top: 12px;
+}

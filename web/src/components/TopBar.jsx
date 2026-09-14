@@ -47,7 +47,10 @@ const DATA_SOURCES = [
     icon: Note,
     match: (n, q) =>
       typeof n?.title === 'string' &&
-      (n.title.toLowerCase().includes(q) || String(n.body || '').toLowerCase().includes(q)),
+      (n.title.toLowerCase().includes(q) ||
+        String(n.body || '')
+          .toLowerCase()
+          .includes(q)),
     label: (n) => n.title || 'Untitled note',
   },
   {
@@ -100,7 +103,9 @@ export default function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [query, setQuery] = useState(() => sessionStorage.getItem('vela.launcher.query') || '');
-  useEffect(() => { sessionStorage.setItem('vela.launcher.query', query); }, [query]);
+  useEffect(() => {
+    sessionStorage.setItem('vela.launcher.query', query);
+  }, [query]);
   const [open, setOpen] = useState(false);
   const inputRef = useRef(null);
   const boxRef = useRef(null);
@@ -131,23 +136,39 @@ export default function TopBar() {
     const q = query.trim().toLowerCase();
     if (!q) return { apps: [], settings: [], data: [] };
     const appHits = (apps || [])
-      .filter((a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q))
+      .filter(
+        (a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q),
+      )
       .slice(0, 5);
-    const settingHits = SETTINGS_ENTRIES.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 3);
+    const settingHits = SETTINGS_ENTRIES.filter((s) => s.label.toLowerCase().includes(q)).slice(
+      0,
+      3,
+    );
     return { apps: appHits, settings: settingHits, data: searchAppData(q) };
   }, [query, apps]);
 
   const go = (to) => {
     setOpen(false);
     if (!to.startsWith('/app/')) setQuery('');
-    navigate(to, { state: { returnTo: location.pathname.startsWith('/app/') ? '/apps' : location.pathname + location.search } });
+    navigate(to, {
+      state: {
+        returnTo: location.pathname.startsWith('/app/')
+          ? '/apps'
+          : location.pathname + location.search,
+      },
+    });
   };
 
-  const hasResults = results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
+  const hasResults =
+    results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
 
   return (
     <header className="topbar">
-      {remote && <button className="btn btn-small" onClick={logout}>Sign out</button>}
+      {remote && (
+        <button className="btn btn-small" onClick={logout}>
+          Sign out
+        </button>
+      )}
       <div className="searchbox" ref={boxRef}>
         <MagnifyingGlass className="searchbox-icon" size={15} />
         <input
@@ -177,7 +198,11 @@ export default function TopBar() {
               </button>
             ))}
             {results.data.map((hit, i) => (
-              <button key={`${hit.appId}-${i}`} className="search-hit" onClick={() => go(`/app/${hit.appId}`)}>
+              <button
+                key={`${hit.appId}-${i}`}
+                className="search-hit"
+                onClick={() => go(`/app/${hit.appId}`)}
+              >
                 <span className="search-hit-glyph">
                   <hit.icon size={15} />
                 </span>
@@ -194,14 +219,19 @@ export default function TopBar() {
                 <span className="search-hit-hint">Settings</span>
               </button>
             ))}
-            <button className="search-hit" onClick={() => go(`/ask?q=${encodeURIComponent(query.trim())}`)}>
+            <button
+              className="search-hit"
+              onClick={() => go(`/ask?q=${encodeURIComponent(query.trim())}`)}
+            >
               <span className="search-hit-glyph">
                 <Sparkle size={15} />
               </span>
               <span className="search-hit-name">Ask: {query.trim()}</span>
               <span className="search-hit-hint">Assistant</span>
             </button>
-            {!hasResults && <p className="search-empty">No matches for “{query.trim()}” — try asking instead.</p>}
+            {!hasResults && (
+              <p className="search-empty">No matches for “{query.trim()}” — try asking instead.</p>
+            )}
           </div>
         )}
       </div>
@@ -212,7 +242,9 @@ export default function TopBar() {
           {window.location.host}
         </span>
         <NotificationBell />
-        <span className="avatar" aria-hidden="true">V</span>
+        <span className="avatar" aria-hidden="true">
+          V
+        </span>
       </div>
     </header>
   );

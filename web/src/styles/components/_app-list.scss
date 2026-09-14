@@ -1,0 +1,116 @@
+/* ---------- Grouped row lists (Apps / Library) ---------- */
+
+.library-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.group-row + .group-row {
+  border-top: 1px solid var(--border);
+}
+
+.group-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.group-row-unsupported {
+  opacity: 0.55;
+}
+
+.group-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.group-row-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.group-row-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-row-meta-accent {
+  color: var(--accent-strong);
+}
+
+.group-row-side {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.caret {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.row-add {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-line);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  text-decoration: none;
+  color: inherit;
+  transition: background 160ms ease;
+}
+
+.row-add:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.row-add-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.row-add-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent-strong);
+}
+
+.row-add-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}

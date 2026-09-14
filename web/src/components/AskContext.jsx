@@ -12,17 +12,26 @@ export default function AskContext() {
 
   useEffect(() => {
     let live = true;
-    api.getApps().then((d) => live && setApps(d?.apps ?? [])).catch(() => live && setApps([]));
-    api.getEngine().then((d) => live && setEngine(d)).catch(() => {});
-    return () => { live = false; };
+    api
+      .getApps()
+      .then((d) => live && setApps(d?.apps ?? []))
+      .catch(() => live && setApps([]));
+    api
+      .getEngine()
+      .then((d) => live && setEngine(d))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, []);
 
   const installed = (apps ?? []).filter((a) => a.installed);
   const running = installed.filter((a) => a.running);
 
-  const summary = apps === null
-    ? 'loading…'
-    : `${installed.length} installed app${installed.length === 1 ? '' : 's'}, ${running.length} running, engine status, log tails`;
+  const summary =
+    apps === null
+      ? 'loading…'
+      : `${installed.length} installed app${installed.length === 1 ? '' : 's'}, ${running.length} running, engine status, log tails`;
 
   return (
     <div className="ask-context">
@@ -35,7 +44,11 @@ export default function AskContext() {
         <Eye size={15} aria-hidden />
         <span>What the assistant can see</span>
         <span className="ask-context-summary">{summary}</span>
-        <CaretDown size={14} aria-hidden style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 140ms' }} />
+        <CaretDown
+          size={14}
+          aria-hidden
+          style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 140ms' }}
+        />
       </button>
       {open && (
         <div className="ask-context-body">
@@ -44,12 +57,14 @@ export default function AskContext() {
             {apps === null
               ? 'loading…'
               : installed.length
-                ? installed.map((a) => `${a.name || a.id}${a.running ? ' (running)' : ''}`).join('; ')
+                ? installed
+                    .map((a) => `${a.name || a.id}${a.running ? ' (running)' : ''}`)
+                    .join('; ')
                 : 'none'}
           </p>
           <p>
-            <b>App logs:</b> recent log lines from each installed app — enough to answer
-            "why did this fail" questions.
+            <b>App logs:</b> recent log lines from each installed app — enough to answer "why did
+            this fail" questions.
           </p>
           <p>
             <b>Engine:</b>{' '}

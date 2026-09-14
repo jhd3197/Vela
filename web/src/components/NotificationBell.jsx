@@ -1,3 +1,4 @@
+import { useResource } from '../hooks/useResource.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, ChartBar, Flask, PaperPlaneTilt, WarningCircle } from '@phosphor-icons/react';
@@ -26,28 +27,11 @@ function getSeenAt() {
 // newer than the last time the panel was opened, and lists the latest events
 // with an icon per kind.
 export default function NotificationBell() {
-  const [items, setItems] = useState(null);
+  const { data } = useResource(api.getNotifications, { intervalMs: POLL_INTERVAL });
+  const items = data?.notifications ?? null;
   const [open, setOpen] = useState(false);
   const [seenAt, setSeenAt] = useState(getSeenAt);
   const boxRef = useRef(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      api
-        .getNotifications()
-        .then((data) => {
-          if (!cancelled) setItems(data.notifications || []);
-        })
-        .catch(() => {});
-    };
-    poll();
-    const timer = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
 
   useEffect(() => {
     const onClickAway = (e) => {
