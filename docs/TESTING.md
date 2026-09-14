@@ -40,6 +40,7 @@ node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-chat.mjs
 ```
 
 Run browser suites sequentially because some use the same fixture server port.
@@ -50,6 +51,10 @@ shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
+The chat suite serves the built dashboard with disposable app records and a
+controlled response stream. It checks the bottom composer, app mentions,
+keyboard input, formatted responses, stop/retry, scrolling, chat retention and
+offline recovery, and saves screenshots under `docs/screenshots/chat/`.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.

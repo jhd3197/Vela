@@ -30,7 +30,7 @@ export default function Shell({ children }) {
   }, [location.key, location.pathname, location.state?.restoreLauncher, hasApps, hasChildren]);
 
   return (
-    <div className="layout">
+    <div className={`layout${location.pathname === '/ask' ? ' layout-ask' : ''}`}>
       <div className="ambient-glow" aria-hidden="true" />
 
       <aside className="sidebar">
@@ -80,7 +80,7 @@ export default function Shell({ children }) {
 
       <div className="main-col">
         <TopBar />
-        <main className="page" ref={pageRef}>
+        <main className={`page${location.pathname === '/ask' ? ' page-ask' : ''}`} ref={pageRef}>
           {error && (
             <div className="banner banner-error" role="alert">
               <div>

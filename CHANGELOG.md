@@ -15,6 +15,12 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- Ask now keeps its multiline composer at the bottom, with a separately scrolling
+  conversation, formatted replies, copy controls, expandable checks, and a jump
+  to the latest response. Type `@` to find an installed app by name or ID and
+  mention it in a question. Stopped or interrupted answers remain visible and
+  can be retried. Contributors should run `npm --prefix web ci` for the new
+  Markdown dependencies.
 - Contributors can run `npm --prefix web run check` for lint, formatting, tests
   and the dashboard build; CI uses the same command. The dashboard now shares
   engine status across pages and reuses dialogs/drawers with keyboard focus
