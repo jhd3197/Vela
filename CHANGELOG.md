@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.1 - 2026-09-14
+
 ### Added
 
 - Windows installer with the Vela sail icon, Start menu integration and optional
