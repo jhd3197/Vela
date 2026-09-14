@@ -14,6 +14,7 @@
 
 .searchbox {
   position: relative;
+  min-width: 0;
   flex: 0 1 300px;
   display: flex;
   align-items: center;

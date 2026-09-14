@@ -8,6 +8,10 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- A welcome popup guides iPhone setup, with a QR code for servers that already
+  have HTTPS phone access, Safari guidance and Home Screen instructions. Reopen
+  it from Settings. Local-only servers explain the required network setup.
+  Contributors should run `npm --prefix web ci` for the QR-code dependency.
 - Windows installer with the Vela sail icon, Start menu integration and optional
   startup at sign-in. Windows portable downloads remain available.
 - Windows tray controls for server status, opening the dashboard, starting and

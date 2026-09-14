@@ -6,6 +6,7 @@ import { formatBytes } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
 import TopBar from './TopBar.jsx';
 import Toasts from './Toasts.jsx';
+import WelcomeSetup from './WelcomeSetup.jsx';
 
 // Hub shell: glassy sidebar (brand, nav, storage meter) on desktop, a bottom
 // tab bar on mobile, and the shared top bar with search on every page.
@@ -112,6 +113,7 @@ export default function Shell({ children }) {
       </nav>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
+      {!hasChildren && <WelcomeSetup key={location.key} />}
     </div>
   );
 }

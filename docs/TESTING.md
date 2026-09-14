@@ -41,6 +41,7 @@ node web/scripts/test-connections.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-chat.mjs
+node web/scripts/test-phone-setup.mjs
 ```
 
 Run browser suites sequentially because some use the same fixture server port.
@@ -55,6 +56,12 @@ The chat suite serves the built dashboard with disposable app records and a
 controlled response stream. It checks the bottom composer, app mentions,
 keyboard input, formatted responses, stop/retry, scrolling, chat retention and
 offline recovery, and saves screenshots under `docs/screenshots/chat/`.
+The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
+local-only access guidance, HTTPS QR handoff, Safari/other-browser instructions,
+clipboard and storage fallback, installed mode and narrow layouts. It uses the
+built UI with disposable API responses and writes screenshots under
+`docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
+Home Screen installation on a physical iPhone before claiming device acceptance.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.

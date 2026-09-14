@@ -613,6 +613,12 @@ export default function Settings() {
           </div>
         </dl>
         <AddToHomeScreen appName="Vela" forHub />
+        <div className="phone-setup-settings">
+          <Link className="btn" to="/?setup=phone">
+            Set up my iPhone
+          </Link>
+          <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
+        </div>
       </section>
 
       <section className="panel">
