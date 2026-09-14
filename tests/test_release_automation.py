@@ -23,7 +23,7 @@ def project(root):
 
 def downloads(root, version='0.1.0'):
     root.mkdir()
-    for platform in ('windows-x64.zip', 'linux-x64.tar.gz', 'macos-arm64.tar.gz'):
+    for platform in ('windows-x64.zip', 'windows-x64-setup.exe', 'linux-x64.tar.gz', 'macos-arm64.tar.gz'):
         path = root / f'vela-server-{version}-{platform}'
         path.write_bytes(platform.encode())
         path.with_name(path.name + '.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n')
@@ -58,7 +58,7 @@ class ReleaseAutomationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             assets = Path(temp) / 'assets'
             downloads(assets)
-            self.assertEqual(len(release.validate_assets(assets, '0.1.0')), 6)
+            self.assertEqual(len(release.validate_assets(assets, '0.1.0')), 8)
             archive = assets / 'vela-server-0.1.0-windows-x64.zip'
             archive.write_bytes(b'changed')
             with self.assertRaisesRegex(ValueError, 'Checksum'):
@@ -109,6 +109,20 @@ class ReleaseAutomationTests(unittest.TestCase):
                     release.publish('0.1.0', source, assets)
                 self.assertEqual(calls, [])
                 self.assertEqual(command('rev-list', '--count', 'HEAD'), '2')
+
+    def test_a_second_mac_archive_cannot_replace_the_windows_installer(self):
+        with tempfile.TemporaryDirectory() as temp:
+            assets = Path(temp) / 'assets'
+            downloads(assets)
+            installer = assets / 'vela-server-0.1.0-windows-x64-setup.exe'
+            installer.unlink()
+            installer.with_name(installer.name + '.sha256').unlink()
+            extra = assets / 'vela-server-0.1.0-macos-x64.tar.gz'
+            extra.write_bytes(b'mac intel')
+            extra.with_name(extra.name + '.sha256').write_text(
+                hashlib.sha256(extra.read_bytes()).hexdigest() + '  ' + extra.name + '\n')
+            with self.assertRaisesRegex(ValueError, 'missing a platform or the Windows installer'):
+                release.validate_assets(assets, '0.1.0')
 
     def test_dev_cannot_publish(self):
         with patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/dev'}), self.assertRaisesRegex(ValueError, 'main'):

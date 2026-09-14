@@ -110,23 +110,23 @@ def stamp(root, version, release_date):
 
 def validate_assets(directory, version):
     version_tuple(version)
-    pattern = re.compile(r'vela-server-' + re.escape(version) + r'-(windows-x64\.zip|linux-x64\.tar\.gz|macos-(?:x64|arm64)\.tar\.gz)')
+    pattern = re.compile(r'vela-server-' + re.escape(version) + r'-(windows-x64\.zip|windows-x64-setup\.exe|linux-x64\.tar\.gz|macos-(?:x64|arm64)\.tar\.gz)')
     archives = sorted(path for path in directory.iterdir() if path.is_file() and not path.name.endswith('.sha256'))
     platforms = set()
-    if len(archives) != 3:
-        raise ValueError('Release needs exactly three platform archives')
+    if len(archives) != 4:
+        raise ValueError('Release needs three platform archives and one Windows installer')
     for archive in archives:
         match = pattern.fullmatch(archive.name)
         if not match:
             raise ValueError('Unexpected release artifact: ' + archive.name)
-        platforms.add(match[1].split('-')[0])
+        platforms.add('installer' if match[1].endswith('.exe') else match[1].split('-')[0])
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         sidecar = archive.with_name(archive.name + '.sha256')
         expected = sidecar.read_text(encoding='utf-8').split()
         if expected != [digest, archive.name]:
             raise ValueError('Checksum or filename mismatch: ' + archive.name)
-    if platforms != {'windows', 'linux', 'macos'}:
-        raise ValueError('Release is missing a platform')
+    if platforms != {'windows', 'linux', 'macos', 'installer'}:
+        raise ValueError('Release is missing a platform or the Windows installer')
     expected_names = {path.name + suffix for path in archives for suffix in ('', '.sha256')}
     if {path.name for path in directory.iterdir()} != expected_names:
         raise ValueError('Unexpected files in release artifact directory')
@@ -181,9 +181,13 @@ def publish(version, source, directory):
     downloads = '\n'.join(f'- [{asset.name}](https://github.com/{repo}/releases/download/{tag}/{asset.name})'
                           for asset in assets if not asset.name.endswith('.sha256'))
     notes.write_text(f'# Vela Server {tag}\n\n{match[1].strip()}\n\n## Downloads\n\n{downloads}\n\n'
-                     'Extract the whole archive. On Windows, open `Vela.exe`; on macOS/Linux, run `./Vela`. '
-                     'Keep the `_internal` folder beside the executable. Python and Node are included or unnecessary at runtime.\n\n'
-                     'These are portable, unsigned builds, without an OS installer or automatic background startup. '
+                     '**Windows:** download `windows-x64-setup.exe` to install Vela, or extract the Windows ZIP '
+                     'and open `Vela.exe` without installing. Vela runs beside the clock; use its tray menu '
+                     'to open the dashboard, start/stop the server, or enable start at sign in.\n\n'
+                     '**macOS/Linux:** extract the archive and run `./Vela` in a terminal. '
+                     'Keep the `_internal` folder beside the executable in every portable download. '
+                     'No Python or Node setup is required.\n\n'
+                     'Downloads are unsigned. '
                      'SHA-256 files are attached for download verification.\n', encoding='utf-8')
     def gh(*args):
         subprocess.run(['gh', 'release', *args, '--repo', repo], check=True)

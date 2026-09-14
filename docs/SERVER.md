@@ -4,20 +4,34 @@ Vela runs on one computer and gives you a browser dashboard for your apps.
 The server keeps running while you use the dashboard. Your apps and data stay
 on that computer; closing a browser tab does not stop the server.
 
-## Start
+## Windows
 
-1. Extract the entire Vela Server archive into a folder of your choice.
-2. On Windows, open `Vela.exe` inside the `Vela` folder. On macOS or Linux,
-   run `./Vela` from that folder in a terminal.
+1. Download the `windows-x64-setup.exe` file from [Releases](https://github.com/jhd3197/Vela/releases).
+2. Run the installer, then open **Vela** from Start.
 3. The dashboard opens in your browser at **http://localhost:7700**.
+
+Vela runs in the notification area beside the clock. Right-click its sail icon
+to open the dashboard, start or stop the server, open logs, or quit Vela.
+**Start at sign in** is optional and off by default; enable it in the installer
+or tray menu. It starts the server quietly when you sign in to Windows.
+
+The installer is for Windows 10/11 x64 and installs for your Windows account
+under `%LOCALAPPDATA%\Programs\Vela`; administrator access is not required.
+Downloads are currently unsigned, so Windows may show an unknown-publisher prompt.
+
+Prefer no installation? Extract the entire Windows ZIP and open `Vela.exe`
+inside the `Vela` folder. It has the same tray controls. Keep the extracted
+folder in place if you enable start at sign in; disable that option before
+moving or deleting the portable folder.
+
+## macOS and Linux
+
+Extract the archive and run `./Vela` from the `Vela` folder in a terminal.
+Leave that terminal open; press **Ctrl+C** to stop the server.
 
 The bundle includes Python, the server dependencies and the dashboard. You do
 not need to install Python, Node.js, Git, or the separate developer repositories.
 Keep the entire extracted folder together, including `_internal`.
-
-Leave the server window open. Press **Ctrl+C** in it to stop Vela. Open Vela
-again to start it. This initial portable release does not yet install a system
-service or start automatically when you sign in.
 
 ## Add apps
 
@@ -30,9 +44,15 @@ The app catalog and one-click discovery are separate from installing the server.
 Data is stored in `.vela` under your user home folder, outside the extracted
 server folder. On Windows, this is `%USERPROFILE%\.vela`.
 
-To update the server, stop it, extract the new version into a separate folder,
-and launch that version. It uses the same data directory. Back up your data
-before upgrading; replacing the server folder does not delete it.
+To update Windows, choose **Quit Vela** in the tray, then run the new installer.
+Uninstall through Windows **Installed apps**; your apps and data stay intact.
+For portable downloads, quit Vela, extract the new version into a separate
+folder and launch it. Installed and portable copies use the same data directory.
+Back up your data before upgrading. Do not run both copies at the same time.
+
+Windows tray logs are in `%USERPROFILE%\.vela\logs\server.log`; use **Open logs**
+from the tray menu if startup fails. A **Failed** status can mean port 7700 is
+already in use. Stop the other server, then choose **Start server** to retry.
 
 ## Another device
 
@@ -42,7 +62,7 @@ stay on and reachable while you use its apps.
 
 This preview opens locally by default. Network access currently needs a server
 password and a trusted HTTPS certificate; there is no automatic network setup
-wizard yet. From the extracted folder, run `Vela.exe --set-password` on Windows
+wizard yet. In a terminal in the installed or extracted folder, run `Vela.exe --set-password` on Windows
 (or `./Vela --set-password` on macOS/Linux), then start with your certificate:
 
 ```powershell
@@ -55,5 +75,10 @@ firewall access automatically. Once connected, you can save the dashboard to
 your home screen. Saving it does not install another server or make app data
 available while the server is offline.
 
-For a headless launch, add `--no-open-browser`. See `Vela.exe --help` (or
-`./Vela --help`) for other options.
+For a console or headless launch, use `--no-tray --no-open-browser` from a terminal.
+See `Vela.exe --help` (or `./Vela --help`) for other options. Custom `VELA_DATA_DIR`
+launches cannot enable start at sign in through the tray, because that environment
+would not automatically be carried into your next Windows session.
+
+The Windows tray starts after sign-in; it is not a system service. Background
+services before sign-in and automatic download/install of updates are not yet implemented.

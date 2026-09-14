@@ -1,5 +1,6 @@
 """Build a portable server for the current OS; the frontend must already be built."""
 import hashlib
+from importlib.metadata import distribution
 import platform
 import shutil
 import subprocess
@@ -16,6 +17,29 @@ def main():
         raise SystemExit('Build the dashboard first: npm --prefix web ci && npm --prefix web run build')
     output = ROOT / '.local/server-build'
     output.mkdir(parents=True, exist_ok=True)
+    windows_options = []
+    if platform.system() == 'Windows':
+        from PIL import Image
+        # Convert the existing logo to Windows' multi-resolution icon format.
+        icon = output / 'vela.ico'
+        with Image.open(ROOT / 'docs/images/logo.png') as logo:
+            logo.save(icon, format='ICO', sizes=[(size, size) for size in (16, 24, 32, 48, 64, 128, 256)])
+        version = output / 'version-info.txt'
+        numbers = tuple(map(int, __version__.split('.'))) + (0,)
+        version.write_text(
+            f'VSVersionInfo(ffi=FixedFileInfo(filevers={numbers!r}, prodvers={numbers!r}, '
+            'mask=0x3f, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0, 0)), '
+            "kids=[StringFileInfo([StringTable('040904B0', ["
+            "StringStruct('CompanyName', 'Vela contributors'), "
+            "StringStruct('FileDescription', 'Vela Server'), "
+            f"StringStruct('FileVersion', '{__version__}'), "
+            "StringStruct('InternalName', 'Vela'), StringStruct('OriginalFilename', 'Vela.exe'), "
+            "StringStruct('ProductName', 'Vela Server'), "
+            f"StringStruct('ProductVersion', '{__version__}')])]), "
+            "VarFileInfo([VarStruct('Translation', [1033, 1200])])])", encoding='utf-8')
+        windows_options = ['--icon', str(icon), '--version-file', str(version),
+                           '--hide-console', 'hide-early', '--hidden-import', 'pystray._win32',
+                           '--add-data', f'{icon}:vela/assets']
     subprocess.run([
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--name', 'Vela',
         '--distpath', str(output / 'dist'), '--workpath', str(output / 'work'),
@@ -23,11 +47,30 @@ def main():
         '--hidden-import', 'vela.api', '--collect-submodules', 'uvicorn',
         '--add-data', f'{ROOT / "web/dist"}:web/dist',
         '--add-data', f'{ROOT / "vela/assets"}:vela/assets',
+        *windows_options,
         str(ROOT / 'scripts/server-entry.py'),
     ], cwd=ROOT, check=True)
     bundle = output / 'dist/Vela'
     shutil.copy2(ROOT / 'docs/SERVER.md', bundle / 'README.md')
     shutil.copy2(ROOT / 'LICENSE', bundle / 'LICENSE')
+    if platform.system() == 'Windows':
+        # Ship the tray library's source and notices with the frozen application.
+        third_party = bundle / 'third-party'
+        for package in ('pystray', 'Pillow'):
+            metadata = distribution(package)
+            for entry in metadata.files:
+                if entry.name.startswith(('LICENSE', 'COPYING')):
+                    destination = third_party / package / entry.name
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(metadata.locate_file(entry), destination)
+        shutil.copytree(distribution('pystray').locate_file('pystray'), third_party / 'pystray/source',
+                        ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        (third_party / 'README.txt').write_text(
+            'The Windows tray uses pystray 0.19.5 under LGPL-3.0 and Pillow under its included license.\n'
+            'Unmodified pystray source and license texts are provided here.\n'
+            'To replace or modify it, build Vela from source after installing your modified pystray:\n'
+            'https://github.com/jhd3197/Vela/blob/main/docs/DEVELOPMENT.md\n'
+            'Vela source remains MIT licensed.\n', encoding='utf-8')
     system = {'Windows': 'windows', 'Darwin': 'macos', 'Linux': 'linux'}[platform.system()]
     machine = platform.machine().lower()
     architecture = {'amd64': 'x64', 'x86_64': 'x64', 'aarch64': 'arm64'}.get(machine, machine)

@@ -36,7 +36,7 @@ def main():
                 return response.read()
 
         with (work / 'server.log').open('w', encoding='utf-8') as output:
-            server = subprocess.Popen([str(executable), '--no-open-browser', '--port', str(port)],
+            server = subprocess.Popen([str(executable), '--no-open-browser', '--no-tray', '--port', str(port)],
                                       cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT,
                                       **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}))
             try:

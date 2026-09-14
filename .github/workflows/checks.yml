@@ -27,3 +27,16 @@ jobs:
       - run: node --test tests/bridge.test.mjs
       - run: npm --prefix web ci
       - run: npm --prefix web run build
+      - name: Install Windows packaging dependencies
+        if: runner.os == 'Windows'
+        run: python -m pip install -r scripts/requirements-build.txt
+      - name: Build and verify Windows downloads before merge
+        if: runner.os == 'Windows'
+        run: |
+          python scripts/build-server.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test-server-bundle.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/build-windows-installer.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test-windows-distribution.py

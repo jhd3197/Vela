@@ -15,14 +15,17 @@ from .access import set_password
 class BrowserServer(uvicorn.Server):
     """Open the dashboard only after this server successfully binds its port."""
 
-    def __init__(self, config, dashboard_url=None):
+    def __init__(self, config, dashboard_url=None, on_started=None):
         super().__init__(config)
         self.dashboard_url = dashboard_url
+        self.on_started = on_started
 
     async def startup(self, sockets=None):
         await super().startup(sockets=sockets)
+        if self.started and self.on_started:
+            self.on_started()
         if self.started and self.dashboard_url:
-            print(f'\nVela Server is ready: {self.dashboard_url}\nKeep this window open. Press Ctrl+C to stop.\n')
+            print(f'\nVela Server is ready: {self.dashboard_url}\n')
             try:
                 webbrowser.open(self.dashboard_url)
             except webbrowser.Error:
@@ -39,7 +42,12 @@ def main() -> None:
     parser.add_argument("--origin", help="Exact HTTPS origin clients use, e.g. https://vela.home:7700")
     parser.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=None,
                         help="Open the dashboard after startup (default for the packaged server)")
+    parser.add_argument("--tray", action=argparse.BooleanOptionalAction, default=None,
+                        help="Use Windows tray controls (default for the Windows download)")
     args = parser.parse_args()
+    use_tray = args.tray if args.tray is not None else sys.platform == 'win32' and bool(getattr(sys, 'frozen', False))
+    if use_tray and sys.platform != 'win32':
+        parser.error('Tray controls are available on Windows; use --no-tray for a console server')
     config = load_config()
     if args.set_password:
         password = getpass.getpass("New Vela password (at least 12 characters): ")
@@ -63,8 +71,15 @@ def main() -> None:
     hostname = f'[{args.host}]' if ':' in args.host else args.host
     dashboard_url = args.origin if remote else f"{'https' if args.cert else 'http'}://{hostname}:{args.port}"
     server_config = uvicorn.Config("vela.api:app", host=args.host, port=args.port,
-                                   ssl_certfile=args.cert, ssl_keyfile=args.key, proxy_headers=False)
-    BrowserServer(server_config, dashboard_url if open_browser else None).run()
+                                   ssl_certfile=args.cert, ssl_keyfile=args.key, proxy_headers=False,
+                                   timeout_graceful_shutdown=10, **({'log_config': None} if use_tray else {}))
+    if use_tray:
+        from .desktop import run_tray
+        run_tray(lambda ready: BrowserServer(server_config, dashboard_url if open_browser else None, ready),
+                 dashboard_url, config, args.host, args.port)
+    else:
+        print('Keep this window open. Press Ctrl+C to stop Vela.')
+        BrowserServer(server_config, dashboard_url if open_browser else None).run()
 
 
 if __name__ == "__main__":
