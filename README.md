@@ -37,8 +37,8 @@ Your server keeps your apps, settings and data in one place, on your own machine
 The server download includes everything it needs. No Python, Node.js or Git setup.
 Keep Vela Server running while you use your apps.
 
-> **Preview:** the first server download has not been published yet. The portable
-> server build is included in this repository. [Developers can run or build it from source](docs/DEVELOPMENT.md).
+> **Preview:** server downloads are portable archives. Keep the server window open
+> while using Vela. [Developers can run or build it from source](docs/DEVELOPMENT.md).
 
 [Server guide](docs/SERVER.md) · [Build from source](docs/DEVELOPMENT.md)
 

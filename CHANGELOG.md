@@ -1,8 +1,8 @@
 # Changelog
 
 Notable changes to Vela Server and its browser dashboard. SDKs and individual
-apps are versioned in their own repositories. No public server release has
-been published yet; the entries below describe the initial development build.
+apps are versioned in their own repositories. Changes stay under Unreleased
+until the release workflow prepares a tested server version.
 
 ## Unreleased
 
@@ -25,6 +25,9 @@ been published yet; the entries below describe the initial development build.
 
 ### Changed
 
+- Merging `dev` into `main` now versions, builds and smoke-tests Windows,
+  macOS and Linux downloads, then publishes a GitHub Release with the archives
+  and SHA-256 files attached. Manual runs on `main` use the same release flow.
 - Separated apps, SDK, contracts, templates, generator and catalog into their
   own repositories. The hub runs and tests without sibling checkouts.
 - Simplified the Quick Start around downloading and opening Vela Server;

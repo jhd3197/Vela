@@ -6,6 +6,12 @@ on that experience. Python/Node setup belongs in `docs/DEVELOPMENT.md`.
 
 ## Repository boundaries
 
+Work on `dev` or a feature branch targeting `dev`. A reviewed `dev` → `main` PR
+is the release boundary: pushes to `main` automatically build and publish server
+downloads. Do not push routine work straight to `main` or manually bump patch
+versions for the automation. Keep changelog entries under Unreleased; the
+workflow stamps release metadata and skips CI on its own metadata commit.
+
 - `vela/`: Python/FastAPI engine, services, app storage and runtime assets.
 - `web/`: React dashboard and the host side of the app bridge.
 - `tests/`: hub regression tests and pinned compatibility fixtures.
