@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.0 - 2026-09-14
+
 ### Added
 
 - Personal app server with a browser dashboard, local app lifecycle management,
