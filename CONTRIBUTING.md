@@ -13,13 +13,13 @@ personal app data from logs. For vulnerabilities, use [SECURITY.md](SECURITY.md)
 
 ## Make a change
 
-1. Fork the repository and create a focused branch from its default branch.
+1. Fork the repository and create a focused branch from `dev`.
 2. Make the change in the appropriate repository. App behavior belongs with
    that app; shared host behavior belongs here.
 3. Add or update meaningful tests for changed behavior. Use temporary Vela
    data directories so verification does not alter your installed apps.
 4. Update affected documentation and `CHANGELOG.md` under `Unreleased`.
-5. Open a pull request describing the problem, the resulting behavior and the
+5. Open a pull request into `dev` describing the problem, the resulting behavior and the
    checks you ran. Include screenshots for visible dashboard changes.
 
 Core checks, from the hub root:
@@ -42,9 +42,11 @@ not the sequence of implementation steps. Combine related entries and avoid
 duplicating notes for the same unfinished feature. Internal changes with no
 user or contributor impact may omit an entry with a short explanation in the PR.
 
-Release preparation moves the relevant entries into a version section once
-the maintainer has established the release version and date. Local artifacts
-and version bumps must not be described as already published releases.
+Maintainers promote `dev` to `main` with a PR. Merging starts the automatic
+server release: version selection, three platform builds and smoke tests,
+changelog/version metadata commit, tag, and downloadable GitHub Release.
+See [release details](docs/DEVELOPMENT.md#development-and-automatic-releases).
+Local artifacts and version bumps must not be described as published releases.
 
 ## Credits and license
 
