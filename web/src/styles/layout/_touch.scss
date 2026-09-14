@@ -1,0 +1,13 @@
+/* ---------- Touch targets ---------- */
+
+@media (pointer: coarse) {
+  .btn { min-height: 44px; padding: 10px 16px; }
+
+  .btn-small { min-height: 36px; padding: 6px 12px; }
+
+  .drawer-close { min-width: 44px; min-height: 44px; }
+
+  .icon-btn { width: 44px; height: 44px; }
+
+  .tile-card, .group-row { touch-action: manipulation; }
+}

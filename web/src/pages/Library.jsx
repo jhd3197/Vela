@@ -1,3 +1,6 @@
+import EmptyState from '../components/ui/EmptyState.jsx';
+import LoadingState from '../components/ui/LoadingState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { useMemo, useState } from 'react';
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
@@ -33,10 +36,7 @@ export default function Library() {
 
   return (
     <div className="page-inner">
-      <header>
-        <h1 className="page-title">Library</h1>
-        <p className="page-sub">Every app available to this hub. Install once, run inside Vela.</p>
-      </header>
+      <PageHeader title="Library" description="Every app available to this hub. Install once, run inside Vela." />
 
       <ReleaseImport />
       <div className="library-controls">
@@ -64,17 +64,12 @@ export default function Library() {
       </div>
 
       {apps === null && (
-        <div className="state-block">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading apps…</p>
-        </div>
+        <LoadingState>Loading apps…</LoadingState>
       )}
 
       {apps !== null && visible.length === 0 && (
-        <div className="state-block">
-          <h2>No matches</h2>
-          <p>{(apps || []).length === 0 ? 'The registry is empty on this machine.' : 'Try a different search or category.'}</p>
-        </div>
+        <EmptyState title="No matches" description={(apps || []).length === 0
+          ? 'The registry is empty on this machine.' : 'Try a different search or category.'} />
       )}
 
       {visible.length > 0 && (

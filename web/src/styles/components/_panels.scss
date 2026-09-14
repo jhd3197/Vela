@@ -1,0 +1,99 @@
+/* ---------- Panels (Environments / Settings) ---------- */
+
+.panel {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+
+.panel-muted { opacity: 0.75; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-head h2, .engine-title h2 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+.panel-note { margin: 0; font-size: 13.5px; color: var(--text-dim); }
+
+.engine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.engine-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+
+.fact dt {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 3px;
+}
+
+.fact dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+
+.fact-wide { grid-column: 1 / -1; }
+
+.mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mini-list li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.mini-list-name { flex: 1; font-size: 14px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 0;
+}
+
+.settings-row + .settings-row { border-top: 1px solid var(--border); }
+
+.settings-row h3 { margin: 0 0 3px; font-size: 14.5px; font-weight: 600; }
+
+.settings-row p { margin: 0; font-size: 13px; color: var(--text-dim); }
+
+.settings-row-disabled { cursor: not-allowed; }
+
+.settings-stack { display: flex; flex-direction: column; gap: 18px; }

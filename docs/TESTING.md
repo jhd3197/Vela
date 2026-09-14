@@ -9,13 +9,14 @@ After [developer setup](DEVELOPMENT.md), run from the repository root:
 
 ```bash
 python -m unittest discover -s tests
-node --test tests/bridge.test.mjs
+node --test tests/bridge.test.mjs tests/resource.test.mjs
 npm --prefix web run build
 ```
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases and launcher behavior. Node checks cover
-the host bridge and service-worker boundaries. No sibling checkout is needed.
+the host bridge, service-worker boundaries, and shared request behavior (polling,
+overlapping refreshes, errors, and cleanup). No sibling checkout is needed.
 
 ## Browser acceptance
 
@@ -32,7 +33,15 @@ node web/scripts/test-app-contract.mjs
 node web/scripts/test-releases.mjs
 node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
+node web/scripts/test-shared-ui.mjs
+node web/scripts/test-dashboard.mjs
 ```
+
+Run browser suites sequentially because some use the same fixture server port.
+The shared UI suite uses an isolated Vite fixture without API calls to check
+form semantics, field labels, stale responses, retries, and action submission.
+The dashboard suite checks all seven routes at desktop and phone widths in both
+themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.

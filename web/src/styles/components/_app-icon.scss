@@ -1,0 +1,19 @@
+/* ---------- App icon tiles ---------- */
+
+.appicon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  user-select: none;
+  color: #fff;
+  background: linear-gradient(155deg,
+    color-mix(in oklab, var(--tile-color) 55%, white),
+    color-mix(in oklab, var(--tile-color) 86%, black));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--tile-color) 32%, transparent);
+}
+
+.appicon-plain {
+  color: var(--text-dim);
+  background: linear-gradient(155deg, var(--bg-card), var(--bg-inset));
+  box-shadow: 0 0 0 1px var(--border);
+}

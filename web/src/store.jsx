@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useResource } from './hooks/useResource.js';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api.js';
 import ReleaseReview from './components/ReleaseReview.jsx';
 
@@ -111,63 +112,15 @@ export function useApps() {
   return ctx;
 }
 
-// Engine status for Home/Environments/Settings: fetch on mount + every 10s.
+// Engine status for Home/Environments/Settings: refresh after each 10s pause.
 export function useEngine() {
-  const [engine, setEngine] = useState(null);
-  const [engineError, setEngineError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const data = await api.getEngine();
-        if (!cancelled) {
-          setEngine(data);
-          setEngineError(null);
-        }
-      } catch (err) {
-        if (!cancelled) setEngineError(err);
-      }
-    };
-    poll();
-    const timer = setInterval(poll, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
-
+  const { data: engine, error: engineError } = useResource(api.getEngine, { intervalMs: 10000 });
   return { engine, engineError };
 }
 
-// Live status for one focused app (detail drawer, embedded view): 3s poll.
+// A changed app ID discards the previous app's status and pending response.
 export function useAppStatus(id, { enabled = true } = {}) {
-  const [status, setStatus] = useState(null);
-  const [statusError, setStatusError] = useState(null);
-  const seq = useRef(0);
-
-  useEffect(() => {
-    if (!id || !enabled) return undefined;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const data = await api.getStatus(id);
-        if (!cancelled) {
-          setStatus(data);
-          setStatusError(null);
-        }
-      } catch (err) {
-        if (!cancelled) setStatusError(err.message);
-      }
-    };
-    poll();
-    const timer = setInterval(poll, 3000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      seq.current += 1;
-    };
-  }, [id, enabled]);
-
-  return { status, statusError };
+  const load = useCallback(options => api.getStatus(id, options), [id]);
+  const { data: status, error } = useResource(load, { enabled: Boolean(id) && enabled, intervalMs: 3000 });
+  return { status, statusError: error?.message ?? null };
 }

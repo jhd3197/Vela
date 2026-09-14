@@ -1,0 +1,184 @@
+/* ---------- Buttons, segmented, tags, badges ---------- */
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.btn:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+.btn-primary {
+  background: transparent;
+  border-color: var(--accent-line);
+  color: var(--accent-strong);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent-line);
+}
+
+.btn-danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+
+.btn-small { padding: 5px 11px; font-size: 12.5px; }
+
+.btn-ghost {
+  border-color: transparent;
+  background: none;
+  color: var(--text-dim);
+}
+
+.btn-ghost:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+
+.btn-block { width: 100%; }
+
+.seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.seg-opt {
+  appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.seg-opt + .seg-opt { border-left: 1px solid var(--border); }
+
+.seg-opt:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+
+.seg-opt-active {
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.chip:hover { color: var(--text); border-color: var(--border-strong); }
+
+.chip-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent-strong);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  white-space: nowrap;
+}
+
+.tag-accent { color: var(--accent-strong); border-color: var(--accent-line); background: var(--accent-soft); }
+
+.tag-ok { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); background: var(--green-soft); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  white-space: nowrap;
+}
+
+.badge-running {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+  background: var(--green-soft);
+}
+
+.badge-installed {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.status-dot-ok { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent); }
+
+.status-dot-bad { background: var(--red); }
+
+.pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pill-ok { color: var(--green); background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); }
+
+.pill-bad { color: var(--red); background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); }

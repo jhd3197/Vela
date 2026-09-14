@@ -1,3 +1,6 @@
+import LoadingState from '../components/ui/LoadingState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import EmptyState from '../components/ui/EmptyState.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus } from '@phosphor-icons/react';
@@ -37,11 +40,7 @@ export default function Apps() {
 
   return (
     <div className="page-inner">
-      <header className="page-head-row">
-        <div>
-          <h1 className="page-title">Apps</h1>
-          <p className="page-sub">Everything on this machine — open, stop, or remove.</p>
-        </div>
+      <PageHeader title="Apps" description="Everything on this machine — open, stop, or remove." actions={
         <div className="seg" role="tablist">
           {FILTERS.map((f) => (
             <button
@@ -55,25 +54,19 @@ export default function Apps() {
             </button>
           ))}
         </div>
-      </header>
+      } />
 
       {apps === null && (
-        <div className="state-block">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading apps…</p>
-        </div>
+        <LoadingState>Loading apps…</LoadingState>
       )}
 
       {empty && (
-        <div className="state-block">
-          <h2>{filter === 'all' ? 'No apps yet' : 'Nothing here'}</h2>
-          <p>
-            {filter === 'all'
-              ? 'Install apps from the Library and they will show up here.'
-              : 'No apps match this filter right now.'}
-          </p>
+        <EmptyState title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
+          description={filter === 'all'
+            ? 'Install apps from the Library and they will show up here.'
+            : 'No apps match this filter right now.'}>
           {filter === 'all' && <Link className="btn btn-primary" to="/library">Browse Library</Link>}
-        </div>
+        </EmptyState>
       )}
 
       {installed.length > 0 && (

@@ -1,3 +1,4 @@
+import LoadingState from '../components/ui/LoadingState.jsx';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CaretRight, CloudSlash, HardDrives, Plus, ShieldCheck } from '@phosphor-icons/react';
 import { formatBytes, platformLabel } from '../api.js';
@@ -49,10 +50,7 @@ export default function Home() {
       </header>
 
       {apps === null && (
-        <div className="state-block">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading apps…</p>
-        </div>
+        <LoadingState>Loading apps…</LoadingState>
       )}
 
       {apps !== null && (

@@ -1,24 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { useResource } from '../hooks/useResource.js';
+import { useAsyncAction } from '../hooks/useAsyncAction.js';
+import Button from './ui/Button.jsx';
+import FormField from './ui/FormField.jsx';
+
+function ConnectionForm({ app }) {
+  const [endpoint, setEndpoint] = useState('http://127.0.0.1:11434');
+  const [updated, setUpdated] = useState(null);
+  const load = useCallback(options => api.getConnection(app.id, options), [app.id]);
+  const { data, error: loadError, loading } = useResource(load);
+  const { run, pending, error } = useAsyncAction();
+  const status = updated ?? data;
+
+  useEffect(() => {
+    if (data?.endpoint) setEndpoint(data.endpoint);
+  }, [data]);
+
+  const connect = async () => {
+    const result = await run(() => api.bindConnection(app.id, endpoint));
+    if (result) setUpdated(result.value);
+  };
+  const disconnect = async () => {
+    const result = await run(() => api.disconnectConnection(app.id));
+    if (result) setUpdated(result.value);
+  };
+  const failure = error || (!updated && loadError);
+
+  return <details className="app-migration" open={!status?.connected}>
+    <summary>Ollama connection {status?.connected ? '· Connected' : '· Setup'}</summary>
+    <p>Connect to an existing server. The address is reached from your Vela engine. Vela can read model information; it does not manage this server.</p>
+    <FormField label="Server address">
+      <input id={`endpoint-${app.id}`} className="connection-input" value={endpoint}
+        disabled={pending || loading} onChange={event => setEndpoint(event.target.value)} />
+    </FormField>
+    <div className="actions">
+      <Button size="small" pending={pending} disabled={loading} onClick={connect}>
+        {pending ? 'Testing…' : 'Test and connect'}
+      </Button>
+      {status?.connected && <Button size="small" pending={pending} onClick={disconnect}>Disconnect wrapper</Button>}
+    </div>
+    {failure && <p role="alert">{failure.message}</p>}
+  </details>;
+}
 
 export default function AppConnection({ app }) {
-  const [endpoint, setEndpoint] = useState('http://127.0.0.1:11434');
-  const [status, setStatus] = useState(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (app.installed && app.connection) api.getConnection(app.id).then(value => { setStatus(value); if (value.endpoint) setEndpoint(value.endpoint); }).catch(failure => setError(failure.message)); }, [app.id, app.installed]);
   if (!app.connection || !app.installed) return null;
-  const bind = async () => {
-    setBusy(true); setError('');
-    try { setStatus(await api.bindConnection(app.id, endpoint)); }
-    catch (failure) { setError(failure.message); }
-    finally { setBusy(false); }
-  };
-  return <details className="app-migration" open={!status?.connected}><summary>Ollama connection {status?.connected ? '· Connected' : '· Setup'}</summary>
-    <p>Connect to an existing server. The address is reached from your Vela engine. Vela can read model information; it does not manage this server.</p>
-    <label htmlFor={`endpoint-${app.id}`}>Server address</label><input id={`endpoint-${app.id}`} className="connection-input" value={endpoint} onChange={event => setEndpoint(event.target.value)} />
-    <div className="actions"><button className="btn btn-small" disabled={busy} onClick={bind}>{busy ? 'Testing…' : 'Test and connect'}</button>
-    {status?.connected && <button className="btn btn-small" disabled={busy} onClick={async () => { try { setStatus(await api.disconnectConnection(app.id)); } catch (failure) { setError(failure.message); } }}>Disconnect wrapper</button>}</div>
-    {error && <p role="alert">{error}</p>}
-  </details>;
+  return <ConnectionForm key={app.id} app={app} />;
 }

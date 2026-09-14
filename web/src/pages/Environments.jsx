@@ -1,3 +1,4 @@
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { Link } from 'react-router-dom';
 import { formatBytes } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
@@ -10,10 +11,7 @@ export default function Environments() {
 
   return (
     <div className="page-inner">
-      <header>
-        <h1 className="page-title">App Environments</h1>
-        <p className="page-sub">Apps run locally on your machine, served inside the hub.</p>
-      </header>
+      <PageHeader title="App Environments" description="Apps run locally on your machine, served inside the hub." />
 
       <section className="panel engine-card">
         <div className="engine-head">

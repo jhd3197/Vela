@@ -1,3 +1,4 @@
+import Button from '../components/ui/Button.jsx';
 import { useMemo, useState } from 'react';
 import {
   ArrowRight,
@@ -130,10 +131,10 @@ export default function Automations() {
             these are example rules to show the design.
           </p>
         </div>
-        <button className="btn btn-primary" disabled title="Coming with the automations engine">
+        <Button variant="primary" disabled title="Coming with the automations engine">
           <Plus size={15} />
           New automation
-        </button>
+        </Button>
       </header>
 
       <div className="auto-columns">
@@ -226,10 +227,10 @@ export default function Automations() {
             </div>
             <div className="blueprints-actions">
               {BLUEPRINTS.map((b) => (
-                <button key={b.label} className="btn" disabled title="Coming with the automations engine">
+                <Button key={b.label} disabled title="Coming with the automations engine">
                   <b.icon size={15} />
                   {b.label}
-                </button>
+                </Button>
               ))}
             </div>
           </section>
@@ -254,9 +255,9 @@ export default function Automations() {
             <span className="rail-stat"><span>Failures</span><span>—</span></span>
             <span className="rail-stat"><span>Average run</span><span>—</span></span>
           </div>
-          <button className="btn btn-block" disabled title="Coming with the automations engine">
+          <Button block disabled title="Coming with the automations engine">
             Open run log
-          </button>
+          </Button>
         </aside>
       </div>
     </div>

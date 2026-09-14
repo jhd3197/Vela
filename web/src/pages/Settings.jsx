@@ -1,3 +1,6 @@
+import Button from '../components/ui/Button.jsx';
+import FormField from '../components/ui/FormField.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -216,36 +219,39 @@ function NotificationsSection({ settings, onPatched }) {
       </p>
       <div className="form-grid">
         <div className="field">
-          <label htmlFor="ntfy-server">Server</label>
-          <input
-            id="ntfy-server"
-            value={form.server}
-            disabled={sending}
-            onChange={(e) => change({ server: e.target.value })}
-            placeholder="https://ntfy.sh"
-            autoComplete="off"
-          />
+          <FormField label="Server">
+            <input
+              id="ntfy-server"
+              value={form.server}
+              disabled={sending}
+              onChange={(e) => change({ server: e.target.value })}
+              placeholder="https://ntfy.sh"
+              autoComplete="off"
+            />
+          </FormField>
         </div>
         <div className="field">
-          <label htmlFor="ntfy-topic">Topic</label>
-          <input
-            id="ntfy-topic"
-            value={form.topic}
-            disabled={sending}
-            onChange={(e) => change({ topic: e.target.value })}
-            placeholder="my-vela-alerts"
-            autoComplete="off"
-          />
+          <FormField label="Topic">
+            <input
+              id="ntfy-topic"
+              value={form.topic}
+              disabled={sending}
+              onChange={(e) => change({ topic: e.target.value })}
+              placeholder="my-vela-alerts"
+              autoComplete="off"
+            />
+          </FormField>
         </div>
         <div className="field">
-          <label htmlFor="ntfy-user">User (optional)</label>
-          <input
-            id="ntfy-user"
-            value={form.user}
-            disabled={sending}
-            onChange={(e) => change({ user: e.target.value })}
-            autoComplete="off"
-          />
+          <FormField label="User (optional)">
+            <input
+              id="ntfy-user"
+              value={form.user}
+              disabled={sending}
+              onChange={(e) => change({ user: e.target.value })}
+              autoComplete="off"
+            />
+          </FormField>
         </div>
         <div className="field">
           <label htmlFor="ntfy-pass">Password</label>
@@ -260,16 +266,16 @@ function NotificationsSection({ settings, onPatched }) {
               autoComplete="new-password"
             />
             {ntfy.passConfigured && (
-              <button
+              <Button
                 type="button"
-                className="btn btn-small btn-ghost"
+                size="small" variant="ghost"
                 disabled={sending}
                 onClick={() =>
                   patchNtfy({ pass: '' }, 'ntfy password cleared.', { passConfigured: false })
                 }
               >
                 Clear
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -289,13 +295,13 @@ function NotificationsSection({ settings, onPatched }) {
         ))}
       </div>
       <div className="form-actions">
-        <button className="btn btn-small" disabled={sending || !dirty.current} onClick={() => save(false)}>
+        <Button size="small" disabled={sending || !dirty.current} onClick={() => save(false)}>
           Save
-        </button>
-        <button className="btn btn-small btn-primary" disabled={sending || !live} onClick={() => save(true)}>
+        </Button>
+        <Button size="small" variant="primary" disabled={sending || !live} onClick={() => save(true)}>
           <PaperPlaneTilt size={14} />
           {sending ? 'Working…' : 'Send test'}
-        </button>
+        </Button>
         {note && (
           <span className={note.kind === 'err' ? 'inline-error' : 'saved-note'} role={note.kind === 'err' ? 'alert' : 'status'}>
             {note.text}
@@ -361,10 +367,10 @@ function BackupsSection() {
     <section className="panel" id="settings-backups">
       <div className="panel-head">
         <h2>Backups</h2>
-        <button className="btn btn-small btn-primary" disabled={creating} onClick={create}>
+        <Button size="small" variant="primary" disabled={creating} onClick={create}>
           <Plus size={14} />
           {creating ? 'Creating…' : 'Create backup'}
-        </button>
+        </Button>
       </div>
       <p className="panel-note" style={{ marginBottom: 14 }}>
         Snapshots of hub state and installed app data. Verify runs a restore drill in an isolated
@@ -390,13 +396,13 @@ function BackupsSection() {
                     )}
                   </span>
                 </span>
-                <button
-                  className="btn btn-small"
+                <Button
+                  size="small"
                   disabled={verifying === b.name}
                   onClick={() => verify(b.name)}
                 >
                   {verifying === b.name ? 'Verifying…' : 'Verify'}
-                </button>
+                </Button>
               </li>
             );
           })}
@@ -482,10 +488,7 @@ export default function Settings() {
 
   return (
     <div className="page-inner">
-      <header>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-sub">Hub and engine configuration.</p>
-      </header>
+      <PageHeader title="Settings" description="Hub and engine configuration." />
 
       <section className="panel" id="settings-appearance">
         <div className="panel-head"><h2>Appearance</h2></div>

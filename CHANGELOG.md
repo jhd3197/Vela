@@ -15,6 +15,10 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- Dashboard development now uses organized SCSS modules, shared UI controls and
+  request hooks, and one route/navigation definition. The developer guide
+  includes an example for adding a page; contributors should run `npm --prefix
+  web ci` to install the Sass build dependency.
 - Automatic releases now require the tested Windows installer alongside all
   three portable downloads and checksums. Windows upgrades and uninstall keep
   existing apps and data; installers and executables carry Vela branding.

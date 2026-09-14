@@ -1,0 +1,48 @@
+/* ---------- States & banner ---------- */
+
+.state-block {
+  text-align: center;
+  padding: 72px 20px;
+  color: var(--text-dim);
+}
+
+.state-block h2 {
+  margin: 14px 0 6px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.state-block p { margin: 0 auto 18px; max-width: 440px; font-size: 14px; }
+
+.empty-mark { color: var(--accent); opacity: 0.85; }
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  border: 2.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 20px;
+  border-radius: var(--radius);
+  margin: 0 auto 22px;
+  max-width: 1080px;
+}
+
+.banner-error {
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  background: var(--red-soft);
+}
+
+.banner-error strong { font-size: 14px; }
+
+.banner-error p { margin: 3px 0 0; font-size: 13px; color: var(--text-dim); }
