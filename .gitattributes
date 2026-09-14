@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.zip binary
+*.tgz binary
+
+# Preserve upstream distribution bytes recorded in vela/assets/versions.json.
+vela/assets/sdk.js -text
+vela/assets/manifest-v2.schema.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

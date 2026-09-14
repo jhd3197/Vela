@@ -1,0 +1,26 @@
+{
+  "name": "Vela — Virtual Environment for Local Apps",
+  "short_name": "Vela",
+  "description": "Discover, install, and run apps locally from your browser.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e4e7f5",
+  "theme_color": "#e4e7f5",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

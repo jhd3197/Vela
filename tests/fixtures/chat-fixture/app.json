@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "chat-fixture",
+  "name": "Chat Studio",
+  "version": "0.1.0",
+  "description": "A seamless SDK fixture with persistent messages. Local echo, no AI connection.",
+  "category": "Developer",
+  "author": "Vela",
+  "color": "#648472",
+  "compatibility": {"bridge": 1},
+  "runtime": {"static": {"entry": "index.html"}},
+  "view": {"surface": "embedded", "chrome": "seamless"},
+  "capabilities": {"required": ["storage"]},
+  "data": {"schemaVersion": 1, "quotaBytes": 1048576}
+}

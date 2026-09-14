@@ -1,0 +1,14 @@
+{
+  "sdk.js": {
+    "repository": "vela-sdk",
+    "source": "vela.js",
+    "version": "0.5.0",
+    "sha256": "61d140bcf10c09440f6b80e02e1f2de552f3a89985b988c7bbb5aa567bede1f3"
+  },
+  "manifest-v2.schema.json": {
+    "repository": "vela-contracts",
+    "source": "manifest-v2.schema.json",
+    "version": "0.5.0",
+    "sha256": "8e1151df23e672b2cb354e3698f1e713306361afd5c925aa56fcb1466bd111c8"
+  }
+}

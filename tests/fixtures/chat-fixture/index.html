@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chat Studio</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { font-family: system-ui, sans-serif; color: #29362e; background: #fafbf8; --host-right: 120px; }
+    body { margin: 0; height: 100vh; height: 100dvh; display: grid; grid-template-columns: 220px 1fr; }
+    aside { background: #eff2eb; border-right: 1px solid #dfe5da; padding: 30px 20px; display: flex; flex-direction: column; gap: 32px; }
+    .brand { font-weight: 650; letter-spacing: -.5px; font-size: 19px; }
+    .workspace-label { font-size: 11px; letter-spacing: 1.5px; color: #788575; }
+    .conversation { padding: 12px; border-radius: 8px; background: #e0e7da; font-size: 13px; }
+    .footnote { margin-top: auto; font-size: 12px; line-height: 1.7; color: #667461; }
+    main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    header { min-height: 80px; padding: 24px var(--host-right) 20px 32px; border-bottom: 1px solid #e8ece3; font-size: 14px; font-weight: 550; }
+    header small { display: block; margin-top: 4px; color: #788575; font-size: 11px; font-weight: 400; }
+    #messages { flex: 1; overflow: auto; padding: 36px max(24px, calc((100% - 740px)/2)); }
+    .intro { padding-top: min(12vh, 100px); max-width: 540px; }
+    .eyebrow { font-size: 11px; letter-spacing: 2px; color: #788575; }
+    h1 { font-size: clamp(30px, 4vw, 48px); font-weight: 500; letter-spacing: -2px; line-height: 1.12; margin: 18px 0; }
+    .intro p { color: #788575; font-size: 14px; line-height: 1.8; max-width: 420px; }
+    article { margin: 0 0 24px; line-height: 1.65; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    article strong { display: block; text-transform: uppercase; font-size: 10px; letter-spacing: 1.5px; color: #788575; margin-bottom: 8px; }
+    form { margin: 12px auto 0; padding: 0 24px max(16px, env(safe-area-inset-bottom)); width: min(100%, 820px); }
+    .composer { border: 1px solid #d4ddce; border-radius: 14px; background: white; padding: 14px; }
+    textarea { resize: none; width: 100%; height: 64px; border: 0; background: transparent; font: inherit; color: inherit; outline-offset: 3px; }
+    .composer-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    #status { font-size: 11px; color: #788575; }
+    button { border: none; border-radius: 8px; min-width: 70px; min-height: 44px; padding: 10px 18px; background: #355440; color: white; cursor: pointer; font: inherit; font-size: 13px; }
+    button:disabled { opacity: .45; cursor: default; }
+    button:focus-visible { outline: 3px solid #9bb296; outline-offset: 3px; }
+    @media (max-width: 640px) { body { grid-template-columns: 1fr; } aside { display: none; } header { padding-left: 24px; } #messages { padding: 24px; } .intro { padding-top: 8vh; } }
+  </style>
+</head>
+<body>
+  <aside><div class="brand">◒ Chat Studio</div><div><p class="workspace-label">WORKSPACE</p><div class="conversation">A little room to think</div></div><div class="footnote">Your conversation stays here.<br>Saved to your Vela engine.</div></aside>
+  <main>
+    <header>A little room to think<small>Local echo · SDK demonstration</small></header>
+    <section id="messages" aria-label="Conversation" aria-live="polite"></section>
+    <form id="composer"><div class="composer"><textarea id="draft" aria-label="Message" placeholder="Write something to keep…" maxlength="10000" disabled></textarea><div class="composer-foot"><span id="status" role="status">Connecting to Vela…</span><button id="send" type="button" disabled>Send ↗</button></div></div></form>
+  </main>
+  <script src="_vela/sdk.js"></script>
+  <script>
+    let documentState = { messages: [], draft: '' }, revision = 0, busy = false;
+    const draft = document.getElementById('draft'), status = document.getElementById('status'), send = document.getElementById('send');
+    const messages = document.getElementById('messages');
+    function render() {
+      messages.replaceChildren();
+      if (!documentState.messages.length) {
+        const intro = document.createElement('div'); intro.className = 'intro';
+        intro.innerHTML = '<span class="eyebrow">YOUR OWN SPACE</span><h1>Start with a thought.</h1><p>A quiet place to try an idea. This demo echoes your messages and remembers them when you come back.</p>';
+        messages.append(intro);
+      }
+      for (const message of documentState.messages) {
+        const article = document.createElement('article'), label = document.createElement('strong');
+        label.textContent = message.role === 'user' ? 'You' : 'Local echo';
+        article.append(label, document.createTextNode(message.text)); messages.append(article);
+      }
+      messages.scrollTop = messages.scrollHeight;
+    }
+    function contextChanged(context) {
+      const box = context.viewport.hostControl;
+      document.documentElement.style.setProperty('--host-right', box ? `${context.viewport.width - box.x + 16}px` : '24px');
+    }
+    async function save() {
+      if (busy) throw new Error('A save is already in progress. Please try again.');
+      busy = true; send.disabled = true; draft.disabled = true; status.textContent = 'Saving…';
+      try {
+        const next = { ...documentState, draft: draft.value };
+        const saved = await Vela.storage.write(next, revision);
+        documentState = saved.value; revision = saved.revision;
+        await Vela.setUnsavedChanges(false);
+        status.textContent = 'Saved to your engine';
+      } catch (error) { status.textContent = error.status === 409 ? 'Changed in another view. Reopen to load it; your draft is still here.' : error.message; throw error; }
+      finally { busy = false; send.disabled = false; draft.disabled = false; }
+    }
+    Vela.onSave(save);
+    Vela.onContext(contextChanged);
+    Vela.ready.then(async (context) => {
+      contextChanged(context);
+      const saved = await Vela.storage.read();
+      if (saved.value) {
+        if (!Array.isArray(saved.value.messages) || typeof saved.value.draft !== 'string') throw new Error('Stored conversation is invalid. Export it before resetting.');
+        documentState = saved.value;
+      }
+      revision = saved.revision; draft.value = documentState.draft; render();
+      status.textContent = 'Saved to your engine'; draft.disabled = false; send.disabled = false;
+    }).catch((error) => { status.textContent = error.message; render(); });
+    draft.addEventListener('input', () => { status.textContent = 'Draft not saved'; Vela.setUnsavedChanges(true).catch((error) => { status.textContent = error.message; }); });
+    send.addEventListener('click', async (event) => {
+      event.preventDefault(); if (busy || !draft.value.trim()) return;
+      const text = draft.value.trim();
+      documentState.messages.push({ role: 'user', text }, { role: 'echo', text: 'You wrote: ' + text });
+      draft.value = ''; render();
+      try { await save(); } catch {} draft.focus();
+    });
+  </script>
+</body>
+</html>

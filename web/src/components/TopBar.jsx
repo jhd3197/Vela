@@ -1,0 +1,219 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  GearSix,
+  Heartbeat,
+  LockSimple,
+  MagnifyingGlass,
+  Note,
+  Receipt,
+  Sparkle,
+} from '@phosphor-icons/react';
+import { useApps } from '../store.jsx';
+import AppIcon from './AppIcon.jsx';
+import NotificationBell from './NotificationBell.jsx';
+import { useAuth } from './AuthGate.jsx';
+
+const SETTINGS_ENTRIES = [
+  { label: 'General', to: '/settings' },
+  { label: 'Appearance & theme', to: '/settings#appearance' },
+  { label: 'Local AI', to: '/settings#ai' },
+  { label: 'Notifications', to: '/settings#notifications' },
+  { label: 'Backups', to: '/settings#backups' },
+  { label: 'App Environments', to: '/environments' },
+  { label: 'Storage', to: '/settings' },
+  { label: 'Network', to: '/settings' },
+];
+
+// Mini-apps keep their data in same-origin localStorage under vela.* keys, so
+// the palette can search their content client-side. Reads are defensive:
+// missing, non-JSON, or wrong-shaped values are skipped silently.
+function readList(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+const DATA_SOURCES = [
+  {
+    key: 'vela.notes.v1',
+    appId: 'notes',
+    appName: 'Notes',
+    icon: Note,
+    match: (n, q) =>
+      typeof n?.title === 'string' &&
+      (n.title.toLowerCase().includes(q) || String(n.body || '').toLowerCase().includes(q)),
+    label: (n) => n.title || 'Untitled note',
+  },
+  {
+    key: 'vela.finance.v1',
+    appId: 'finance',
+    appName: 'Money',
+    icon: Receipt,
+    match: (t, q) =>
+      (typeof t?.note === 'string' && t.note.toLowerCase().includes(q)) ||
+      (typeof t?.category === 'string' && t.category.toLowerCase().includes(q)),
+    label: (t) => t.note || t.category || 'Transaction',
+  },
+  {
+    key: 'vela.health.habits.v1',
+    appId: 'health',
+    appName: 'Health',
+    icon: Heartbeat,
+    match: (h, q) => typeof h?.name === 'string' && h.name.toLowerCase().includes(q),
+    label: (h) => h.name,
+  },
+];
+
+function searchAppData(q, limit = 5) {
+  const hits = [];
+  for (const source of DATA_SOURCES) {
+    for (const item of readList(source.key)) {
+      try {
+        if (source.match(item, q)) {
+          hits.push({
+            appId: source.appId,
+            appName: source.appName,
+            icon: source.icon,
+            label: source.label(item),
+          });
+          if (hits.length >= limit) return hits;
+        }
+      } catch {
+        // A single malformed entry shouldn't break the search.
+      }
+    }
+  }
+  return hits;
+}
+
+// Global top bar: ⌘K palette over apps, settings sections, and mini-app data
+// (all client-side), host badge, live notification bell, avatar.
+export default function TopBar() {
+  const { remote, logout } = useAuth();
+  const { apps } = useApps();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [query, setQuery] = useState(() => sessionStorage.getItem('vela.launcher.query') || '');
+  useEffect(() => { sessionStorage.setItem('vela.launcher.query', query); }, [query]);
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef(null);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        setOpen(false);
+        inputRef.current?.blur();
+      }
+    };
+    const onClickAway = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousedown', onClickAway);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onClickAway);
+    };
+  }, []);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return { apps: [], settings: [], data: [] };
+    const appHits = (apps || [])
+      .filter((a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q))
+      .slice(0, 5);
+    const settingHits = SETTINGS_ENTRIES.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 3);
+    return { apps: appHits, settings: settingHits, data: searchAppData(q) };
+  }, [query, apps]);
+
+  const go = (to) => {
+    setOpen(false);
+    if (!to.startsWith('/app/')) setQuery('');
+    navigate(to, { state: { returnTo: location.pathname.startsWith('/app/') ? '/apps' : location.pathname + location.search } });
+  };
+
+  const hasResults = results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
+
+  return (
+    <header className="topbar">
+      {remote && <button className="btn btn-small" onClick={logout}>Sign out</button>}
+      <div className="searchbox" ref={boxRef}>
+        <MagnifyingGlass className="searchbox-icon" size={15} />
+        <input
+          ref={inputRef}
+          type="search"
+          placeholder="Search apps, notes, settings, or ask…"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          aria-label="Search"
+        />
+        <kbd className="searchbox-kbd">⌘K</kbd>
+        {open && query.trim() && (
+          <div className="search-pop" role="listbox">
+            {results.apps.map((app) => (
+              <button
+                key={app.id}
+                className="search-hit"
+                onClick={() => go(app.installed ? `/app/${app.id}` : '/library')}
+              >
+                <AppIcon app={app} size={26} />
+                <span className="search-hit-name">{app.name}</span>
+                <span className="search-hit-hint">{app.installed ? 'Open' : 'In Library'}</span>
+              </button>
+            ))}
+            {results.data.map((hit, i) => (
+              <button key={`${hit.appId}-${i}`} className="search-hit" onClick={() => go(`/app/${hit.appId}`)}>
+                <span className="search-hit-glyph">
+                  <hit.icon size={15} />
+                </span>
+                <span className="search-hit-name">{hit.label}</span>
+                <span className="search-hit-hint">{hit.appName}</span>
+              </button>
+            ))}
+            {results.settings.map((s) => (
+              <button key={s.label} className="search-hit" onClick={() => go(s.to)}>
+                <span className="search-hit-glyph">
+                  <GearSix size={15} />
+                </span>
+                <span className="search-hit-name">{s.label}</span>
+                <span className="search-hit-hint">Settings</span>
+              </button>
+            ))}
+            <button className="search-hit" onClick={() => go(`/ask?q=${encodeURIComponent(query.trim())}`)}>
+              <span className="search-hit-glyph">
+                <Sparkle size={15} />
+              </span>
+              <span className="search-hit-name">Ask: {query.trim()}</span>
+              <span className="search-hit-hint">Assistant</span>
+            </button>
+            {!hasResults && <p className="search-empty">No matches for “{query.trim()}” — try asking instead.</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="topbar-side">
+        <span className="host-badge" title="Served locally by the Vela hub">
+          <LockSimple size={13} />
+          {window.location.host}
+        </span>
+        <NotificationBell />
+        <span className="avatar" aria-hidden="true">V</span>
+      </div>
+    </header>
+  );
+}

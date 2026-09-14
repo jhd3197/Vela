@@ -1,0 +1,58 @@
+import { createRequire } from 'node:module';
+import { spawn, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+const {chromium}=createRequire(import.meta.url)('playwright');
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const python=process.env.VELA_TEST_PYTHON||path.join(root,process.platform==='win32'?'.venv/Scripts/python.exe':'.venv/bin/python');
+const temp=await fs.mkdtemp(path.join(os.tmpdir(),'vela-release-ui-'));
+const folder=path.join(temp,'health');
+execFileSync(python, ['-c', "from scripts.fixture_apps import APPS; import shutil,sys; shutil.copytree(APPS / 'health', sys.argv[1])", folder], {cwd:root, windowsHide:true});
+const manifest=JSON.parse(await fs.readFile(path.join(folder,'app.json'),'utf8'));manifest.version='1.2.0';
+await fs.writeFile(path.join(folder,'app.json'),JSON.stringify(manifest));
+const archive=path.join(temp,'update.zip');
+execFileSync(python,['-c',"import pathlib,sys,zipfile; root=pathlib.Path(sys.argv[1]); z=zipfile.ZipFile(sys.argv[2],'w'); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file()]; z.close()",folder,archive],{windowsHide:true});
+const server=spawn(python,['scripts/serve-release-fixtures.py'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe']});
+let output='',browser;server.stderr.on('data',data=>output+=data);
+const base='http://127.0.0.1:17715';
+try {
+  for(let i=0;i<100;i++){if(server.exitCode!==null)throw Error(output);try{if((await fetch(base+'/api/health')).ok)break;}catch{}if(i===99)throw Error(output);await new Promise(r=>setTimeout(r,100));}
+  browser=await chromium.launch({headless:true,channel:process.env.VELA_BROWSER_CHANNEL||'chrome'});
+  const page=await browser.newPage({viewport:{width:1366,height:900}});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(base+'/library');
+  await page.getByRole('button',{name:'Install',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Review release',exact:true});
+  await dialog.getByText('Health', {exact:false}).first().waitFor();
+  assert.equal(await dialog.getByRole('button',{name:'Install release'}).isEnabled(),false);
+  await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'Install release'}).click();
+  await dialog.waitFor({state:'hidden'});
+  await page.goto(base+'/app/health');
+  const frame=page.frameLocator('iframe');await frame.getByRole('tab',{name:'Habits'}).click();
+  await frame.locator('#habitName').fill('Keep through release');await frame.locator('#addHabit').click();
+  await frame.locator('#syncStatus').filter({hasText:'Saved to your engine'}).waitFor();
+  await page.goto(base+'/library');await page.getByText('Import apps & refresh catalog',{exact:true}).click();
+  await page.getByLabel('Release archive',{exact:true}).setInputFiles(archive);
+  await dialog.getByRole('checkbox').check();
+  const shots=path.join(root,'docs/screenshots/increment-4');await fs.mkdir(shots,{recursive:true});
+  await page.screenshot({path:path.join(shots,'review-desktop.png')});
+  await dialog.getByRole('button',{name:'Install release'}).click();await dialog.waitFor({state:'hidden'});
+  await page.goto(base+'/app/health');await frame.getByRole('tab',{name:'Habits'}).click();await frame.getByText('Keep through release',{exact:true}).waitFor();
+  await page.goto(base+'/library');await page.locator('.group-row').filter({hasText:'Health'}).click();
+  await page.getByRole('button',{name:'Review rollback to 1.1.0',exact:true}).click();
+  const rollback=page.getByRole('dialog',{name:'Review rollback',exact:true});await rollback.getByRole('checkbox').check();
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:path.join(shots,'rollback-mobile.png')});
+  const box=await rollback.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390&&box.y>=0&&box.y+box.height<=844);
+  await rollback.getByRole('button',{name:'Restore release'}).click();await rollback.waitFor({state:'hidden'});
+  await page.goto(base+'/app/health');await frame.getByRole('tab',{name:'Habits'}).click();await frame.getByText('Keep through release',{exact:true}).waitFor();
+  assert.deepEqual(errors,[]);
+  console.log('PASS: pinned Health install, permission review, ZIP update without hub rebuild, retained data, matching rollback, responsive review');
+}finally{
+  await browser?.close();server.kill();await new Promise(r=>server.exitCode!==null?r():server.once('exit',r));
+  if(path.dirname(temp)!==path.resolve(os.tmpdir())||!path.basename(temp).startsWith('vela-release-ui-'))throw Error('Unexpected cleanup target');
+  await fs.rm(temp,{recursive:true,force:true});
+}

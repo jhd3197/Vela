@@ -1,0 +1,37 @@
+{
+  "sha256": "0435fa96e424757da88e04a08c95854cffb9ae4be144ecbd9f343d8e0fc2f248",
+  "apps": {
+    "chat-fixture": {
+      "version": "0.1.0",
+      "schemaVersion": 2
+    },
+    "finance": {
+      "version": "1.0.0",
+      "schemaVersion": 1
+    },
+    "hello-vela": {
+      "version": "1.0.0",
+      "schemaVersion": 1
+    },
+    "meals": {
+      "version": "1.1.0",
+      "schemaVersion": 2
+    },
+    "notes": {
+      "version": "1.1.0",
+      "schemaVersion": 2
+    },
+    "ollama": {
+      "version": "0.1.0",
+      "schemaVersion": 2
+    },
+    "system-info": {
+      "version": "1.0.0",
+      "schemaVersion": 1
+    },
+    "health": {
+      "version": "1.1.0",
+      "schemaVersion": 2
+    }
+  }
+}

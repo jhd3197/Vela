@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "manifest": {
+        "id": "health",
+        "name": "Health",
+        "version": "1.1.0",
+        "description": "A personal wellness dashboard with shared habit tracking and clearly labelled sample metrics.",
+        "icon": "icon.svg",
+        "color": "#2bb6d8",
+        "category": "wellness",
+        "author": "Vela",
+        "schemaVersion": 2,
+        "compatibility": {
+          "bridge": 1
+        },
+        "runtime": {
+          "static": {
+            "entry": "index.html"
+          }
+        },
+        "view": {
+          "surface": "embedded",
+          "chrome": "compact"
+        },
+        "capabilities": {
+          "required": [
+            "storage"
+          ]
+        },
+        "data": {
+          "schemaVersion": 1,
+          "quotaBytes": 1048576,
+          "schema": "data.schema.json",
+          "legacy": {
+            "key": "vela.health.habits.v1",
+            "field": "habits",
+            "schema": "legacy.schema.json"
+          }
+        }
+      },
+      "publisher": "vela-local",
+      "archive": "releases/health-1.1.0-a34a4e08777c.zip",
+      "sha256": "a34a4e08777c4a1cb8e52df1e7caf36bf170a71f06d87a81a1a4eff5fb02b6dc"
+    }
+  ]
+}

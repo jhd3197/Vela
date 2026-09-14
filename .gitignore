@@ -1,0 +1,59 @@
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Build output
+dist/
+build/
+*.map
+.next/
+out/
+
+# Android
+*.apk
+*.aab
+.gradle/
+local.properties
+.cxx/
+
+# Logs
+*.log
+logs/
+
+# Generated README screenshots (npm run shots in web/)
+docs/screenshots/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Scratch / playground
+playground.py
+scratch.*
+.local/
+*.tgz
+
+# Local planning and implementation history (never publish)
+/plans/
