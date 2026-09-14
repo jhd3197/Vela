@@ -23,7 +23,9 @@ import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
 function StatusPill({ state, text }) {
   return (
     <span className={`pill pill-${state}`}>
-      <span className={`status-dot${state === 'ok' ? ' status-dot-ok' : state === 'bad' ? ' status-dot-bad' : ''}`} />
+      <span
+        className={`status-dot${state === 'ok' ? ' status-dot-ok' : state === 'bad' ? ' status-dot-bad' : ''}`}
+      />
       {text}
     </span>
   );
@@ -51,7 +53,6 @@ function AiSection({ settings, onPatched }) {
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pickModel = (model) => {
@@ -67,7 +68,12 @@ function AiSection({ settings, onPatched }) {
       <div className="panel-head">
         <h2>Local AI</h2>
         <span className="panel-head-side">
-          {ai && <StatusPill state={ai.reachable ? 'ok' : 'bad'} text={ai.reachable ? 'Connected' : 'Offline'} />}
+          {ai && (
+            <StatusPill
+              state={ai.reachable ? 'ok' : 'bad'}
+              text={ai.reachable ? 'Connected' : 'Offline'}
+            />
+          )}
           {failed && !ai && <StatusPill state="bad" text="Status unavailable" />}
           <button
             className="icon-btn"
@@ -111,14 +117,21 @@ function AiSection({ settings, onPatched }) {
             </div>
           )}
           {ai.reachable && ai.models?.length === 0 && (
-            <p className="panel-note">No models found — pull one first, e.g. <code className="mono">ollama pull qwen3:8b</code>.</p>
+            <p className="panel-note">
+              No models found — pull one first, e.g.{' '}
+              <code className="mono">ollama pull qwen3:8b</code>.
+            </p>
           )}
           {ai.model_available === false && (
             <p className="panel-note" style={{ marginTop: 8 }}>
               The selected model isn't installed yet — pick one above or pull it first.
             </p>
           )}
-          {ai.hint && <p className="panel-note" style={{ marginTop: 8 }}>{ai.hint}</p>}
+          {ai.hint && (
+            <p className="panel-note" style={{ marginTop: 8 }}>
+              {ai.hint}
+            </p>
+          )}
         </>
       )}
       {!ai && !failed && <p className="panel-note">Checking the local AI runtime…</p>}
@@ -145,7 +158,12 @@ function NotificationsSection({ settings, onPatched }) {
 
   useEffect(() => {
     if (settings && !dirty.current) {
-      setForm({ server: ntfy.server || '', topic: ntfy.topic || '', user: ntfy.user || '', pass: '' });
+      setForm({
+        server: ntfy.server || '',
+        topic: ntfy.topic || '',
+        user: ntfy.user || '',
+        pass: '',
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
@@ -203,15 +221,16 @@ function NotificationsSection({ settings, onPatched }) {
     <section className="panel" id="settings-notifications">
       <div className="panel-head">
         <h2>Notifications</h2>
-        <StatusPill
-          state={live ? 'ok' : 'idle'}
-          text={live ? 'Configured' : 'Not set up'}
-        />
+        <StatusPill state={live ? 'ok' : 'idle'} text={live ? 'Configured' : 'Not set up'} />
       </div>
       <p className="panel-note" style={{ marginBottom: 14 }}>
         {form.topic.trim() ? (
           <>
-            Subscribe to <b className="mono">{form.server.trim() || 'https://ntfy.sh'}/{form.topic.trim()}</b> in the ntfy app on your phone.
+            Subscribe to{' '}
+            <b className="mono">
+              {form.server.trim() || 'https://ntfy.sh'}/{form.topic.trim()}
+            </b>{' '}
+            in the ntfy app on your phone.
           </>
         ) : (
           'Push events to your phone through any ntfy server. Subscribe to the topic in the ntfy app.'
@@ -268,7 +287,8 @@ function NotificationsSection({ settings, onPatched }) {
             {ntfy.passConfigured && (
               <Button
                 type="button"
-                size="small" variant="ghost"
+                size="small"
+                variant="ghost"
                 disabled={sending}
                 onClick={() =>
                   patchNtfy({ pass: '' }, 'ntfy password cleared.', { passConfigured: false })
@@ -280,7 +300,12 @@ function NotificationsSection({ settings, onPatched }) {
           </div>
         </div>
       </div>
-      <div className="chip-row" role="group" aria-label="Notification events" style={{ marginTop: 14 }}>
+      <div
+        className="chip-row"
+        role="group"
+        aria-label="Notification events"
+        style={{ marginTop: 14 }}
+      >
         {NTFY_EVENTS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -298,12 +323,20 @@ function NotificationsSection({ settings, onPatched }) {
         <Button size="small" disabled={sending || !dirty.current} onClick={() => save(false)}>
           Save
         </Button>
-        <Button size="small" variant="primary" disabled={sending || !live} onClick={() => save(true)}>
+        <Button
+          size="small"
+          variant="primary"
+          disabled={sending || !live}
+          onClick={() => save(true)}
+        >
           <PaperPlaneTilt size={14} />
           {sending ? 'Working…' : 'Send test'}
         </Button>
         {note && (
-          <span className={note.kind === 'err' ? 'inline-error' : 'saved-note'} role={note.kind === 'err' ? 'alert' : 'status'}>
+          <span
+            className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
+            role={note.kind === 'err' ? 'alert' : 'status'}
+          >
             {note.text}
           </span>
         )}
@@ -353,12 +386,18 @@ function BackupsSection() {
         setResults((prev) => ({
           ...prev,
           [name]: r.ok
-            ? { ok: true, text: `Restore drill passed — ${r.files} file${r.files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.` }
+            ? {
+                ok: true,
+                text: `Restore drill passed — ${r.files} file${r.files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.`,
+              }
             : { ok: false, text: 'Restore drill failed — this backup may not restore cleanly.' },
         }));
       })
       .catch((err) =>
-        setResults((prev) => ({ ...prev, [name]: { ok: false, text: err.message || 'Verify failed.' } })),
+        setResults((prev) => ({
+          ...prev,
+          [name]: { ok: false, text: err.message || 'Verify failed.' },
+        })),
       )
       .finally(() => setVerifying(null));
   };
@@ -386,21 +425,23 @@ function BackupsSection() {
             const result = results[b.name];
             return (
               <li key={b.name} className="backup-row">
-                <ShieldCheck size={16} className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined} />
+                <ShieldCheck
+                  size={16}
+                  className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
+                />
                 <span className="backup-main">
                   <span className="mini-list-name mono">{b.name}</span>
                   <span className="backup-meta">
                     {relTime(b.created_at)} · {formatBytes(b.size)}
                     {result && (
-                      <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}> — {result.text}</span>
+                      <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
+                        {' '}
+                        — {result.text}
+                      </span>
                     )}
                   </span>
                 </span>
-                <Button
-                  size="small"
-                  disabled={verifying === b.name}
-                  onClick={() => verify(b.name)}
-                >
+                <Button size="small" disabled={verifying === b.name} onClick={() => verify(b.name)}>
                   {verifying === b.name ? 'Verifying…' : 'Verify'}
                 </Button>
               </li>
@@ -423,7 +464,10 @@ export default function Settings() {
   const [theme, setThemeState] = useState(getTheme);
 
   useEffect(() => {
-    api.health().then(setHealth).catch(() => {});
+    api
+      .health()
+      .then(setHealth)
+      .catch(() => {});
     api
       .getSettings()
       .then((s) => {
@@ -479,7 +523,12 @@ export default function Settings() {
     onPatched({ chat_history: on });
     api
       .updateSettings({ chat_history: on })
-      .then(() => pushToast(on ? 'Chat history kept on this device.' : 'Chat history wiped from this device.', 'success'))
+      .then(() =>
+        pushToast(
+          on ? 'Chat history kept on this device.' : 'Chat history wiped from this device.',
+          'success',
+        ),
+      )
       .catch((err) => {
         onPatched({ chat_history: !on });
         pushToast(err.message || 'Could not save the setting.');
@@ -491,11 +540,15 @@ export default function Settings() {
       <PageHeader title="Settings" description="Hub and engine configuration." />
 
       <section className="panel" id="settings-appearance">
-        <div className="panel-head"><h2>Appearance</h2></div>
+        <div className="panel-head">
+          <h2>Appearance</h2>
+        </div>
         <div className="settings-row">
           <div>
             <h3>Theme</h3>
-            <p>Light follows the Apps and Automations prototypes; dark follows the Home dashboard.</p>
+            <p>
+              Light follows the Apps and Automations prototypes; dark follows the Home dashboard.
+            </p>
           </div>
           <div className="seg" role="tablist">
             {['light', 'dark'].map((t) => (
@@ -514,7 +567,10 @@ export default function Settings() {
         <div className="settings-row">
           <div>
             <h3>Remember chat on this device</h3>
-            <p>Keeps your last assistant conversation in this browser. Turning it off wipes it immediately.</p>
+            <p>
+              Keeps your last assistant conversation in this browser. Turning it off wipes it
+              immediately.
+            </p>
           </div>
           <div className="seg" role="tablist">
             {[true, false].map((v) => (
@@ -539,7 +595,9 @@ export default function Settings() {
       <BackupsSection />
 
       <section className="panel">
-        <div className="panel-head"><h2>General</h2></div>
+        <div className="panel-head">
+          <h2>General</h2>
+        </div>
         <dl className="fact-grid">
           <div className="fact">
             <dt>Platform</dt>
@@ -560,15 +618,22 @@ export default function Settings() {
       <section className="panel">
         <div className="panel-head">
           <h2>App Environments</h2>
-          <Link className="btn btn-small" to="/environments">Open Environments</Link>
+          <Link className="btn btn-small" to="/environments">
+            Open Environments
+          </Link>
         </div>
         <p className="panel-note">
-          Apps run in the local engine on this machine — {engine ? `${engine.apps_installed ?? 0} installed, ${engine.apps_running ?? 0} running.` : 'status unavailable.'}
+          Apps run in the local engine on this machine —{' '}
+          {engine
+            ? `${engine.apps_installed ?? 0} installed, ${engine.apps_running ?? 0} running.`
+            : 'status unavailable.'}
         </p>
       </section>
 
       <section className="panel">
-        <div className="panel-head"><h2>Storage</h2></div>
+        <div className="panel-head">
+          <h2>Storage</h2>
+        </div>
         <dl className="fact-grid">
           <div className="fact">
             <dt>Used by Vela</dt>
@@ -582,7 +647,9 @@ export default function Settings() {
       </section>
 
       <section className="panel">
-        <div className="panel-head"><h2>Network</h2></div>
+        <div className="panel-head">
+          <h2>Network</h2>
+        </div>
         <dl className="fact-grid">
           <div className="fact">
             <dt>Engine endpoint</dt>
@@ -594,7 +661,9 @@ export default function Settings() {
           </div>
           <div className="fact fact-wide">
             <dt>App serving</dt>
-            <dd className="mono">/apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)</dd>
+            <dd className="mono">
+              /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
+            </dd>
           </div>
         </dl>
       </section>

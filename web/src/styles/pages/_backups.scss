@@ -1,12 +1,21 @@
 /* ---------- Backups ---------- */
 
-.backup-row { gap: 12px; }
+.backup-row {
+  gap: 12px;
+}
 
-.backup-row .ph { color: var(--text-faint); flex-shrink: 0; }
+.backup-row .ph {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
 
-.backup-row .backup-ok { color: var(--green); }
+.backup-row .backup-ok {
+  color: var(--green);
+}
 
-.backup-row .backup-bad { color: var(--red); }
+.backup-row .backup-bad {
+  color: var(--red);
+}
 
 .backup-main {
   flex: 1;
@@ -22,6 +31,10 @@
   overflow-wrap: anywhere;
 }
 
-.backup-note-ok { color: var(--green); }
+.backup-note-ok {
+  color: var(--green);
+}
 
-.backup-note-bad { color: var(--red); }
+.backup-note-bad {
+  color: var(--red);
+}

@@ -14,7 +14,7 @@ export function useResource(load, { enabled = true, intervalMs = 0 } = {}) {
     }
     const resource = createResource(load, {
       intervalMs,
-      onChange: state => setSnapshot({ load, intervalMs, ...state }),
+      onChange: (state) => setSnapshot({ load, intervalMs, ...state }),
     });
     current.current = resource;
     resource.refresh();
@@ -25,8 +25,15 @@ export function useResource(load, { enabled = true, intervalMs = 0 } = {}) {
   }, [load, enabled, intervalMs]);
 
   const refresh = useCallback(() => current.current?.refresh() ?? Promise.resolve(undefined), []);
-  const state = enabled && snapshot?.load === load && snapshot.intervalMs === intervalMs
-    ? snapshot : { data: null, error: null, loading: enabled, refreshing: false };
-  return { data: state.data, error: state.error, loading: state.loading,
-    refreshing: state.refreshing, refresh };
+  const state =
+    enabled && snapshot?.load === load && snapshot.intervalMs === intervalMs
+      ? snapshot
+      : { data: null, error: null, loading: enabled, refreshing: false };
+  return {
+    data: state.data,
+    error: state.error,
+    loading: state.loading,
+    refreshing: state.refreshing,
+    refresh,
+  };
 }

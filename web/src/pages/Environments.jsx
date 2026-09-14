@@ -11,19 +11,26 @@ export default function Environments() {
 
   return (
     <div className="page-inner">
-      <PageHeader title="App Environments" description="Apps run locally on your machine, served inside the hub." />
+      <PageHeader
+        title="App Environments"
+        description="Apps run locally on your machine, served inside the hub."
+      />
 
       <section className="panel engine-card">
         <div className="engine-head">
           <div className="engine-title">
-            <span className={`status-dot${engine && !engineError ? ' status-dot-ok' : ' status-dot-bad'}`} />
+            <span
+              className={`status-dot${engine && !engineError ? ' status-dot-ok' : ' status-dot-bad'}`}
+            />
             <h2>Local Engine</h2>
           </div>
           <span className={`pill${engine && !engineError ? ' pill-ok' : ' pill-bad'}`}>
             {engine && !engineError ? 'Running' : 'Unreachable'}
           </span>
         </div>
-        {engineError && <p className="panel-note">Engine status unavailable: {engineError.message}</p>}
+        {engineError && (
+          <p className="panel-note">Engine status unavailable: {engineError.message}</p>
+        )}
         {engine && (
           <dl className="fact-grid">
             <div className="fact">
@@ -53,10 +60,14 @@ export default function Environments() {
       <section className="panel">
         <div className="panel-head">
           <h2>Running apps</h2>
-          <Link className="btn btn-small" to="/apps">Manage</Link>
+          <Link className="btn btn-small" to="/apps">
+            Manage
+          </Link>
         </div>
         {running.length === 0 ? (
-          <p className="panel-note">Nothing is running right now. Launch an app from Apps or the Library.</p>
+          <p className="panel-note">
+            Nothing is running right now. Launch an app from Apps or the Library.
+          </p>
         ) : (
           <ul className="mini-list">
             {running.map((app) => (
@@ -67,7 +78,9 @@ export default function Environments() {
                   <span className="pulse-dot" />
                   Running
                 </span>
-                <Link className="btn btn-small" to={`/app/${app.id}`}>Open</Link>
+                <Link className="btn btn-small" to={`/app/${app.id}`}>
+                  Open
+                </Link>
               </li>
             ))}
           </ul>

@@ -50,7 +50,9 @@
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .nav-item:hover {
@@ -64,7 +66,7 @@
 }
 
 .nav-item-active::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 9px;
@@ -84,7 +86,9 @@
   color: var(--accent-strong);
 }
 
-.sidebar-foot { margin-top: auto; }
+.sidebar-foot {
+  margin-top: auto;
+}
 
 .side-card {
   display: flex;
@@ -132,4 +136,6 @@
   flex-shrink: 0;
 }
 
-.dot-ok { background: var(--green); }
+.dot-ok {
+  background: var(--green);
+}

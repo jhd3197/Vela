@@ -103,10 +103,19 @@ async function installDemoApps() {
   for (const id of DEMO_APPS) {
     let res = await fetch(`${baseUrl}/api/apps/${id}/install`, { method: 'POST', headers });
     if (res.status === 409) {
-      const prepared = await fetch(`${baseUrl}/api/releases/prepare`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ app_id: id }) });
-      if (!prepared.ok) throw new Error(`Fixture release preparation failed: ${await prepared.text()}`);
+      const prepared = await fetch(`${baseUrl}/api/releases/prepare`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app_id: id }),
+      });
+      if (!prepared.ok)
+        throw new Error(`Fixture release preparation failed: ${await prepared.text()}`);
       const review = await prepared.json();
-      res = await fetch(`${baseUrl}/api/releases/${review.review}/commit`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ capabilities: review.capabilities, operations: review.operations }) });
+      res = await fetch(`${baseUrl}/api/releases/${review.review}/commit`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capabilities: review.capabilities, operations: review.operations }),
+      });
     }
     if (!res.ok) throw new Error(`Fixture install failed: ${await res.text()}`);
     console.log(`install ${id}: ${res.status}`);

@@ -1,0 +1,38 @@
+.modal-dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-pop);
+  color: var(--text);
+}
+
+.modal-dialog::backdrop {
+  background: #0008;
+}
+
+// Reset native dialog dimensions while retaining the existing drawer design.
+dialog.drawer-overlay {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text);
+  overflow: hidden;
+}
+
+dialog.drawer-overlay::backdrop {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-overlay,
+  .drawer {
+    animation: none;
+  }
+}

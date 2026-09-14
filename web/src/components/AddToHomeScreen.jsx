@@ -16,7 +16,9 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
     return (
       <section className="drawer-section a2hs">
         <h3 className="drawer-section-title">Add to Home Screen</h3>
-        <p className="a2hs-note">Already installed — you are running {target} from the home screen.</p>
+        <p className="a2hs-note">
+          Already installed — you are running {target} from the home screen.
+        </p>
       </section>
     );
   }
@@ -29,8 +31,8 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
           <li>
             <span className="a2hs-step-num">1</span>
             <span>
-              Tap the <strong>Share</strong> button in Safari&apos;s toolbar
-              (the square with an arrow pointing up).
+              Tap the <strong>Share</strong> button in Safari&apos;s toolbar (the square with an
+              arrow pointing up).
             </span>
           </li>
           <li>
@@ -47,7 +49,9 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
             </span>
           </li>
         </ol>
-        {!forHub && <p className="a2hs-note">The same steps install the Vela hub itself from this page.</p>}
+        {!forHub && (
+          <p className="a2hs-note">The same steps install the Vela hub itself from this page.</p>
+        )}
       </section>
     );
   }
@@ -71,7 +75,9 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
         {outcome === 'dismissed' && (
           <p className="a2hs-note">Install dismissed — you can install any time from this panel.</p>
         )}
-        {!forHub && <p className="a2hs-note">The same flow installs the Vela hub itself from this page.</p>}
+        {!forHub && (
+          <p className="a2hs-note">The same flow installs the Vela hub itself from this page.</p>
+        )}
       </section>
     );
   }

@@ -52,11 +52,17 @@
   transition: border-color 140ms ease;
 }
 
-.field input:focus { border-color: var(--accent-line); }
+.field input:focus {
+  border-color: var(--accent-line);
+}
 
-.field input::placeholder { color: var(--text-faint); }
+.field input::placeholder {
+  color: var(--text-faint);
+}
 
-.field input:disabled { opacity: 0.6; }
+.field input:disabled {
+  opacity: 0.6;
+}
 
 .field-side {
   display: flex;
@@ -64,7 +70,9 @@
   gap: 8px;
 }
 
-.field-side input { flex: 1; }
+.field-side input {
+  flex: 1;
+}
 
 .form-actions {
   display: flex;
@@ -79,4 +87,6 @@
   color: var(--green);
 }
 
-.form-actions .inline-error { padding: 6px 12px; }
+.form-actions .inline-error {
+  padding: 6px 12px;
+}

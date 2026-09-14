@@ -8,10 +8,15 @@ use temporary fixtures; do not point them at your personal Vela data.
 After [developer setup](DEVELOPMENT.md), run from the repository root:
 
 ```bash
-python -m unittest discover -s tests
-node --test tests/bridge.test.mjs tests/resource.test.mjs
-npm --prefix web run build
+npm --prefix web run check
 ```
+
+The same command runs in CI: lint, formatting verification, Node tests, Python
+tests, then the dashboard build. It stops at the first failure. Use
+`npm --prefix web run format` to fix formatting, or run individual checks while
+iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
+tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
+`npm --prefix web run build`. Browser acceptance remains a separate step.
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases and launcher behavior. Node checks cover
@@ -40,6 +45,9 @@ node web/scripts/test-dashboard.mjs
 Run browser suites sequentially because some use the same fixture server port.
 The shared UI suite uses an isolated Vite fixture without API calls to check
 form semantics, field labels, stale responses, retries, and action submission.
+It also verifies one shared engine request across consumers and page changes,
+shared error/retry state, polling cleanup, nested modal focus restoration,
+keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
 

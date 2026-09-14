@@ -13,9 +13,16 @@
   font-weight: 600;
 }
 
-.state-block p { margin: 0 auto 18px; max-width: 440px; font-size: 14px; }
+.state-block p {
+  margin: 0 auto 18px;
+  max-width: 440px;
+  font-size: 14px;
+}
 
-.empty-mark { color: var(--accent); opacity: 0.85; }
+.empty-mark {
+  color: var(--accent);
+  opacity: 0.85;
+}
 
 .spinner {
   width: 26px;
@@ -43,6 +50,12 @@
   background: var(--red-soft);
 }
 
-.banner-error strong { font-size: 14px; }
+.banner-error strong {
+  font-size: 14px;
+}
 
-.banner-error p { margin: 3px 0 0; font-size: 13px; color: var(--text-dim); }
+.banner-error p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}

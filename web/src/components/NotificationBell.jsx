@@ -33,7 +33,6 @@ export default function NotificationBell() {
   const [seenAt, setSeenAt] = useState(getSeenAt);
   const boxRef = useRef(null);
 
-
   useEffect(() => {
     const onClickAway = (e) => {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);

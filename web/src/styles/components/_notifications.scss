@@ -1,8 +1,12 @@
 /* ---------- Notification bell ---------- */
 
-.notif-wrap { position: relative; }
+.notif-wrap {
+  position: relative;
+}
 
-.notif-wrap .icon-btn { position: relative; }
+.notif-wrap .icon-btn {
+  position: relative;
+}
 
 .notif-badge {
   position: absolute;
@@ -65,7 +69,9 @@
   border-radius: 7px;
 }
 
-.notif-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.notif-item:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
 
 .notif-item-icon {
   display: grid;
@@ -118,8 +124,13 @@
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
-.notif-foot:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.notif-foot:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
 
 @media (pointer: coarse) {
-  .notif-badge { top: 4px; right: 4px; }
+  .notif-badge {
+    top: 4px;
+    right: 4px;
+  }
 }

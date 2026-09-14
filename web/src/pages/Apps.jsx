@@ -20,7 +20,9 @@ const FILTERS = [
 export default function Apps() {
   const { apps, busyIds, runAction } = useApps();
   const [filter, setFilter] = useState(() => sessionStorage.getItem('vela.apps.filter') || 'all');
-  useEffect(() => { sessionStorage.setItem('vela.apps.filter', filter); }, [filter]);
+  useEffect(() => {
+    sessionStorage.setItem('vela.apps.filter', filter);
+  }, [filter]);
   const [selected, setSelected] = useState(null);
 
   const { installed, available } = useMemo(() => {
@@ -40,32 +42,42 @@ export default function Apps() {
 
   return (
     <div className="page-inner">
-      <PageHeader title="Apps" description="Everything on this machine — open, stop, or remove." actions={
-        <div className="seg" role="tablist">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              role="tab"
-              aria-selected={filter === f.key}
-              className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      } />
+      <PageHeader
+        title="Apps"
+        description="Everything on this machine — open, stop, or remove."
+        actions={
+          <div className="seg" role="tablist">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                role="tab"
+                aria-selected={filter === f.key}
+                className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
-      {apps === null && (
-        <LoadingState>Loading apps…</LoadingState>
-      )}
+      {apps === null && <LoadingState>Loading apps…</LoadingState>}
 
       {empty && (
-        <EmptyState title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
-          description={filter === 'all'
-            ? 'Install apps from the Library and they will show up here.'
-            : 'No apps match this filter right now.'}>
-          {filter === 'all' && <Link className="btn btn-primary" to="/library">Browse Library</Link>}
+        <EmptyState
+          title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
+          description={
+            filter === 'all'
+              ? 'Install apps from the Library and they will show up here.'
+              : 'No apps match this filter right now.'
+          }
+        >
+          {filter === 'all' && (
+            <Link className="btn btn-primary" to="/library">
+              Browse Library
+            </Link>
+          )}
         </EmptyState>
       )}
 

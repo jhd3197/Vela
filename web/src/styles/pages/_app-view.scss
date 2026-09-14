@@ -23,7 +23,9 @@
   min-height: 52px;
 }
 
-.appview-back { flex-shrink: 0; }
+.appview-back {
+  flex-shrink: 0;
+}
 
 .appview-title {
   display: flex;
@@ -75,37 +77,195 @@
   font-weight: 600;
 }
 
-.appview-interstitial p { margin: 0 0 14px; max-width: 380px; font-size: 14px; }
-.auth-screen { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; background: var(--bg); padding: 24px; }
-.auth-card { width: min(420px, 100%); display: grid; gap: 16px; }
-.auth-card h1 { font-size: 28px; line-height: 1.2; margin: 8px 0 0; }
-.auth-card p { color: var(--text-dim); }
-.auth-card input, .connection-input { width: 100%; min-height: 44px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--bg-card); color: var(--text); font: inherit; }
-.app-migration { flex: none; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg); max-height: 42vh; overflow-y: auto; font-size: 13px; }
-.app-migration summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
-.app-migration p { margin: 10px 0; max-width: 720px; color: var(--text-dim); }
-.app-migration .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.app-migration input[type=file] { max-width: 180px; font-size: 11px; }
-.app-migration .connection-input { max-width: 420px; margin: 8px 0; display: block; }
+.appview-interstitial p {
+  margin: 0 0 14px;
+  max-width: 380px;
+  font-size: 14px;
+}
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  padding: 24px;
+}
+.auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 16px;
+}
+.auth-card h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  margin: 8px 0 0;
+}
+.auth-card p {
+  color: var(--text-dim);
+}
+.auth-card input,
+.connection-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+}
+.app-migration {
+  flex: none;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  max-height: 42vh;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.app-migration summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 600;
+}
+.app-migration p {
+  margin: 10px 0;
+  max-width: 720px;
+  color: var(--text-dim);
+}
+.app-migration .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.app-migration input[type='file'] {
+  max-width: 180px;
+  font-size: 11px;
+}
+.app-migration .connection-input {
+  max-width: 420px;
+  margin: 8px 0;
+  display: block;
+}
 
-.appview { position: relative; overflow: hidden; }
-.appview-exit { position: fixed; z-index: 100; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); }
-.appview-exit-button { min-width: 88px; min-height: 44px; background: var(--bg); border: 1px solid var(--border); gap: 14px; box-shadow: 0 2px 12px #0002; }
-.appview-menu { position: absolute; top: calc(100% + 8px); right: 0; width: min(240px, calc(100vw - 24px)); display: grid; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: 0 8px 24px #0003; }
-.appview-menu strong { padding: 10px; font-size: 13px; }
-.appview-menu button { min-height: 44px; border: 0; border-radius: 6px; padding: 10px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.appview-menu button:focus-visible, .appview-exit-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (hover: hover) { .appview-menu button:hover { background: var(--bg-header); } }
-.appview-loading { position: absolute; top: 76px; align-self: center; padding: 12px 20px; background: var(--bg); border-radius: 8px; z-index: 2; }
-.appview-failure { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 80px 24px 24px; background: var(--bg); text-align: center; }
-.appview-dialog { max-width: min(460px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); }
-.appview-dialog::backdrop { background: #0008; }
-.appview-dialog h2 { font-size: 20px; margin-top: 0; }
-.appview-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-.appview-dialog-actions button { min-height: 44px; }
-.layout:has(.appview-hub) .page { padding: 0; display: flex; flex-direction: column; min-height: 0; }
-.appview-hub { height: auto; min-height: 0; flex: 1; }
+.appview {
+  position: relative;
+  overflow: hidden;
+}
+.appview-exit {
+  position: fixed;
+  z-index: 100;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+}
+.appview-exit-button {
+  min-width: 88px;
+  min-height: 44px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  gap: 14px;
+  box-shadow: 0 2px 12px #0002;
+}
+.appview-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(240px, calc(100vw - 24px));
+  display: grid;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px #0003;
+}
+.appview-menu strong {
+  padding: 10px;
+  font-size: 13px;
+}
+.appview-menu button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.appview-menu button:focus-visible,
+.appview-exit-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .appview-menu button:hover {
+    background: var(--bg-header);
+  }
+}
+.appview-loading {
+  position: absolute;
+  top: 76px;
+  align-self: center;
+  padding: 12px 20px;
+  background: var(--bg);
+  border-radius: 8px;
+  z-index: 2;
+}
+.appview-failure {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 80px 24px 24px;
+  background: var(--bg);
+  text-align: center;
+}
+.appview-dialog {
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+.appview-dialog::backdrop {
+  background: #0008;
+}
+.appview-dialog h2 {
+  font-size: 20px;
+  margin-top: 0;
+}
+.appview-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+.appview-dialog-actions button {
+  min-height: 44px;
+}
+.layout:has(.appview-hub) .page {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.appview-hub {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}
 @media (max-width: 860px) {
-  .layout:has(.appview-hub) .page { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
-  .appview-chrome { gap: 6px; }
+  .layout:has(.appview-hub) .page {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+  .appview-chrome {
+    gap: 6px;
+  }
 }

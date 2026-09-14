@@ -36,7 +36,10 @@ export default function Library() {
 
   return (
     <div className="page-inner">
-      <PageHeader title="Library" description="Every app available to this hub. Install once, run inside Vela." />
+      <PageHeader
+        title="Library"
+        description="Every app available to this hub. Install once, run inside Vela."
+      />
 
       <ReleaseImport />
       <div className="library-controls">
@@ -63,13 +66,17 @@ export default function Library() {
         </div>
       </div>
 
-      {apps === null && (
-        <LoadingState>Loading apps…</LoadingState>
-      )}
+      {apps === null && <LoadingState>Loading apps…</LoadingState>}
 
       {apps !== null && visible.length === 0 && (
-        <EmptyState title="No matches" description={(apps || []).length === 0
-          ? 'The registry is empty on this machine.' : 'Try a different search or category.'} />
+        <EmptyState
+          title="No matches"
+          description={
+            (apps || []).length === 0
+              ? 'The registry is empty on this machine.'
+              : 'Try a different search or category.'
+          }
+        />
       )}
 
       {visible.length > 0 && (

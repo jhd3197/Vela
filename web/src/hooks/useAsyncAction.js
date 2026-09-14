@@ -9,7 +9,9 @@ export function useAsyncAction() {
   useEffect(() => {
     const scope = { active: true, pending: false };
     session.current = scope;
-    return () => { scope.active = false; };
+    return () => {
+      scope.active = false;
+    };
   }, []);
 
   const run = useCallback(async (action) => {

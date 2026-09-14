@@ -11,7 +11,10 @@
   padding: 7px 14px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -22,9 +25,14 @@
   white-space: nowrap;
 }
 
-.btn:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.btn:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
 
-.btn:disabled { opacity: 0.45; cursor: default; }
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 .btn-primary {
   background: transparent;
@@ -37,9 +45,15 @@
   border-color: var(--accent-line);
 }
 
-.btn-danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
 
-.btn-small { padding: 5px 11px; font-size: 12.5px; }
+.btn-small {
+  padding: 5px 11px;
+  font-size: 12.5px;
+}
 
 .btn-ghost {
   border-color: transparent;
@@ -47,9 +61,14 @@
   color: var(--text-dim);
 }
 
-.btn-ghost:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.btn-ghost:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
 
-.btn-block { width: 100%; }
+.btn-block {
+  width: 100%;
+}
 
 .seg {
   display: inline-flex;
@@ -73,9 +92,13 @@
   cursor: pointer;
 }
 
-.seg-opt + .seg-opt { border-left: 1px solid var(--border); }
+.seg-opt + .seg-opt {
+  border-left: 1px solid var(--border);
+}
 
-.seg-opt:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.seg-opt:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
 
 .seg-opt-active {
   color: var(--accent-strong);
@@ -83,7 +106,11 @@
   background: var(--accent-soft);
 }
 
-.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
 .chip {
   appearance: none;
@@ -99,7 +126,10 @@
   transition: all 140ms ease;
 }
 
-.chip:hover { color: var(--text); border-color: var(--border-strong); }
+.chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
 
 .chip-active {
   background: var(--accent-soft);
@@ -121,9 +151,17 @@
   white-space: nowrap;
 }
 
-.tag-accent { color: var(--accent-strong); border-color: var(--accent-line); background: var(--accent-soft); }
+.tag-accent {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
 
-.tag-ok { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); background: var(--green-soft); }
+.tag-ok {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+  background: var(--green-soft);
+}
 
 .badge {
   display: inline-flex;
@@ -168,9 +206,14 @@
   display: inline-block;
 }
 
-.status-dot-ok { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent); }
+.status-dot-ok {
+  background: var(--green);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent);
+}
 
-.status-dot-bad { background: var(--red); }
+.status-dot-bad {
+  background: var(--red);
+}
 
 .pill {
   padding: 4px 12px;
@@ -179,6 +222,14 @@
   font-weight: 500;
 }
 
-.pill-ok { color: var(--green); background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); }
+.pill-ok {
+  color: var(--green);
+  background: var(--green-soft);
+  border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+}
 
-.pill-bad { color: var(--red); background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); }
+.pill-bad {
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+}

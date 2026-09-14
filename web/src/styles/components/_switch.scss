@@ -15,7 +15,7 @@
 }
 
 .switch::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 3px;
   left: 3px;
@@ -26,6 +26,10 @@
   transition: left 160ms ease;
 }
 
-.switch-on { background: var(--accent); }
+.switch-on {
+  background: var(--accent);
+}
 
-.switch-on::after { left: 19px; }
+.switch-on::after {
+  left: 19px;
+}

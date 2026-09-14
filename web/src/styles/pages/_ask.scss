@@ -9,9 +9,14 @@
   color: var(--text-faint);
 }
 
-.dot-bad { background: var(--red); }
+.dot-bad {
+  background: var(--red);
+}
 
-.ask-banner { margin: 0; max-width: none; }
+.ask-banner {
+  margin: 0;
+  max-width: none;
+}
 
 .chat-log {
   display: flex;
@@ -60,7 +65,10 @@
   padding: 8px 14px;
   border-radius: 999px;
   cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
   touch-action: manipulation;
 }
 
@@ -140,13 +148,21 @@
   padding: 4px 10px;
   border-radius: 999px;
   cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease;
   touch-action: manipulation;
 }
 
-.msg-push:hover { color: var(--accent-strong); border-color: var(--accent-line); }
+.msg-push:hover {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+}
 
-.msg-push:disabled { opacity: 0.6; cursor: default; }
+.msg-push:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* Tool activity chips: name, plain-language label, live status, duration. */
 
@@ -186,7 +202,10 @@
   gap: 8px;
 }
 
-.tool-name .mono { color: var(--text-dim); flex-shrink: 0; }
+.tool-name .mono {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
 
 .tool-label {
   color: var(--text-faint);
@@ -205,15 +224,27 @@
   flex-shrink: 0;
 }
 
-.tool-call[data-state="running"] .tool-status { color: var(--accent-strong); }
+.tool-call[data-state='running'] .tool-status {
+  color: var(--accent-strong);
+}
 
-.tool-call[data-state="complete"] .tool-status { color: var(--green); }
+.tool-call[data-state='complete'] .tool-status {
+  color: var(--green);
+}
 
-.tool-call[data-state="error"] .tool-status { color: var(--red); }
+.tool-call[data-state='error'] .tool-status {
+  color: var(--red);
+}
 
-.spin { animation: spin 1s linear infinite; }
+.spin {
+  animation: spin 1s linear infinite;
+}
 
-@keyframes caretBlink { to { visibility: hidden; } }
+@keyframes caretBlink {
+  to {
+    visibility: hidden;
+  }
+}
 
 .stream-caret {
   display: inline-block;
@@ -263,9 +294,13 @@
   touch-action: manipulation;
 }
 
-.ask-context-toggle:hover { color: var(--text); }
+.ask-context-toggle:hover {
+  color: var(--text);
+}
 
-.ask-context-toggle > .ph:first-child { color: var(--accent); }
+.ask-context-toggle > .ph:first-child {
+  color: var(--accent);
+}
 
 .ask-context-summary {
   flex: 1;
@@ -288,7 +323,9 @@
   color: var(--text-dim);
 }
 
-.ask-context-body p { margin: 0; }
+.ask-context-body p {
+  margin: 0;
+}
 
 .ask-context-note {
   color: var(--text-faint);
@@ -322,7 +359,9 @@
   transition: border-color 140ms ease;
 }
 
-.composer-field:focus-within { border-color: var(--accent-line); }
+.composer-field:focus-within {
+  border-color: var(--accent-line);
+}
 
 .composer-field input {
   flex: 1;
@@ -335,7 +374,9 @@
   font-size: 14px;
 }
 
-.composer-field input::placeholder { color: var(--text-faint); }
+.composer-field input::placeholder {
+  color: var(--text-faint);
+}
 
 .composer-send {
   appearance: none;
@@ -349,24 +390,43 @@
   color: #fff;
   cursor: pointer;
   flex-shrink: 0;
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
   touch-action: manipulation;
 }
 
-.composer-send:hover:not(:disabled) { transform: translateY(-1px); }
+.composer-send:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
 
-.composer-send:disabled { opacity: 0.45; cursor: default; }
+.composer-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 @media (pointer: coarse) {
-  .composer-send { width: 44px; height: 44px; }
+  .composer-send {
+    width: 44px;
+    height: 44px;
+  }
 
-  .msg-push, .chat-starters button { min-height: 36px; }
+  .msg-push,
+  .chat-starters button {
+    min-height: 36px;
+  }
 }
 
 @media (max-width: 860px) {
-  .chat-composer { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .chat-composer {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
 
-  .chat-bubble { max-width: 92%; }
+  .chat-bubble {
+    max-width: 92%;
+  }
 
-  .chat-intro { padding: 32px 8px 16px; }
+  .chat-intro {
+    padding: 32px 8px 16px;
+  }
 }

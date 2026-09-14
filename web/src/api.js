@@ -10,19 +10,28 @@ export class ApiError extends Error {
 }
 
 let hubSession;
-export function acceptHubSession(token) { hubSession = token ? Promise.resolve(token) : null; }
+export function acceptHubSession(token) {
+  hubSession = token ? Promise.resolve(token) : null;
+}
 
 export async function hubFetch(path, options = {}) {
   const getToken = () => {
     if (!hubSession) {
-      hubSession = fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' }, cache: 'no-store' })
+      hubSession = fetch('/api/session', {
+        headers: { 'X-Vela-Bootstrap': '1' },
+        cache: 'no-store',
+      })
         .then(async (response) => {
           if (!response.ok) {
             if (response.status === 401) dispatchEvent(new Event('vela:auth-required'));
             throw new ApiError('Sign in to Vela to continue.', response.status);
           }
           return (await response.json()).token;
-        }).catch((error) => { hubSession = null; throw error; });
+        })
+        .catch((error) => {
+          hubSession = null;
+          throw error;
+        });
     }
     return hubSession;
   };
@@ -70,19 +79,57 @@ async function request(path, options = {}) {
 export const api = {
   appActions: (id) => request(`/api/apps/${encodeURIComponent(id)}/actions`),
   actionHistory: (id) => request(`/api/apps/${encodeURIComponent(id)}/actions/history`),
-  grantAction: (id, app, action, allow, sourceContract, targetContract) => request(`/api/apps/${encodeURIComponent(id)}/actions/grant`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app, action, allow, sourceContract, targetContract }) }),
+  grantAction: (id, app, action, allow, sourceContract, targetContract) =>
+    request(`/api/apps/${encodeURIComponent(id)}/actions/grant`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app, action, allow, sourceContract, targetContract }),
+    }),
   catalog: (options) => request('/api/catalog', options),
   refreshCatalog: () => request('/api/catalog/refresh', { method: 'POST' }),
-  prepareRelease: (source) => source.file ? request('/api/releases/upload', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: source.file }) : request('/api/releases/prepare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(source) }),
-  commitRelease: (review) => request(`/api/releases/${review.review}/commit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capabilities: review.capabilities, operations: review.operations }) }),
+  prepareRelease: (source) =>
+    source.file
+      ? request('/api/releases/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: source.file,
+        })
+      : request('/api/releases/prepare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(source),
+        }),
+  commitRelease: (review) =>
+    request(`/api/releases/${review.review}/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capabilities: review.capabilities, operations: review.operations }),
+    }),
   cancelRelease: (review) => request(`/api/releases/${review}`, { method: 'DELETE' }),
   releaseHistory: (id, options) => request(`/api/apps/${encodeURIComponent(id)}/releases`, options),
   upgrade: (id) => request(`/api/apps/${encodeURIComponent(id)}/upgrade`, { method: 'POST' }),
-  previewMigration: (id, value) => request(`/api/apps/${encodeURIComponent(id)}/migration/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, revision: 0 }) }),
-  migrate: (id, value, revision) => request(`/api/apps/${encodeURIComponent(id)}/migration`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, revision }) }),
-  getConnection: (id, options) => request(`/api/apps/${encodeURIComponent(id)}/connection`, options),
-  bindConnection: (id, endpoint) => request(`/api/apps/${encodeURIComponent(id)}/connection`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint }) }),
-  disconnectConnection: (id) => request(`/api/apps/${encodeURIComponent(id)}/connection`, { method: 'DELETE' }),
+  previewMigration: (id, value) =>
+    request(`/api/apps/${encodeURIComponent(id)}/migration/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value, revision: 0 }),
+    }),
+  migrate: (id, value, revision) =>
+    request(`/api/apps/${encodeURIComponent(id)}/migration`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value, revision }),
+    }),
+  getConnection: (id, options) =>
+    request(`/api/apps/${encodeURIComponent(id)}/connection`, options),
+  bindConnection: (id, endpoint) =>
+    request(`/api/apps/${encodeURIComponent(id)}/connection`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    }),
+  disconnectConnection: (id) =>
+    request(`/api/apps/${encodeURIComponent(id)}/connection`, { method: 'DELETE' }),
   openSession: (id) => request(`/api/apps/${encodeURIComponent(id)}/session`, { method: 'POST' }),
   health: () => request('/api/health'),
   getPlatforms: () => request('/api/platforms'),
@@ -108,7 +155,8 @@ export const api = {
   getNotifications: (options) => request('/api/notifications', options),
   getBackups: () => request('/api/backups'),
   createBackup: () => request('/api/backups', { method: 'POST' }),
-  verifyBackup: (name) => request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),
+  verifyBackup: (name) =>
+    request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),
 };
 
 const PLATFORM_LABELS = {

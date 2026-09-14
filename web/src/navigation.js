@@ -1,5 +1,11 @@
 import {
-  ChatCircleText, GearSix, HardDrives, HouseSimple, Lightning, SquaresFour, Storefront,
+  ChatCircleText,
+  GearSix,
+  HardDrives,
+  HouseSimple,
+  Lightning,
+  SquaresFour,
+  Storefront,
 } from '@phosphor-icons/react';
 import Home from './pages/Home.jsx';
 import Ask from './pages/Ask.jsx';
@@ -16,7 +22,20 @@ export const dashboardPages = [
   { to: '/ask', label: 'Ask', icon: ChatCircleText, component: Ask },
   { to: '/apps', label: 'Apps', icon: SquaresFour, component: Apps },
   { to: '/library', label: 'Library', icon: Storefront, component: Library },
-  { to: '/environments', label: 'System', icon: HardDrives, tabHidden: true, component: Environments },
-  { to: '/automations', label: 'Automations', icon: Lightning, weight: 'fill', tabHidden: true, component: Automations },
+  {
+    to: '/environments',
+    label: 'System',
+    icon: HardDrives,
+    tabHidden: true,
+    component: Environments,
+  },
+  {
+    to: '/automations',
+    label: 'Automations',
+    icon: Lightning,
+    weight: 'fill',
+    tabHidden: true,
+    component: Automations,
+  },
   { to: '/settings', label: 'Settings', icon: GearSix, component: Settings },
 ];

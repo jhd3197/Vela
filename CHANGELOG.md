@@ -15,6 +15,12 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- Contributors can run `npm --prefix web run check` for lint, formatting, tests
+  and the dashboard build; CI uses the same command. The dashboard now shares
+  engine status across pages and reuses dialogs/drawers with keyboard focus
+  handling and dismissal guards while work is pending. Development requires
+  Node.js 22.13+ in the 22.x line or Node.js 24+; run `npm --prefix web ci` after
+  updating to install the new check tools.
 - Dashboard development now uses organized SCSS modules, shared UI controls and
   request hooks, and one route/navigation definition. The developer guide
   includes an example for adding a page; contributors should run `npm --prefix

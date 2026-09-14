@@ -50,7 +50,10 @@ function loadChat() {
     const raw = JSON.parse(localStorage.getItem(CHAT_KEY) || '[]');
     if (Array.isArray(raw)) {
       return raw
-        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .filter(
+          (m) =>
+            m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
+        )
         .slice(-MAX_HISTORY);
     }
   } catch {
@@ -90,10 +93,17 @@ function SendToPhone({ message }) {
           });
       }}
     >
-      {state === 'sending' ? 'Sending…'
-        : state === 'sent' ? 'Sent ✓'
-        : state === 'error' ? error
-        : <><Broadcast size={14} aria-hidden /> Send to phone</>}
+      {state === 'sending' ? (
+        'Sending…'
+      ) : state === 'sent' ? (
+        'Sent ✓'
+      ) : state === 'error' ? (
+        error
+      ) : (
+        <>
+          <Broadcast size={14} aria-hidden /> Send to phone
+        </>
+      )}
     </button>
   );
 }
@@ -104,7 +114,9 @@ function ToolCalls({ activities }) {
   if (!activities.length) return null;
   return (
     <ol className="tool-calls" aria-label="Tool activity" aria-live="polite">
-      {activities.map((a) => <ToolCall key={a.id} activity={a} />)}
+      {activities.map((a) => (
+        <ToolCall key={a.id} activity={a} />
+      ))}
     </ol>
   );
 }
@@ -117,15 +129,32 @@ function ToolCall({ activity }) {
   const seconds = elapsed !== null && elapsed >= 100 ? `${(elapsed / 1000).toFixed(1)}s` : null;
   return (
     <li className="tool-call" data-state={activity.state}>
-      <span className="tool-glyph" aria-hidden><IconCmp size={13} /></span>
+      <span className="tool-glyph" aria-hidden>
+        <IconCmp size={13} />
+      </span>
       <span className="tool-name">
         <span className="mono">{activity.tool}</span>
         <span className="tool-label">{meta.label}</span>
       </span>
       <span className="tool-status">
-        {activity.state === 'running' && <><CircleNotch size={12} className="spin" aria-hidden />Working…</>}
-        {activity.state === 'complete' && <><CheckCircle size={12} aria-hidden />{seconds ?? 'Done'}</>}
-        {activity.state === 'error' && <><Warning size={12} aria-hidden />Unavailable</>}
+        {activity.state === 'running' && (
+          <>
+            <CircleNotch size={12} className="spin" aria-hidden />
+            Working…
+          </>
+        )}
+        {activity.state === 'complete' && (
+          <>
+            <CheckCircle size={12} aria-hidden />
+            {seconds ?? 'Done'}
+          </>
+        )}
+        {activity.state === 'error' && (
+          <>
+            <Warning size={12} aria-hidden />
+            Unavailable
+          </>
+        )}
       </span>
     </li>
   );
@@ -149,11 +178,15 @@ export default function Ask() {
 
   useEffect(() => {
     let live = true;
-    getSettings().then((s) => live && setSettings(s)).catch(() => live && setSettings({}));
+    getSettings()
+      .then((s) => live && setSettings(s))
+      .catch(() => live && setSettings({}));
     getAiStatus()
       .then((s) => live && setAi(s))
       .catch(() => live && setAiFailed(true));
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, []);
 
   useEffect(() => () => controller.current?.abort(), []);
@@ -228,7 +261,8 @@ export default function Ask() {
         },
       });
       if (streamError) throw new Error(streamError);
-      if (!complete) throw new Error('Connection ended before the answer finished. Please try again.');
+      if (!complete)
+        throw new Error('Connection ended before the answer finished. Please try again.');
       const updated = [...next, { role: 'assistant', content: final, tools: turnTools }];
       setMessages(updated);
       if (settings?.chat_history !== false) {
@@ -240,7 +274,9 @@ export default function Ask() {
       }
       setActivities([]);
     } catch (e) {
-      setError(ac.signal.aborted ? 'Response stopped.' : e instanceof Error ? e.message : 'Chat failed');
+      setError(
+        ac.signal.aborted ? 'Response stopped.' : e instanceof Error ? e.message : 'Chat failed',
+      );
     } finally {
       controller.current = null;
       setBusy(false);
@@ -265,19 +301,27 @@ export default function Ask() {
         <div>
           <h1 className="page-title">Ask</h1>
           <p className="ask-status">
-            <span className={`dot${ai?.reachable ? ' dot-ok' : aiOffline ? ' dot-bad' : ''}`} aria-hidden />
+            <span
+              className={`dot${ai?.reachable ? ' dot-ok' : aiOffline ? ' dot-bad' : ''}`}
+              aria-hidden
+            />
             {model && <span className="mono">{model}</span>}
             <span>· {TOOLS.length} tools connected</span>
           </p>
         </div>
-        <button className="btn" onClick={reset} disabled={busy}>New conversation</button>
+        <button className="btn" onClick={reset} disabled={busy}>
+          New conversation
+        </button>
       </header>
 
       {aiOffline && (
         <div className="banner banner-error ask-banner" role="alert">
           <div>
             <strong>The assistant is offline.</strong>
-            <p>Vela can't reach the configured model server. You can keep browsing, but questions won't be answered until it's back.</p>
+            <p>
+              Vela can't reach the configured model server. You can keep browsing, but questions
+              won't be answered until it's back.
+            </p>
           </div>
         </div>
       )}
@@ -287,8 +331,8 @@ export default function Ask() {
           <div className="chat-intro">
             <h2>What should I look into?</h2>
             <p>
-              I can see the apps installed on this hub, whether they're running, their recent
-              logs, and the engine status — and I'll show my working.
+              I can see the apps installed on this hub, whether they're running, their recent logs,
+              and the engine status — and I'll show my working.
             </p>
             <div className="chat-starters">
               {STARTERS.map(([text, IconCmp]) => (
@@ -304,12 +348,16 @@ export default function Ask() {
         {messages.map((m, i) => (
           <div className="chat-turn" key={i}>
             {m.role === 'user' ? (
-              <div className="chat-user"><div className="chat-bubble">{m.content}</div></div>
+              <div className="chat-user">
+                <div className="chat-bubble">{m.content}</div>
+              </div>
             ) : (
               <>
                 <ToolCalls activities={m.tools ?? []} />
                 <div className="chat-assistant">
-                  <span className="chat-avatar" aria-hidden><Sparkle size={12} /></span>
+                  <span className="chat-avatar" aria-hidden>
+                    <Sparkle size={12} />
+                  </span>
                   <div className="chat-text">
                     {m.content}
                     <SendToPhone message={m.content} />
@@ -324,20 +372,35 @@ export default function Ask() {
 
         {busy && (
           <div className="chat-assistant" role="status">
-            <span className="chat-avatar" aria-hidden><Sparkle size={12} /></span>
+            <span className="chat-avatar" aria-hidden>
+              <Sparkle size={12} />
+            </span>
             <div className="chat-text">
-              {stream || (activities.some((a) => a.state === 'running') ? 'Checking the hub…' : 'Preparing response…')}
+              {stream ||
+                (activities.some((a) => a.state === 'running')
+                  ? 'Checking the hub…'
+                  : 'Preparing response…')}
               <span className="stream-caret" aria-hidden />
             </div>
           </div>
         )}
 
-        {error && <p className="inline-error" role="alert">{error}</p>}
+        {error && (
+          <p className="inline-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       <AskContext />
 
-      <form className="chat-composer" onSubmit={(e) => { e.preventDefault(); ask(input); }}>
+      <form
+        className="chat-composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask(input);
+        }}
+      >
         <div className="composer-field">
           <input
             value={input}
@@ -347,13 +410,20 @@ export default function Ask() {
             maxLength={4000}
           />
         </div>
-        {busy
-          ? <button type="button" className="btn" onClick={() => controller.current?.abort()}>Stop</button>
-          : (
-            <button className="composer-send" type="submit" disabled={!input.trim()} aria-label="Send">
-              <ArrowUp size={17} aria-hidden />
-            </button>
-          )}
+        {busy ? (
+          <button type="button" className="btn" onClick={() => controller.current?.abort()}>
+            Stop
+          </button>
+        ) : (
+          <button
+            className="composer-send"
+            type="submit"
+            disabled={!input.trim()}
+            aria-label="Send"
+          >
+            <ArrowUp size={17} aria-hidden />
+          </button>
+        )}
       </form>
     </div>
   );

@@ -2,7 +2,8 @@
 
 This setup is for changing Vela's source. Normal users run the packaged server.
 
-Requires Python 3.10+ and Node.js 22. Clone the hub and prepare a Python virtual
+Requires Python 3.10+ and Node.js 22.13 or later in the 22.x line (or Node.js 24+).
+Clone the hub and prepare a Python virtual
 environment using your platform's activation command:
 
 ```bash
@@ -28,10 +29,16 @@ For live frontend development, leave the server running and run
 Run the hub checks:
 
 ```bash
-python -m unittest discover -s tests
-node --test tests/bridge.test.mjs tests/resource.test.mjs
-npm --prefix web run build
+npm --prefix web run check
 ```
+
+This runs ESLint, Prettier's formatting check, Node regression tests, the Python
+suite, and the dashboard build, stopping at the first failure. CI uses the same
+command. Python is selected from `VELA_TEST_PYTHON`, the repository `.venv`, or
+`python` on PATH, in that order. Run `npm --prefix web run format` to apply the
+formatting conventions and `npm --prefix web run lint` for a quick code check.
+Formatting covers the dashboard source, SCSS, browser scripts and configuration;
+generated output, dependency trees and the lockfile are excluded.
 
 See [the repository guide](REPOSITORIES.md) for sibling app development.
 
@@ -44,10 +51,11 @@ The dashboard lives in `web/src/`. Reuse these foundations when adding a feature
 | `styles/main.scss` | Stylesheet entry point; ordered Sass `@use` modules |
 | `styles/_tokens.scss` | Shared colors, fonts, radii, shadows and light/dark theme variables |
 | `styles/layout/`, `styles/components/`, `styles/pages/` | Shell styles, reusable UI styles, and feature-specific styles |
-| `components/ui/` | `Button`, `PageHeader`, `FormField`, `LoadingState`, `EmptyState` |
+| `components/ui/` | Shared controls, page states, `Dialog` and `Drawer` |
 | `components/` | Vela-specific pieces such as app rows, the shell, and release reviews |
 | `hooks/` | Shared resource loading, polling, and user-triggered action state |
 | `navigation.js` | Dashboard routes, page components, labels, icons and mobile visibility |
+| `engine.jsx` | One engine status provider shared by the shell and dashboard pages |
 | `pages/` | Page composition and feature-specific behavior |
 | `api.js`, `store.jsx`, `bridge/` | Authenticated host requests, shared app state, and the host/app boundary |
 
@@ -67,17 +75,17 @@ For example, a read-only system-status page can use the existing engine API:
 
 ```jsx
 // web/src/pages/SystemStatus.jsx
-import { api } from '../api.js';
-import { useResource } from '../hooks/useResource.js';
+import { useEngine } from '../engine.jsx';
 import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import LoadingState from '../components/ui/LoadingState.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 
 export default function SystemStatus() {
-  const { data, error, loading, refreshing, refresh } = useResource(api.getEngine, {
-    intervalMs: 10000,
-  });
+  const {
+    engine: data, engineError: error, engineLoading: loading,
+    engineRefreshing: refreshing, refreshEngine: refresh,
+  } = useEngine();
   return <div className="page-inner">
     <PageHeader title="System status" description="Current engine activity."
       actions={<Button pending={refreshing} onClick={() => refresh()}>Refresh</Button>} />
@@ -121,6 +129,15 @@ explicit input ID, generates one otherwise, and connects help/errors through
 
 ### Share behavior where the semantics match
 
+`EngineProvider` is mounted once above the dashboard routes in `main.jsx`.
+Use `useEngine()` for engine status instead of creating a separate resource in
+each page. The shell and pages share the same data, error and refreshing state;
+navigation retains that state. Automatic polling waits ten seconds after each
+completed request. `refreshEngine()` shares a pending request rather than
+duplicating it. Failed refreshes retain the last successful data, and unmounting
+the provider aborts its request and stops polling. Existing imports from
+`store.jsx` remain supported through its re-export.
+
 `useResource(loader, { enabled, intervalMs })` fetches on mount and returns
 `data`, `error`, `loading`, `refreshing`, and `refresh`. Polling is optional and
 waits for the previous request to finish. Concurrent refreshes share the same
@@ -142,6 +159,44 @@ before updating local state. It handles errors and prevents duplicate pending
 submissions; it never retries an action automatically. See `AppConnection.jsx`
 and `ReleaseImport.jsx` for real consumers. Key an app-specific form by app ID
 so switching apps also ends its old action scope.
+
+### Shared dialogs and drawers
+
+Use `Dialog` or `Drawer` for modal overlays. Both use native modal dialogs for
+focus containment and background isolation, restore focus to the opener on
+close, and keep page scrolling locked until the last modal closes. Supply an
+accessible name using `aria-labelledby` or `aria-label`. Keep `open` controlled
+by the caller and pass `onClose` to update it; do not call native `.close()` or
+use `form method="dialog"` in consumers.
+
+```jsx
+import { useId, useRef } from 'react';
+import Dialog from '../components/ui/Dialog.jsx';
+import Button from '../components/ui/Button.jsx';
+
+function ConfirmChanges({ open, pending, onClose, onConfirm }) {
+  const titleId = useId();
+  const cancelButton = useRef(null);
+  return <Dialog open={open} onClose={onClose} pending={pending}
+    initialFocusRef={cancelButton} aria-labelledby={titleId}>
+    <h2 id={titleId}>Apply changes?</h2>
+    <p>Review your changes before applying them.</p>
+    <Button pending={pending} onClick={onConfirm}>Apply</Button>
+    <Button ref={cancelButton} disabled={pending} onClick={onClose}>Cancel</Button>
+  </Dialog>;
+}
+```
+
+`pending` prevents Escape/backdrop dismissal. Disable the consumer's Cancel
+and competing action buttons during that work too. `initialFocusRef` selects
+a safe starting control, usually Cancel or Close. When the opener may disappear
+(for example, a menu item), `returnFocusRef` provides a fallback focus target.
+Dialog backdrop dismissal is off by default; opt in with `closeOnBackdrop`.
+Drawer enables it by default,
+while preserving Vela's existing side-panel layout and full-width phone view.
+Use its `drawer-header`, `drawer-body` and `drawer-footer` sections for content.
+Keep permission reviews, saving and error messages in the feature itself.
+See app details, release review and the unsaved-work prompt for real consumers.
 
 Keep app lifecycle operations in the existing app provider. Keep permission
 reviews, grants and migration decisions explicit in their feature components.

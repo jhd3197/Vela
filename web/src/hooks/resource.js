@@ -17,19 +17,23 @@ export function createResource(load, { onChange, intervalMs = 0 }) {
     if (inFlight) return inFlight;
     clearTimeout(timer);
     publish({ refreshing: true });
-    inFlight = Promise.resolve().then(() => {
-      if (!disposed) return load({ signal: controller.signal });
-    }).then(data => {
-      publish({ data, error: null });
-      return disposed ? undefined : data;
-    }).catch(error => {
-      publish({ error });
-      return undefined;
-    }).finally(() => {
-      inFlight = null;
-      publish({ loading: false, refreshing: false });
-      if (!disposed && intervalMs > 0) timer = setTimeout(refresh, intervalMs);
-    });
+    inFlight = Promise.resolve()
+      .then(() => {
+        if (!disposed) return load({ signal: controller.signal });
+      })
+      .then((data) => {
+        publish({ data, error: null });
+        return disposed ? undefined : data;
+      })
+      .catch((error) => {
+        publish({ error });
+        return undefined;
+      })
+      .finally(() => {
+        inFlight = null;
+        publish({ loading: false, refreshing: false });
+        if (!disposed && intervalMs > 0) timer = setTimeout(refresh, intervalMs);
+      });
     return inFlight;
   };
 

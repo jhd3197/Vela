@@ -29,7 +29,11 @@ function subscribe(fn) {
 }
 
 export function useInstallPrompt() {
-  return useSyncExternalStore(subscribe, () => deferredPrompt, () => null);
+  return useSyncExternalStore(
+    subscribe,
+    () => deferredPrompt,
+    () => null,
+  );
 }
 
 export async function promptInstall(event) {
