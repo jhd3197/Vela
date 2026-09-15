@@ -705,9 +705,13 @@ on a near-black base (keep the Vela amber for primary actions; per-app `color` f
   environments on your machine." Local Engine card from `GET /api/engine`: status dot +
   Running pill, endpoint, applications installed, storage used (human-readable),
   plus a list of running apps ("Manage" â†’ links to Apps).
-- **Settings** (`/settings`): section list (General, App Environments â†’ links to
-  Environments, Storage â†’ engine storage info, Network â†’ platform/endpoint info,
-  Extensions/Backups as disabled "soon" rows). Keep it honest â€” only wire what exists.
+- **Settings**: a popup over the current screen with searchable categories for
+  Appearance, Chat & privacy, Local AI, Notifications, Backups, App environments,
+  Storage, Network and General. Theme previews and chat preferences save through
+  the settings API; notification connection details have an explicit Save action.
+  Switching categories keeps unsaved form entries. Existing `/settings#category`
+  links open the matching category over Home. General includes phone setup and
+  Home Screen installation. Backups can be created and verified through the API.
 - **App detail** (drawer or page, from any card): description, author, version,
   category, status, actions, log tail for process apps, Add-to-Home-Screen section
   for web apps (iOS instructions / beforeinstallprompt as in v1).

@@ -28,6 +28,10 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- Settings opens in a compact popup over the current screen, with searchable
+  categories, light and dark previews, and separate chat privacy controls.
+  Existing settings links open the matching category; phone layouts keep the
+  categories and controls inside the popup.
 - Ask now keeps its multiline composer at the bottom, with a separately scrolling
   conversation, formatted replies, copy controls, expandable checks, and a jump
   to the latest response. Type `@` to find an installed app by name or ID and

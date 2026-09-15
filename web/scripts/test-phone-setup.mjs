@@ -293,7 +293,11 @@ try {
   const blocked = await fixture({ blockedStorage: true });
   await blocked.page.goto(blocked.base);
   await blocked.page.getByRole('button', { name: 'Done for now' }).click();
-  await blocked.page.locator('.sidebar-nav').getByRole('link', { name: 'Settings' }).click();
+  await blocked.page.locator('.sidebar-nav').getByRole('button', { name: 'Settings' }).click();
+  await blocked.page
+    .getByRole('dialog', { name: 'Settings', exact: true })
+    .getByRole('button', { name: 'Done', exact: true })
+    .click();
   await blocked.page
     .locator('.sidebar-nav')
     .getByRole('link', { name: 'Home', exact: true })

@@ -13,6 +13,7 @@ import { useApps } from '../store.jsx';
 import AppIcon from './AppIcon.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import { useAuth } from './AuthGate.jsx';
+import { useSettingsPopup } from './SettingsProvider.jsx';
 
 const SETTINGS_ENTRIES = [
   { label: 'General', to: '/settings' },
@@ -21,8 +22,9 @@ const SETTINGS_ENTRIES = [
   { label: 'Notifications', to: '/settings#notifications' },
   { label: 'Backups', to: '/settings#backups' },
   { label: 'App Environments', to: '/environments' },
-  { label: 'Storage', to: '/settings' },
-  { label: 'Network', to: '/settings' },
+  { label: 'Chat & privacy', to: '/settings#chat' },
+  { label: 'Storage', to: '/settings#storage' },
+  { label: 'Network', to: '/settings#network' },
 ];
 
 // Mini-apps keep their data in same-origin localStorage under vela.* keys, so
@@ -102,6 +104,7 @@ export default function TopBar() {
   const { apps } = useApps();
   const navigate = useNavigate();
   const location = useLocation();
+  const { openSettings } = useSettingsPopup();
   const [query, setQuery] = useState(() => sessionStorage.getItem('vela.launcher.query') || '');
   useEffect(() => {
     sessionStorage.setItem('vela.launcher.query', query);
@@ -150,6 +153,10 @@ export default function TopBar() {
   const go = (to) => {
     setOpen(false);
     if (!to.startsWith('/app/')) setQuery('');
+    if (to.startsWith('/settings')) {
+      openSettings(to.split('#')[1] || 'general');
+      return;
+    }
     navigate(to, {
       state: {
         returnTo: location.pathname.startsWith('/app/')

@@ -209,6 +209,7 @@ function ToolCall({ activity }) {
 
 export default function Ask() {
   const [settings, setSettings] = useState(null);
+  const historyEnabled = useRef(true);
   const [ai, setAi] = useState(null);
   const [aiFailed, setAiFailed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -274,10 +275,21 @@ export default function Ask() {
 
   useEffect(() => () => controller.current?.abort(), []);
 
+  useEffect(() => {
+    const update = (event) => {
+      if ('chat_history' in event.detail)
+        historyEnabled.current = event.detail.chat_history !== false;
+      setSettings((current) => ({ ...current, ...event.detail }));
+    };
+    window.addEventListener('vela:chat-settings', update);
+    return () => window.removeEventListener('vela:chat-settings', update);
+  }, []);
+
   // Chat retention follows settings.chat_history: turning it off wipes the
   // stored transcript immediately; when on, the last turns are restored once.
   useEffect(() => {
     if (!settings) return;
+    historyEnabled.current = settings.chat_history !== false;
     if (settings.chat_history === false) clearChat();
     if (!loaded.current) {
       loaded.current = true;
@@ -318,7 +330,7 @@ export default function Ask() {
     let turnTools = [];
     function save(updated) {
       setMessages(updated);
-      if (settings?.chat_history !== false) {
+      if (historyEnabled.current) {
         try {
           localStorage.setItem(CHAT_KEY, JSON.stringify(updated.slice(-MAX_HISTORY)));
         } catch {

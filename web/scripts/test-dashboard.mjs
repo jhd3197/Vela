@@ -75,8 +75,10 @@ try {
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
         const nav = page.locator(viewport.width < 860 ? '.tabbar' : '.sidebar-nav');
-        assert.equal(await nav.locator('a').count(), viewport.width < 860 ? 5 : 7);
-        if (viewport.width >= 860 || !['System', 'Automations'].includes(label)) {
+        assert.equal(await nav.locator('a, button').count(), viewport.width < 860 ? 5 : 7);
+        if (label === 'Settings') {
+          await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
+        } else if (viewport.width >= 860 || !['System', 'Automations'].includes(label)) {
           assert.equal(
             await nav
               .getByRole('link', { name: label, exact: label !== 'Library' })
@@ -141,7 +143,7 @@ try {
   await page.goto(base + '/library');
   await page.getByRole('searchbox', { name: 'Search library' }).fill('no-such-fixture');
   await page.getByRole('heading', { name: 'No matches', exact: true }).waitFor();
-  await page.goto(base + '/settings');
+  await page.goto(base + '/settings#notifications');
   await page.getByLabel('Topic', { exact: true }).fill('local-fixture-topic');
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);

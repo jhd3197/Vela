@@ -41,6 +41,7 @@ node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
 node web/scripts/test-phone-setup.mjs
 ```
@@ -53,6 +54,9 @@ shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
+The settings suite checks popup navigation, retained page and form drafts,
+preference saving and rollback, keyboard focus, deep links and narrow layouts
+with disposable API responses. Screenshots are saved under `docs/screenshots/settings/`.
 The chat suite serves the built dashboard with disposable app records and a
 controlled response stream. It checks the bottom composer, app mentions,
 keyboard input, formatted responses, stop/retry, scrolling, chat retention and

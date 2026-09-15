@@ -6,12 +6,14 @@ import { useApps, useEngine } from '../store.jsx';
 import TopBar from './TopBar.jsx';
 import Toasts from './Toasts.jsx';
 import WelcomeSetup from './WelcomeSetup.jsx';
+import { useSettingsPopup } from './SettingsProvider.jsx';
 
 // Hub shell: glassy sidebar (brand, nav, server status) on desktop, a bottom
 // tab bar on mobile, and the shared top bar with search on every page.
 export default function Shell({ children }) {
   const pageRef = useRef(null);
   const location = useLocation();
+  const { openSettings, settingsOpen } = useSettingsPopup();
   const { apps, error, refreshApps, toasts, dismissToast } = useApps();
   const { engine, engineError } = useEngine();
   const serverOnline = Boolean(engine) && !engineError;
@@ -40,20 +42,33 @@ export default function Shell({ children }) {
           <span className="brand-name">Vela</span>
         </div>
         <nav className="sidebar-nav">
-          {dashboardPages.map(({ to, label, end, icon: Icon, weight = 'regular' }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
-            >
-              <Icon size={17} weight={weight} />
-              <span>{label}</span>
-              {label === 'Library' && availableCount > 0 && (
-                <span className="nav-tag">{availableCount} new</span>
-              )}
-            </NavLink>
-          ))}
+          {dashboardPages.map(({ to, label, end, popup, icon: Icon, weight = 'regular' }) =>
+            popup ? (
+              <button
+                key={to}
+                type="button"
+                className="nav-item"
+                aria-haspopup="dialog"
+                onClick={() => openSettings()}
+              >
+                <Icon size={17} weight={weight} />
+                <span>{label}</span>
+              </button>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
+              >
+                <Icon size={17} weight={weight} />
+                <span>{label}</span>
+                {label === 'Library' && availableCount > 0 && (
+                  <span className="nav-tag">{availableCount} new</span>
+                )}
+              </NavLink>
+            ),
+          )}
         </nav>
         <div className="sidebar-foot">
           <div className="side-card" role="status">
@@ -92,21 +107,34 @@ export default function Shell({ children }) {
       <nav className="tabbar">
         {dashboardPages
           .filter((i) => !i.tabHidden)
-          .map(({ to, label, end, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => `tab-item${isActive ? ' tab-item-active' : ''}`}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
+          .map(({ to, label, end, popup, icon: Icon }) =>
+            popup ? (
+              <button
+                key={to}
+                type="button"
+                className="tab-item"
+                aria-haspopup="dialog"
+                onClick={() => openSettings()}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </button>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `tab-item${isActive ? ' tab-item-active' : ''}`}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </NavLink>
+            ),
+          )}
       </nav>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
-      {!hasChildren && <WelcomeSetup key={location.key} />}
+      {!hasChildren && !settingsOpen && <WelcomeSetup key={location.key} />}
     </div>
   );
 }

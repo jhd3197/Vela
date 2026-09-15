@@ -1,6 +1,6 @@
 import { useResource } from '../hooks/useResource.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useSettingsPopup } from './SettingsProvider.jsx';
 import { Bell, ChartBar, Flask, PaperPlaneTilt, WarningCircle } from '@phosphor-icons/react';
 import { api, relTime } from '../api.js';
 
@@ -27,6 +27,7 @@ function getSeenAt() {
 // newer than the last time the panel was opened, and lists the latest events
 // with an icon per kind.
 export default function NotificationBell() {
+  const { openSettings } = useSettingsPopup();
   const { data } = useResource(api.getNotifications, { intervalMs: POLL_INTERVAL });
   const items = data?.notifications ?? null;
   const [open, setOpen] = useState(false);
@@ -113,9 +114,16 @@ export default function NotificationBell() {
               })}
             </ul>
           )}
-          <Link className="notif-foot" to="/settings#notifications" onClick={() => setOpen(false)}>
+          <button
+            type="button"
+            className="notif-foot"
+            onClick={() => {
+              setOpen(false);
+              openSettings('notifications');
+            }}
+          >
             Notification settings
-          </Link>
+          </button>
         </div>
       )}
     </div>

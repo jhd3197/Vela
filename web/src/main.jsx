@@ -13,6 +13,7 @@ import { EngineProvider } from './engine.jsx';
 import { registerServiceWorker } from './pwa.js';
 import Shell from './components/Shell.jsx';
 import ThemeSync from './components/ThemeSync.jsx';
+import SettingsProvider from './components/SettingsProvider.jsx';
 import Home from './pages/Home.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
@@ -33,7 +34,9 @@ const router = createBrowserRouter(
             <EngineProvider>
               <AppsProvider>
                 <ThemeSync />
-                <Outlet />
+                <SettingsProvider>
+                  <Outlet />
+                </SettingsProvider>
               </AppsProvider>
             </EngineProvider>
           </AuthGate>

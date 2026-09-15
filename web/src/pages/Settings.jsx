@@ -1,8 +1,8 @@
 import Button from '../components/ui/Button.jsx';
 import FormField from '../components/ui/FormField.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import Dialog from '../components/ui/Dialog.jsx';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowsClockwise,
   Bell,
@@ -10,6 +10,16 @@ import {
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
+  Palette,
+  ChatCircleText,
+  Sparkle,
+  HardDrives,
+  Globe,
+  Info,
+  SquaresFour,
+  MagnifyingGlass,
+  Check,
+  X,
 } from '@phosphor-icons/react';
 import { api, formatBytes, platformLabel, relTime } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
@@ -33,11 +43,17 @@ function StatusPill({ state, text }) {
 
 // ---------------------------------------------------------------- Local AI
 
-function AiSection({ settings, onPatched }) {
+function AiSection({ settings, onPatched, onPendingChange }) {
   const { pushToast } = useApps();
   const [ai, setAi] = useState(null);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  useEffect(() => {
+    onPendingChange('ai', saving);
+    return () => onPendingChange('ai', false);
+  }, [saving, onPendingChange]);
 
   const refresh = () => {
     setRefreshing(true);
@@ -56,11 +72,18 @@ function AiSection({ settings, onPatched }) {
   }, []);
 
   const pickModel = (model) => {
-    if (model === settings?.chat_model) return;
+    if (model === settings?.chat_model || saving) return;
+    setSaving(true);
+    setSaveError('');
     api
       .updateSettings({ chat_model: model })
       .then(() => onPatched({ chat_model: model }))
-      .catch((err) => pushToast(err.message || 'Could not save the model.'));
+      .catch((err) => {
+        const message = err.message || 'Could not save the model.';
+        setSaveError(message);
+        pushToast(message);
+      })
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -108,6 +131,7 @@ function AiSection({ settings, onPatched }) {
                     type="button"
                     className={`chip${m === current ? ' chip-active' : ''}`}
                     aria-pressed={m === current}
+                    disabled={!settings || saving}
                     onClick={() => pickModel(m)}
                   >
                     {m}
@@ -136,6 +160,11 @@ function AiSection({ settings, onPatched }) {
       )}
       {!ai && !failed && <p className="panel-note">Checking the local AI runtime…</p>}
       {failed && !ai && <p className="panel-note">Couldn't reach the status endpoint.</p>}
+      {saveError && (
+        <p className="inline-error" role="alert">
+          {saveError}
+        </p>
+      )}
     </section>
   );
 }
@@ -147,7 +176,7 @@ const NTFY_EVENTS = [
   { key: 'status_alerts', label: 'Status alerts', icon: Bell },
 ];
 
-function NotificationsSection({ settings, onPatched }) {
+function NotificationsSection({ settings, onPatched, onPendingChange }) {
   const { pushToast } = useApps();
   const ntfy = settings?.ntfy_config || {};
   const events = ntfy.events || {};
@@ -155,6 +184,10 @@ function NotificationsSection({ settings, onPatched }) {
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState(null); // { kind: 'ok' | 'err', text }
   const dirty = useRef(false);
+  useEffect(() => {
+    onPendingChange('notifications', sending);
+    return () => onPendingChange('notifications', false);
+  }, [sending, onPendingChange]);
 
   useEffect(() => {
     if (settings && !dirty.current) {
@@ -174,14 +207,28 @@ function NotificationsSection({ settings, onPatched }) {
     setNote({ kind: 'ok', text: 'Unsaved changes.' });
   };
 
-  const patchNtfy = (patch, successText, localPatch) =>
+  const patchNtfy = (patch, successText, localPatch) => {
+    if (sending) return;
+    setSending(true);
     api
       .updateSettings({ ntfy_config: patch })
       .then(() => {
         onPatched({ ntfy_config: localPatch || patch });
         if (successText) pushToast(successText, 'success');
+        setNote({
+          kind: 'ok',
+          text:
+            successText ||
+            (dirty.current
+              ? 'Event preference saved. Connection details have unsaved changes.'
+              : 'Notification preference saved.'),
+        });
       })
-      .catch((err) => pushToast(err.message || 'Could not save notification settings.'));
+      .catch((err) =>
+        setNote({ kind: 'err', text: err.message || 'Could not save notification settings.' }),
+      )
+      .finally(() => setSending(false));
+  };
 
   const save = async (sendTest) => {
     if (sending) return;
@@ -312,6 +359,7 @@ function NotificationsSection({ settings, onPatched }) {
             type="button"
             className={`chip${events[key] ? ' chip-active' : ''}`}
             aria-pressed={!!events[key]}
+            disabled={sending}
             onClick={() => patchNtfy({ events: { [key]: !events[key] } })}
           >
             <Icon size={14} />
@@ -347,12 +395,17 @@ function NotificationsSection({ settings, onPatched }) {
 
 // ------------------------------------------------------------------ Backups
 
-function BackupsSection() {
+function BackupsSection({ onPendingChange }) {
   const { pushToast } = useApps();
   const [backups, setBackups] = useState(null);
   const [creating, setCreating] = useState(false);
   const [verifying, setVerifying] = useState(null); // name being verified
   const [results, setResults] = useState({}); // name -> { ok, text }
+  const [note, setNote] = useState(null);
+  useEffect(() => {
+    onPendingChange('backups', creating || verifying !== null);
+    return () => onPendingChange('backups', false);
+  }, [creating, verifying, onPendingChange]);
 
   const refresh = () => {
     api
@@ -367,13 +420,15 @@ function BackupsSection() {
 
   const create = () => {
     setCreating(true);
+    setNote(null);
     api
       .createBackup()
       .then((b) => {
         pushToast(`Backup ${b.name} created (${formatBytes(b.size)}).`, 'success');
+        setNote({ kind: 'ok', text: `Backup ${b.name} created (${formatBytes(b.size)}).` });
         refresh();
       })
-      .catch((err) => pushToast(err.message || 'Backup failed.'))
+      .catch((err) => setNote({ kind: 'err', text: err.message || 'Backup failed.' }))
       .finally(() => setCreating(false));
   };
 
@@ -416,6 +471,14 @@ function BackupsSection() {
         folder — live data is never touched.
       </p>
       {backups === null && <p className="panel-note">Checking…</p>}
+      {note && (
+        <p
+          className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
+          role={note.kind === 'err' ? 'alert' : 'status'}
+        >
+          {note.text}
+        </p>
+      )}
       {backups !== null && backups.length === 0 && (
         <p className="panel-note">No backups yet. Create the first snapshot.</p>
       )}
@@ -455,13 +518,92 @@ function BackupsSection() {
 
 // --------------------------------------------------------------------- page
 
-export default function Settings() {
+const SECTIONS = [
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    icon: Palette,
+    description: 'Make Vela feel at home.',
+    keywords: 'theme light dark',
+  },
+  {
+    id: 'chat',
+    label: 'Chat & privacy',
+    icon: ChatCircleText,
+    description: 'Choose what this browser remembers.',
+    keywords: 'history retention conversation',
+  },
+  {
+    id: 'ai',
+    label: 'Local AI',
+    icon: Sparkle,
+    description: 'Connect with the models on your server.',
+    keywords: 'ollama model endpoint',
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: Bell,
+    description: 'Keep up with your server, wherever you are.',
+    keywords: 'ntfy push topic alerts',
+  },
+  {
+    id: 'backups',
+    label: 'Backups',
+    icon: ShieldCheck,
+    description: 'Keep a recoverable copy of your apps and data.',
+    keywords: 'restore snapshot verify',
+  },
+  {
+    id: 'environments',
+    label: 'App environments',
+    icon: SquaresFour,
+    description: 'See where your apps run.',
+    keywords: 'apps engine system running',
+  },
+  {
+    id: 'storage',
+    label: 'Storage',
+    icon: HardDrives,
+    description: 'Your apps and data, on your own computer.',
+    keywords: 'disk directory space',
+  },
+  {
+    id: 'network',
+    label: 'Network',
+    icon: Globe,
+    description: 'How your dashboard reaches the server.',
+    keywords: 'connection address api',
+  },
+  {
+    id: 'general',
+    label: 'General',
+    icon: Info,
+    description: 'About your server and setting up your devices.',
+    keywords: 'version platform phone install home screen about',
+  },
+];
+
+export default function Settings({ initialSection = 'appearance', onClose }) {
   const { platform, pushToast } = useApps();
   const { engine } = useEngine();
-  const location = useLocation();
+  const [active, setActive] = useState(() =>
+    SECTIONS.some((s) => s.id === initialSection) ? initialSection : 'appearance',
+  );
+  const [query, setQuery] = useState('');
+  const closeRef = useRef(null);
+  const contentRef = useRef(null);
   const [health, setHealth] = useState(null);
   const [settings, setSettings] = useState(null);
   const [theme, setThemeState] = useState(getTheme);
+  const [loadError, setLoadError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [pendingSections, setPendingSections] = useState({});
+  const onPendingChange = useCallback((section, pending) => {
+    setPendingSections((previous) => ({ ...previous, [section]: pending }));
+  }, []);
+  const pending = saving || Object.values(pendingSections).some(Boolean);
 
   useEffect(() => {
     api
@@ -474,18 +616,19 @@ export default function Settings() {
         setSettings(s);
         if (s.theme === 'dark' || s.theme === 'light') setThemeState(s.theme);
       })
-      .catch(() => setSettings({}));
+      .catch(() => setLoadError(true));
   }, []);
 
-  // Deep links (/settings#notifications etc.) scroll to their panel.
   useEffect(() => {
-    if (!location.hash) return;
-    const el = document.getElementById(`settings-${location.hash.slice(1)}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [location.hash, settings]);
+    contentRef.current?.scrollTo(0, 0);
+  }, [active]);
 
   // Merge a successful PATCH into local settings state (deep for nested dicts).
   const onPatched = (patch) => {
+    // Ask stays mounted beneath the popup; its retention choice must update too.
+    if ('chat_history' in patch || 'chat_model' in patch) {
+      window.dispatchEvent(new CustomEvent('vela:chat-settings', { detail: patch }));
+    }
     setSettings((prev) => {
       if (!prev) return prev;
       const next = { ...prev };
@@ -504,15 +647,27 @@ export default function Settings() {
   };
 
   const pickTheme = (next) => {
+    if (saving) return;
+    const previous = theme;
+    setSaving(true);
+    setSaveError('');
     setTheme(next); // instant local apply (also updates the localStorage fallback)
     setThemeState(next);
     api
       .updateSettings({ theme: next })
-      .catch((err) => pushToast(err.message || 'Could not save the theme.'));
+      .catch((err) => {
+        setTheme(previous);
+        setThemeState(previous);
+        setSaveError(err.message || 'Could not save the theme.');
+      })
+      .finally(() => setSaving(false));
   };
 
   const chatHistory = settings?.chat_history !== false;
   const pickChatHistory = (on) => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
     if (!on) {
       try {
         localStorage.removeItem('vela-chat');
@@ -531,158 +686,274 @@ export default function Settings() {
       )
       .catch((err) => {
         onPatched({ chat_history: !on });
-        pushToast(err.message || 'Could not save the setting.');
-      });
+        setSaveError(err.message || 'Could not save the setting.');
+      })
+      .finally(() => setSaving(false));
   };
 
+  const section = SECTIONS.find((s) => s.id === active);
+  const matches = SECTIONS.filter((s) =>
+    `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
   return (
-    <div className="page-inner">
-      <PageHeader title="Settings" description="Hub and engine configuration." />
-
-      <section className="panel" id="settings-appearance">
-        <div className="panel-head">
-          <h2>Appearance</h2>
+    <Dialog
+      open
+      pending={pending}
+      onClose={onClose}
+      closeOnBackdrop
+      className="modal-dialog settings-dialog"
+      initialFocusRef={closeRef}
+      aria-labelledby="settings-title"
+    >
+      <aside className="settings-sidebar">
+        <h1 id="settings-title">Settings</h1>
+        <div className="settings-search">
+          <MagnifyingGlass size={15} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Find a setting"
+            placeholder="Find a setting…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </div>
-        <div className="settings-row">
-          <div>
-            <h3>Theme</h3>
-            <p>
-              Light follows the Apps and Automations prototypes; dark follows the Home dashboard.
+        <nav aria-label="Settings categories">
+          {matches.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`settings-nav-item${active === id ? ' is-active' : ''}`}
+              aria-current={active === id ? 'true' : undefined}
+              onClick={() => setActive(id)}
+            >
+              <Icon size={17} />
+              <span>{label}</span>
+            </button>
+          ))}
+          {matches.length === 0 && (
+            <p className="settings-no-results" role="status">
+              No settings found.
             </p>
-          </div>
-          <div className="seg" role="tablist">
-            {['light', 'dark'].map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={theme === t}
-                className={`seg-opt${theme === t ? ' seg-opt-active' : ''}`}
-                onClick={() => pickTheme(t)}
-              >
-                {t === 'light' ? 'Light' : 'Dark'}
-              </button>
-            ))}
-          </div>
+          )}
+        </nav>
+        <div className="settings-brand">
+          <img src="/vela-mark.png" alt="" width="24" height="24" />
+          <span>
+            Vela <small>{health?.version ? `v${health.version}` : 'Personal app server'}</small>
+          </span>
         </div>
-        <div className="settings-row">
+      </aside>
+      <div className="settings-main">
+        <header className="settings-header">
           <div>
-            <h3>Remember chat on this device</h3>
-            <p>
-              Keeps your last assistant conversation in this browser. Turning it off wipes it
-              immediately.
+            <h2>{section.label}</h2>
+            <p>{section.description}</p>
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            className="icon-btn"
+            aria-label="Close settings"
+            disabled={pending}
+            onClick={onClose}
+          >
+            <X size={19} />
+          </button>
+        </header>
+        <div className="settings-content" ref={contentRef}>
+          {loadError && (
+            <p className="inline-error" role="alert">
+              Could not load settings. Close this window and try again.
             </p>
+          )}
+
+          <section className="panel" id="settings-appearance" hidden={active !== 'appearance'}>
+            <div className="panel-head">
+              <h2>Appearance</h2>
+            </div>
+            <div className="settings-row">
+              <div>
+                <h3>Theme</h3>
+                <p>Choose a light or dark look for your dashboard.</p>
+              </div>
+            </div>
+            <div className="settings-theme-grid" role="group" aria-label="Theme">
+              {['light', 'dark'].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  aria-pressed={theme === t}
+                  className={`settings-theme${theme === t ? ' is-selected' : ''}`}
+                  disabled={saving}
+                  onClick={() => pickTheme(t)}
+                >
+                  <span className={`settings-theme-preview preview-${t}`} aria-hidden="true">
+                    <span className="preview-sidebar">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <span className="preview-content">
+                      <i />
+                      <span>
+                        <i />
+                        <i />
+                      </span>
+                      <i />
+                    </span>
+                  </span>
+                  <span className="settings-theme-label">
+                    {t === 'light' ? 'Light' : 'Dark'}
+                    {theme === t && <Check size={16} weight="bold" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="panel" id="settings-chat" hidden={active !== 'chat'}>
+            <div className="settings-row">
+              <div>
+                <h3>Remember chat on this device</h3>
+                <p>
+                  Keeps your last assistant conversation in this browser. Turning it off wipes it
+                  immediately.
+                </p>
+              </div>
+              <div className="seg" role="group" aria-label="Remember chat on this device">
+                {[true, false].map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    aria-pressed={chatHistory === v}
+                    disabled={!settings || saving}
+                    className={`seg-opt${chatHistory === v ? ' seg-opt-active' : ''}`}
+                    onClick={() => pickChatHistory(v)}
+                  >
+                    {v ? 'On' : 'Off'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <div hidden={active !== 'ai'}>
+            <AiSection
+              settings={settings}
+              onPatched={onPatched}
+              onPendingChange={onPendingChange}
+            />
           </div>
-          <div className="seg" role="tablist">
-            {[true, false].map((v) => (
-              <button
-                key={String(v)}
-                role="tab"
-                aria-selected={chatHistory === v}
-                className={`seg-opt${chatHistory === v ? ' seg-opt-active' : ''}`}
-                onClick={() => pickChatHistory(v)}
-              >
-                {v ? 'On' : 'Off'}
-              </button>
-            ))}
+
+          <div hidden={active !== 'notifications'}>
+            <fieldset className="settings-fields" disabled={!settings}>
+              <NotificationsSection
+                settings={settings}
+                onPatched={onPatched}
+                onPendingChange={onPendingChange}
+              />
+            </fieldset>
           </div>
+
+          <div hidden={active !== 'backups'}>
+            <BackupsSection onPendingChange={onPendingChange} />
+          </div>
+
+          <section className="panel" hidden={active !== 'general'}>
+            <div className="panel-head">
+              <h2>General</h2>
+            </div>
+            <dl className="fact-grid">
+              <div className="fact">
+                <dt>Platform</dt>
+                <dd>{platform ? platformLabel(platform.current) : '—'}</dd>
+              </div>
+              <div className="fact">
+                <dt>Hub version</dt>
+                <dd className="mono">{health?.version || '—'}</dd>
+              </div>
+              <div className="fact fact-wide">
+                <dt>Supported platforms</dt>
+                <dd>{platform ? platform.supported.map(platformLabel).join(' · ') : '—'}</dd>
+              </div>
+            </dl>
+            <AddToHomeScreen appName="Vela" forHub />
+            <div className="phone-setup-settings">
+              <Link className="btn" to="/?setup=phone">
+                Set up my phone
+              </Link>
+              <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
+            </div>
+          </section>
+
+          <section className="panel" hidden={active !== 'environments'}>
+            <div className="panel-head">
+              <h2>App Environments</h2>
+              <Link className="btn btn-small" to="/environments">
+                Open Environments
+              </Link>
+            </div>
+            <p className="panel-note">
+              Apps run in the local engine on this machine —{' '}
+              {engine
+                ? `${engine.apps_installed ?? 0} installed, ${engine.apps_running ?? 0} running.`
+                : 'status unavailable.'}
+            </p>
+          </section>
+
+          <section className="panel" hidden={active !== 'storage'}>
+            <div className="panel-head">
+              <h2>Storage</h2>
+            </div>
+            <dl className="fact-grid">
+              <div className="fact">
+                <dt>Used by Vela</dt>
+                <dd>{engine ? formatBytes(engine.storage_bytes) : '—'}</dd>
+              </div>
+              <div className="fact fact-wide">
+                <dt>Data directory</dt>
+                <dd className="mono">{engine?.data_dir || '—'}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="panel" hidden={active !== 'network'}>
+            <div className="panel-head">
+              <h2>Network</h2>
+            </div>
+            <dl className="fact-grid">
+              <div className="fact">
+                <dt>Engine endpoint</dt>
+                <dd className="mono">{engine?.endpoint || '—'}</dd>
+              </div>
+              <div className="fact">
+                <dt>API base</dt>
+                <dd className="mono">/api (same origin)</dd>
+              </div>
+              <div className="fact fact-wide">
+                <dt>App serving</dt>
+                <dd className="mono">
+                  /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
+                </dd>
+              </div>
+            </dl>
+          </section>
         </div>
-      </section>
-
-      <AiSection settings={settings} onPatched={onPatched} />
-
-      <NotificationsSection settings={settings} onPatched={onPatched} />
-
-      <BackupsSection />
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>General</h2>
-        </div>
-        <dl className="fact-grid">
-          <div className="fact">
-            <dt>Platform</dt>
-            <dd>{platform ? platformLabel(platform.current) : '—'}</dd>
-          </div>
-          <div className="fact">
-            <dt>Hub version</dt>
-            <dd className="mono">{health?.version || '—'}</dd>
-          </div>
-          <div className="fact fact-wide">
-            <dt>Supported platforms</dt>
-            <dd>{platform ? platform.supported.map(platformLabel).join(' · ') : '—'}</dd>
-          </div>
-        </dl>
-        <AddToHomeScreen appName="Vela" forHub />
-        <div className="phone-setup-settings">
-          <Link className="btn" to="/?setup=phone">
-            Set up my phone
-          </Link>
-          <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>App Environments</h2>
-          <Link className="btn btn-small" to="/environments">
-            Open Environments
-          </Link>
-        </div>
-        <p className="panel-note">
-          Apps run in the local engine on this machine —{' '}
-          {engine
-            ? `${engine.apps_installed ?? 0} installed, ${engine.apps_running ?? 0} running.`
-            : 'status unavailable.'}
-        </p>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Storage</h2>
-        </div>
-        <dl className="fact-grid">
-          <div className="fact">
-            <dt>Used by Vela</dt>
-            <dd>{engine ? formatBytes(engine.storage_bytes) : '—'}</dd>
-          </div>
-          <div className="fact fact-wide">
-            <dt>Data directory</dt>
-            <dd className="mono">{engine?.data_dir || '—'}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Network</h2>
-        </div>
-        <dl className="fact-grid">
-          <div className="fact">
-            <dt>Engine endpoint</dt>
-            <dd className="mono">{engine?.endpoint || '—'}</dd>
-          </div>
-          <div className="fact">
-            <dt>API base</dt>
-            <dd className="mono">/api (same origin)</dd>
-          </div>
-          <div className="fact fact-wide">
-            <dt>App serving</dt>
-            <dd className="mono">
-              /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="panel panel-muted">
-        <div className="settings-row settings-row-disabled">
-          <div>
-            <h3>Extensions</h3>
-            <p>Extend the hub with community plugins.</p>
-          </div>
-          <span className="tag">Soon</span>
-        </div>
-      </section>
-    </div>
+        <footer className="settings-footer">
+          {saveError ? (
+            <span className="inline-error" role="alert">
+              {saveError}
+            </span>
+          ) : (
+            <span role="status">
+              {pending ? 'Working…' : 'Theme and chat preferences save automatically.'}
+            </span>
+          )}
+          <Button disabled={pending} onClick={onClose}>
+            Done
+          </Button>
+        </footer>
+      </div>
+    </Dialog>
   );
 }
