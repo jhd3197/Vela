@@ -20,6 +20,8 @@ until the release workflow prepares a tested server version.
   bar** now shows that same dashboard header, with **Hide app bar** in it to
   return.
 
+## 0.1.8 - 2026-09-15
+
 ### Added
 
 - **App lock.** A phone or remote browser signed in to Vela can now be locked
