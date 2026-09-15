@@ -8,6 +8,12 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Vela opens on a desk.** The home screen is now a board of widgets over a
+  wallpaper instead of a plain app launcher: your apps, the time, what is
+  running and your latest Ask conversation, with the rail beside it. Widgets
+  only show what Vela actually knows, so nothing on the board is a placeholder.
+  The desktop board is six columns wide and the phone board two, and each is
+  laid out on its own.
 - **The app rail stays on screen on a phone.** Every dashboard page, including
   an open app, now keeps the rail of destinations and installed apps beside its
   content at phone widths, so switching apps or pages is one tap away. The

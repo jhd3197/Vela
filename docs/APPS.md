@@ -2,10 +2,16 @@
 
 ## Move around Vela
 
-Home is your app launcher: it shows the apps you have installed and one place to
-add another. Choosing an app opens it; if it is stopped, opening it starts it.
+The desk is what Vela opens on. It is a board of widgets over a wallpaper:
+your apps, the time, what is running, and your last conversation with Ask.
+Choosing an app opens it; if it is stopped, opening it starts it. Widgets only
+show things Vela really knows — nothing on the desk is a placeholder.
 
-A narrow rail runs down the left of the dashboard: Home, Ask, a shortcut for
+The board is the same on a wide screen and a phone, laid out differently: six
+columns of widgets on a desktop, two in your hand. Each is remembered on its
+own, so arranging one never rearranges the other.
+
+A narrow rail runs down the left of the dashboard: Desk, Ask, a shortcut for
 every installed app, then Library and a **More** menu holding Automations and
 Manage apps. Settings sits at the bottom. Hover or tab to an icon to see its
 name. The open destination is marked on the rail, so you always know where you

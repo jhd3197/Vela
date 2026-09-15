@@ -9,6 +9,8 @@
 // A widget TYPE describes a placeable kind of widget:
 //   { id, name, icon, cat, desc, w, h, min: [w, h], defaultCfg, render, app? }
 // A widget INSTANCE on a board is { i, type, x, y, w, h, cfg }.
+import { useMemo } from 'react';
+import { CORE_WIDGET_TYPES } from './types.jsx';
 
 /** Widget sizes an app may ask for, as [w, h] on a 6-column board. */
 export const APP_WIDGET_SIZES = {
@@ -54,4 +56,46 @@ export function deriveWidgetTitle(widget, type) {
   if (cfg.title) return cfg.title;
   if (type?.title) return type.title(cfg);
   return type?.name || widget?.type || 'Widget';
+}
+
+/**
+ * Every widget type the desk can place right now: Vela's own, plus one per
+ * widget each installed app declares in its manifest.
+ *
+ * App types are namespaced, so a board keeps pointing at the right app's
+ * widget, and they disappear from the library the moment the app is
+ * uninstalled — a board that still names one renders the "no longer
+ * available" note rather than crashing.
+ */
+export function useWidgetTypes(apps, appRender) {
+  return useMemo(() => {
+    const types = [...CORE_WIDGET_TYPES];
+    const seen = new Set(types.map((type) => type.id));
+    for (const app of apps || []) {
+      if (!app?.installed || !Array.isArray(app.widgets)) continue;
+      for (const declared of app.widgets) {
+        if (!declared || typeof declared.id !== 'string') continue;
+        const id = appWidgetTypeId(app.id, declared.id);
+        if (seen.has(id)) continue;
+        const [w, h] = APP_WIDGET_SIZES[declared.size] || APP_WIDGET_SIZES.m;
+        seen.add(id);
+        types.push({
+          id,
+          name: declared.name || declared.id,
+          icon: null,
+          cat: app.name,
+          desc: `From ${app.name}`,
+          w,
+          h,
+          min: [1, 1],
+          defaultCfg: {},
+          app,
+          widgetId: declared.id,
+          layout: declared.layout,
+          render: appRender,
+        });
+      }
+    }
+    return types;
+  }, [apps, appRender]);
 }

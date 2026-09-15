@@ -782,7 +782,7 @@ workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
 purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
 restrained 14px card corners), in light and dark.
 
-- **Rail** (desktop, 62px): the Vela mark, then Home and Ask, then a shortcut
+- **Rail** (desktop, 62px): the Vela mark, then Desk and Ask, then a shortcut
   for every installed app in a stable name order, a separator, Library and a
   **More** menu naming Automations and Manage apps (and System while developer
   tools are on), then Settings and — for a remote session — Sign out. The open
@@ -803,12 +803,20 @@ restrained 14px card corners), in light and dark.
   only while developer tools are on. Missing or still-loading data is neither.
   Pages that show their own `<h1>` do not repeat it in the header; Ask and app
   workspaces do use it.
-- **Home** (`/`): the app launcher. A greeting and the date, then a tile grid of
-  installed apps — each an Open control showing the app's own short purpose —
-  and one "Add an app" tile, with "Add your first app" as the empty state. No
-  engine counters, version strings, system widgets or second catalog promotion;
-  invented activity, recents or favorites are not substitutes for them.
-  Placeholders show while the first app list loads.
+- **Desk** (`/`): the home of Vela is a widget board over the user's wallpaper,
+  with the rail beside it. It replaces the earlier launcher-only Home, and with
+  it the rule that `/` shows no system information: a desk may show what the
+  server actually knows. Widgets are rendered by the host and never invent
+  data — a widget type ships only once a real source for it exists, so weather,
+  Health, Money, Meals, Photos and Paperless are absent rather than mocked.
+  The seeded board is **Your apps** (the tile grid, each tile an Open control
+  showing the app's own short purpose, plus one "Add an app" tile and
+  placeholders while the first list loads), **Clock** (time, weekday and date),
+  **Running now** (the apps the engine reports running, "Nothing running."
+  otherwise) and **Ask** (the newest conversation's title and last line, and a
+  box that opens Ask with what was typed). There are two boards: six columns
+  above 860px and two below, edited and stored separately, never reflowed into
+  each other. Each widget is a labelled region.
 - **Manage apps** (`/apps`): installed apps as rows leading to the detail
   drawer, with status. Filter tabs: All / Running / Not installed.
 - **Library** (`/library`): catalog cards — icon tile, name, category and
@@ -843,7 +851,7 @@ restrained 14px card corners), in light and dark.
   chat preferences save through the settings API; notification connection
   details have an explicit Save action. Switching categories keeps unsaved form
   entries. Existing `/settings#category` links open the matching category over
-  Home, with `#storage` → Backups & storage and `#network`/`#environments` →
+  the desk, with `#storage` → Backups & storage and `#network`/`#environments` →
   Developer tools. General includes phone setup, Home Screen installation and
   the developer-tools switch. Backups can be created and verified through the API.
 - **Developer tools**: one browser-local preference (`vela-developer-tools`),

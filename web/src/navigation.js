@@ -7,7 +7,7 @@ import {
   SquaresFour,
   Storefront,
 } from '@phosphor-icons/react';
-import Home from './pages/Home.jsx';
+import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
 import Apps from './pages/Apps.jsx';
 import Library from './pages/Library.jsx';
@@ -20,7 +20,7 @@ import Automations from './pages/Automations.jsx';
 // secondary menu. `developer` marks a destination that only appears while
 // "Show developer tools" is on; its route stays valid either way.
 export const dashboardPages = [
-  { to: '/', label: 'Home', end: true, icon: HouseSimple, rail: 'primary', component: Home },
+  { to: '/', label: 'Desk', end: true, icon: HouseSimple, rail: 'primary', component: Desk },
   {
     to: '/ask',
     label: 'Ask',
@@ -67,7 +67,7 @@ export const dashboardPages = [
     developer: true,
     component: Environments,
   },
-  { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Home, popup: true },
+  { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Desk, popup: true },
 ];
 
 export const visiblePages = (developer) =>
