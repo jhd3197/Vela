@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, At, Square, SquaresFour } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
+import useMediaQuery from '../hooks/useMediaQuery.js';
 
 export default function ChatComposer({ input, setInput, busy, disabled, onSend, onStop, model }) {
   const { apps, error } = useApps();
+  // The phone composer is a single rounded line, so its hint has to be short.
+  const phone = useMediaQuery('(max-width: 860px)');
   const field = useRef(null);
   const [mention, setMention] = useState(null);
   const [selected, setSelected] = useState(0);
@@ -157,7 +160,7 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
           }
           aria-label="Ask a question"
           aria-describedby="composer-hint"
-          placeholder="Ask about your apps… Type @ to mention one"
+          placeholder={phone ? 'Message Ask…' : 'Ask about your apps… Type @ to mention one'}
           onChange={(event) => {
             setInput(event.target.value);
             detect(event.target.value, event.target.selectionStart);

@@ -9,7 +9,7 @@
 const SHELL_CACHE = 'vela-shell-v2';
 const RUNTIME_CACHE = 'vela-runtime-v2';
 
-const SHELL_ASSETS = ['/', '/manifest.webmanifest'];
+const SHELL_ASSETS = ['/', '/manifest.webmanifest?v=sail-2'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

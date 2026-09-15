@@ -216,8 +216,10 @@ function ConversationRow({ conversation, active, onSelect, onRename, onArchive, 
 
 // The Ask context panel: new conversation, search, date-grouped history and the
 // per-conversation actions. It only ever shows what the server actually stored.
+// On desktop it is a column beside the conversation; on narrower screens Ask
+// places it in the navigation drawer, beside the rail (`drawer`).
 export default function ConversationPanel({
-  open,
+  drawer = false,
   conversations,
   activeId,
   loading,
@@ -240,29 +242,26 @@ export default function ConversationPanel({
   const [deleting, setDeleting] = useState(null);
 
   return (
-    <aside className={`workspace-panel conversation-panel${open ? ' workspace-panel-open' : ''}`}>
-      {/* Only visible while the panel overlays the workspace on narrow windows. */}
-      <button
-        type="button"
-        className="panel-scrim"
-        tabIndex={-1}
-        aria-hidden="true"
-        onClick={onCollapse}
-      />
+    <aside
+      className={`conversation-panel${drawer ? ' conversation-panel-drawer' : ' workspace-panel'}`}
+      aria-label="Conversations"
+    >
       <div className="conversation-panel-head">
         <span className="conversation-panel-title">Ask</span>
         <span className="conversation-panel-model">
           <span className={`dot${reachable ? ' dot-ok' : ' dot-bad'}`} aria-hidden="true" />
           {model || 'Local model'}
         </span>
-        <button
-          type="button"
-          className="btn btn-icon"
-          aria-label="Collapse conversations"
-          onClick={onCollapse}
-        >
-          <SidebarSimple size={16} aria-hidden="true" />
-        </button>
+        {!drawer && (
+          <button
+            type="button"
+            className="btn btn-icon"
+            aria-label="Collapse conversations"
+            onClick={onCollapse}
+          >
+            <SidebarSimple size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div className="conversation-panel-new">

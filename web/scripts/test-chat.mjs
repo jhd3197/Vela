@@ -212,14 +212,12 @@ try {
   await mkdir(shots, { recursive: true });
   const input = page.getByRole('combobox', { name: 'Ask a question' });
   const send = page.getByRole('button', { name: 'Send', exact: true });
-  const checkLayout = async (width) => {
+  const checkLayout = async () => {
     const boxes = await page.evaluate(() => {
       const composer = document.querySelector('.chat-composer').getBoundingClientRect();
       const main = document.querySelector('.workspace-content');
-      const nav = document.querySelector('.tabbar').getBoundingClientRect();
       return {
         bottom: composer.bottom,
-        navTop: nav.top,
         bodyOverflow: document.documentElement.scrollWidth - innerWidth,
         pageOverflow: main.scrollHeight - main.clientHeight,
         height: innerHeight,
@@ -228,8 +226,7 @@ try {
     assert.ok(boxes.bodyOverflow <= 1, JSON.stringify(boxes));
     assert.ok(boxes.pageOverflow <= 1, JSON.stringify(boxes));
     assert.ok(
-      boxes.bottom <= (width < 860 ? boxes.navTop : boxes.height) &&
-        boxes.bottom > boxes.height - 160,
+      boxes.bottom <= boxes.height && boxes.bottom > boxes.height - 160,
       JSON.stringify(boxes),
     );
   };
@@ -248,7 +245,7 @@ try {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
       }, theme);
-      await checkLayout(viewport.width);
+      await checkLayout();
       await page.screenshot({ path: path.join(shots, `empty-${theme}-${viewport.width}.png`) });
       await input.fill('Check @mea');
       await page.getByRole('option', { name: /Meal Planner/ }).waitFor();
@@ -329,7 +326,7 @@ try {
   assert.equal(await page.evaluate(() => window.chatTestClipboard), answer);
   await page.locator('.tool-details summary').click();
   await page.getByText('app_logs', { exact: true }).waitFor();
-  await checkLayout(1366);
+  await checkLayout();
   await page.screenshot({ path: path.join(shots, 'conversation-desktop.png') });
   // Long streamed output follows the bottom until the reader scrolls up.
   await input.fill('A longer answer');
@@ -352,13 +349,27 @@ try {
   emit({ text: long + 'New streamed content' });
   await page.getByText('New streamed content', { exact: true }).waitFor();
   assert.equal(await page.locator('.chat-log').evaluate((log) => log.scrollTop), 0);
-  await checkLayout(1366);
+  await checkLayout();
   await page.getByRole('button', { name: 'Jump to latest' }).click();
   finish(long + 'New streamed content');
   await send.waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
-  await checkLayout(390);
+  await checkLayout();
   await page.screenshot({ path: path.join(shots, 'conversation-phone.png') });
+  // On a phone the header's one control opens the navigation drawer, which
+  // carries the rail and the conversation list side by side.
+  assert.equal(await page.getByRole('button', { name: 'Show conversations' }).count(), 0);
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  const phoneDrawer = page.getByRole('dialog', { name: 'Vela navigation' });
+  await phoneDrawer.locator('.conversation-panel').waitFor();
+  assert.equal(await phoneDrawer.locator('.rail').isVisible(), true);
+  await phoneDrawer.getByRole('link', { name: 'Home', exact: true }).waitFor();
+  await page.screenshot({ path: path.join(shots, 'conversation-phone-drawer.png') });
+  await phoneDrawer.getByRole('button', { name: 'New conversation' }).click();
+  await phoneDrawer.waitFor({ state: 'detached' });
+  await page.getByRole('heading', { name: 'What should I look into?' }).waitFor();
+  await page.goBack();
+  await page.getByText('New streamed content', { exact: true }).waitFor();
   await page.reload();
   await page.getByText('New streamed content', { exact: true }).waitFor();
   retention = false;
@@ -370,7 +381,7 @@ try {
   await page.getByText('The assistant is offline.', { exact: true }).waitFor();
   await input.fill('My draft while offline');
   assert.equal(await send.isDisabled(), true);
-  await checkLayout(390);
+  await checkLayout();
   reachable = true;
   await page.getByRole('button', { name: 'Reconnect' }).click();
   await page.getByText('qwen3:8b · on this machine', { exact: true }).waitFor();

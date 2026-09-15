@@ -31,9 +31,9 @@ import {
   streamChat,
   updateConversation,
 } from '../chatApi.js';
-import AskContext from '../components/AskContext.jsx';
 import ChatComposer from '../components/ChatComposer.jsx';
 import ConversationPanel from '../components/ConversationPanel.jsx';
+import NavDrawer from '../components/NavDrawer.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
@@ -252,8 +252,10 @@ export default function Ask() {
   const [listError, setListError] = useState('');
   const [query, setQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
-  // The panel is a column on wide screens and an overlay below 1100px, so it
+  // The panel is a column on wide screens. Below 1100px it moves into the
+  // navigation drawer beside the rail, opened on demand from the header, so it
   // starts closed there rather than covering the conversation.
+  const [narrow, setNarrow] = useState(() => matchMedia(NARROW).matches);
   const [panelOpen, setPanelOpen] = useState(
     () => readStored(PANEL_KEY, 'open') !== 'closed' && !matchMedia(NARROW).matches,
   );
@@ -461,14 +463,21 @@ export default function Ask() {
     setInput(q.slice(0, 4000));
   }, [params, setParams]);
 
-  useEffect(() => writeStored(PANEL_KEY, panelOpen ? 'open' : 'closed'), [panelOpen]);
-
-  // Narrowing the window must not leave an overlay covering the transcript.
+  // Only the desktop column remembers its state; the drawer always starts closed.
   useEffect(() => {
-    const narrow = matchMedia(NARROW);
-    const update = () => narrow.matches && setPanelOpen(false);
-    narrow.addEventListener('change', update);
-    return () => narrow.removeEventListener('change', update);
+    if (!narrow) writeStored(PANEL_KEY, panelOpen ? 'open' : 'closed');
+  }, [panelOpen, narrow]);
+
+  // Crossing the breakpoint must not leave a drawer open over the transcript
+  // or hide the column the wide layout expects.
+  useEffect(() => {
+    const query = matchMedia(NARROW);
+    const update = () => {
+      setNarrow(query.matches);
+      setPanelOpen(query.matches ? false : readStored(PANEL_KEY, 'open') !== 'closed');
+    };
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
   }, []);
 
   const saveDraft = useCallback(
@@ -601,22 +610,21 @@ export default function Ask() {
     }
   }
 
+  // In the drawer, choosing something has to close it.
+  const closeDrawer = () => {
+    if (narrow) setPanelOpen(false);
+  };
+
   const startNew = () => {
     controller.current?.abort();
-    setPanelOpenForPhone(false);
+    closeDrawer();
     navigate('/ask');
   };
 
   const selectConversation = (conversation) => {
-    setPanelOpenForPhone(false);
+    closeDrawer();
     navigate(`/ask/${conversation.id}`);
   };
-
-  // On narrow windows the panel overlays the transcript, so choosing something
-  // has to close it.
-  function setPanelOpenForPhone(open) {
-    if (!open && matchMedia(NARROW).matches) setPanelOpen(false);
-  }
 
   const renameConversation = async (conversation, newTitle) => {
     const updated = await updateConversation(conversation.id, { title: newTitle });
@@ -640,10 +648,34 @@ export default function Ask() {
   const lastQuestionIndex = messages.findLastIndex((message) => message.role === 'user');
   const canSend = Boolean(settings && ai?.reachable);
 
+  const conversationPanel = (
+    <ConversationPanel
+      drawer={narrow}
+      conversations={conversations}
+      activeId={conversationId}
+      loading={listLoading}
+      error={listError}
+      historyEnabled={historyEnabled}
+      query={query}
+      onQuery={setQuery}
+      showArchived={showArchived}
+      onShowArchived={setShowArchived}
+      onSelect={selectConversation}
+      onNew={startNew}
+      onRename={renameConversation}
+      onArchive={archiveConversation}
+      onDelete={removeConversation}
+      onCollapse={() => setPanelOpen(false)}
+      model={model}
+      reachable={Boolean(ai?.reachable)}
+    />
+  );
+
   return (
     <WorkspacePage
       scroll={false}
       compactSearch
+      nav={false}
       className="ask-main"
       title={title}
       subtitle={
@@ -657,8 +689,11 @@ export default function Ask() {
         <button
           type="button"
           className="btn btn-icon ask-panel-toggle"
-          aria-label={panelOpen ? 'Hide conversations' : 'Show conversations'}
-          aria-expanded={panelOpen}
+          aria-label={
+            narrow ? 'Open navigation' : panelOpen ? 'Hide conversations' : 'Show conversations'
+          }
+          aria-haspopup={narrow ? 'dialog' : undefined}
+          aria-expanded={narrow ? undefined : panelOpen}
           onClick={() => setPanelOpen((open) => !open)}
         >
           <SidebarSimple size={17} aria-hidden="true" />
@@ -675,29 +710,11 @@ export default function Ask() {
           <span className="btn-label">New</span>
         </button>
       }
-      panel={
-        <ConversationPanel
-          open={panelOpen}
-          conversations={conversations}
-          activeId={conversationId}
-          loading={listLoading}
-          error={listError}
-          historyEnabled={historyEnabled}
-          query={query}
-          onQuery={setQuery}
-          showArchived={showArchived}
-          onShowArchived={setShowArchived}
-          onSelect={selectConversation}
-          onNew={startNew}
-          onRename={renameConversation}
-          onArchive={archiveConversation}
-          onDelete={removeConversation}
-          onCollapse={() => setPanelOpen(false)}
-          model={model}
-          reachable={Boolean(ai?.reachable)}
-        />
-      }
+      panel={!narrow && panelOpen ? conversationPanel : null}
     >
+      {narrow && panelOpen && (
+        <NavDrawer open onClose={() => setPanelOpen(false)} panel={conversationPanel} />
+      )}
       <div className="ask-workspace">
         {aiOffline && (
           <div className="banner banner-error ask-banner" role="alert">
@@ -724,8 +741,6 @@ export default function Ask() {
             </button>
           </div>
         )}
-
-        <AskContext />
 
         <div className="chat-stage">
           <div

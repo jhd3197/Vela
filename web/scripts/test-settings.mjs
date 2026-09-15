@@ -152,7 +152,8 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
-    await page.locator('.tabbar').getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
     for (const theme of ['light', 'dark']) {
       await dialog
         .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })

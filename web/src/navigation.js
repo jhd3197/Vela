@@ -16,8 +16,8 @@ import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
 // `rail` places a destination in the narrow rail: `primary` sits above the
-// installed-app shortcuts, `tools` below the separator. `tabHidden` keeps the
-// phone bar to five items. Every destination stays reachable in both.
+// installed-app shortcuts, `tools` below the separator. Phones show the same
+// rail inside a drawer, so every destination is reachable at every width.
 export const dashboardPages = [
   { to: '/', label: 'Home', end: true, icon: HouseSimple, rail: 'primary', component: Home },
   {
@@ -44,7 +44,6 @@ export const dashboardPages = [
     icon: HardDrives,
     rail: 'tools',
     railOrder: 4,
-    tabHidden: true,
     component: Environments,
   },
   {
@@ -54,7 +53,6 @@ export const dashboardPages = [
     weight: 'fill',
     rail: 'tools',
     railOrder: 2,
-    tabHidden: true,
     component: Automations,
   },
   { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Home, popup: true },
@@ -64,4 +62,3 @@ export const railGroup = (group) =>
   dashboardPages
     .filter((page) => page.rail === group)
     .sort((a, b) => (a.railOrder ?? 0) - (b.railOrder ?? 0));
-export const phoneTabs = dashboardPages.filter((page) => !page.tabHidden);

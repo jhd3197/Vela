@@ -133,10 +133,11 @@ try {
   assert.ok(reachable.bottom <= reachable.height + 1, JSON.stringify(reachable));
   assert.ok(reachable.scrollable, 'the app shortcuts scroll in a short window');
 
-  // Phones swap the rail for a labelled drawer with the same destinations.
+  // Phones move the rail into a drawer, beside a labelled list of the same
+  // destinations.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
-  await page.locator('.tabbar').waitFor();
+  await page.getByRole('button', { name: 'Open navigation' }).waitFor();
   await page.addStyleTag({
     content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
   });
@@ -146,8 +147,17 @@ try {
   const drawer = page.getByRole('dialog', { name: 'Vela navigation' });
   await drawer.waitFor();
   await shot('nav-drawer-phone');
-  assert.equal(await drawer.getByRole('link', { name: 'Library' }).count(), 1);
-  assert.equal(await drawer.getByRole('link', { name: 'Duplicate' }).count(), 2);
+  assert.equal(await drawer.locator('.rail').isVisible(), true);
+  assert.equal(await drawer.locator('.rail').getByRole('link', { name: 'Library' }).count(), 1);
+  assert.equal(
+    await drawer.locator('.nav-drawer').getByRole('link', { name: 'Library' }).count(),
+    1,
+  );
+  assert.equal(await drawer.locator('.rail').getByRole('link', { name: 'Duplicate' }).count(), 2);
+  assert.equal(
+    await drawer.locator('.nav-drawer').getByRole('link', { name: 'Duplicate' }).count(),
+    2,
+  );
   await page.keyboard.press('Escape');
   await drawer.waitFor({ state: 'detached' });
   assert.equal(
@@ -156,7 +166,7 @@ try {
     'dismissing the drawer returns focus to its opener',
   );
   await opener.click();
-  await drawer.getByRole('link', { name: 'Gamma' }).click();
+  await drawer.locator('.rail').getByRole('link', { name: 'Gamma' }).click();
   await drawer.waitFor({ state: 'detached' });
   await page.getByRole('heading', { name: 'App workspace' }).waitFor();
   await noOverflow('phone');

@@ -75,23 +75,27 @@ try {
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
         const phone = viewport.width < 860;
-        const nav = page.locator(phone ? '.tabbar' : '.rail');
-        // The rail's fixed destinations, excluding the dynamic app shortcuts.
-        assert.equal(
-          await (
-            phone ? nav.locator('a, button') : nav.locator('.rail-group a, .rail-foot button')
-          ).count(),
-          phone ? 5 : 7,
-        );
         if (label === 'Settings') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
-        } else if (!phone || !['System', 'Automations'].includes(label)) {
+        } else {
+          // On a phone the same rail sits inside the navigation drawer.
+          if (phone) await page.getByRole('button', { name: 'Open navigation' }).click();
+          const nav = page.locator(phone ? '.drawer-nav .rail' : '.rail');
+          await nav.waitFor();
+          // The rail's fixed destinations, excluding the dynamic app shortcuts.
+          assert.equal(await nav.locator('.rail-group a, .rail-foot button').count(), 7);
           assert.equal(
             await nav
               .getByRole('link', { name: label, exact: label !== 'Library' })
               .getAttribute('aria-current'),
             'page',
           );
+          if (phone) {
+            await page.keyboard.press('Escape');
+            await page
+              .getByRole('dialog', { name: 'Vela navigation' })
+              .waitFor({ state: 'detached' });
+          }
         }
         const overflow = await page.evaluate(() => {
           const main = document.querySelector('.workspace-content');
@@ -160,7 +164,7 @@ try {
     for (const [route, label] of pages) {
       if (label === 'Settings') continue;
       await page.goto(base + route);
-      await page.locator(phone ? '.tabbar' : '.rail').waitFor();
+      await page.locator(phone ? '[aria-label="Open navigation"]' : '.rail').waitFor();
       const box = await page.evaluate(
         (selector) => {
           const content = document.querySelector('.workspace-content');
@@ -173,7 +177,7 @@ try {
             height: innerHeight,
           };
         },
-        phone ? '.tabbar' : '.rail',
+        phone ? '[aria-label="Open navigation"]' : '.rail',
       );
       const where = `${label} ${size.width}x${size.height}`;
       assert.ok(box.body <= 1, `${where} body overflow: ${JSON.stringify(box)}`);

@@ -102,12 +102,14 @@ export default function SystemStatus() {
 
 Import the page in `navigation.js` and add an entry to `dashboardPages`, for
 example `{ to: '/system-status', label: 'Status', icon: HardDrives,
-rail: 'tools', railOrder: 5, component: SystemStatus, tabHidden: true }`.
+rail: 'tools', railOrder: 5, component: SystemStatus }`.
 `HardDrives` is already imported there. The shell and router both use this
 definition. `rail` places the destination in the narrow rail (`primary` above
 the installed-app shortcuts, `tools` below the separator, `foot` at the bottom)
-and `railOrder` sorts within a group. Keep the phone bar small with `tabHidden`
-— the navigation drawer still lists every destination. `childPaths` adds extra
+and `railOrder` sorts within a group. Phones show the same rail inside the
+navigation drawer, beside a labelled list of every destination; a page can put
+its own panel in that second column instead by rendering `NavDrawer` with a
+`panel`, as Ask does with its conversations. `childPaths` adds extra
 routes that render the same page, as `/ask/:conversationId` does. Embedded
 `/app/:id` routes remain outside this list.
 

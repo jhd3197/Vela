@@ -59,10 +59,7 @@ try {
     await page.waitForFunction(
       () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
     );
-    assert.equal(
-      await page.locator('.appview-chrome, .rail, .workspace-header, .tabbar').count(),
-      0,
-    );
+    assert.equal(await page.locator('.appview-chrome, .rail, .workspace-header').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Vela app menu' }).isVisible(), true);
     await frame.getByRole('textbox', { name: 'Message' }).fill(`Saved from ${viewport.width}`);
     await frame.getByRole('button', { name: 'Send' }).click();
@@ -161,11 +158,8 @@ try {
           .frameLocator('iframe')
           .getByRole('button', { name: 'Send' })
           .boundingBox();
-        const tabs = await page.locator('.tabbar').boundingBox();
-        assert.ok(
-          composer.y + composer.height <= tabs.y,
-          'Hub navigation must not cover the composer',
-        );
+        const height = await page.evaluate(() => innerHeight);
+        assert.ok(composer.y + composer.height <= height, 'The composer must fit on a phone');
       }
       // The bridge reports the frame's real box, so the rail and contextual
       // header are outside the app's coordinate space.
@@ -210,10 +204,17 @@ try {
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
-    const appsLink = page.locator(
-      viewport.width < 500 ? '.tabbar a[href="/apps"]' : '.rail a[href="/apps"]',
-    );
-    await appsLink.click();
+    // On a phone the rail lives inside the navigation drawer.
+    const openApps = async () => {
+      if (viewport.width < 500) {
+        await page.getByRole('button', { name: 'Open navigation' }).click();
+        await page
+          .getByRole('dialog', { name: 'Vela navigation' })
+          .locator('.rail a[href="/apps"]')
+          .click();
+      } else await page.locator('.rail a[href="/apps"]').click();
+    };
+    await openApps();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
@@ -221,7 +222,10 @@ try {
       // The phone navigation drawer is a navigation control like any other.
       await page.getByRole('button', { name: 'Open navigation' }).click();
       const drawer = page.getByRole('dialog', { name: 'Vela navigation' });
-      await drawer.getByRole('link', { name: 'Library', exact: true }).click();
+      await drawer
+        .locator('.nav-drawer')
+        .getByRole('link', { name: 'Library', exact: true })
+        .click();
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       assert.ok(page.url().endsWith('/app/hub-fixture'));
       assert.equal(
@@ -229,7 +233,7 @@ try {
         'Guard this draft',
       );
     }
-    await appsLink.click();
+    await openApps();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
     await page.getByRole('tab', { name: 'Running', exact: true }).click();

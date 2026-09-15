@@ -727,9 +727,11 @@ restrained 14px card corners), in light and dark.
   plus `aria-current`; every icon is named on hover and keyboard focus. The
   shortcut region scrolls so the utility controls stay reachable in a short
   window.
-- **Phone**: the rail is replaced by a bottom bar (Home / Ask / Apps / Library /
-  Settings) with safe-area insets, plus a navigation drawer opened from the
-  header that lists every destination and every installed app with labels.
+- **Phone**: there is no bottom bar. The header's navigation control opens a
+  drawer from the left edge that carries the same rail (icons, app shortcuts,
+  Settings) beside a second column: a labelled list of every destination and
+  installed app, or the open page's own panel — Ask puts its conversation
+  list there, so apps and conversations are one gesture away from the chat.
 - **Workspace**: an optional context panel, a contextual header and the content
   surface. The header carries the ⌘K search palette (apps, settings entries and
   same-origin mini-app data), the server address badge that doubles as the
