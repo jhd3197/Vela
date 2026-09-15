@@ -196,12 +196,6 @@ export function platformLabel(key) {
   return PLATFORM_LABELS[key] || key || 'Unknown';
 }
 
-export const DEFAULT_APP_COLOR = '#9184d9';
-
-export function appColor(app) {
-  return app?.color || DEFAULT_APP_COLOR;
-}
-
 // The backend reports the active runtime on every app summary/status:
 // 'web' when the manifest has a web entry (web wins), 'process' when the app
 // runs as a child process, null when unsupported on this platform.

@@ -1,53 +1,48 @@
-import { appColor } from '../api.js';
-import {
-  ForkKnife,
-  Globe,
-  HardDrives,
-  Heartbeat,
-  NotePencil,
-  Sailboat,
-  ShieldCheck,
-  SquaresFour,
-  Wallet,
-} from '@phosphor-icons/react';
+import { tileColor, tileTones } from '../appTint.js';
+import { appArtwork } from './appArtwork.jsx';
 
-// Gradient icon tile with a white Phosphor glyph, per the Nocturne
-// prototypes. Apps with a manifest `color` get a colored gradient derived
-// from it; apps without one get the plain utility tile. The glyph is chosen
-// per app id, then per category, with a generic grid as fallback.
-const ID_GLYPHS = {
-  notes: NotePencil,
-  meals: ForkKnife,
-  health: Heartbeat,
-  finance: Wallet,
-  'system-info': HardDrives,
-  'hello-vela': Sailboat,
-  'vela-core': ShieldCheck,
-};
-
-const CATEGORY_GLYPHS = {
-  productivity: NotePencil,
-  wellness: Heartbeat,
-  lifestyle: ForkKnife,
-  finance: Wallet,
-  utilities: HardDrives,
-  connected: Globe,
-};
-
+// The app tile. Colour comes from the app's declared identity and the
+// silhouette from its own artwork, so two apps are told apart by shape first
+// and hue second — both still legible at rail size. The artwork is decorative,
+// so the tile stays hidden from screen readers and every control that uses it
+// keeps its own accessible name.
 export default function AppIcon({ app, size = 44, plain }) {
-  const color = app?.color ? appColor(app) : null;
-  const Glyph = app?.glyph || ID_GLYPHS[app?.id] || CATEGORY_GLYPHS[app?.category] || SquaresFour;
-  const isPlain = plain ?? !color;
+  const art = appArtwork(app);
+  const Glyph = app?.glyph || null;
+  const mark = Math.round(size * art.scale);
+  // An unreadable colour falls back to the neutral tile rather than a tile
+  // with no ground at all.
+  const tones = plain ? null : tileTones(tileColor(app));
+  const isPlain = Boolean(plain) || !tones;
   const style = {
     width: size,
     height: size,
     borderRadius: Math.max(8, size * 0.29),
   };
-  if (color) style['--tile-color'] = color;
+  if (tones) {
+    style['--tile-mark'] = tones.mark;
+    style['--tile-wash'] = tones.wash;
+    style['--tile-line'] = tones.line;
+    style['--tile-mark-dark'] = tones.markDark;
+    style['--tile-wash-dark'] = tones.washDark;
+    style['--tile-line-dark'] = tones.lineDark;
+  }
 
   return (
     <span className={`appicon${isPlain ? ' appicon-plain' : ''}`} style={style} aria-hidden="true">
-      <Glyph size={size * 0.52} weight={isPlain ? 'regular' : 'fill'} />
+      {Glyph ? (
+        <Glyph size={mark} weight="regular" />
+      ) : (
+        <svg
+          viewBox="0 0 96 96"
+          width={mark}
+          height={mark}
+          focusable="false"
+          className={art.monogram ? 'appicon-monogram' : undefined}
+        >
+          {art.draw}
+        </svg>
+      )}
     </span>
   );
 }

@@ -83,6 +83,16 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- App icons now tell apps apart. Each app draws its own mark — a notepad for
+  Notes, a fork and knife for Meals, a heart and pulse for Health, a chip for
+  System Info — instead of every app sharing one white glyph on the same
+  coloured gradient. The tile is a quiet tint of the app's own colour rather
+  than a saturated one, and a connected web service shows its initial instead of
+  another globe, so a list of services can be read at a glance. Apps keep the
+  colour they declare, and tiles are evened out so a pale colour carries the
+  same weight as a deep one. The marks stay legible down to the small size the
+  app rail and search results use, in both themes, and nothing is fetched while
+  the page runs, so icons look the same offline.
 - Vela now keeps its technical side out of the way until you ask for it. A new
   **Settings → General → Show developer tools** switch, off to begin with, adds
   app logs, process details, runtime commands and ports, execution history,
