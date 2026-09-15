@@ -16,11 +16,12 @@ export function railApps(apps) {
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
-function RailLink({ to, end, label, badge, children }) {
+function RailLink({ to, end, label, badge, onNavigate, children }) {
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={onNavigate}
       className={({ isActive }) => `rail-item${isActive ? ' rail-item-active' : ''}`}
     >
       {children}
@@ -35,8 +36,10 @@ function RailLink({ to, end, label, badge, children }) {
 }
 
 // The Vela rail: global destinations, real installed-app shortcuts and the
-// account controls. It is rendered once, outside any app iframe.
-export default function AppRail() {
+// account controls. It is rendered once beside the workspace on desktop and
+// again inside the phone drawer, which passes `onNavigate` so choosing a
+// destination closes it.
+export default function AppRail({ onNavigate }) {
   const { apps } = useApps();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
@@ -49,7 +52,7 @@ export default function AppRail() {
 
       <div className="rail-group">
         {railGroup('primary').map(({ to, end, label, icon: Icon }) => (
-          <RailLink key={to} to={to} end={end} label={label}>
+          <RailLink key={to} to={to} end={end} label={label} onNavigate={onNavigate}>
             <Icon size={20} weight="fill" aria-hidden="true" />
           </RailLink>
         ))}
@@ -58,7 +61,7 @@ export default function AppRail() {
       {installed.length > 0 && (
         <div className="rail-apps" aria-label="Installed apps" role="group">
           {installed.map((app) => (
-            <RailLink key={app.id} to={`/app/${app.id}`} label={app.name}>
+            <RailLink key={app.id} to={`/app/${app.id}`} label={app.name} onNavigate={onNavigate}>
               <AppIcon app={app} size={38} />
             </RailLink>
           ))}
@@ -74,6 +77,7 @@ export default function AppRail() {
             to={to}
             label={label}
             badge={to === '/library' && availableCount > 0 ? availableCount : null}
+            onNavigate={onNavigate}
           >
             <Icon size={19} weight={weight} aria-hidden="true" />
           </RailLink>
@@ -87,14 +91,24 @@ export default function AppRail() {
             type="button"
             className="rail-item"
             aria-haspopup="dialog"
-            onClick={() => openSettings()}
+            onClick={() => {
+              onNavigate?.();
+              openSettings();
+            }}
           >
             <Icon size={19} aria-hidden="true" />
             <span className="rail-tip">{label}</span>
           </button>
         ))}
         {remote && (
-          <button type="button" className="rail-item" onClick={logout}>
+          <button
+            type="button"
+            className="rail-item"
+            onClick={() => {
+              onNavigate?.();
+              logout();
+            }}
+          >
             <SignOut size={19} aria-hidden="true" />
             <span className="rail-tip">Sign out</span>
           </button>

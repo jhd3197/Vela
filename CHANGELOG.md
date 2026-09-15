@@ -50,14 +50,18 @@ until the release workflow prepares a tested server version.
   not there, and a stopped answer is kept with the question it belongs to.
   Starting another conversation never erases the previous one. The transcript
   your browser used to hold is imported once, and turning chat history off in
-  Settings still deletes everything that was stored.
+  Settings still deletes everything that was stored. On phones the conversation
+  list opens in the navigation drawer beside the rail, the header keeps only the
+  drawer control, the title and New, and the composer is a single rounded field,
+  so the chat fills the screen.
 - The dashboard now uses a narrow app rail instead of a labelled sidebar. The
   rail keeps Home, Ask, your installed apps, Library, Automations, Apps, System
   and Settings one click away, marks the open destination and names each icon on
   hover and keyboard focus. Search, the server address, and notifications moved
-  into a contextual header above each page. On phones the same destinations,
-  including every installed app, open from a navigation drawer beside the
-  existing bottom bar.
+  into a contextual header above each page. On phones the bottom bar is gone:
+  the header's navigation control slides the same rail in from the left edge,
+  with your installed apps, beside a labelled list of every destination. Content
+  and app workspaces now use the full height of the screen.
 - Apps that ask for the hub's own layout, and connected web services, now open
   beside the rail with a single contextual header showing the app's icon, name
   and state instead of a second app bar. Connected services keep their edit,
@@ -88,6 +92,12 @@ until the release workflow prepares a tested server version.
 - Automatic releases now require the tested Windows installer alongside all
   three portable downloads and checksums. Windows upgrades and uninstall keep
   existing apps and data; installers and executables carry Vela branding.
+
+### Removed
+
+- The "What the assistant can see" panel above Ask conversations. What the
+  assistant can reach is unchanged: installed apps, their recent logs and the
+  engine status, never the data inside your apps.
 
 ### Fixed
 

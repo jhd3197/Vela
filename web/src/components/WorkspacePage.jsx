@@ -7,7 +7,8 @@ import { useApps } from '../store.jsx';
 
 // One workspace: an optional context panel, the contextual header, and the
 // main surface. `scroll={false}` hands scrolling to the page itself, which Ask
-// needs so its composer stays outside the transcript.
+// needs so its composer stays outside the transcript. `nav={false}` drops the
+// phone drawer opener for a page whose own lead control opens the drawer.
 export default function WorkspacePage({
   title,
   subtitle,
@@ -15,6 +16,7 @@ export default function WorkspacePage({
   actions,
   search = true,
   compactSearch = false,
+  nav = true,
   panel,
   scroll = true,
   className = '',
@@ -48,7 +50,7 @@ export default function WorkspacePage({
           actions={actions}
           search={search}
           compactSearch={compactSearch}
-          onOpenNav={openNav}
+          onOpenNav={nav ? openNav : null}
         />
         <main
           className={`workspace-content${scroll ? '' : ' workspace-content-fixed'}`}

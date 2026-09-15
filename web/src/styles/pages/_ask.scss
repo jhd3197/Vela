@@ -395,87 +395,6 @@
   font-size: 13px;
 }
 
-/* "What the assistant can see" transparency panel. */
-
-.ask-context {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  overflow: hidden;
-}
-
-.ask-context-toggle {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 11px 14px;
-  border: none;
-  background: none;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-dim);
-  cursor: pointer;
-  text-align: left;
-  touch-action: manipulation;
-}
-
-.ask-context-toggle:hover {
-  color: var(--text);
-}
-
-.ask-context-toggle > .ph:first-child {
-  color: var(--accent);
-}
-
-.ask-context-summary {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-faint);
-  font-weight: 400;
-  font-size: 12px;
-}
-
-.ask-context-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px 14px;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.ask-context-body p {
-  margin: 0;
-}
-
-.ask-context-note {
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
-.ask-workspace .ask-context {
-  flex-shrink: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-}
-.ask-workspace .ask-context-toggle {
-  padding: 7px 0 11px;
-  font-size: 12px;
-}
-.ask-workspace .ask-context-body {
-  max-height: 22dvh;
-  overflow-y: auto;
-  padding-inline: 0;
-}
 .chat-dock {
   flex-shrink: 0;
   width: 100%;
@@ -668,12 +587,6 @@
     gap: 10px;
     padding: 12px 16px 10px;
   }
-  .ask-context-summary {
-    display: none;
-  }
-  .ask-context-toggle > span:first-of-type {
-    flex: 1;
-  }
   .chat-transcript {
     padding: 16px 2px 24px;
     gap: 22px;
@@ -717,18 +630,62 @@
   .tool-label {
     display: none;
   }
+  .ask-main .workspace-header .searchbox-compact {
+    display: none;
+  }
+  .ask-main .workspace-header {
+    border-bottom-color: transparent;
+    background: transparent;
+    backdrop-filter: none;
+  }
+  .ask-workspace {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  /* One rounded field: mention, text and send on a single line that grows
+     with the draft. */
   .chat-composer {
-    padding: 10px;
-    border-radius: 14px;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 6px 6px 6px 8px;
+    border-radius: 24px;
+    box-shadow: none;
   }
   .chat-composer textarea {
+    order: 1;
+    flex: 1;
+    min-height: 36px;
+    padding: 8px 4px;
     font-size: 16px;
+    line-height: 1.35;
+  }
+  .composer-toolbar {
+    display: contents;
+  }
+  .composer-mention {
+    order: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .composer-mention > span {
+    display: none;
+  }
+  .composer-model {
+    display: none;
+  }
+  .composer-send {
+    order: 2;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
   }
   .composer-hint {
-    justify-content: center;
-    font-size: 9px;
-  }
-  .composer-hint > span:last-child {
     display: none;
   }
   .mention-heading span {
@@ -748,6 +705,18 @@
 
 .conversation-panel {
   min-height: 0;
+}
+
+/* Inside the navigation drawer the panel fills the column beside the rail. */
+.conversation-panel-drawer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.conversation-panel-drawer .conversation-panel-head {
+  padding-top: 14px;
 }
 
 .conversation-panel-head {
@@ -962,22 +931,5 @@
     width: 100%;
     background: var(--bg-pop);
     box-shadow: var(--shadow-pop);
-  }
-}
-
-.panel-scrim {
-  display: none;
-}
-
-@media (max-width: 1100px) {
-  .workspace-panel-open .panel-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    border: 0;
-    padding: 0;
-    background: rgba(20, 22, 33, 0.35);
-    cursor: default;
   }
 }

@@ -19,7 +19,8 @@ function ServerBadge() {
 }
 
 // The contextual header above every workspace. Composition is per route:
-// a leading control (panel toggle or back), an optional title block, either the
+// the phone drawer opener (unless the page supplies its own), a leading
+// control (panel toggle or back), an optional title block, either the
 // global search or route actions, then the server badge and notifications that
 // must stay reachable everywhere.
 export default function WorkspaceHeader({
@@ -33,15 +34,17 @@ export default function WorkspaceHeader({
 }) {
   return (
     <header className="workspace-header">
-      <button
-        type="button"
-        className="btn btn-icon workspace-nav-button"
-        aria-label="Open navigation"
-        aria-haspopup="dialog"
-        onClick={onOpenNav}
-      >
-        <List size={18} aria-hidden="true" />
-      </button>
+      {onOpenNav && (
+        <button
+          type="button"
+          className="btn btn-icon workspace-nav-button"
+          aria-label="Open navigation"
+          aria-haspopup="dialog"
+          onClick={onOpenNav}
+        >
+          <List size={18} aria-hidden="true" />
+        </button>
+      )}
       {lead}
       {title && (
         <div className="workspace-heading">
