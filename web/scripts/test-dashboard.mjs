@@ -79,15 +79,12 @@ try {
           content:
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
-        const phone = viewport.width < 860;
-        // Home keeps its own navigation at every width; the other workspaces
-        // move the same rail into the drawer opened from their header.
-        const drawered = phone && route !== '/';
+        // Every workspace keeps the rail on screen at every width.
         if (where === 'popup') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
         } else {
-          if (drawered) await page.getByRole('button', { name: 'Open navigation' }).click();
-          const nav = page.locator(drawered ? '.drawer-nav .rail' : '.rail');
+          assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+          const nav = page.locator('.rail');
           await nav.waitFor();
           // Home, Ask and Library are shortcuts; the rest are named in the
           // secondary menu. Settings closes the set.
@@ -113,12 +110,6 @@ try {
               'rail-menu-item is-active',
             );
             await page.keyboard.press('Escape');
-          }
-          if (drawered) {
-            await page.keyboard.press('Escape');
-            await page
-              .getByRole('dialog', { name: 'Vela navigation' })
-              .waitFor({ state: 'detached' });
           }
         }
         const overflow = await page.evaluate(() => {
@@ -190,10 +181,8 @@ try {
     for (const [route, label, where] of pages) {
       if (where === 'popup') continue;
       await page.goto(base + route);
-      // Home's rail is the navigation at every width; elsewhere a phone gets
-      // the drawer opener.
-      const selector =
-        size.width < 860 && route !== '/' ? '[aria-label="Open navigation"]' : '.rail';
+      // The rail is the navigation at every width, on every page.
+      const selector = '.rail';
       await page.locator(selector).waitFor();
       const box = await page.evaluate((selector) => {
         const content = document.querySelector('.workspace-content');

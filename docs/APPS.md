@@ -11,15 +11,15 @@ Manage apps. Settings sits at the bottom. Hover or tab to an icon to see its
 name. The open destination is marked on the rail, so you always know where you
 are.
 
-On Home the rail stays on screen at every size, including on a phone, so a
-ready app is always one tap away. Other pages move the same rail into a drawer
-opened from the menu button in their header; the drawer also lists every
-destination and installed app by name.
+The rail stays on screen at every size, including on a phone, so a ready app
+or any destination is always one tap away, and the page never needs a menu
+button to reach them.
 
-Apps that ask for it open beside the rail, with their name in the bar above
-them; others open on their own. Either way, if an app has unsaved work, leaving
-it asks before anything is lost. **App settings**, in that bar or in the app's
-Vela menu, holds the app's permissions, its connection, updates and removal.
+Apps open beside the rail, with their name in the bar above them; an app that
+asks for a seamless view opens on its own, with a small Vela menu in its
+corner. Either way, if an app has unsaved work, leaving it asks before anything
+is lost. **App settings**, in that bar or in the app's Vela menu, holds the
+app's permissions, its connection, updates and removal.
 
 ## On a phone
 

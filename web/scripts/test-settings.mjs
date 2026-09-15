@@ -241,10 +241,9 @@ try {
   await phoneDraft.fill('Draft that must survive the phone screens');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
-    // Ask keeps its rail in the phone drawer, so Settings is reached from
-    // there; the unsent question stays mounted behind the whole journey.
-    await page.getByRole('button', { name: 'Open navigation' }).click();
-    await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+    // The rail stays beside Ask on a phone, so Settings is reached from it; the
+    // unsent question stays mounted behind the whole journey.
+    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
     await dialog.waitFor();
     // Ordinary entry lands on the category list, and the list covers the
     // workspace edge to edge with no popup gap around it.
@@ -327,8 +326,7 @@ try {
   const crossing = page.locator('textarea');
   await crossing.fill('A draft that must survive the crossover');
   await page.setViewportSize({ width: 390, height: 780 });
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
   await dialog.waitFor();
   await dialog
     .getByRole('navigation')

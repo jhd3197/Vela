@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
-import { CaretLeft } from '@phosphor-icons/react';
 import { api, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
@@ -233,38 +232,12 @@ function Workspace({ id, retry }) {
       setSaving(false);
     }
   };
+  // Everything but `seamless` is hosted by the shell: the rail names and selects
+  // the app and the contextual header carries its controls, so no second app
+  // bar is drawn above the frame.
+  const hosted = mode !== 'seamless';
   const content = (
-    <div className={`appview appview-${mode}`}>
-      {mode === 'compact' && (
-        <header className="appview-chrome">
-          <button
-            className="btn btn-ghost appview-back"
-            onClick={requestLeave}
-            aria-label="Back to Apps"
-          >
-            <CaretLeft size={16} /> Apps
-          </button>
-          {app && (
-            <div className="appview-title">
-              <AppIcon app={app} size={30} />
-              <span className="appview-name">{app.name}</span>
-            </div>
-          )}
-          {requestedMode === 'seamless' && (
-            <button className="btn btn-small" onClick={toggleCompact}>
-              Hide app bar
-            </button>
-          )}
-          {app?.installed && (
-            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
-              App settings
-            </button>
-          )}
-          <button className="btn btn-small" onClick={requestLeave}>
-            Close
-          </button>
-        </header>
-      )}
+    <div className={`appview appview-${mode}${hosted ? ' appview-hosted' : ''}`}>
       {mode === 'seamless' && (
         <div className="appview-exit" ref={exitControl}>
           <button
@@ -435,24 +408,33 @@ function Workspace({ id, retry }) {
       )}
     </div>
   );
-  if (mode !== 'hub') return content;
-  // The rail already names and selects the open app, so the hub workspace uses
-  // the contextual header instead of a second app bar. It also stays on screen
-  // at phone widths: an app that asked for the hub's own chrome is part of the
-  // workspace, and switching apps should not need a hamburger first.
+  if (!hosted) return content;
+  // The rail already names and selects the open app, so the hosted workspace
+  // uses the contextual header instead of a second app bar. The rail stays on
+  // screen at phone widths too, so switching apps is one tap away while the
+  // app's own panes change beneath. A seamless app that was asked to show the
+  // bar can hide it again from here.
   return (
-    <Shell persistentRail>
+    <Shell>
       <WorkspacePage
         scroll={false}
+        className="app-workspace"
         title={app?.name || (missing ? 'App unavailable' : 'App')}
         subtitle={app?.description || undefined}
         lead={app ? <AppIcon app={app} size={26} /> : null}
         actions={
-          app?.installed ? (
-            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
-              App settings
-            </button>
-          ) : null
+          <>
+            {requestedMode === 'seamless' && !missing && (
+              <button className="btn btn-small" onClick={toggleCompact}>
+                Hide app bar
+              </button>
+            )}
+            {app?.installed && (
+              <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
+                App settings
+              </button>
+            )}
+          </>
         }
       >
         {content}

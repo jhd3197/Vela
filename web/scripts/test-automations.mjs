@@ -213,7 +213,7 @@ try {
       ]) {
         if (!route) continue;
         await page.goto(route.startsWith('http') ? route : base + route);
-        await page.locator(size.width < 860 ? '[aria-label="Open navigation"]' : '.rail').waitFor();
+        await page.locator('.rail').waitFor();
         const box = await page.evaluate(() => {
           const content = document.querySelector('.workspace-content');
           return {

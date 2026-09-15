@@ -790,14 +790,11 @@ restrained 14px card corners), in light and dark.
   every icon is named on hover and keyboard focus. The secondary menu closes on
   Escape or an outside click and returns focus to its opener. The shortcut
   region scrolls so the utility controls stay reachable in a short window.
-- **Phone**: there is no bottom bar. Home keeps the rail on screen at every
-  width — beside its content, never over it, and with no navigation control in
-  its header — so a ready app opens with one tap. Every other page's header
-  navigation control opens a drawer from the left edge that carries the same
-  rail (icons, app shortcuts, Settings) beside a second column: a labelled list
-  of every destination and installed app, or the open page's own panel — Ask
-  puts its conversation list there, so apps and conversations are one gesture
-  away from the chat.
+- **Phone**: there is no bottom bar and no hamburger. Every page keeps the
+  rail on screen at every width — beside its content, never over it — so a
+  destination or a ready app opens with one tap. A page's own panel slides in
+  from the left edge beside the rail: Ask puts its conversation list there, so
+  apps and conversations are one gesture away from the chat.
 - **Workspace**: an optional context panel, a contextual header and the content
   surface. The header carries the ⌘K search palette (apps, settings entries and
   same-origin mini-app data) and the notification bell. A healthy server is not
@@ -826,9 +823,10 @@ restrained 14px card corners), in light and dark.
   contextual header with the conversation title, model and connection state; the
   transcript; and the composer. Below 1100px the panel overlays the workspace.
 - **Embedded app view** (`/app/{id}`): versioned hub/compact/seamless
-  presentation over an iframe of `/apps/{id}/`. `hub` renders inside the shell
-  with the contextual header naming the app and no second app bar; `compact` and
-  `seamless` keep their own standalone chrome, and each offers **App settings**.
+  presentation over an iframe of `/apps/{id}/`. `hub` and `compact` render
+  inside the shell, beside the rail, with the contextual header naming the app
+  and no second app bar; `seamless` keeps its own standalone chrome with the
+  host's Vela menu. Each offers **App settings**.
   If the app is installed but a process app that is stopped, show an
   interstitial with one Open button instead of the iframe; nothing else — not
   polling, a prefetch, a render effect or a passive visit — may start a process.

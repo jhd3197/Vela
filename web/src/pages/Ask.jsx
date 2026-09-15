@@ -962,7 +962,6 @@ export default function Ask() {
     <WorkspacePage
       scroll={false}
       compactSearch
-      nav={false}
       className="ask-main"
       title={title}
       subtitle={
@@ -980,9 +979,7 @@ export default function Ask() {
         <button
           type="button"
           className="btn btn-icon ask-panel-toggle"
-          aria-label={
-            narrow ? 'Open navigation' : panelOpen ? 'Hide conversations' : 'Show conversations'
-          }
+          aria-label={panelOpen && !narrow ? 'Hide conversations' : 'Show conversations'}
           aria-haspopup={narrow ? 'dialog' : undefined}
           aria-expanded={narrow ? undefined : panelOpen}
           onClick={() => setPanelOpen((open) => !open)}
@@ -1004,7 +1001,12 @@ export default function Ask() {
       panel={!narrow && panelOpen ? conversationPanel : null}
     >
       {narrow && panelOpen && (
-        <NavDrawer open onClose={() => setPanelOpen(false)} panel={conversationPanel} />
+        <NavDrawer
+          open
+          label="Conversations"
+          onClose={() => setPanelOpen(false)}
+          panel={conversationPanel}
+        />
       )}
       <div className="ask-workspace">
         {aiOffline && (

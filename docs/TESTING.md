@@ -72,11 +72,10 @@ keyboard containment, and pending Escape/backdrop guards at desktop/phone widths
 The rail suite uses an isolated Vite fixture with disposable app records to check
 the narrow rail: an empty installation, many apps, long and duplicate names,
 stable ordering, keyboard focus and selection, the secondary menu's contents and
-focus return, a short window, Home keeping its navigation on a phone with no
-hamburger and without covering its content, an app that declares the hub's own
-chrome keeping one rail beside its workspace at 390 and 320 pixels while an app
-that did not keeps its own bar, and the phone navigation drawer's focus handling
-on every other page. Screenshots go to `docs/screenshots/rail/`.
+focus return, a short window, every page keeping the rail on a phone with no
+hamburger and without covering its content, and an app workspace keeping one
+rail beside itself at 390 and 320 pixels. Screenshots go to
+`docs/screenshots/rail/`.
 The dashboard suite checks the default destinations at desktop and phone widths
 in both themes, Home's navigation across reload, Back, rotation and scrolling,
 the supported add-app sources, and the `/environments` deep link explaining
@@ -172,7 +171,7 @@ contains only vertical chaining, that a dialog and a drawer scroll their own
 body while the page behind keeps its position, that a dialog and a conversation
 composer stay clear of an on-screen keyboard without moving the reader away from
 what they were reading, that pinch zoom is not mistaken for a keyboard, that
-Home keeps its navigation at narrow, short-landscape and tablet split-screen
+every page keeps its navigation at narrow, short-landscape and tablet split-screen
 sizes, and that nothing overflows horizontally at 320px or at 200% zoom.
 Screenshots go to `docs/screenshots/mobile/`.
 

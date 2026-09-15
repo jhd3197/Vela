@@ -12,31 +12,12 @@
 }
 
 @media (max-width: bp.$phone) {
-  /* The rail leaves the page edge and reappears inside the navigation drawer,
-     opened from the header. */
-  .rail {
-    display: none;
-  }
-
-  .drawer-nav .rail {
-    display: flex;
-  }
-
-  /* Home is the launcher, so its navigation stays on screen at phone widths:
-     the rail sits beside the content it never covers, and the redundant
-     hamburger is gone. Other workspaces keep the contextual drawer. */
-  .shell-rail-fixed .rail,
-  .shell-rail-persistent .rail {
-    display: flex;
-  }
-
-  /* One inset, applied once, on top of the shared top padding. */
+  /* The rail stays on screen at phone widths on every page: it sits beside the
+     content it never covers, so a destination or a ready app is one tap away
+     with no hamburger. One inset, applied once, on top of the shared top
+     padding. */
   .rail {
     padding-top: calc(var(--rail-top, 28px) + env(safe-area-inset-top));
-  }
-
-  .workspace-header .workspace-nav-button {
-    display: inline-flex;
   }
 
   .workspace-header {
@@ -135,18 +116,33 @@
   }
 }
 
-/* A narrow phone gives the launcher rail a little less width so the app grid
-   beside it keeps a usable column. */
+/* A narrow phone gives the rail a little less width so the workspace beside
+   it keeps a usable column. */
 @media (max-width: bp.$narrow) {
-  .shell-rail-fixed .rail,
-  .shell-rail-persistent .rail {
+  .rail {
     --rail-w: 54px;
     --rail-control: 40px;
   }
 
-  .shell-rail-fixed .rail-menu,
-  .shell-rail-persistent .rail-menu {
+  .rail-menu {
     left: calc(100% + 6px);
     min-width: 168px;
+  }
+
+  /* The column beside the rail can be very narrow — 200% browser zoom on a
+     phone leaves it about 140px — so the page and its panels give up some of
+     their padding, and a control wraps its label rather than widening the
+     column. */
+  .workspace-content {
+    padding-inline: 12px;
+  }
+
+  .panel {
+    padding: 16px 14px;
+  }
+
+  .btn {
+    white-space: normal;
+    text-align: center;
   }
 }

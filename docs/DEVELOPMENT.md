@@ -112,12 +112,12 @@ rail: 'tools', railOrder: 5, component: SystemStatus }`.
 `HardDrives` is already imported there. The shell and router both use this
 definition. `rail` places the destination in the narrow rail (`primary` above
 the installed-app shortcuts, `tools` below the separator, `foot` at the bottom)
-and `railOrder` sorts within a group. Phones show the same rail inside the
-navigation drawer, beside a labelled list of every destination; a page can put
-its own panel in that second column instead by rendering `NavDrawer` with a
-`panel`, as Ask does with its conversations. `childPaths` adds extra
-routes that render the same page, as `/ask/:conversationId` does. Embedded
-`/app/:id` routes remain outside this list.
+and `railOrder` sorts within a group. The rail stays on screen at every width,
+phones included; a page that needs a panel of its own on a phone renders
+`NavDrawer` with a `panel` and a `label`, as Ask does with its conversations.
+`childPaths` adds extra routes that render the same page, as
+`/ask/:conversationId` does. Embedded `/app/:id` routes remain outside this
+list.
 
 Wrap the page body in `WorkspacePage` so it gets the contextual header and the
 content surface:

@@ -216,13 +216,9 @@ try {
     await page.getByRole('button', { name: 'Save changes' }).click();
     await page.waitForFunction(() => document.querySelector('iframe')?.srcdoc.includes('/blocked'));
     await page.getByRole('link', { name: 'Open in browser' }).waitFor();
-    // The host rail (in the phone drawer below 860px) is the way out; the frame
-    // has no chrome.
-    if (viewport.width < 500) await page.getByRole('button', { name: 'Open navigation' }).click();
-    await page
-      .locator(viewport.width < 500 ? '.drawer-nav .rail' : '.rail')
-      .getByRole('link', { name: 'Library', exact: true })
-      .click();
+    // The host rail, on screen at every width, is the way out; the frame has
+    // no chrome.
+    await page.locator('.rail').getByRole('link', { name: 'Library', exact: true }).click();
     await page.waitForURL(base + '/library');
     await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).click();
     await page.getByRole('button', { name: 'Edit connection' }).click();
