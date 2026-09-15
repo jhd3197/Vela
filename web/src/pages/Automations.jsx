@@ -259,28 +259,28 @@ export default function Automations() {
 
           <aside className="activity-rail">
             <h2 className="section-head">Today</h2>
-            <div className="rail-list">
+            <div className="activity-list">
               {ACTIVITY.map((item) => (
-                <span key={item.title} className="rail-item">
+                <span key={item.title} className="activity-item">
                   <item.icon size={14} weight="fill" style={{ color: item.color }} />
-                  <span className="rail-item-text">
+                  <span className="activity-item-text">
                     <span>{item.title}</span>
-                    <span className="rail-item-sub">{item.sub}</span>
+                    <span className="activity-item-sub">{item.sub}</span>
                   </span>
                 </span>
               ))}
             </div>
-            <span className="rail-divider" />
-            <div className="rail-stats">
-              <span className="rail-stat">
+            <span className="activity-divider" />
+            <div className="activity-stats">
+              <span className="activity-stat">
                 <span>Runs this week</span>
                 <span>—</span>
               </span>
-              <span className="rail-stat">
+              <span className="activity-stat">
                 <span>Failures</span>
                 <span>—</span>
               </span>
-              <span className="rail-stat">
+              <span className="activity-stat">
                 <span>Average run</span>
                 <span>—</span>
               </span>

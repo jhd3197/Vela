@@ -50,7 +50,7 @@ export default function WorkspacePage({
           compactSearch={compactSearch}
           onOpenNav={openNav}
         />
-        <div
+        <main
           className={`workspace-content${scroll ? '' : ' workspace-content-fixed'}`}
           ref={contentRef}
         >
@@ -64,7 +64,7 @@ export default function WorkspacePage({
             </div>
           )}
           {children}
-        </div>
+        </main>
       </div>
     </>
   );

@@ -98,6 +98,26 @@ try {
     'the open app is the selected shortcut',
   );
 
+  // Landmarks: one navigation for the rail, one main surface, one header.
+  const landmarks = await page.evaluate(() => ({
+    rail: document.querySelector('nav.rail')?.getAttribute('aria-label'),
+    mains: document.querySelectorAll('main.workspace-content').length,
+    headers: document.querySelectorAll('header.workspace-header').length,
+    unnamedIcons: [...document.querySelectorAll('.rail-item')].filter(
+      (item) => !item.textContent.trim(),
+    ).length,
+  }));
+  assert.deepEqual(landmarks, { rail: 'Vela', mains: 1, headers: 1, unnamedIcons: 0 });
+
+  // 200% browser zoom on a 1366x900 window is a 683x450 layout viewport.
+  await page.setViewportSize({ width: 683, height: 450 });
+  await noOverflow('200% zoom');
+  const zoomed = await page.evaluate(() => {
+    const settings = [...document.querySelectorAll('.rail-foot button')].pop();
+    return { bottom: settings.getBoundingClientRect().bottom, height: innerHeight };
+  });
+  assert.ok(zoomed.bottom <= zoomed.height + 1, JSON.stringify(zoomed));
+
   // A short window keeps the utility controls reachable; the app list scrolls.
   await page.setViewportSize({ width: 1280, height: 420 });
   const reachable = await page.evaluate(() => {
@@ -143,7 +163,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, stable order, long/duplicate names, keyboard focus and selection, short-window reach, phone drawer navigation and focus return',
+    'PASS: empty and many-app rails, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, phone drawer navigation and focus return',
   );
 } finally {
   await browser?.close();

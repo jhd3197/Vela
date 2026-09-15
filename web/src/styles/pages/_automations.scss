@@ -182,39 +182,39 @@
   box-shadow: var(--shadow-card);
 }
 
-.rail-list {
+.activity-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
   font-size: 12.5px;
 }
 
-.rail-item {
+.activity-item {
   display: flex;
   gap: 10px;
 }
 
-.rail-item .ph {
+.activity-item .ph {
   margin-top: 2px;
   flex-shrink: 0;
 }
 
-.rail-item-text {
+.activity-item-text {
   display: flex;
   flex-direction: column;
 }
 
-.rail-item-sub {
+.activity-item-sub {
   color: var(--text-faint);
   font-size: 11.5px;
 }
 
-.rail-divider {
+.activity-divider {
   height: 1px;
   background: var(--border);
 }
 
-.rail-stats {
+.activity-stats {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -222,7 +222,7 @@
   color: var(--text-dim);
 }
 
-.rail-stat {
+.activity-stat {
   display: flex;
   justify-content: space-between;
 }

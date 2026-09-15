@@ -15,7 +15,7 @@ export default function Environments() {
       <div className="page-inner">
         <PageHeader
           title="App Environments"
-          description="Apps run locally on your machine, served inside the hub."
+          description="Apps run on this computer, served by your Vela server."
         />
 
         <section className="panel engine-card">

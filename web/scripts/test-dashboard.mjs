@@ -146,6 +146,47 @@ try {
       }
     }
   }
+  // The plan's viewport matrix, checked for overflow and reachable navigation.
+  // 1366 and 390 already have full screenshot coverage above.
+  for (const size of [
+    { width: 320, height: 720 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1920, height: 1080 },
+    { width: 900, height: 420 },
+  ]) {
+    await page.setViewportSize(size);
+    const phone = size.width < 860;
+    for (const [route, label] of pages) {
+      if (label === 'Settings') continue;
+      await page.goto(base + route);
+      await page.locator(phone ? '.tabbar' : '.rail').waitFor();
+      const box = await page.evaluate(
+        (selector) => {
+          const content = document.querySelector('.workspace-content');
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {
+            body: document.documentElement.scrollWidth - innerWidth,
+            content: content.scrollWidth - content.clientWidth,
+            navVisible: rect.width > 0 && rect.height > 0,
+            navBottom: rect.bottom,
+            height: innerHeight,
+          };
+        },
+        phone ? '.tabbar' : '.rail',
+      );
+      const where = `${label} ${size.width}x${size.height}`;
+      assert.ok(box.body <= 1, `${where} body overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.content <= 1, `${where} content overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.navVisible, `${where} navigation must stay visible`);
+      assert.ok(
+        box.navBottom <= box.height + 1,
+        `${where} navigation must fit: ${JSON.stringify(box)}`,
+      );
+    }
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
+
   // Real page interactions using the shared header, fields, and empty state.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/library');
@@ -187,7 +228,7 @@ try {
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: seven dashboard routes, navigation, light/dark themes, desktop/phone layouts, library filtering, supported add-app sources and field labels' +
+    'PASS: seven dashboard routes, navigation, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources and field labels' +
       (originalCss ? '; computed styles match the original CSS' : ''),
   );
 } finally {

@@ -713,35 +713,55 @@ must not collide with backend app serving at `/apps/{id}/` (plural, with an id) 
 the backend only claims `/apps/{id}/...` for KNOWN app ids; `/apps` (bare) belongs to
 the SPA. The embedded app route is `/app/{id}` (singular) to avoid any ambiguity.
 
-## Frontend Expectations â€” the Hub Shell (v2)
+## Frontend Expectations — the Hub Shell
 
-The hub is a full shell, not a single grid page. Dark, refined, Linear/Raycast-class
-restraint. Reference mockup: sidebar layout, colorful icon tiles, purple-leaning accents
-on a near-black base (keep the Vela amber for primary actions; per-app `color` for tiles).
+The dashboard is a full shell, not a single grid page: a narrow rail beside a
+workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
+purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
+restrained 14px card corners), in light and dark.
 
-- **Sidebar** (desktop): Vela wordmark + sail logo, nav â€” Home, Apps, Library,
-  Environments, Settings. Collapses to a bottom tab bar on mobile
-  (Home / Apps / Library / Settings) with safe-area insets.
-- **Top bar**: search field ("Search apps, settings, or anythingâ€¦", âŒ˜K-style hint;
-  client-side filter over apps + settings entries), notification bell (may be static),
-  avatar circle. "+ Install App" primary button â†’ goes to Library.
-- **Home** (`/`): heading "Your local app hub" + sub "Install, organize, and run your
-  apps â€” all on your machine." Grid of INSTALLED app cards (icon tile with app color,
-  name, one-line description, chevron, Running badge with green pulse or Install button
-  for available ones), footer status line "All systems ready Â· Running locally" from
-  `GET /api/engine`.
-- **Apps** (`/apps`): installed apps, richer rows/cards â€” Open (â†’ `/app/{id}`), Stop,
-  Uninstall, status. Filter tabs: All / Running / Not installed.
-- **Library** (`/library`): ALL available apps (installed or not) as rows: icon tile,
-  name, description, category tag, Install/Installed button. Search + category filter
-  chips. This is where "+ Install App" lands.
-- **Embedded app view** (`/app/{id}`): versioned hub/compact/seamless presentation
-  over an iframe of `/apps/{id}/`. If the app is installed but a process app that is stopped,
-  show a launch interstitial with a Launch button instead of the iframe.
-- **Environments** (`/environments`): "App Environments â€” apps run in isolated
-  environments on your machine." Local Engine card from `GET /api/engine`: status dot +
-  Running pill, endpoint, applications installed, storage used (human-readable),
-  plus a list of running apps ("Manage" â†’ links to Apps).
+- **Rail** (desktop, 62px): the Vela mark, then Home and Ask, then a shortcut
+  for every installed app in a stable name order, a separator, Library,
+  Automations, Apps and System, then Settings and — for a remote session —
+  Sign out. The open destination gets both a raised surface and an edge marker
+  plus `aria-current`; every icon is named on hover and keyboard focus. The
+  shortcut region scrolls so the utility controls stay reachable in a short
+  window.
+- **Phone**: the rail is replaced by a bottom bar (Home / Ask / Apps / Library /
+  Settings) with safe-area insets, plus a navigation drawer opened from the
+  header that lists every destination and every installed app with labels.
+- **Workspace**: an optional context panel, a contextual header and the content
+  surface. The header carries the ⌘K search palette (apps, settings entries and
+  same-origin mini-app data), the server address badge that doubles as the
+  connection indicator, and the notification bell. Pages that show their own
+  `<h1>` do not repeat it in the header; Ask and app workspaces do use it.
+- **Home** (`/`): a greeting, the date, the server version and the installed and
+  running counts; a tile grid of installed apps with one truthful secondary line
+  and an "Add an app" tile; widgets built from `GET /api/engine`; and a
+  getting-started banner while supported apps remain uninstalled. Placeholders
+  show while the first app list loads; the progress line animates only while a
+  lifecycle action is actually running.
+- **Apps** (`/apps`): installed apps as rows with Open (→ `/app/{id}`), Stop,
+  Uninstall and status. Filter tabs: All / Running / Not installed.
+- **Library** (`/library`): catalog cards — icon tile, name, category and
+  version, the app's own description, and the one action that applies (Open,
+  Install, or a named update). Search, category chips with counts, a filter for
+  pending updates, and a single "Add an app" dialog offering only supported
+  sources: a release archive, a folder on the server computer, or connecting an
+  HTTPS service. Manifest URLs and pasted JSON are not supported sources.
+- **Ask** (`/ask`, `/ask/{conversationId}`): a conversation panel with date
+  groups, search, archived view and per-conversation rename/archive/delete; a
+  contextual header with the conversation title, model and connection state; the
+  transcript; and the composer. Below 1100px the panel overlays the workspace.
+- **Embedded app view** (`/app/{id}`): versioned hub/compact/seamless
+  presentation over an iframe of `/apps/{id}/`. `hub` renders inside the shell
+  with the contextual header naming the app and no second app bar; `compact` and
+  `seamless` keep their own standalone chrome. If the app is installed but a
+  process app that is stopped, show a launch interstitial with a Launch button
+  instead of the iframe. A removed or unknown id recovers inside the shell.
+- **System** (`/environments`): the Local Engine card from `GET /api/engine` —
+  status dot and Running pill, endpoint, applications installed, storage used,
+  data directory — plus the running apps ("Manage" → Apps).
 - **Settings**: a popup over the current screen with searchable categories for
   Appearance, Chat & privacy, Local AI, Notifications, Backups, App environments,
   Storage, Network and General. Theme previews and chat preferences save through
@@ -749,10 +769,10 @@ on a near-black base (keep the Vela amber for primary actions; per-app `color` f
   Switching categories keeps unsaved form entries. Existing `/settings#category`
   links open the matching category over Home. General includes phone setup and
   Home Screen installation. Backups can be created and verified through the API.
-- **App detail** (drawer or page, from any card): description, author, version,
-  category, status, actions, log tail for process apps, Add-to-Home-Screen section
-  for web apps (iOS instructions / beforeinstallprompt as in v1).
-- Poll `GET /api/apps` every 5s globally; `status` for focused app; `engine` on
-  Home/Environments/Settings mount + 10s.
+- **App detail** (drawer, from any card): description, author, version, category,
+  status, actions, log tail for process apps, and the Add-to-Home-Screen section
+  for web apps.
+- Poll `GET /api/apps` every 5s globally; `status` for the focused app; `engine`
+  every 10s. All consumers share those requests; pages do not add their own.
 - All fetches relative `/api/...`; Vite proxy forwards `/api` and `/apps`.
 - The hub remains an installable PWA (v1 work: manifest, sw.js, icons) â€” keep it.

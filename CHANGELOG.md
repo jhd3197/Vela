@@ -11,10 +11,11 @@ until the release workflow prepares a tested server version.
 - ServerKit install badge, deployment manifest and container build with
   persistent app data and password-protected access through a trusted HTTPS
   proxy. Set the public origin and proxy address before the first deployment.
-- Connect existing HTTPS web services from Library with a name, address and
-  icon color. Open them inside Vela with reload, edit and browser fallback
-  controls. Connections use a separate hostname and keep the service's own
-  login and data; removing a connection does not stop or uninstall the service.
+- Connect existing HTTPS web services from **Library → Add an app → Connect a
+  web service** with a name, address and icon color. They open beside the rail
+  with reload, edit and browser fallback controls in the bar above them.
+  Connections use a separate hostname and keep the service's own login and data;
+  removing a connection does not stop or uninstall the service.
 - The welcome popup connects iPhone and Android users with a QR code. Enable
   password-protected Wi-Fi access directly on the server computer; the phone
   page guides certificate trust, browser choice and Home Screen installation.
@@ -25,6 +26,11 @@ until the release workflow prepares a tested server version.
   startup at sign-in. Windows portable downloads remain available.
 - Windows tray controls for server status, opening the dashboard, starting and
   stopping the server, sign-in startup and logs, without keeping a terminal open.
+- App authors can ask Vela to draw the navigation and the app's name around their
+  app with `"view": {"chrome": "hub"}`, and match its appearance with the
+  `vela-app.css` and `vela-theme.js` files that now ship in every generated app.
+  `compact` and `seamless` apps are unchanged until their manifest opts in.
+  See [the developer guide](docs/DEVELOPMENT.md).
 
 ### Changed
 
