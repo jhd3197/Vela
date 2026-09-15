@@ -122,7 +122,9 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
                     <strong>{app.name || app.id}</strong>
                     <small>@{app.id}</small>
                   </span>
-                  <small>{app.running ? 'Running' : 'Stopped'}</small>
+                  <small>
+                    {app.kind === 'connected-web' ? 'Web app' : app.running ? 'Running' : 'Stopped'}
+                  </small>
                 </button>
               ))}
             </div>

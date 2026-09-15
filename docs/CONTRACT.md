@@ -41,6 +41,46 @@ opaque sandbox origins:
 
 ## Versioned app contract
 
+### Host-owned connected web apps
+
+The hub can register an existing HTTPS service without importing a package.
+These registrations live in the `connected_web_apps` table in `app-data.sqlite`.
+They are **not manifest v2 entries**: the portable schema and SDK remain unchanged.
+IDs use `web--<uuid hex>`, which cannot collide with a valid manifest's slug.
+
+| Endpoint | Authorization and behavior |
+| --- | --- |
+| `POST /api/web-apps` | Hub bearer; `{name, url, color?}` creates a registration (201) |
+| `PUT /api/web-apps/{id}` | Hub bearer; `{name, url, color?, revision}` updates the reviewed revision |
+| `DELETE /api/web-apps/{id}` | Hub bearer; `{revision}` removes only the registration |
+| `GET /api/apps`, `GET /api/apps/{id}`, `GET /api/apps/{id}/status` | Hub bearer; includes connected app summaries |
+
+Stale update/removal revisions return 409; missing records return 404. Names are
+limited to 80 characters, addresses to 2048, icon colors to six-digit hex and
+registrations to 200. Validation allows unambiguous HTTPS URLs without credentials;
+the hostname must differ from the hub. The browser rechecks against its actual
+hostname, including when the hub address changes. No server-side URL fetch, DNS
+lookup or proxy is performed.
+
+Summaries have `kind: "connected-web"`, `schemaVersion: null`, `runtime: "connected"`,
+`view: {surface: "connected", chrome: "compact", url}`, `installed: true`,
+`running: false` and no capabilities. `installed` means the connection is saved;
+`running` does not claim upstream availability. Engine installed counts include
+registrations; running counts do not. Package lifecycle and app-session endpoints
+do not accept these records, and the assistant has no upstream data access.
+
+The host renders a script-free `srcdoc` wrapper with a restrictive CSP whose
+`frame-src` is exactly the saved origin. Its child iframe preserves the service's
+origin, with scripts, forms, downloads and sandboxed popups permitted. Top-level
+navigation and popup sandbox escape are not allowed. Cross-origin redirects are
+blocked. No bridge, app bearer or hub bearer is supplied to either frame. Host
+referrers are suppressed; subsequent navigation within the service uses its own
+referrer policy. Upstream frame policies and browser cookie policies still apply.
+The host always offers browser fallback; iframe load events cannot reliably prove
+that an upstream service is available or successfully rendered.
+
+### Package manifests
+
 Unversioned manifests and `schemaVersion: 1` normalize to the legacy runtime
 rules and `{surface: "embedded", chrome: "compact"}`. The original manifest
 format below describes that v1 input. V2 input is validated against

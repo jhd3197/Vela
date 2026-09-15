@@ -8,6 +8,10 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- Connect existing HTTPS web services from Library with a name, address and
+  icon color. Open them inside Vela with reload, edit and browser fallback
+  controls. Connections use a separate hostname and keep the service's own
+  login and data; removing a connection does not stop or uninstall the service.
 - A welcome popup guides iPhone setup, with a QR code for servers that already
   have HTTPS phone access, Safari guidance and Home Screen instructions. Reopen
   it from Settings. Local-only servers explain the required network setup.

@@ -38,6 +38,7 @@ node web/scripts/test-app-contract.mjs
 node web/scripts/test-releases.mjs
 node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
+node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-chat.mjs
@@ -65,6 +66,10 @@ Home Screen installation on a physical iPhone before claiming device acceptance.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.
+The connected-web-app suite also requires OpenSSL and uses a disposable HTTPS
+service. It checks add/edit/remove, persistence, its own login and browser storage,
+host isolation, cross-origin redirect blocking, frame-policy fallback and
+desktop/phone layouts. It never connects to a user's installed services.
 Browser scripts launch temporary fixture servers and save screenshots under
 ignored `docs/screenshots/` paths. `VELA_TEST_PYTHON` overrides the default
 `.venv` Python; `VELA_BROWSER_CHANNEL` can select an installed Chrome browser.

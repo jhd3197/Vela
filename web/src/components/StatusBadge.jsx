@@ -1,4 +1,5 @@
 export default function StatusBadge({ app }) {
+  if (app.kind === 'connected-web') return <span className="badge badge-installed">Web app</span>;
   if (!app.supported) {
     return <span className="badge badge-unsupported">Unsupported</span>;
   }

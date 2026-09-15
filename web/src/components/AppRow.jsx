@@ -6,9 +6,12 @@ import StatusBadge from './StatusBadge.jsx';
 // opens the detail drawer; the Library variant keeps an inline Install
 // button for apps that aren't installed yet.
 export default function AppRow({ app, busy, onAction, onDetails, variant = 'apps' }) {
-  const meta = app.running
-    ? 'Running locally'
-    : [`v${app.version}`, app.category].filter(Boolean).join(' · ');
+  const meta =
+    app.kind === 'connected-web'
+      ? 'Connected web app'
+      : app.running
+        ? 'Running locally'
+        : [`v${app.version}`, app.category].filter(Boolean).join(' · ');
 
   return (
     <button

@@ -1,0 +1,97 @@
+.connected-app-dialog {
+  width: min(520px, calc(100vw - 32px));
+  h2 {
+    margin: 0 0 12px;
+  }
+  > p {
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+}
+
+.connected-app-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+  label {
+    margin-top: 8px;
+    font-weight: 600;
+  }
+  input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  input[type='color'] {
+    width: 64px;
+    height: 40px;
+    padding: 4px;
+  }
+  .panel-note {
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.connected-app-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.connected-app-address {
+  overflow-wrap: anywhere;
+}
+
+.connected-app-remove {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  p {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+}
+
+.connected-app-view {
+  height: 100dvh;
+  .appview-chrome {
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .appview-title {
+    min-width: 0;
+  }
+}
+
+.connected-app-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
+  span:first-child {
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 540px) {
+  .connected-app-view .appview-chrome {
+    gap: 8px;
+  }
+  .connected-app-view .appview-back {
+    padding-inline: 8px;
+  }
+  .connected-app-view .btn {
+    min-height: 44px;
+  }
+  .connected-app-view .appview-title {
+    flex: 1 1 calc(100% - 110px);
+  }
+}

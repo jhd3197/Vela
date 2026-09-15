@@ -103,7 +103,11 @@ export default function Home() {
                     <span
                       className={`tile-card-meta${app.running ? ' tile-card-meta-running' : ''}`}
                     >
-                      {app.running ? 'Running' : `v${app.version}`}
+                      {app.kind === 'connected-web'
+                        ? 'Web app'
+                        : app.running
+                          ? 'Running'
+                          : `v${app.version}`}
                       {app.category ? ` · ${app.category}` : ''}
                     </span>
                   </span>

@@ -1,5 +1,36 @@
 # Use apps in Vela
 
+## Connect an existing web app
+
+Run your web service first, using ServerKit, Docker or its own installer. In
+**Library → Add web app**, enter its name, HTTPS address and icon color. The
+connection appears in Library, Apps and Home. Open it to use the service inside
+Vela, with **Apps**, **Edit connection**, **Reload web app** and **Open in browser**
+controls always outside the service's frame.
+
+Use a different hostname from Vela, for example `vela.example.com` and
+`reading.example.com`. Different ports on the same hostname are insufficient:
+browser cookies are shared across ports. Private-network HTTPS addresses are
+supported, but every device needs to resolve/reach the address and trust its
+certificate. `localhost` points to the device displaying the page, not necessarily
+the Vela server. Plain HTTP addresses are not supported in this mode.
+
+Sign in with the service's own account. If its page is blank, refuses embedding,
+or login requires another site or blocked third-party cookies, choose **Open in
+browser**. Vela does not override the service's frame restrictions. Navigation
+inside the frame is limited to the configured origin (scheme, hostname and port);
+other sites and sign-in providers may need a browser tab. Save your work before
+leaving or reloading: connected services do not report unsaved changes to Vela.
+
+Choose **Edit connection** from its view or details to change the name/address/color
+or remove it. This only changes the saved connection. Vela does not install,
+start, update, monitor, back up or delete the underlying service or its data.
+Connection settings are saved on the Vela server and included in its database
+backup. All clients of the same Vela server share these settings.
+
+This is a host feature, separate from imported app packages. Connected web apps
+do not receive Vela SDK sessions, storage grants or app actions.
+
 ## Install and update
 
 Open **Library → Import apps & refresh catalog**. Upload an app release ZIP or
