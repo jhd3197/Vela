@@ -21,6 +21,7 @@ import {
 import { getAiStatus, getSettings, sendToPhone, streamChat } from '../chatApi.js';
 import AskContext from '../components/AskContext.jsx';
 import ChatComposer from '../components/ChatComposer.jsx';
+import WorkspacePage from '../components/WorkspacePage.jsx';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
 function ChatMarkdown({ children }) {
@@ -408,177 +409,179 @@ export default function Ask() {
   const canSend = Boolean(settings && ai?.reachable);
 
   return (
-    <div className="ask-workspace">
-      <header className="page-head-row ask-header">
-        <div>
-          <h1 className="page-title">Ask</h1>
-          <p className="ask-status">
-            <span
-              className={`dot${ai?.reachable ? ' dot-ok' : aiOffline ? ' dot-bad' : ''}`}
-              aria-hidden
-            />
-            <span>
-              {ai?.reachable
-                ? 'Connected to your server'
-                : aiOffline
-                  ? 'Assistant unavailable'
-                  : 'Connecting to assistant…'}
-            </span>
-          </p>
-        </div>
-        <button className="btn" onClick={reset} disabled={busy}>
-          <Plus size={16} aria-hidden /> New conversation
-        </button>
-      </header>
-
-      {aiOffline && (
-        <div className="banner banner-error ask-banner" role="alert">
+    <WorkspacePage search={false} scroll={false}>
+      <div className="ask-workspace">
+        <header className="page-head-row ask-header">
           <div>
-            <strong>The assistant is offline.</strong>
-            <p>
-              Vela can't reach the configured model server. You can keep browsing, but questions
-              won't be answered until it's back.
+            <h1 className="page-title">Ask</h1>
+            <p className="ask-status">
+              <span
+                className={`dot${ai?.reachable ? ' dot-ok' : aiOffline ? ' dot-bad' : ''}`}
+                aria-hidden
+              />
+              <span>
+                {ai?.reachable
+                  ? 'Connected to your server'
+                  : aiOffline
+                    ? 'Assistant unavailable'
+                    : 'Connecting to assistant…'}
+              </span>
             </p>
           </div>
-          <button className="btn" onClick={reconnect} disabled={reconnecting}>
-            {reconnecting ? 'Checking…' : 'Reconnect'}
+          <button className="btn" onClick={reset} disabled={busy}>
+            <Plus size={16} aria-hidden /> New conversation
           </button>
-        </div>
-      )}
+        </header>
 
-      <AskContext />
-
-      <div className="chat-stage">
-        <div
-          className="chat-log"
-          ref={logRef}
-          role="region"
-          aria-label="Conversation"
-          tabIndex={0}
-          onScroll={() => {
-            const log = logRef.current;
-            const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 64;
-            followRef.current = pinned;
-            setAtBottom(pinned);
-          }}
-        >
-          <div className={`chat-transcript${!messages.length ? ' chat-transcript-empty' : ''}`}>
-            {!messages.length && !busy && (
-              <div className="chat-intro">
-                <div className="chat-intro-mark" aria-hidden>
-                  <Sparkle size={28} />
-                </div>
-                <span className="chat-eyebrow">Your server, in conversation</span>
-                <h2>What should I look into?</h2>
-                <p>
-                  Check on your apps, make sense of a log, or find out why something stopped.
-                  Mention an app with @ to get specific.
-                </p>
-                <div className="chat-starters">
-                  {STARTERS.map(([text, IconCmp]) => (
-                    <button type="button" key={text} onClick={() => setInput(text)}>
-                      <IconCmp size={15} aria-hidden />
-                      <span>{text}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div className="chat-turn" key={i}>
-                {m.role === 'user' ? (
-                  <div className="chat-user">
-                    <div className="chat-bubble">{m.content}</div>
-                  </div>
-                ) : (
-                  <>
-                    <ToolCalls activities={m.tools ?? []} />
-                    <div className="chat-assistant">
-                      <span className="chat-avatar" aria-hidden>
-                        <Sparkle size={12} />
-                      </span>
-                      <div className="chat-text">
-                        <span className="chat-author">Vela</span>
-                        <ChatMarkdown>{m.content}</ChatMarkdown>
-                        {m.interrupted && (
-                          <span className="chat-interrupted">Response incomplete</span>
-                        )}
-                        {m.content && (
-                          <div className="message-actions">
-                            <CopyMessage message={m.content} />
-                            <SendToPhone message={m.content} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-
-            <ToolCalls activities={activities} live />
-
-            {busy && (
-              <div className="chat-assistant" aria-busy="true">
-                <span className="chat-avatar" aria-hidden>
-                  <Sparkle size={12} />
-                </span>
-                <div className="chat-text">
-                  <span className="chat-author">
-                    Vela{' '}
-                    <span className="chat-stream-label" role="status">
-                      Responding…
-                    </span>
-                  </span>
-                  {stream ? (
-                    <ChatMarkdown>{stream}</ChatMarkdown>
-                  ) : (
-                    <span role="status">
-                      {activities.some((a) => a.state === 'running')
-                        ? 'Checking the hub…'
-                        : 'Preparing response…'}
-                    </span>
-                  )}
-                  <span className="stream-caret" aria-hidden />
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="chat-error" role="alert">
-                <span>{error}</span>
-                {lastQuestionIndex >= 0 && (
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy || !canSend}
-                    onClick={() => ask(messages[lastQuestionIndex].content, lastQuestionIndex)}
-                  >
-                    <ArrowClockwise size={14} aria-hidden />
-                    Try again
-                  </button>
-                )}
-              </div>
-            )}
+        {aiOffline && (
+          <div className="banner banner-error ask-banner" role="alert">
+            <div>
+              <strong>The assistant is offline.</strong>
+              <p>
+                Vela can't reach the configured model server. You can keep browsing, but questions
+                won't be answered until it's back.
+              </p>
+            </div>
+            <button className="btn" onClick={reconnect} disabled={reconnecting}>
+              {reconnecting ? 'Checking…' : 'Reconnect'}
+            </button>
           </div>
-        </div>
-        {!atBottom && (
-          <button className="chat-jump btn" onClick={jumpToLatest}>
-            <ArrowDown size={15} aria-hidden />
-            Jump to latest
-          </button>
         )}
+
+        <AskContext />
+
+        <div className="chat-stage">
+          <div
+            className="chat-log"
+            ref={logRef}
+            role="region"
+            aria-label="Conversation"
+            tabIndex={0}
+            onScroll={() => {
+              const log = logRef.current;
+              const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 64;
+              followRef.current = pinned;
+              setAtBottom(pinned);
+            }}
+          >
+            <div className={`chat-transcript${!messages.length ? ' chat-transcript-empty' : ''}`}>
+              {!messages.length && !busy && (
+                <div className="chat-intro">
+                  <div className="chat-intro-mark" aria-hidden>
+                    <Sparkle size={28} />
+                  </div>
+                  <span className="chat-eyebrow">Your server, in conversation</span>
+                  <h2>What should I look into?</h2>
+                  <p>
+                    Check on your apps, make sense of a log, or find out why something stopped.
+                    Mention an app with @ to get specific.
+                  </p>
+                  <div className="chat-starters">
+                    {STARTERS.map(([text, IconCmp]) => (
+                      <button type="button" key={text} onClick={() => setInput(text)}>
+                        <IconCmp size={15} aria-hidden />
+                        <span>{text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((m, i) => (
+                <div className="chat-turn" key={i}>
+                  {m.role === 'user' ? (
+                    <div className="chat-user">
+                      <div className="chat-bubble">{m.content}</div>
+                    </div>
+                  ) : (
+                    <>
+                      <ToolCalls activities={m.tools ?? []} />
+                      <div className="chat-assistant">
+                        <span className="chat-avatar" aria-hidden>
+                          <Sparkle size={12} />
+                        </span>
+                        <div className="chat-text">
+                          <span className="chat-author">Vela</span>
+                          <ChatMarkdown>{m.content}</ChatMarkdown>
+                          {m.interrupted && (
+                            <span className="chat-interrupted">Response incomplete</span>
+                          )}
+                          {m.content && (
+                            <div className="message-actions">
+                              <CopyMessage message={m.content} />
+                              <SendToPhone message={m.content} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+
+              <ToolCalls activities={activities} live />
+
+              {busy && (
+                <div className="chat-assistant" aria-busy="true">
+                  <span className="chat-avatar" aria-hidden>
+                    <Sparkle size={12} />
+                  </span>
+                  <div className="chat-text">
+                    <span className="chat-author">
+                      Vela{' '}
+                      <span className="chat-stream-label" role="status">
+                        Responding…
+                      </span>
+                    </span>
+                    {stream ? (
+                      <ChatMarkdown>{stream}</ChatMarkdown>
+                    ) : (
+                      <span role="status">
+                        {activities.some((a) => a.state === 'running')
+                          ? 'Checking the hub…'
+                          : 'Preparing response…'}
+                      </span>
+                    )}
+                    <span className="stream-caret" aria-hidden />
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="chat-error" role="alert">
+                  <span>{error}</span>
+                  {lastQuestionIndex >= 0 && (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy || !canSend}
+                      onClick={() => ask(messages[lastQuestionIndex].content, lastQuestionIndex)}
+                    >
+                      <ArrowClockwise size={14} aria-hidden />
+                      Try again
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {!atBottom && (
+            <button className="chat-jump btn" onClick={jumpToLatest}>
+              <ArrowDown size={15} aria-hidden />
+              Jump to latest
+            </button>
+          )}
+        </div>
+        <ChatComposer
+          input={input}
+          setInput={setInput}
+          busy={busy}
+          disabled={!canSend}
+          onSend={ask}
+          onStop={() => controller.current?.abort()}
+          model={model}
+        />
       </div>
-      <ChatComposer
-        input={input}
-        setInput={setInput}
-        busy={busy}
-        disabled={!canSend}
-        onSend={ask}
-        onStop={() => controller.current?.abort()}
-        model={model}
-      />
-    </div>
+    </WorkspacePage>
   );
 }

@@ -28,6 +28,13 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- The dashboard now uses a narrow app rail instead of a labelled sidebar. The
+  rail keeps Home, Ask, your installed apps, Library, Automations, Apps, System
+  and Settings one click away, marks the open destination and names each icon on
+  hover and keyboard focus. Search, the server address, and notifications moved
+  into a contextual header above each page. On phones the same destinations,
+  including every installed app, open from a navigation drawer beside the
+  existing bottom bar.
 - Settings opens in a compact popup over the current screen, with searchable
   categories, light and dark previews, and separate chat privacy controls.
   Existing settings links open the matching category; phone layouts keep the

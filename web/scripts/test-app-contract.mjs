@@ -59,7 +59,10 @@ try {
     await page.waitForFunction(
       () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
     );
-    assert.equal(await page.locator('.appview-chrome, .sidebar, .topbar, .tabbar').count(), 0);
+    assert.equal(
+      await page.locator('.appview-chrome, .rail, .workspace-header, .tabbar').count(),
+      0,
+    );
     assert.equal(await page.getByRole('button', { name: 'Vela app menu' }).isVisible(), true);
     await frame.getByRole('textbox', { name: 'Message' }).fill(`Saved from ${viewport.width}`);
     await frame.getByRole('button', { name: 'Send' }).click();
@@ -149,7 +152,7 @@ try {
       await page.waitForFunction(
         () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
       );
-      assert.equal(await page.locator('.sidebar').count(), mode === 'hub' ? 1 : 0);
+      assert.equal(await page.locator('.rail').count(), mode === 'hub' ? 1 : 0);
       if (mode === 'hub' && viewport.width < 500) {
         const composer = await page
           .frameLocator('iframe')
@@ -169,7 +172,7 @@ try {
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
     const appsLink = page.locator(
-      viewport.width < 500 ? '.tabbar a[href="/apps"]' : '.sidebar a[href="/apps"]',
+      viewport.width < 500 ? '.tabbar a[href="/apps"]' : '.rail a[href="/apps"]',
     );
     await appsLink.click();
     await page.getByRole('dialog').waitFor();

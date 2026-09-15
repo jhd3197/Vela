@@ -1,5 +1,23 @@
 /* ---------- Responsive ---------- */
 
+@media (max-width: 1100px) {
+  /* Before a second column squeezes the work surface, the context panel
+     becomes an overlay the workspace opens on demand. */
+  .workspace-panel {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 25;
+    width: min(var(--panel-w), 82vw);
+    box-shadow: var(--shadow-pop);
+    transform: translateX(-102%);
+    transition: transform 160ms ease;
+  }
+
+  .workspace-panel-open {
+    transform: translateX(0);
+  }
+}
+
 @media (max-width: 960px) {
   .auto-columns {
     grid-template-columns: 1fr;
@@ -11,21 +29,26 @@
 }
 
 @media (max-width: 860px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
+  .rail {
     display: none;
   }
 
-  .page {
-    padding: 18px 18px calc(96px + env(safe-area-inset-bottom));
+  .workspace-header .workspace-nav-button {
+    display: inline-flex;
   }
 
-  .topbar {
-    padding: 12px 18px;
-    padding-top: calc(12px + env(safe-area-inset-top));
+  .workspace-header {
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    gap: 8px;
+  }
+
+  .workspace-content {
+    padding: 16px 16px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .workspace-content-fixed {
+    padding: 0 0 calc(64px + env(safe-area-inset-bottom));
   }
 
   .searchbox {
@@ -63,7 +86,7 @@
     align-items: stretch;
   }
 
-  .drawer {
+  .drawer:not(.drawer-nav) {
     width: 100%;
     border-left: none;
   }
@@ -87,7 +110,7 @@
     right: 0;
     bottom: 0;
     z-index: 35;
-    background: var(--bg-sidebar);
+    background: var(--bg-rail);
     backdrop-filter: blur(18px);
     border-top: 1px solid var(--border);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
@@ -100,6 +123,10 @@
     gap: 3px;
     padding: 7px 4px;
     min-height: 48px;
+    border: none;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
     border-radius: var(--radius-sm);
     color: var(--text-faint);
     text-decoration: none;
@@ -110,5 +137,21 @@
 
   .tab-item-active {
     color: var(--accent-strong);
+  }
+}
+
+/* A short window still has to reach the composer, install actions and the
+   rail's utility controls. */
+@media (max-height: 560px) {
+  .rail {
+    padding-top: 8px;
+  }
+
+  .rail-mark {
+    display: none;
+  }
+
+  .workspace-content {
+    padding-block: 14px;
   }
 }

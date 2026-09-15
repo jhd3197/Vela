@@ -66,6 +66,13 @@
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  flex: none;
+}
+
 .btn-block {
   width: 100%;
 }

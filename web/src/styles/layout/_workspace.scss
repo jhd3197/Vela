@@ -1,0 +1,96 @@
+/* ---------- Workspace: context panel, contextual header, content ---------- */
+
+.workspace {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--bg-workspace);
+}
+
+.workspace-panel {
+  flex: none;
+  width: var(--panel-w);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--border);
+}
+
+.workspace-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: var(--header-pad);
+  padding-top: calc(11px + env(safe-area-inset-top));
+  min-height: 56px;
+  background: var(--bg-header);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  z-index: 20;
+}
+
+.workspace-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-title {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-subtitle {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-header-side {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+/* The rail replaces this control on desktop. */
+.workspace-header .workspace-nav-button {
+  display: none;
+}
+
+.workspace-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--content-pad);
+  padding-bottom: calc(48px + env(safe-area-inset-bottom));
+}
+
+/* Pages that own their own scrolling regions, such as Ask. */
+.workspace-content-fixed {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}

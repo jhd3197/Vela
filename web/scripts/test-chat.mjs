@@ -97,7 +97,7 @@ try {
   const checkLayout = async (width) => {
     const boxes = await page.evaluate(() => {
       const composer = document.querySelector('.chat-composer').getBoundingClientRect();
-      const main = document.querySelector('.page');
+      const main = document.querySelector('.workspace-content');
       const nav = document.querySelector('.tabbar').getBoundingClientRect();
       return {
         bottom: composer.bottom,

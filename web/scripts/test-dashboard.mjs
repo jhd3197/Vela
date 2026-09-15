@@ -64,8 +64,8 @@ try {
     for (const theme of ['light', 'dark']) {
       for (const [route, label] of pages) {
         await page.goto(base + route);
-        await page.locator('.sidebar-nav a').first().waitFor({ state: 'attached' });
-        await page.waitForFunction(() => document.querySelector('.side-card-status .dot-ok'));
+        await page.locator('.rail a').first().waitFor({ state: 'attached' });
+        await page.waitForFunction(() => document.querySelector('.host-badge-ok'));
         await page.evaluate(async (theme) => {
           document.documentElement.dataset.theme = theme;
           await document.fonts.ready;
@@ -74,11 +74,18 @@ try {
           content:
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
-        const nav = page.locator(viewport.width < 860 ? '.tabbar' : '.sidebar-nav');
-        assert.equal(await nav.locator('a, button').count(), viewport.width < 860 ? 5 : 7);
+        const phone = viewport.width < 860;
+        const nav = page.locator(phone ? '.tabbar' : '.rail');
+        // The rail's fixed destinations, excluding the dynamic app shortcuts.
+        assert.equal(
+          await (
+            phone ? nav.locator('a, button') : nav.locator('.rail-group a, .rail-foot button')
+          ).count(),
+          phone ? 5 : 7,
+        );
         if (label === 'Settings') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
-        } else if (viewport.width >= 860 || !['System', 'Automations'].includes(label)) {
+        } else if (!phone || !['System', 'Automations'].includes(label)) {
           assert.equal(
             await nav
               .getByRole('link', { name: label, exact: label !== 'Library' })
@@ -87,7 +94,7 @@ try {
           );
         }
         const overflow = await page.evaluate(() => {
-          const main = document.querySelector('.page');
+          const main = document.querySelector('.workspace-content');
           return {
             body: document.documentElement.scrollWidth - innerWidth,
             main: main.scrollWidth - main.clientWidth,
@@ -101,7 +108,7 @@ try {
           // Reapply original declarations to the same DOM after the compiled
           // styles. All computed properties and geometry should remain identical.
           const differences = await page.evaluate((css) => {
-            const elements = [...document.querySelectorAll('.layout, .layout *')];
+            const elements = [...document.querySelectorAll('.shell, .shell *')];
             const snapshot = () =>
               elements.map((element) => {
                 const style = getComputedStyle(element);

@@ -4,8 +4,10 @@
 @use 'tokens';
 @use 'base';
 @use 'layout/page';
-@use 'layout/sidebar';
-@use 'layout/topbar';
+@use 'layout/rail';
+@use 'layout/workspace';
+@use 'layout/nav';
+@use 'layout/search';
 @use 'components/controls';
 @use 'components/app-icon';
 @use 'pages/home';

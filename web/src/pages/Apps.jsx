@@ -7,6 +7,7 @@ import { Plus } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import AppRow from '../components/AppRow.jsx';
 import AppDetailDrawer from '../components/AppDetailDrawer.jsx';
+import WorkspacePage from '../components/WorkspacePage.jsx';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -41,97 +42,99 @@ export default function Apps() {
   const empty = apps !== null && installed.length === 0 && available.length === 0;
 
   return (
-    <div className="page-inner">
-      <PageHeader
-        title="Apps"
-        description="Everything on this machine — open, stop, or remove."
-        actions={
-          <div className="seg" role="tablist">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                role="tab"
-                aria-selected={filter === f.key}
-                className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
-                onClick={() => setFilter(f.key)}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        }
-      />
-
-      {apps === null && <LoadingState>Loading apps…</LoadingState>}
-
-      {empty && (
-        <EmptyState
-          title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
-          description={
-            filter === 'all'
-              ? 'Install apps from the Library and they will show up here.'
-              : 'No apps match this filter right now.'
+    <WorkspacePage>
+      <div className="page-inner">
+        <PageHeader
+          title="Apps"
+          description="Everything on this machine — open, stop, or remove."
+          actions={
+            <div className="seg" role="tablist">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  role="tab"
+                  aria-selected={filter === f.key}
+                  className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
+                  onClick={() => setFilter(f.key)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           }
-        >
-          {filter === 'all' && (
-            <Link className="btn btn-primary" to="/library">
-              Browse Library
-            </Link>
-          )}
-        </EmptyState>
-      )}
+        />
 
-      {installed.length > 0 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h2 className="section-head">Your apps</h2>
-          <div className="group-list">
-            {installed.map((app) => (
-              <AppRow
-                key={app.id}
-                app={app}
-                busy={busyIds.has(app.id)}
-                onAction={runAction}
-                onDetails={setSelected}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        {apps === null && <LoadingState>Loading apps…</LoadingState>}
 
-      {available.length > 0 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h2 className="section-head">Available</h2>
-          <div className="group-list">
-            {available.map((app) => (
-              <AppRow
-                key={app.id}
-                app={app}
-                busy={busyIds.has(app.id)}
-                onAction={runAction}
-                onDetails={setSelected}
-                variant="library"
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        {empty && (
+          <EmptyState
+            title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
+            description={
+              filter === 'all'
+                ? 'Install apps from the Library and they will show up here.'
+                : 'No apps match this filter right now.'
+            }
+          >
+            {filter === 'all' && (
+              <Link className="btn btn-primary" to="/library">
+                Browse Library
+              </Link>
+            )}
+          </EmptyState>
+        )}
 
-      {apps !== null && (
-        <Link to="/library" className="row-add">
-          <Plus size={19} style={{ color: 'var(--accent-strong)' }} />
-          <span className="row-add-text">
-            <span className="row-add-name">Add an app</span>
-            <span className="row-add-sub">From the Library</span>
-          </span>
-        </Link>
-      )}
+        {installed.length > 0 && (
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h2 className="section-head">Your apps</h2>
+            <div className="group-list">
+              {installed.map((app) => (
+                <AppRow
+                  key={app.id}
+                  app={app}
+                  busy={busyIds.has(app.id)}
+                  onAction={runAction}
+                  onDetails={setSelected}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
-      <AppDetailDrawer
-        app={selectedLive}
-        busy={selectedLive ? busyIds.has(selectedLive.id) : false}
-        onAction={runAction}
-        onClose={() => setSelected(null)}
-      />
-    </div>
+        {available.length > 0 && (
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h2 className="section-head">Available</h2>
+            <div className="group-list">
+              {available.map((app) => (
+                <AppRow
+                  key={app.id}
+                  app={app}
+                  busy={busyIds.has(app.id)}
+                  onAction={runAction}
+                  onDetails={setSelected}
+                  variant="library"
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {apps !== null && (
+          <Link to="/library" className="row-add">
+            <Plus size={19} style={{ color: 'var(--accent-strong)' }} />
+            <span className="row-add-text">
+              <span className="row-add-name">Add an app</span>
+              <span className="row-add-sub">From the Library</span>
+            </span>
+          </Link>
+        )}
+
+        <AppDetailDrawer
+          app={selectedLive}
+          busy={selectedLive ? busyIds.has(selectedLive.id) : false}
+          onAction={runAction}
+          onClose={() => setSelected(null)}
+        />
+      </div>
+    </WorkspacePage>
   );
 }

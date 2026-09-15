@@ -40,6 +40,7 @@ node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
+node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
@@ -52,6 +53,10 @@ form semantics, field labels, stale responses, retries, and action submission.
 It also verifies one shared engine request across consumers and page changes,
 shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
+The rail suite uses an isolated Vite fixture with disposable app records to check
+the narrow rail: an empty installation, many apps, long and duplicate names,
+stable ordering, keyboard focus and selection, a short window, and the phone
+navigation drawer's focus handling. Screenshots go to `docs/screenshots/rail/`.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
 The settings suite checks popup navigation, retained page and form drafts,
