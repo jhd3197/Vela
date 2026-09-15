@@ -132,7 +132,9 @@ try {
     await page.goto(base + '/library');
     await page.getByLabel('Password', { exact: true }).fill('fixture-password-123');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.getByRole('button', { name: 'Add web app', exact: true }).click();
+    await page.getByRole('button', { name: 'Add an app', exact: true }).click();
+    await page.getByRole('radio', { name: /Connect a web service/ }).click();
+    await page.getByRole('button', { name: 'Set up a connection', exact: true }).click();
     await page.getByLabel('App name', { exact: true }).fill(`Reading ${viewport.width}`);
     await page.getByLabel('Web address').fill(base + '/library');
     await page
@@ -146,9 +148,7 @@ try {
       .getByRole('dialog')
       .getByRole('button', { name: 'Add web app', exact: true })
       .click();
-    await page
-      .getByRole('button', { name: new RegExp(`Reading ${viewport.width} Connected web app`) })
-      .click();
+    await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Open', exact: true }).click();
     const appUrl = page.url();
     const frame = page.frameLocator('iframe').frameLocator('iframe');
@@ -222,16 +222,12 @@ try {
       .getByRole('link', { name: 'Library', exact: true })
       .click();
     await page.waitForURL(base + '/library');
-    await page
-      .getByRole('button', { name: new RegExp(`Reading ${viewport.width} Connected web app`) })
-      .click();
+    await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).click();
     await page.getByRole('button', { name: 'Edit connection' }).click();
     await page.getByRole('button', { name: 'Remove connection' }).click();
     await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length === 0);
     assert.equal(
-      await page
-        .getByRole('button', { name: new RegExp(`Reading ${viewport.width} Connected web app`) })
-        .count(),
+      await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).count(),
       0,
     );
     await page.goto(appUrl);

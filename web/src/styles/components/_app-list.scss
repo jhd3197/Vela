@@ -7,6 +7,226 @@
   flex-wrap: wrap;
 }
 
+.library-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.chip-count {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* ---------- Library catalog cards ---------- */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.app-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: box-shadow 160ms ease;
+}
+
+.app-card:hover {
+  box-shadow: var(--shadow-pop);
+}
+
+.app-card-unsupported {
+  opacity: 0.72;
+}
+
+.app-card-open {
+  appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 12px;
+}
+
+.app-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-card-name {
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-card-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.app-card-blurb {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.app-card-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.app-card-state {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-card-skeleton .app-card-head {
+  padding: 16px;
+}
+
+.app-card-skeleton > .skeleton-line {
+  margin: 0 16px 20px;
+}
+
+/* ---------- Add an app ---------- */
+
+.dialog-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.source-option-active {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.source-option-glyph {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 9px;
+  background: var(--bg-inset);
+  color: var(--accent-strong);
+}
+
+.source-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.source-option-title {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.source-option-hint {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.source-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 13px;
+
+  input[type='file'] {
+    font: inherit;
+  }
+}
+
+.source-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  input {
+    flex: 1;
+    min-width: 170px;
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.form-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--red);
+}
+
 .group-list {
   display: flex;
   flex-direction: column;

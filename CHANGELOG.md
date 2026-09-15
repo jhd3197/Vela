@@ -28,6 +28,14 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- Home states the date, server version and how many apps are installed and
+  running, shows placeholders while that list loads, and animates a progress
+  line only while an install, launch or stop is actually in flight. Library now
+  shows catalog cards with each app's description, category, version and the one
+  action that applies to it, category filters with counts, a filter for pending
+  updates, and a single Add an app dialog covering the supported sources: a
+  release archive, a folder on the computer running Vela, or connecting an HTTPS
+  service you already run.
 - The dashboard now uses a narrow app rail instead of a labelled sidebar. The
   rail keeps Home, Ask, your installed apps, Library, Automations, Apps, System
   and Settings one click away, marks the open destination and names each icon on
@@ -68,9 +76,12 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
-- Long dashboard pages scroll independently of the desktop navigation, keeping
-  the sidebar and its footer visible. The footer now shows server connection
-  status and the number of running apps instead of a storage meter.
+- Installing or updating an app no longer fails on Windows when a virus scanner
+  still holds a handle on the files that were just written. The move into place
+  retries briefly before reporting a permission error.
+- Long dashboard pages scroll independently of the desktop navigation, which
+  stays in place. Server connection status is shown by the address badge in
+  each page's header.
 - Browser tabs now show Vela's purple-and-cyan sail logo instead of the old amber icon.
 - The dashboard Ask page can talk to the local model again. Sending a message
   failed immediately with "Request failed (422)" because the dashboard posted a

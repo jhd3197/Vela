@@ -373,6 +373,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         return {
             "status": "running",
             "engine": "local",
+            "version": __version__,
             "endpoint": "http://127.0.0.1:7700",
             "apps_installed": sum(1 for a in apps if a["installed"]),
             "apps_running": sum(1 for a in apps if a["running"]),

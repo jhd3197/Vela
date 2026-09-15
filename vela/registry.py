@@ -11,7 +11,7 @@ from .config import Config
 from .manifest import DEFAULT_APP_COLOR, Manifest, ManifestError, load_manifest
 from .runners import current_platform
 from .state import StateStore
-from .package_files import copy_package
+from .package_files import copy_package, replace_dir
 from .app_storage import AppServiceError
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ class Registry:
         try:
             copy_package(source, stage)
             load_manifest(stage)
-            stage.rename(target)
+            replace_dir(stage, target)
         finally:
             shutil.rmtree(stage.parent, ignore_errors=True)
 

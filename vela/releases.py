@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .app_storage import AppServiceError
 from .manifest import load_manifest, validate_manifest, ManifestError
-from .package_files import copy_package, unpack, tree_digest, write_json, portable
+from .package_files import copy_package, replace_dir, unpack, tree_digest, write_json, portable
 
 
 def package_manifest(path):
@@ -253,8 +253,8 @@ class Releases:
                     if 'connections' not in manifest.capabilities:
                         db.execute('DELETE FROM connections WHERE identity IN (SELECT identity FROM installations WHERE app_id=?)', (app_id,))
                     write_json(journal, {'app_id': app_id, 'previous': bool(previous), 'previousDigest': current_digest})
-                    if target.exists(): target.rename(record / 'displaced')
-                    (record / 'next').rename(target)
+                    if target.exists(): replace_dir(target, record / 'displaced')
+                    replace_dir(record / 'next', target)
                     # File-level readiness is checked at the final serving path too.
                     self._check_package(target, allow_legacy=bool(plan['rollback']))
                 self.lifecycle.auth.revoke_app(app_id)
