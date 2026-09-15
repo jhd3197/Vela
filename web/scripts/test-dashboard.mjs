@@ -64,8 +64,8 @@ try {
     for (const theme of ['light', 'dark']) {
       for (const [route, label] of pages) {
         await page.goto(base + route);
-        await page.locator('.sidebar-nav a').first().waitFor({ state: 'attached' });
-        await page.waitForFunction(() => document.querySelector('.side-card-status .dot-ok'));
+        await page.locator('.rail a').first().waitFor({ state: 'attached' });
+        await page.waitForFunction(() => document.querySelector('.host-badge-ok'));
         await page.evaluate(async (theme) => {
           document.documentElement.dataset.theme = theme;
           await document.fonts.ready;
@@ -74,11 +74,18 @@ try {
           content:
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
-        const nav = page.locator(viewport.width < 860 ? '.tabbar' : '.sidebar-nav');
-        assert.equal(await nav.locator('a, button').count(), viewport.width < 860 ? 5 : 7);
+        const phone = viewport.width < 860;
+        const nav = page.locator(phone ? '.tabbar' : '.rail');
+        // The rail's fixed destinations, excluding the dynamic app shortcuts.
+        assert.equal(
+          await (
+            phone ? nav.locator('a, button') : nav.locator('.rail-group a, .rail-foot button')
+          ).count(),
+          phone ? 5 : 7,
+        );
         if (label === 'Settings') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
-        } else if (viewport.width >= 860 || !['System', 'Automations'].includes(label)) {
+        } else if (!phone || !['System', 'Automations'].includes(label)) {
           assert.equal(
             await nav
               .getByRole('link', { name: label, exact: label !== 'Library' })
@@ -87,7 +94,7 @@ try {
           );
         }
         const overflow = await page.evaluate(() => {
-          const main = document.querySelector('.page');
+          const main = document.querySelector('.workspace-content');
           return {
             body: document.documentElement.scrollWidth - innerWidth,
             main: main.scrollWidth - main.clientWidth,
@@ -101,7 +108,7 @@ try {
           // Reapply original declarations to the same DOM after the compiled
           // styles. All computed properties and geometry should remain identical.
           const differences = await page.evaluate((css) => {
-            const elements = [...document.querySelectorAll('.layout, .layout *')];
+            const elements = [...document.querySelectorAll('.shell, .shell *')];
             const snapshot = () =>
               elements.map((element) => {
                 const style = getComputedStyle(element);
@@ -139,16 +146,89 @@ try {
       }
     }
   }
+  // The plan's viewport matrix, checked for overflow and reachable navigation.
+  // 1366 and 390 already have full screenshot coverage above.
+  for (const size of [
+    { width: 320, height: 720 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1920, height: 1080 },
+    { width: 900, height: 420 },
+  ]) {
+    await page.setViewportSize(size);
+    const phone = size.width < 860;
+    for (const [route, label] of pages) {
+      if (label === 'Settings') continue;
+      await page.goto(base + route);
+      await page.locator(phone ? '.tabbar' : '.rail').waitFor();
+      const box = await page.evaluate(
+        (selector) => {
+          const content = document.querySelector('.workspace-content');
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {
+            body: document.documentElement.scrollWidth - innerWidth,
+            content: content.scrollWidth - content.clientWidth,
+            navVisible: rect.width > 0 && rect.height > 0,
+            navBottom: rect.bottom,
+            height: innerHeight,
+          };
+        },
+        phone ? '.tabbar' : '.rail',
+      );
+      const where = `${label} ${size.width}x${size.height}`;
+      assert.ok(box.body <= 1, `${where} body overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.content <= 1, `${where} content overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.navVisible, `${where} navigation must stay visible`);
+      assert.ok(
+        box.navBottom <= box.height + 1,
+        `${where} navigation must fit: ${JSON.stringify(box)}`,
+      );
+    }
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
+
   // Real page interactions using the shared header, fields, and empty state.
+  await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/library');
   await page.getByRole('searchbox', { name: 'Search library' }).fill('no-such-fixture');
   await page.getByRole('heading', { name: 'No matches', exact: true }).waitFor();
+  await page.getByRole('searchbox', { name: 'Search library' }).fill('');
+
+  // Adding an app offers exactly the sources the server supports. A manifest
+  // URL and pasted JSON are not supported and must not be advertised.
+  const opener = page.getByRole('button', { name: 'Add an app', exact: true });
+  await opener.click();
+  const addDialog = page.getByRole('dialog', { name: 'Add an app', exact: true });
+  assert.equal(await addDialog.getByRole('radio').count(), 3);
+  assert.equal(await addDialog.getByText(/vela\.json|Paste the JSON|From a URL/).count(), 0);
+  // The folder path is on the machine running Vela, not on this device.
+  await addDialog.getByRole('radio', { name: /Folder on the server computer/ }).click();
+  await addDialog.getByLabel('App folder on the server computer').waitFor();
+  await addDialog.getByRole('radio', { name: /Release archive/ }).click();
+  await addDialog.getByLabel('Release archive', { exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await addDialog.waitFor({ state: 'detached' });
+  assert.equal(
+    await page.evaluate(() => document.activeElement.textContent),
+    'Add an app',
+    'closing the add dialog returns focus to its opener',
+  );
+
+  // The same flow has to fit and stay reachable on a phone.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await opener.click();
+  await addDialog.waitFor();
+  const dialogBox = await addDialog.boundingBox();
+  assert.ok(dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 390, JSON.stringify(dialogBox));
+  await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await addDialog.waitFor({ state: 'detached' });
+  await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/settings#notifications');
   await page.getByLabel('Topic', { exact: true }).fill('local-fixture-topic');
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: seven dashboard routes, navigation, light/dark themes, desktop/phone layouts, library filtering and field labels' +
+    'PASS: seven dashboard routes, navigation, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources and field labels' +
       (originalCss ? '; computed styles match the original CSS' : ''),
   );
 } finally {

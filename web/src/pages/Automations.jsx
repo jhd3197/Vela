@@ -21,6 +21,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import AppIcon from '../components/AppIcon.jsx';
+import WorkspacePage from '../components/WorkspacePage.jsx';
 
 // Automations page per the prototype. There is no automations engine in the
 // backend yet, so this is a design preview: the rules below are built-in
@@ -132,160 +133,164 @@ export default function Automations() {
   }, [filter, enabled]);
 
   return (
-    <div className="page-inner">
-      <header className="page-head-row">
-        <div>
-          <h1 className="page-title">
-            Automations{' '}
-            <span className="tag tag-accent" style={{ verticalAlign: 'middle' }}>
-              Preview
-            </span>
-          </h1>
-          <p className="page-sub">
-            Rules wired between your apps, running on your machine. The engine isn't built yet —
-            these are example rules to show the design.
-          </p>
-        </div>
-        <Button variant="primary" disabled title="Coming with the automations engine">
-          <Plus size={15} />
-          New automation
-        </Button>
-      </header>
-
-      <div className="auto-columns">
-        <div className="auto-main">
-          <div className="auto-summary">
-            <span className="auto-summary-text">
-              <span className="auto-summary-title">
-                {enabled.size} of {AUTOMATIONS.length} rules active
+    <WorkspacePage>
+      <div className="page-inner">
+        <header className="page-head-row">
+          <div>
+            <h1 className="page-title">
+              Automations{' '}
+              <span className="tag tag-accent" style={{ verticalAlign: 'middle' }}>
+                Preview
               </span>
-              <span className="auto-summary-sub">Everything runs locally on this machine</span>
-            </span>
-            <span className="sparkline" aria-hidden="true">
-              {[40, 65, 30, 80, 55, 100].map((h, i) => (
-                <span
-                  key={i}
-                  className={`sparkline-bar${i === 5 ? ' sparkline-bar-hot' : ''}`}
-                  style={{ height: `${h}%` }}
-                />
+            </h1>
+            <p className="page-sub">
+              Rules wired between your apps, running on your machine. The engine isn't built yet —
+              these are example rules to show the design.
+            </p>
+          </div>
+          <Button variant="primary" disabled title="Coming with the automations engine">
+            <Plus size={15} />
+            New automation
+          </Button>
+        </header>
+
+        <div className="auto-columns">
+          <div className="auto-main">
+            <div className="auto-summary">
+              <span className="auto-summary-text">
+                <span className="auto-summary-title">
+                  {enabled.size} of {AUTOMATIONS.length} rules active
+                </span>
+                <span className="auto-summary-sub">Everything runs locally on this machine</span>
+              </span>
+              <span className="sparkline" aria-hidden="true">
+                {[40, 65, 30, 80, 55, 100].map((h, i) => (
+                  <span
+                    key={i}
+                    className={`sparkline-bar${i === 5 ? ' sparkline-bar-hot' : ''}`}
+                    style={{ height: `${h}%` }}
+                  />
+                ))}
+              </span>
+            </div>
+
+            <div className="seg" role="tablist" style={{ alignSelf: 'flex-start' }}>
+              {FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  role="tab"
+                  aria-selected={filter === f.key}
+                  className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
+                  onClick={() => setFilter(f.key)}
+                >
+                  {f.label}
+                </button>
               ))}
-            </span>
-          </div>
+            </div>
 
-          <div className="seg" role="tablist" style={{ alignSelf: 'flex-start' }}>
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                role="tab"
-                aria-selected={filter === f.key}
-                className={`seg-opt${filter === f.key ? ' seg-opt-active' : ''}`}
-                onClick={() => setFilter(f.key)}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="auto-list">
-            {visible.length === 0 && (
-              <div className="state-block">
-                <h2>Nothing here</h2>
-                <p>No rules match this filter right now.</p>
-              </div>
-            )}
-            {visible.map((rule) => {
-              const on = enabled.has(rule.id);
-              return (
-                <article key={rule.id} className={`auto-card${on ? '' : ' auto-card-paused'}`}>
-                  <div className="auto-head">
-                    <AppIcon app={rule.app} size={34} />
-                    <span className="auto-head-text">
-                      <span className="auto-title">{rule.name}</span>
-                      <span className={`auto-sub${rule.running && on ? ' auto-sub-running' : ''}`}>
-                        {on ? (rule.running ? 'Running now' : rule.sub) : 'Paused'}
-                      </span>
-                    </span>
-                    <span className="auto-side">
-                      <button
-                        className={`switch${on ? ' switch-on' : ''}`}
-                        role="switch"
-                        aria-checked={on}
-                        aria-label={`${on ? 'Pause' : 'Activate'} ${rule.name}`}
-                        onClick={() => toggle(rule.id)}
-                      />
-                      <DotsThreeVertical size={18} style={{ color: 'var(--text-faint)' }} />
-                    </span>
-                  </div>
-                  <div className="auto-steps">
-                    {rule.steps.map((step, i) => (
-                      <span key={step.label} style={{ display: 'contents' }}>
-                        {i > 0 && <ArrowRight size={14} className="step-arrow" />}
-                        <span className="step-chip">
-                          <step.icon size={14} />
-                          {step.label}
+            <div className="auto-list">
+              {visible.length === 0 && (
+                <div className="state-block">
+                  <h2>Nothing here</h2>
+                  <p>No rules match this filter right now.</p>
+                </div>
+              )}
+              {visible.map((rule) => {
+                const on = enabled.has(rule.id);
+                return (
+                  <article key={rule.id} className={`auto-card${on ? '' : ' auto-card-paused'}`}>
+                    <div className="auto-head">
+                      <AppIcon app={rule.app} size={34} />
+                      <span className="auto-head-text">
+                        <span className="auto-title">{rule.name}</span>
+                        <span
+                          className={`auto-sub${rule.running && on ? ' auto-sub-running' : ''}`}
+                        >
+                          {on ? (rule.running ? 'Running now' : rule.sub) : 'Paused'}
                         </span>
                       </span>
-                    ))}
-                    {rule.app.id === 'vela-core' && <span className="tag">Vela Core</span>}
-                  </div>
-                  {rule.running && on && <span className="auto-pulse" aria-hidden="true" />}
-                </article>
-              );
-            })}
+                      <span className="auto-side">
+                        <button
+                          className={`switch${on ? ' switch-on' : ''}`}
+                          role="switch"
+                          aria-checked={on}
+                          aria-label={`${on ? 'Pause' : 'Activate'} ${rule.name}`}
+                          onClick={() => toggle(rule.id)}
+                        />
+                        <DotsThreeVertical size={18} style={{ color: 'var(--text-faint)' }} />
+                      </span>
+                    </div>
+                    <div className="auto-steps">
+                      {rule.steps.map((step, i) => (
+                        <span key={step.label} style={{ display: 'contents' }}>
+                          {i > 0 && <ArrowRight size={14} className="step-arrow" />}
+                          <span className="step-chip">
+                            <step.icon size={14} />
+                            {step.label}
+                          </span>
+                        </span>
+                      ))}
+                      {rule.app.id === 'vela-core' && <span className="tag">Vela Core</span>}
+                    </div>
+                    {rule.running && on && <span className="auto-pulse" aria-hidden="true" />}
+                  </article>
+                );
+              })}
+            </div>
+
+            <section className="blueprints">
+              <div>
+                <h2 className="blueprints-title">Start from a blueprint</h2>
+                <p className="blueprints-sub">
+                  Any app that declares <code className="mono">"permissions": ["notify"]</code> can
+                  be wired into a rule.
+                </p>
+              </div>
+              <div className="blueprints-actions">
+                {BLUEPRINTS.map((b) => (
+                  <Button key={b.label} disabled title="Coming with the automations engine">
+                    <b.icon size={15} />
+                    {b.label}
+                  </Button>
+                ))}
+              </div>
+            </section>
           </div>
 
-          <section className="blueprints">
-            <div>
-              <h2 className="blueprints-title">Start from a blueprint</h2>
-              <p className="blueprints-sub">
-                Any app that declares <code className="mono">"permissions": ["notify"]</code> can be
-                wired into a rule.
-              </p>
-            </div>
-            <div className="blueprints-actions">
-              {BLUEPRINTS.map((b) => (
-                <Button key={b.label} disabled title="Coming with the automations engine">
-                  <b.icon size={15} />
-                  {b.label}
-                </Button>
+          <aside className="activity-rail">
+            <h2 className="section-head">Today</h2>
+            <div className="activity-list">
+              {ACTIVITY.map((item) => (
+                <span key={item.title} className="activity-item">
+                  <item.icon size={14} weight="fill" style={{ color: item.color }} />
+                  <span className="activity-item-text">
+                    <span>{item.title}</span>
+                    <span className="activity-item-sub">{item.sub}</span>
+                  </span>
+                </span>
               ))}
             </div>
-          </section>
-        </div>
-
-        <aside className="activity-rail">
-          <h2 className="section-head">Today</h2>
-          <div className="rail-list">
-            {ACTIVITY.map((item) => (
-              <span key={item.title} className="rail-item">
-                <item.icon size={14} weight="fill" style={{ color: item.color }} />
-                <span className="rail-item-text">
-                  <span>{item.title}</span>
-                  <span className="rail-item-sub">{item.sub}</span>
-                </span>
+            <span className="activity-divider" />
+            <div className="activity-stats">
+              <span className="activity-stat">
+                <span>Runs this week</span>
+                <span>—</span>
               </span>
-            ))}
-          </div>
-          <span className="rail-divider" />
-          <div className="rail-stats">
-            <span className="rail-stat">
-              <span>Runs this week</span>
-              <span>—</span>
-            </span>
-            <span className="rail-stat">
-              <span>Failures</span>
-              <span>—</span>
-            </span>
-            <span className="rail-stat">
-              <span>Average run</span>
-              <span>—</span>
-            </span>
-          </div>
-          <Button block disabled title="Coming with the automations engine">
-            Open run log
-          </Button>
-        </aside>
+              <span className="activity-stat">
+                <span>Failures</span>
+                <span>—</span>
+              </span>
+              <span className="activity-stat">
+                <span>Average run</span>
+                <span>—</span>
+              </span>
+            </div>
+            <Button block disabled title="Coming with the automations engine">
+              Open run log
+            </Button>
+          </aside>
+        </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

@@ -13,6 +13,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Config, dir_size
+from .conversations import ConversationStore
 from .registry import Registry
 from .settings import SettingsStore
 from .state import StateStore, pid_alive
@@ -23,8 +24,6 @@ MAX_ROUNDS = 5
 MAX_TOOL_CALLS = 8
 MAX_RESPONSE_BYTES = 256_000
 MAX_TOOL_RESULT_BYTES = 24_000
-CONVERSATION_TTL_SECONDS = 30 * 60
-CONVERSATION_CAP = 100
 HISTORY_LIMIT = 16
 RATE_LIMIT_PER_MINUTE = 12
 
@@ -81,12 +80,6 @@ class Tool:
         }
 
 
-@dataclass
-class _Conversation:
-    history: list[dict[str, Any]]
-    touched: float
-
-
 class Assistant:
     def __init__(
         self,
@@ -94,16 +87,17 @@ class Assistant:
         registry: Registry,
         state: StateStore,
         config: Config,
+        conversations: ConversationStore,
         ollama_url: str | None = None,
     ):
         self._settings = settings
         self._registry = registry
         self._state = state
         self._config = config
+        self._store = conversations
         self._ollama_url = (
             ollama_url or os.environ.get("OLLAMA_URL") or DEFAULT_OLLAMA_URL
         ).rstrip("/")
-        self._conversations: dict[str, _Conversation] = {}
         self._rates: dict[str, list[float]] = {}
         self._tools = self._build_tools()
 
@@ -256,8 +250,6 @@ class Assistant:
         ]
 
     def _sweep(self, now: float) -> None:
-        for conv_id in [cid for cid, c in self._conversations.items() if now - c.touched > CONVERSATION_TTL_SECONDS]:
-            del self._conversations[conv_id]
         for client in [cid for cid, times in self._rates.items() if not any(now - t < 60 for t in times)]:
             del self._rates[client]
 
@@ -276,25 +268,61 @@ class Assistant:
             raise AssistantError("Too many chat requests. Try again in a minute.")
         self._rates[client_id] = recent + [now]
 
-        conv = self._conversations.get(conversation_id) if conversation_id else None
-        if conv is None:
-            if len(self._conversations) >= CONVERSATION_CAP:
-                oldest = next(iter(self._conversations))
-                del self._conversations[oldest]
-            conversation_id = str(uuid.uuid4())
-            conv = _Conversation(history=[], touched=now)
-            self._conversations[conversation_id] = conv
-        conv.touched = now
-        emit({"conversationId": conversation_id})
+        keep = bool(self._settings.get("chat_history"))
+        if keep:
+            # The stored transcript is the source of truth. A restart loses no
+            # continuity, because the model context is rebuilt from it rather
+            # than from a process-local cache that silently expired.
+            if conversation_id and self._store.exists(conversation_id):
+                pass
+            elif conversation_id:
+                raise AssistantError("That conversation is no longer available.")
+            else:
+                conversation_id = self._store.create()["id"]
+            history = self._store.context(conversation_id, HISTORY_LIMIT)
+            stored = self._store.append(conversation_id, "user", text)
+            emit({"conversationId": conversation_id, "title": stored["title"]})
+        else:
+            # Retention is off: the id identifies this request only, and nothing
+            # is written down.
+            conversation_id = conversation_id or str(uuid.uuid4())
+            history = []
+            emit({"conversationId": conversation_id})
 
-        history = conv.history if self._settings.get("chat_history") else []
         messages = [
             {"role": "system", "content": _SYSTEM_PROMPT},
             *history,
             {"role": "user", "content": text},
         ]
 
+        # A stopped or failed turn still leaves the question answered in part.
+        # Keep that partial answer with the conversation instead of losing it.
+        partial = ""
+
+        def watch(event: dict[str, Any]) -> None:
+            nonlocal partial
+            if isinstance(event.get("text"), str):
+                partial = event["text"]
+            emit(event)
+
+        try:
+            return await self._turns(conversation_id, messages, watch, keep)
+        except BaseException:
+            if keep and partial:
+                self._store.append(
+                    conversation_id, "assistant", partial, tools=[], interrupted=True
+                )
+            raise
+
+    async def _turns(
+        self,
+        conversation_id: str,
+        messages: list[dict[str, Any]],
+        emit: Callable[[dict[str, Any]], None],
+        keep: bool,
+    ) -> str:
         tool_calls_made = 0
+        tools_used: list[dict[str, Any]] = []
         for _round in range(MAX_ROUNDS):
             response = await self._model_turn(messages, emit)
             messages.append(response)
@@ -303,13 +331,8 @@ class Assistant:
                 answer = response.get("content") or (
                     "The model did not return an answer. Try a more specific question."
                 )
-                if self._settings.get("chat_history"):
-                    conv.history = [
-                        *conv.history,
-                        {"role": "user", "content": text},
-                        {"role": "assistant", "content": answer},
-                    ][-HISTORY_LIMIT:]
-                conv.touched = time.monotonic()
+                if keep:
+                    self._store.append(conversation_id, "assistant", answer, tools=tools_used)
                 emit({"done": True, "text": answer})
                 return conversation_id
 
@@ -331,12 +354,20 @@ class Assistant:
                         "The model supplied invalid tool arguments. Try rephrasing the question."
                     ) from exc
                 emit({"activity": {"id": tool_calls_made, "tool": tool.name, "state": "running"}})
+                started = time.monotonic()
                 try:
                     result = await tool.run(args)
-                    emit({"activity": {"id": tool_calls_made, "tool": tool.name, "state": "complete"}})
+                    state = "complete"
                 except Exception:
                     result = {"error": "This information could not be read. Do not infer its state."}
-                    emit({"activity": {"id": tool_calls_made, "tool": tool.name, "state": "error"}})
+                    state = "error"
+                emit({"activity": {"id": tool_calls_made, "tool": tool.name, "state": state}})
+                tools_used.append({
+                    "id": tool_calls_made,
+                    "tool": tool.name,
+                    "state": state,
+                    "ms": int((time.monotonic() - started) * 1000),
+                })
                 payload = json.dumps(result)
                 if len(payload) > MAX_TOOL_RESULT_BYTES:
                     raise AssistantError("Tool output exceeds this assistant's limit. Narrow the question.")

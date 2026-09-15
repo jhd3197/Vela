@@ -8,12 +8,18 @@
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 
+  /* Semantic surfaces, outermost first: the ground the rail sits on, the
+     rail itself, the workspace beside it, an optional context panel, then
+     cards, inset fields and overlays. */
   --bg: #e4e7f5;
-  --bg-sidebar: rgba(255, 255, 255, 0.72);
-  --bg-header: rgba(255, 255, 255, 0.6);
-  --bg-card: #f3f5fe;
+  --bg-rail: rgba(222, 226, 243, 0.85);
+  --bg-workspace: #f3f5fe;
+  --bg-panel: rgba(255, 255, 255, 0.72);
+  --bg-header: rgba(255, 255, 255, 0.65);
+  --bg-card: #ffffff;
+  --bg-field: #f3f5fe;
   --bg-inset: #e4e7f5;
-  --bg-pop: #f3f5fe;
+  --bg-pop: #ffffff;
   --border: #cfd3e5;
   --border-strong: #b2b6ca;
   --text: #292b31;
@@ -37,7 +43,11 @@
   --radius-sm: 9px;
   --shadow-card: 0 0 0 1px var(--border), 0 6px 18px rgba(41, 43, 49, 0.06);
   --shadow-pop: 0 0 0 1px var(--border), 0 16px 44px rgba(41, 43, 49, 0.18);
-  --sidebar-w: 224px;
+  --rail-w: 62px;
+  --rail-control: 42px;
+  --panel-w: 252px;
+  --header-pad: 11px 20px;
+  --content-pad: 22px 26px;
 
   --glow:
     radial-gradient(720px 320px at 24% -10%, rgba(139, 92, 246, 0.14), transparent 68%),
@@ -47,10 +57,13 @@
 }
 
 [data-theme='dark'] {
-  --bg: #161826;
-  --bg-sidebar: rgba(11, 14, 24, 0.55);
+  --bg: #101220;
+  --bg-rail: rgba(11, 14, 24, 0.85);
+  --bg-workspace: #161826;
+  --bg-panel: rgba(27, 30, 46, 0.72);
   --bg-header: rgba(22, 24, 38, 0.72);
   --bg-card: #232532;
+  --bg-field: #1b1e2e;
   --bg-inset: #1b1e2e;
   --bg-pop: #262836;
   --border: color-mix(in srgb, #e9e9ed 14%, transparent);

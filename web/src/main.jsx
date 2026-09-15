@@ -43,9 +43,9 @@ const router = createBrowserRouter(
         }
       >
         <Route element={<Shell />}>
-          {dashboardPages.map(({ to, component: Page }) => (
-            <Route key={to} path={to} element={<Page />} />
-          ))}
+          {dashboardPages.flatMap(({ to, childPaths = [], component: Page }) =>
+            [to, ...childPaths].map((path) => <Route key={path} path={path} element={<Page />} />),
+          )}
         </Route>
         {/* The manifest chooses the app view's host navigation. */}
         <Route path="/app/:id" element={<AppView />} />

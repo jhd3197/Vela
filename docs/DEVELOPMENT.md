@@ -102,9 +102,29 @@ export default function SystemStatus() {
 
 Import the page in `navigation.js` and add an entry to `dashboardPages`, for
 example `{ to: '/system-status', label: 'Status', icon: HardDrives,
-component: SystemStatus, tabHidden: true }`. `HardDrives` is already imported
-there. The shell and router both use this definition. Keep the phone bar small
-with `tabHidden`; embedded `/app/:id` routes remain outside this list.
+rail: 'tools', railOrder: 5, component: SystemStatus, tabHidden: true }`.
+`HardDrives` is already imported there. The shell and router both use this
+definition. `rail` places the destination in the narrow rail (`primary` above
+the installed-app shortcuts, `tools` below the separator, `foot` at the bottom)
+and `railOrder` sorts within a group. Keep the phone bar small with `tabHidden`
+— the navigation drawer still lists every destination. `childPaths` adds extra
+routes that render the same page, as `/ask/:conversationId` does. Embedded
+`/app/:id` routes remain outside this list.
+
+Wrap the page body in `WorkspacePage` so it gets the contextual header and the
+content surface:
+
+```jsx
+<WorkspacePage actions={<Button onClick={refresh}>Refresh</Button>}>
+  <div className="page-inner">…</div>
+</WorkspacePage>
+```
+
+Pass `panel` for a route that needs a context column beside its content (Ask
+does), `scroll={false}` when the page owns its own scrolling regions, and
+`compactSearch` when the header is too busy for the inline search box. Host
+pages keep their own `<h1>` in the content; the header carries a `title` only
+where the content does not, such as Ask and app workspaces.
 
 `Button` defaults to `type="button"`; form submissions explicitly use
 `type="submit"`. Use `variant="primary"`, `variant="danger"`, or
@@ -126,6 +146,24 @@ optional help/error text. Keep its existing layout wrapper and own its value:
 Import `FormField` from `../components/ui/FormField.jsx`. It preserves an
 explicit input ID, generates one otherwise, and connects help/errors through
 `aria-describedby`. It does not perform validation or save the field.
+
+### Make an app look like part of the server
+
+An app owns everything inside its frame. To have the server draw the rail, the
+app's name and its state around that frame instead of the app carrying its own
+bar, declare `"view": {"surface": "embedded", "chrome": "hub"}` in `app.json`.
+`compact` (the default) and `seamless` keep their existing standalone chrome, so
+this is an explicit, per-app choice and nothing changes until a manifest opts in.
+
+For the appearance itself, copy `vela-app.css` and `vela-theme.js` from a
+generated app (`create-vela-app`) or from
+[vela-templates](https://github.com/jhd3197/vela-templates). They provide the
+server's surfaces, spacing and controls, and mirror the server's light/dark
+preference from the bridge context onto `data-vela-theme`. Override
+`--vela-accent` to keep the app's own identity.
+[vela-notes](https://github.com/jhd3197/vela-notes) is the worked example of a
+list-plus-editor app using this layout. No host code, DOM or credentials are
+shared: the bridge already sends the theme, and the stylesheet is the app's own.
 
 ### Share behavior where the semantics match
 

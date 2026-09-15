@@ -5,6 +5,7 @@ import { api, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import Shell from '../components/Shell.jsx';
+import WorkspacePage from '../components/WorkspacePage.jsx';
 import AppDataMigration from '../components/AppDataMigration.jsx';
 import AppConnection from '../components/AppConnection.jsx';
 import AppActions from '../components/AppActions.jsx';
@@ -37,7 +38,14 @@ function Workspace({ id, retry }) {
     () => localStorage.getItem(`vela.chrome.${id}`) === 'compact',
   );
   const requestedMode = summary?.view?.chrome || 'compact';
-  const mode = requestedMode === 'seamless' && compact ? 'compact' : requestedMode;
+  // A removed or unknown app has no declared presentation. Recover it inside the
+  // shell so the rail offers a clear path back instead of a bare interstitial.
+  const missing = apps !== null && !summary;
+  const mode = missing
+    ? 'hub'
+    : requestedMode === 'seamless' && compact
+      ? 'compact'
+      : requestedMode;
   const [session, setSession] = useState(null);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
@@ -237,7 +245,7 @@ function Workspace({ id, retry }) {
       className={`appview appview-${mode}`}
       style={mode !== 'hub' ? { height: visualViewport.height } : undefined}
     >
-      {mode !== 'seamless' && (
+      {mode === 'compact' && (
         <header className="appview-chrome">
           <button
             className="btn btn-ghost appview-back"
@@ -432,5 +440,40 @@ function Workspace({ id, retry }) {
       </Dialog>
     </div>
   );
-  return mode === 'hub' ? <Shell>{content}</Shell> : content;
+  if (mode !== 'hub') return content;
+  // The rail already names and selects the open app, so the hub workspace uses
+  // the contextual header instead of a second app bar.
+  return (
+    <Shell>
+      <WorkspacePage
+        scroll={false}
+        title={app?.name || (missing ? 'App unavailable' : 'App')}
+        subtitle={
+          app?.installed
+            ? isProcessApp(app)
+              ? app.running
+                ? 'Running locally'
+                : 'Stopped'
+              : app.version
+                ? `v${app.version}`
+                : 'Installed'
+            : undefined
+        }
+        lead={app ? <AppIcon app={app} size={26} /> : null}
+        actions={
+          app?.running && isProcessApp(app) ? (
+            <button
+              className="btn btn-small"
+              disabled={busyIds.has(id)}
+              onClick={() => runAction(id, 'stop')}
+            >
+              Stop
+            </button>
+          ) : null
+        }
+      >
+        {content}
+      </WorkspacePage>
+    </Shell>
+  );
 }

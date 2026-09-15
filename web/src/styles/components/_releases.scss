@@ -58,41 +58,8 @@
 .release-consent input {
   margin-top: 5px;
 }
-.release-import {
-  margin: 24px 0;
-  padding: 18px;
-  border: 1px solid var(--border, #393944);
-  border-radius: 12px;
-}
-.release-import summary,
 .release-dialog summary {
   cursor: pointer;
-}
-.release-import p {
-  margin: 16px 0;
-  line-height: 1.6;
-}
-.release-import label {
-  display: block;
-  margin: 16px 0 8px;
-}
-.release-import input {
-  display: block;
-  max-width: 100%;
-  padding: 10px;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  border: 1px solid #555;
-}
-.release-import-path {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.release-import-path input {
-  flex: 1;
-  min-width: 160px;
 }
 .release-history-row {
   display: flex;

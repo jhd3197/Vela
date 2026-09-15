@@ -68,7 +68,7 @@ class ConnectedApps:
             'category': 'connected', 'author': '', 'version': None,
             'installed': True, 'running': False, 'supported': True,
             'runtime': 'connected', 'runtimes': ['connected'], 'isolation': 'cross-origin',
-            'view': {'surface': 'connected', 'chrome': 'compact', 'url': row['url']},
+            'view': {'surface': 'connected', 'chrome': 'hub', 'url': row['url']},
             'capabilities': [], 'unavailableCapabilities': [],
         }
 

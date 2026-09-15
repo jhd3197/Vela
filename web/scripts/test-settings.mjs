@@ -83,7 +83,7 @@ try {
   await page.goto('https://vela.test/ask');
   const composer = page.locator('textarea');
   await composer.fill('Keep this unfinished question');
-  const opener = page.locator('.sidebar-nav').getByRole('button', { name: 'Settings' });
+  const opener = page.locator('.rail').getByRole('button', { name: 'Settings' });
   await opener.click();
   await dialog.waitFor();
   assert.equal(new URL(page.url()).pathname, '/ask');

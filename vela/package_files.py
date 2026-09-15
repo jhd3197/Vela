@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import stat
+import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -50,6 +51,29 @@ def tree_digest(folder):
     for name, item in files(folder):
         digest.update(name.encode() + b'\0' + hashlib.sha256(item.read_bytes()).digest())
     return digest.hexdigest()
+
+
+RENAME_RETRY_SECONDS = 2.0
+
+
+def replace_dir(source, target):
+    """Move a staged package directory into place.
+
+    On Windows a virus scanner or indexer can still hold a handle on files that
+    were written moments ago, which makes the rename fail with PermissionError
+    even though nothing is wrong with the package. Retry briefly instead of
+    failing an install that would succeed a moment later.
+    """
+    source, target = Path(source), Path(target)
+    deadline = time.monotonic() + RENAME_RETRY_SECONDS
+    while True:
+        try:
+            source.rename(target)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
 
 
 def copy_package(source, target):

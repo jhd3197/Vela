@@ -1,12 +1,29 @@
 # Use apps in Vela
 
+## Move around Vela
+
+A narrow rail runs down the left of the dashboard: Home, Ask, then a shortcut for
+every app you have installed, then Library, Automations, Apps, System and
+Settings. Hover or tab to an icon to see its name. The open destination is marked
+on the rail, so you always know where you are. Stopped apps stay in the rail —
+opening one offers to start it.
+
+On a phone the rail becomes the bar along the bottom, and the menu button in the
+header opens a drawer with the same destinations plus every installed app by
+name.
+
+Apps that ask for it open beside the rail, with their name and state in the bar
+above them; others open on their own. Either way, if an app has unsaved work,
+leaving it asks before anything is lost.
+
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In
-**Library → Add web app**, enter its name, HTTPS address and icon color. The
+**Library → Add an app → Connect a web service**, enter its name, HTTPS address
+and icon color. The
 connection appears in Library, Apps and Home. Open it to use the service inside
-Vela, with **Apps**, **Edit connection**, **Reload web app** and **Open in browser**
-controls always outside the service's frame.
+Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
+bar above it, always outside the service's frame.
 
 Use a different hostname from Vela, for example `vela.example.com` and
 `reading.example.com`. Different ports on the same hostname are insufficient:
@@ -82,6 +99,23 @@ grant.
 If a send is interrupted, **Retry unfinished send** reuses the saved request key
 so the same request does not create duplicate notes. Activity shows the action's
 status without exposing note contents.
+
+## Ask about your server
+
+**Ask** talks to the model server configured in Settings and can look at your
+apps, their status, their logs and the engine — never the data inside your apps.
+
+Conversations are kept on your Vela server while **Chat history** is on in
+Settings → Chat & privacy. The panel beside the conversation lists them by date,
+with search, rename, archive and permanent delete; archiving hides a conversation
+and keeps it, deleting removes it for good. The conversation you are reading is
+part of the address, so reloading the page or reopening the link returns to it,
+and each conversation remembers a question you started typing but never sent.
+Starting a new conversation keeps the previous one.
+
+Turning chat history off deletes every stored conversation immediately, and
+nothing new is written down while it stays off. The first time history is on,
+a transcript your browser was holding from an earlier version is imported once.
 
 ## Connect an existing Ollama server
 

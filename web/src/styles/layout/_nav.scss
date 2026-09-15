@@ -1,0 +1,76 @@
+/* ---------- Labelled navigation (phone drawer) and status dots ---------- */
+
+.nav-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-drawer .section-head {
+  margin: 14px 0 4px;
+}
+
+.nav-drawer .section-head:first-child {
+  margin-top: 0;
+}
+
+.nav-item {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.nav-item:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+
+.nav-item-active {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+}
+
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--nav-active-bar);
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.dot-ok {
+  background: var(--green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item {
+    transition: none;
+  }
+}

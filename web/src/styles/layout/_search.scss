@@ -1,16 +1,4 @@
-/* ---------- Top bar ---------- */
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 30px;
-  padding-top: calc(12px + env(safe-area-inset-top));
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-header);
-  backdrop-filter: blur(18px);
-  z-index: 20;
-}
+/* ---------- Global search, host badge, icon buttons ---------- */
 
 .searchbox {
   position: relative;
@@ -19,7 +7,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  background: var(--bg-card);
+  background: var(--bg-field);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 7px 12px;
@@ -131,13 +119,6 @@
   text-align: center;
 }
 
-.topbar-side {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-}
-
 .host-badge {
   display: inline-flex;
   align-items: center;
@@ -150,8 +131,17 @@
   white-space: nowrap;
 }
 
-.host-badge .ph {
+.host-badge svg {
+  color: var(--text-faint);
+}
+
+.host-badge-ok svg {
   color: var(--green);
+}
+
+.host-badge-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .icon-btn {
@@ -172,17 +162,4 @@
 .icon-btn:hover {
   color: var(--text);
   background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  user-select: none;
 }

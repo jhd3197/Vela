@@ -5,6 +5,7 @@ import time
 import shutil
 import uuid
 from .manifest import load_manifest
+from .package_files import replace_dir
 from .state import pid_alive
 
 
@@ -106,11 +107,11 @@ class Lifecycle:
             try:
                 shutil.copytree(source, staging / app_id)
                 load_manifest(staging / app_id)
-                target.rename(archive)
+                replace_dir(target, archive)
                 try:
-                    (staging / app_id).rename(target)
+                    replace_dir(staging / app_id, target)
                 except Exception:
-                    archive.rename(target)
+                    replace_dir(archive, target)
                     raise
                 self.auth.revoke_app(app_id)
                 return {"id": app_id, "upgraded": True, "previousPackage": str(archive)}

@@ -166,7 +166,7 @@ try {
   await screenshot(local.page, 'wifi-qr');
   await local.page.keyboard.press('Escape');
   await local.page.reload();
-  await local.page.locator('.sidebar').waitFor();
+  await local.page.locator('.rail').waitFor();
   assert.equal(await local.page.getByRole('dialog').isVisible(), false);
   await local.page.goto(local.base + '/settings');
   await local.page.getByRole('link', { name: 'Set up my phone' }).click();
@@ -277,14 +277,14 @@ try {
       assert.equal(await phone.page.locator('.phone-steps li').count(), 3);
     }
     await phone.page.getByRole('link', { name: 'Continue to Vela' }).click();
-    await phone.page.locator('.sidebar').waitFor({ state: 'attached' });
+    await phone.page.locator('.rail').waitFor({ state: 'attached' });
     assert.equal(await phone.page.getByRole('dialog').isVisible(), false);
     await phone.context.close();
   }
 
   const installed = await fixture({ userAgent: safari, standalone: true, width: 390 });
   await installed.page.goto(installed.base);
-  await installed.page.locator('.sidebar').waitFor({ state: 'attached' });
+  await installed.page.locator('.rail').waitFor({ state: 'attached' });
   assert.equal(await installed.page.getByRole('dialog').isVisible(), false);
   await installed.page.goto(installed.base + '/setup');
   await installed.page.getByText('Already installed', { exact: false }).waitFor();
@@ -293,15 +293,12 @@ try {
   const blocked = await fixture({ blockedStorage: true });
   await blocked.page.goto(blocked.base);
   await blocked.page.getByRole('button', { name: 'Done for now' }).click();
-  await blocked.page.locator('.sidebar-nav').getByRole('button', { name: 'Settings' }).click();
+  await blocked.page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
   await blocked.page
     .getByRole('dialog', { name: 'Settings', exact: true })
     .getByRole('button', { name: 'Done', exact: true })
     .click();
-  await blocked.page
-    .locator('.sidebar-nav')
-    .getByRole('link', { name: 'Home', exact: true })
-    .click();
+  await blocked.page.locator('.rail').getByRole('link', { name: 'Home', exact: true }).click();
   assert.equal(await blocked.page.getByRole('dialog').isVisible(), false);
   await blocked.context.close();
   assert.deepEqual(errors, []);

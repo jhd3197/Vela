@@ -22,6 +22,27 @@
   animation: slide-in 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
+/* The navigation drawer is the phone stand-in for the rail, so it opens from
+   the same edge the rail occupies. */
+.drawer-nav {
+  right: auto;
+  left: 0;
+  width: min(300px, 86vw);
+  border-left: none;
+  border-right: 1px solid var(--border);
+  padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+  padding-top: calc(16px + env(safe-area-inset-top));
+  overflow-y: auto;
+  animation-name: slide-in-left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-overlay,
+  .drawer {
+    animation: none;
+  }
+}
+
 .drawer-header {
   display: flex;
   align-items: flex-start;

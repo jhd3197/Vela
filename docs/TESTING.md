@@ -40,6 +40,7 @@ node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
+node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
@@ -52,15 +53,25 @@ form semantics, field labels, stale responses, retries, and action submission.
 It also verifies one shared engine request across consumers and page changes,
 shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
+The rail suite uses an isolated Vite fixture with disposable app records to check
+the narrow rail: an empty installation, many apps, long and duplicate names,
+stable ordering, keyboard focus and selection, a short window, and the phone
+navigation drawer's focus handling. Screenshots go to `docs/screenshots/rail/`.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
 The settings suite checks popup navigation, retained page and form drafts,
 preference saving and rollback, keyboard focus, deep links and narrow layouts
 with disposable API responses. Screenshots are saved under `docs/screenshots/settings/`.
-The chat suite serves the built dashboard with disposable app records and a
-controlled response stream. It checks the bottom composer, app mentions,
-keyboard input, formatted responses, stop/retry, scrolling, chat retention and
-offline recovery, and saves screenshots under `docs/screenshots/chat/`.
+The chat suite serves the built dashboard with disposable app records, a
+controlled response stream and a stand-in conversation store. It checks the
+bottom composer, app mentions, keyboard input, formatted responses, stop/retry,
+scrolling and offline recovery, then the durable conversation behavior: creating
+and switching conversations, restoring one from its route after a reload, a
+follow-up staying bound to its conversation, per-conversation drafts, search,
+rename, archive/restore, permanent deletion, an unavailable conversation id, a
+one-time legacy transcript import that is never repeated, a stale stream that
+must not write into another conversation, and history being turned off.
+Screenshots are saved under `docs/screenshots/chat/`.
 The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
 Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
 certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the

@@ -83,7 +83,7 @@ try {
   await frame.locator('#addHabit').click();
   await frame.locator('#syncStatus').filter({ hasText: 'Saved to your engine' }).waitFor();
   await page.goto(base + '/library');
-  await page.getByText('Import apps & refresh catalog', { exact: true }).click();
+  await page.getByRole('button', { name: 'Add an app', exact: true }).click();
   await page.getByLabel('Release archive', { exact: true }).setInputFiles(archive);
   await dialog.getByRole('checkbox').check();
   const shots = path.join(root, 'docs/screenshots/increment-4');
@@ -95,7 +95,7 @@ try {
   await frame.getByRole('tab', { name: 'Habits' }).click();
   await frame.getByText('Keep through release', { exact: true }).waitFor();
   await page.goto(base + '/library');
-  await page.locator('.group-row').filter({ hasText: 'Health' }).click();
+  await page.locator('.app-card-open').filter({ hasText: 'Health' }).click();
   await page.getByRole('button', { name: 'Review rollback to 1.1.0', exact: true }).click();
   const rollback = page.getByRole('dialog', { name: 'Review rollback', exact: true });
   await rollback.getByRole('checkbox').check();
