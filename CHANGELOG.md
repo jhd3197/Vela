@@ -6,6 +6,20 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Changed
+
+- **The app rail stays on screen on a phone.** Every dashboard page, including
+  an open app, now keeps the rail of destinations and installed apps beside its
+  content at phone widths, so switching apps or pages is one tap away. The
+  menu button that used to open the rail in a drawer is gone from page headers;
+  on Ask, the header button now opens only the conversation list.
+- **Apps open inside the dashboard.** An app that did not ask for a seamless
+  view now renders beside the rail with its name and **App settings** in the
+  dashboard's own header, instead of drawing a second bar with Back and Close
+  above it. Seamless apps are unchanged, and the Vela menu's **Show compact
+  bar** now shows that same dashboard header, with **Hide app bar** in it to
+  return.
+
 ## 0.1.8 - 2026-09-15
 
 ### Added

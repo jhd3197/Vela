@@ -145,7 +145,7 @@ try {
   assert.ok(reachable.bottom <= reachable.height + 1, JSON.stringify(reachable));
   assert.ok(reachable.scrollable, 'the app shortcuts scroll in a short window');
 
-  // A phone keeps Home's rail on screen — a ready app is one tap away, with no
+  // A phone keeps the rail on screen — a ready app is one tap away, with no
   // hamburger — and the rail sits beside the content rather than over it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
@@ -167,52 +167,32 @@ try {
   await page.locator('.rail-apps a[href="/app/gamma"]').click();
   await page.locator('.appview').waitFor();
 
-  // An app with its own chrome carries its own way back instead of the rail.
-  await page.getByRole('button', { name: 'Back to Apps' }).waitFor();
+  // The open app is named by the same rail and the hub's header, with no
+  // second bar of its own.
+  await page.locator('.app-workspace .workspace-header').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Back to Apps' }).count(), 0);
 
-  // Every other workspace moves the same rail into a drawer, beside a labelled
-  // list of the same destinations.
+  // Every other workspace keeps the same rail on screen with no drawer.
   await page.goto(base);
   await page.locator('.rail a[href="/library"]').click();
-  await page.getByRole('button', { name: 'Open navigation' }).waitFor();
-  assert.equal(await page.locator('.rail').isVisible(), false);
-  const opener = page.getByRole('button', { name: 'Open navigation' });
-  await opener.click();
-  const drawer = page.getByRole('dialog', { name: 'Vela navigation' });
-  await drawer.waitFor();
-  await shot('nav-drawer-phone');
-  assert.equal(await drawer.locator('.rail').isVisible(), true);
-  assert.equal(await drawer.locator('.rail').getByRole('link', { name: 'Library' }).count(), 1);
-  assert.equal(
-    await drawer.locator('.nav-drawer').getByRole('link', { name: 'Library' }).count(),
-    1,
-  );
-  assert.equal(await drawer.locator('.rail').getByRole('link', { name: 'Duplicate' }).count(), 2);
-  assert.equal(
-    await drawer.locator('.nav-drawer').getByRole('link', { name: 'Duplicate' }).count(),
-    2,
-  );
-  await page.keyboard.press('Escape');
-  await drawer.waitFor({ state: 'detached' });
-  assert.equal(
-    await page.evaluate(() => document.activeElement.getAttribute('aria-label')),
-    'Open navigation',
-    'dismissing the drawer returns focus to its opener',
-  );
-  await opener.click();
-  await drawer.locator('.rail').getByRole('link', { name: 'Gamma' }).click();
-  await drawer.waitFor({ state: 'detached' });
+  await page.locator('.rail a[href="/library"][aria-current="page"]').waitFor();
+  assert.equal(await page.locator('.rail').isVisible(), true);
+  assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+  await shot('library-phone-rail');
+  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Library' }).count(), 1);
+  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Duplicate' }).count(), 2);
+  await page.locator('.rail').getByRole('link', { name: 'Gamma' }).click();
   await page.locator('.appview').waitFor();
   await noOverflow('phone');
 
-  // An app that asked for the hub's own chrome keeps the rail on screen at
-  // phone widths, with no hamburger and no second rail, so switching apps
-  // stays one tap away while its own panes change beneath.
+  // An app workspace keeps the rail on screen at phone widths, with no
+  // hamburger and no second rail, so switching apps stays one tap away while
+  // its own panes change beneath.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(base);
     await page.locator('.rail-apps a[href="/app/workspace"]').click();
-    await page.locator('.shell-rail-persistent .rail').waitFor();
+    await page.locator('.app-workspace .workspace-header').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
     assert.equal(
@@ -237,17 +217,18 @@ try {
     await noOverflow(`hub app at ${width}px`);
     if (width === 390) await shot('hub-app-phone-rail');
 
-    // An app that did not ask for it keeps the presentation it had. It is
-    // reached from the rail the hub app is still showing.
+    // An app that declared no chrome is hosted the same way, reached from the
+    // rail the first app is still showing.
     await page.locator('.rail-apps a[href="/app/standalone"]').click();
-    await page.locator('.appview-compact').waitFor();
-    assert.equal(await page.locator('.rail').count(), 0, `a compact app grew a rail at ${width}px`);
+    await page.locator('.appview-compact.appview-hosted').waitFor();
+    assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
+    assert.equal(await page.locator('.workspace-header').count(), 1);
   }
   await page.setViewportSize({ width: 390, height: 720 });
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, Home navigation without a hamburger on a phone, a hub app keeping one rail beside its workspace at 390/320px while a compact app keeps its own chrome, drawer navigation and focus return',
+    'PASS: empty and many-app rails, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, navigation without a hamburger on a phone, app workspaces keeping one rail beside them at 390/320px',
   );
 } finally {
   await browser?.close();

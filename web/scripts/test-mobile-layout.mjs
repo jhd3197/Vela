@@ -144,6 +144,9 @@ try {
 
   // ---- A dialog body scrolls while the page behind it stays put ------------
   const content = page.locator('.workspace-content');
+  // The web font swapping in after the scroll position is set would reflow the
+  // column and move the anchor; settle it first so only the dialog is measured.
+  await page.evaluate(() => document.fonts.ready);
   await content.evaluate((el) => (el.scrollTop = 400));
   // Dispatched rather than clicked: Playwright would scroll the control back
   // into view first, and the position the page keeps is what is being checked.
@@ -297,7 +300,7 @@ try {
   assert.deepEqual(duringZoom, beforeZoom, 'a zoomed page keeps its layout and can be panned');
   await page.evaluate(() => window.fixture.reset());
 
-  // ---- Home keeps its navigation, at every width --------------------------
+  // ---- Every page keeps its navigation, at every width ----------------------
   for (const size of [
     { width: 320, height: 640, label: 'narrow phone' },
     { width: 390, height: 844, label: 'phone' },
@@ -312,7 +315,7 @@ try {
     assert.equal(
       await page.getByRole('button', { name: 'Open navigation' }).count(),
       0,
-      `${size.label}: Home needs no hamburger`,
+      `${size.label}: no hamburger`,
     );
     const beside = await page.evaluate(() => {
       const rail = document.querySelector('.rail').getBoundingClientRect();
@@ -344,7 +347,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: 16px touch fields with larger text preserved, scalable viewport and gesture policy, scroll ownership and chaining, dialog/drawer scrolling with the page locked, keyboard avoidance for a dialog and a conversation without losing the reading position, pinch zoom kept apart from the keyboard, Home navigation at narrow/short/tablet widths, no horizontal overflow at 320px or 200% zoom',
+    'PASS: 16px touch fields with larger text preserved, scalable viewport and gesture policy, scroll ownership and chaining, dialog/drawer scrolling with the page locked, keyboard avoidance for a dialog and a conversation without losing the reading position, pinch zoom kept apart from the keyboard, navigation at narrow/short/tablet widths, no horizontal overflow at 320px or 200% zoom',
   );
 } finally {
   await browser?.close();

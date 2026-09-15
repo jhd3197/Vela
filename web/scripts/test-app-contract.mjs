@@ -127,11 +127,15 @@ try {
     );
     await page.getByRole('button', { name: 'Vela app menu' }).click();
     await page.getByRole('button', { name: 'Show compact bar' }).click();
-    assert.equal(await page.locator('.appview-chrome').isVisible(), true);
+    // The compact bar is the hub's own header beside the rail, not a second bar.
+    assert.equal(await page.locator('.workspace-header').isVisible(), true);
+    assert.equal(await page.locator('.rail').count(), 1);
     await page.reload();
-    await page.locator('.appview-chrome').waitFor();
-    assert.equal(await page.locator('.appview-chrome').isVisible(), true);
+    await page.locator('.workspace-header').waitFor();
+    assert.equal(await page.locator('.workspace-header').isVisible(), true);
     await page.getByRole('button', { name: 'Hide app bar' }).click();
+    await page.getByRole('button', { name: 'Vela app menu' }).waitFor();
+    assert.equal(await page.locator('.workspace-header').count(), 0);
     await page.goto(`${base}/app/other-app`);
     await page.waitForFunction(
       () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
@@ -145,15 +149,16 @@ try {
     );
     for (const mode of ['compact', 'hub']) {
       await page.goto(`${base}/app/${mode}-fixture`);
-      // Compact keeps its own app bar; hub uses the shell's contextual header.
-      await page.locator(mode === 'hub' ? '.workspace-header' : '.appview-chrome').waitFor();
+      // Compact and hub both use the shell's contextual header beside the rail.
+      await page.locator('.workspace-header').waitFor();
       await page.waitForFunction(
         () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
       );
-      assert.equal(await page.locator('.rail').count(), mode === 'hub' ? 1 : 0);
-      // No duplicate navigation: the hub workspace has one header, not two.
-      assert.equal(await page.locator('.appview-chrome').count(), mode === 'hub' ? 0 : 1);
-      if (mode === 'hub' && viewport.width < 500) {
+      assert.equal(await page.locator('.rail').count(), 1);
+      // No duplicate navigation: the workspace has one header, not two.
+      assert.equal(await page.locator('.workspace-header').count(), 1);
+      assert.equal(await page.locator(`.appview-${mode}.appview-hosted`).count(), 1);
+      if (viewport.width < 500) {
         const composer = await page
           .frameLocator('iframe')
           .getByRole('button', { name: 'Send' })

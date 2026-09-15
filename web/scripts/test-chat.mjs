@@ -356,14 +356,14 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await checkLayout();
   await page.screenshot({ path: path.join(shots, 'conversation-phone.png') });
-  // On a phone the header's one control opens the navigation drawer, which
-  // carries the rail and the conversation list side by side.
-  assert.equal(await page.getByRole('button', { name: 'Show conversations' }).count(), 0);
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  const phoneDrawer = page.getByRole('dialog', { name: 'Vela navigation' });
+  // On a phone the header's one control opens the conversation list in a
+  // drawer beside the rail, which stays on screen.
+  assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+  assert.equal(await page.locator('.rail').isVisible(), true);
+  await page.getByRole('button', { name: 'Show conversations' }).click();
+  const phoneDrawer = page.getByRole('dialog', { name: 'Conversations' });
   await phoneDrawer.locator('.conversation-panel').waitFor();
-  assert.equal(await phoneDrawer.locator('.rail').isVisible(), true);
-  await phoneDrawer.getByRole('link', { name: 'Home', exact: true }).waitFor();
+  assert.equal(await phoneDrawer.locator('.rail').count(), 0);
   await page.screenshot({ path: path.join(shots, 'conversation-phone-drawer.png') });
   await phoneDrawer.getByRole('button', { name: 'New conversation' }).click();
   await phoneDrawer.waitFor({ state: 'detached' });

@@ -1,4 +1,4 @@
-import { List, LockSimple, WarningCircle } from '@phosphor-icons/react';
+import { LockSimple, WarningCircle } from '@phosphor-icons/react';
 import { useEngine } from '../store.jsx';
 import { useDeveloperTools } from '../developer.js';
 import GlobalSearch from './GlobalSearch.jsx';
@@ -40,11 +40,11 @@ function ServerBadge() {
   );
 }
 
-// The contextual header above every workspace. Composition is per route:
-// the phone drawer opener (unless the page supplies its own), a leading
-// control (panel toggle or back), an optional title block, either the
+// The contextual header above every workspace. Composition is per route: a
+// leading control (panel toggle or back), an optional title block, either the
 // global search or route actions, then the connection state and notifications
-// that must stay reachable everywhere.
+// that must stay reachable everywhere. Navigation is the rail beside the
+// workspace at every width, so the header never carries an opener for it.
 export default function WorkspaceHeader({
   lead,
   title,
@@ -52,21 +52,9 @@ export default function WorkspaceHeader({
   actions,
   search = true,
   compactSearch = false,
-  onOpenNav,
 }) {
   return (
     <header className="workspace-header">
-      {onOpenNav && (
-        <button
-          type="button"
-          className="btn btn-icon workspace-nav-button"
-          aria-label="Open navigation"
-          aria-haspopup="dialog"
-          onClick={onOpenNav}
-        >
-          <List size={18} aria-hidden="true" />
-        </button>
-      )}
       {lead}
       {title && (
         <div className="workspace-heading">

@@ -112,14 +112,14 @@ h4 {
   transform: translateY(calc(var(--vela-keyboard-inset, 0px) / -2));
 }
 
-/* An app workspace outside the shell fills what is visible rather than a
+/* A seamless app outside the shell fills what is visible rather than a
    dynamic viewport unit, which on iOS keeps its keyboard-sized value. */
 .appview {
   height: var(--vela-visible-height, 100dvh);
 }
 
 /* Inside the shell the workspace already allocates the space. */
-.appview-hub {
+.appview-hosted {
   height: auto;
 }
 
