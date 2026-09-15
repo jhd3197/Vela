@@ -18,7 +18,7 @@ Your server keeps your apps, settings and data in one place, on your own machine
 ![iOS](https://img.shields.io/badge/iOS_PWA-000000?style=for-the-badge&logo=apple&logoColor=white)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.5-8b7ff6.svg?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.6-8b7ff6.svg?style=flat-square)](CHANGELOG.md)
 
 [<img src="https://serverkit.ai/badge/install.png" alt="Install in ServerKit" width="240">](#install-with-serverkit)
 
