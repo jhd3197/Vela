@@ -192,6 +192,25 @@ class QuickUnlockTests(unittest.TestCase):
         self.assertEqual(self.phone.get('/api/apps', headers=self.headers).status_code, 200)
         other.close()
 
+    def test_the_password_recovery_path_is_throttled_too(self):
+        self.enroll()
+        self.phone.post('/api/security/lock', headers=self.headers)
+        for _ in range(4):
+            self.assertEqual(self.phone.post('/api/security/unlock', headers=self.headers,
+                                             json={'password': 'not-the-password'}).status_code, 401)
+        fifth = self.phone.post('/api/security/unlock', headers=self.headers,
+                                json={'password': 'not-the-password'})
+        self.assertEqual(fifth.status_code, 401)
+        # The next attempt waits, and waiting is not reset by a new request.
+        held = self.phone.post('/api/security/unlock', headers=self.headers,
+                               json={'password': PASSWORD})
+        self.assertEqual(held.status_code, 429)
+        self.assertTrue(self.status()['locked'])
+        # Clearing the cooldown the way time would lets the real password work.
+        self.auth.quick[self.token]['cooldown'] = 0
+        self.assertEqual(self.phone.post('/api/security/unlock', headers=self.headers,
+                                         json={'password': PASSWORD}).status_code, 200)
+
     def test_unlock_needs_exactly_one_credential(self):
         self.enroll()
         for body in ({}, {'secret': '013759', 'password': PASSWORD}):

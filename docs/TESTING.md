@@ -85,8 +85,11 @@ saves screenshots under `docs/screenshots/shared-foundations/`.
 The settings suite checks the wide popup and the phone screens: category
 navigation, the edge-to-edge list, one section at a time with Back, Escape
 stepping through the same screens, retained page and form drafts,
-preference saving and rollback, keyboard focus, deep links and narrow layouts
-with disposable API responses. It also covers the developer-tools preference:
+preference saving and rollback, keyboard focus and deep links, with disposable
+API responses. The two compositions are checked at 320, 390, 430, 768, 860, 861
+and 1440 pixels, in a short landscape window, at 200% zoom, with reduced motion
+and with a stand-in open keyboard, keeping one unsent form draft through all of
+them and across the crossover between them. It also covers the developer-tools preference:
 off by default, switching without reloading or losing an unsent message,
 persisting across a reload, following another tab on the same origin, explaining
 itself when a bookmark lands on a hidden section, and falling back to the

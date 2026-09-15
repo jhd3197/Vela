@@ -127,13 +127,36 @@ class Auth:
             raise AppServiceError(403, "App lock is available on a signed-in phone session")
         return token
 
-    def check_password(self, password):
+    def check_password(self, password, token=None):
+        """Verify the Vela password for a security route, with its own throttle.
+
+        The lock screen offers the password as the recovery path, so it is
+        reachable while a session is locked. Counting those attempts on the
+        session — and making each one cost a scrypt hash — keeps that path from
+        becoming an unmetered guess at the account password.
+        """
+        now = time.monotonic()
+        with self.lock:
+            record = self.quick.get(token or "")
+            if record and record.get("cooldown", 0) > now:
+                wait = int(record["cooldown"] - now) // 60 + 1
+                raise AppServiceError(429, f"Too many attempts. Try again in {wait} minutes.")
         if not isinstance(password, str) or not verify_password(self.password_file, password):
+            with self.lock:
+                record = self.quick.get(token or "")
+                if record:
+                    record["password_failures"] = record.get("password_failures", 0) + 1
+                    if record["password_failures"] >= self.MAX_FAILURES:
+                        record["cooldown"] = now + 600
+                        record["password_failures"] = 0
             raise AppServiceError(401, "Incorrect Vela password")
+        with self.lock:
+            record = self.quick.get(token or "")
+            if record: record["password_failures"] = 0
 
     def enroll_quick(self, request, password, method, secret):
         token = self.require_quick_session(request)
-        self.check_password(password)
+        self.check_password(password, token)
         built = build_verifier(method, secret)
         if built is None:
             raise AppServiceError(422, "That unlock code cannot be used")
@@ -142,12 +165,13 @@ class Auth:
             previous = self.quick.get(token, {})
             self.quick[token] = {"method": method, "salt": salt, "verifier": digest,
                                  "timeout": previous.get("timeout", 300), "locked": False,
-                                 "activity": time.monotonic(), "failures": 0, "password": False}
+                                 "activity": time.monotonic(), "failures": 0, "password": False,
+                                 "password_failures": 0, "cooldown": 0}
         return self.quick_status(request)
 
     def update_quick(self, request, password, timeout):
         token = self.require_quick_session(request)
-        self.check_password(password)
+        self.check_password(password, token)
         if timeout not in self.TIMEOUTS:
             raise AppServiceError(422, "Choose 1, 5 or 15 minutes")
         with self.lock:
@@ -159,7 +183,7 @@ class Auth:
 
     def disable_quick(self, request, password):
         token = self.require_quick_session(request)
-        self.check_password(password)
+        self.check_password(password, token)
         with self.lock:
             self.quick.pop(token, None)
         return self.quick_status(request)
@@ -183,7 +207,7 @@ class Auth:
             needs_password = record["password"]
             method, salt, digest = record["method"], record["salt"], record["verifier"]
         if password is not None:
-            self.check_password(password)
+            self.check_password(password, token)
         elif needs_password:
             raise AppServiceError(403, "Too many attempts. Use your Vela password.")
         elif not verify_secret(method, secret, salt, digest):
