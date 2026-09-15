@@ -281,7 +281,10 @@ try {
           };
         });
         assert.ok(fits.box, `${section} overflows the screen at ${width}px`);
-        assert.ok(fits.scroll <= 0, `${section} scrolls sideways by ${fits.scroll}px at ${width}px`);
+        assert.ok(
+          fits.scroll <= 0,
+          `${section} scrolls sideways by ${fits.scroll}px at ${width}px`,
+        );
         assert.ok(
           fits.targets.every((height) => height >= 44),
           `${section} header targets are ${fits.targets.join('/')}px at ${width}px`,

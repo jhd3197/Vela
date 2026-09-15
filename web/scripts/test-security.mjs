@@ -162,8 +162,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   // Screen transitions are finished before a capture, so a screenshot shows
   // the settled composition rather than the middle of a fade.
-  const shot = (name) =>
-    page.screenshot({ path: path.join(shots, name), animations: 'disabled' });
+  const shot = (name) => page.screenshot({ path: path.join(shots, name), animations: 'disabled' });
   const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
   const lock = page.getByRole('dialog', { name: 'Vela is locked' });
 
@@ -178,10 +177,7 @@ try {
   };
   const typePin = async (digits) => {
     for (const digit of digits)
-      await lock
-        .or(settings)
-        .getByRole('button', { name: digit, exact: true })
-        .click();
+      await lock.or(settings).getByRole('button', { name: digit, exact: true }).click();
   };
 
   await page.goto('https://vela.test/');
@@ -250,10 +246,7 @@ try {
     await page.locator('.rail').getByRole('button', { name: 'Settings' }).isEnabled(),
     true,
   );
-  assert.equal(
-    await lock.evaluate((el) => el.contains(document.activeElement) || true),
-    true,
-  );
+  assert.equal(await lock.evaluate((el) => el.contains(document.activeElement) || true), true);
   await typePin('111111');
   await lock.getByRole('alert').getByText('That does not match. Try again.').waitFor();
   await lock.getByText('4 attempts left before your password is required.').waitFor();

@@ -133,9 +133,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
       <section className="panel security-panel">
         <div className="panel-head">
           <h2 tabIndex={-1} ref={headingRef}>
-            {changing
-              ? `Change your ${methodWord(status.method)}`
-              : 'Set up app lock'}
+            {changing ? `Change your ${methodWord(status.method)}` : 'Set up app lock'}
           </h2>
         </div>
         <p className="panel-note">
@@ -230,9 +228,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
       run(
         () => api.enrollSecurity({ password, method, secret }),
         () => {
-          setNote(
-            `App lock is on. You will unlock Vela with your ${methodWord(method)}.`,
-          );
+          setNote(`App lock is on. You will unlock Vela with your ${methodWord(method)}.`);
           reset();
         },
         // A refused password belongs on the screen that asked for it, rather
