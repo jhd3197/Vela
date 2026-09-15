@@ -10,11 +10,37 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from vela import __version__
+import importlib.util
+
+
+def automation_assets():
+    """The automation runtime, or an explanation of why it is not being shipped.
+
+    A download without it still installs and runs; its automations page says the
+    runtime is missing rather than failing a run halfway. Building a release
+    always includes it.
+    """
+    options, notes = [], []
+    worker = ROOT / 'scripts/automation-worker'
+    runtime = ROOT / '.local/node-runtime'
+    node = runtime / ('node.exe' if platform.system() == 'Windows' else 'node')
+    if (worker / 'node_modules/@tramo/runtime').is_dir():
+        options += ['--add-data', f'{worker}:scripts/automation-worker']
+    else:
+        notes.append('the workflow engine is not installed '
+                     '(run python scripts/setup-automation-worker.py)')
+    if node.is_file():
+        options += ['--add-data', f'{runtime}:node-runtime']
+    else:
+        notes.append('the Node runtime has not been downloaded '
+                     '(run python scripts/fetch-node-runtime.py)')
+    return options, notes
 
 
 def main():
     if not (ROOT / 'web/dist/index.html').is_file():
         raise SystemExit('Build the dashboard first: npm --prefix web ci && npm --prefix web run build')
+    automation_options, automation_notes = automation_assets()
     output = ROOT / '.local/server-build'
     output.mkdir(parents=True, exist_ok=True)
     windows_options = []
@@ -45,8 +71,11 @@ def main():
         '--distpath', str(output / 'dist'), '--workpath', str(output / 'work'),
         '--specpath', str(output), '--paths', str(ROOT),
         '--hidden-import', 'vela.api', '--collect-submodules', 'uvicorn',
+        # Schedules name IANA timezones; Windows has no system database.
+        *(['--collect-data', 'tzdata'] if importlib.util.find_spec('tzdata') else []),
         '--add-data', f'{ROOT / "web/dist"}:web/dist',
         '--add-data', f'{ROOT / "vela/assets"}:vela/assets',
+        *automation_options,
         *windows_options,
         str(ROOT / 'scripts/server-entry.py'),
     ], cwd=ROOT, check=True)
@@ -82,6 +111,10 @@ def main():
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     archive.with_name(archive.name + '.sha256').write_text(f'{digest}  {archive.name}\n', encoding='utf-8')
     print(f'\nServer bundle: {bundle}\nRelease archive: {archive}')
+    if automation_notes:
+        print('This download cannot run automations: ' + '; '.join(automation_notes) + '.')
+    else:
+        print('Automations included: bundled Node runtime and workflow engine.')
 
 
 if __name__ == '__main__':

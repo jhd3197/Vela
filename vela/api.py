@@ -34,6 +34,7 @@ from .actions import Actions
 from .package_files import MAX_BYTES
 from .connected_apps import ConnectedApps
 from .phone_access import PhoneAccess
+from .automations import Automations, router as automations_router
 
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config"}
@@ -175,9 +176,22 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services)
+    automations = Automations(config, registry, actions, notifier, settings,
+                              log=lambda message: print(f'[vela] {message}', flush=True))
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
+    app.include_router(automations_router(automations))
+    app.state.automations = automations
+
+    @app.on_event('startup')
+    async def start_automations() -> None:
+        await automations.start()
+
+    @app.on_event('shutdown')
+    async def stop_automations() -> None:
+        await automations.stop()
+
     phone_access = PhoneAccess(app, config, auth)
     app.state.phone_access = phone_access
 

@@ -19,9 +19,22 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
-connections, app actions, releases and launcher behavior. Node checks cover
-the host bridge, service-worker boundaries, and shared request behavior (polling,
-overlapping refreshes, errors, and cleanup). No sibling checkout is needed.
+connections, app actions, releases, launcher behavior and automations. Node checks
+cover the host bridge, service-worker boundaries, shared request behavior
+(polling, overlapping refreshes, errors, and cleanup) and the automation worker's
+protocol. No sibling checkout is needed.
+
+The automation checks cover document validation and the excluded step types,
+revision conflicts, imports that must stay drafts without permissions, permission
+grants and their invalidation by an app update, idempotent retries, durable runs
+and their history across a restart, cancellation, interrupted outcomes, schedule
+arithmetic through both clock changes, one-claim-per-occurrence dispatch, webhook
+authentication and replay, and approvals resumed against the revision they
+started on. The ones that execute a workflow need the automation runtime; without
+it they skip with a reason rather than failing. Install it with
+`python scripts/setup-automation-worker.py`. The worker's own checks run the real
+process over its real protocol, including its watchdog: a force-killed Vela must
+not leave the runtime running.
 
 ## Browser acceptance
 
@@ -44,6 +57,7 @@ node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
+node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
 ```
 
@@ -72,6 +86,15 @@ rename, archive/restore, permanent deletion, an unavailable conversation id, a
 one-time legacy transcript import that is never repeated, a stale stream that
 must not write into another conversation, and history being turned off.
 Screenshots are saved under `docs/screenshots/chat/`.
+The automations suite serves a disposable engine with the pinned Notes fixture
+installed and builds an automation the way a person would: the empty state with
+no invented activity, creating one, the step picker offering only vetted steps
+with no reachable Model Context Protocol import, the generated app-action form,
+the permission review with its Allow and Remove controls, a run that creates
+exactly one note in Notes, and 320/390/768/1024/1920 layouts in both themes for
+the list and the editor. It runs the workflow for real when the automation
+runtime is installed and says so when it is not. Screenshots are saved under
+`docs/screenshots/automations/`.
 The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
 Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
 certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the
@@ -107,8 +130,11 @@ python scripts/test-server-bundle.py
 Install the maintainer build requirements first, as described in
 [the developer guide](DEVELOPMENT.md#build-a-server-download). The smoke test
 copies the built server outside the checkout, uses fresh data, checks the
-dashboard and SDK assets, installs a fixture app and verifies storage. Build
-and test on each target OS; a Windows success is not macOS/Linux acceptance.
+dashboard and SDK assets, installs a fixture app, verifies storage, and runs a
+real automation on the bundled Node runtime with Node removed from `PATH`. Run
+`python scripts/fetch-node-runtime.py` before building, or the download ships
+without automations and the smoke test says so. Build and test on each target OS;
+a Windows success is not macOS/Linux acceptance.
 
 ## Documentation changes
 

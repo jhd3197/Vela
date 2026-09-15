@@ -25,27 +25,6 @@
   color: var(--text-faint);
 }
 
-.sparkline {
-  margin-left: auto;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 26px;
-}
-
-.sparkline-bar {
-  flex: 1;
-  width: 9px;
-  border-radius: 1px;
-  background: var(--accent-line);
-  opacity: 0.55;
-}
-
-.sparkline-bar-hot {
-  background: var(--accent);
-  opacity: 1;
-}
-
 .auto-list {
   display: flex;
   flex-direction: column;
@@ -225,4 +204,377 @@
 .activity-stat {
   display: flex;
   justify-content: space-between;
+}
+
+/* ---------- Automations: real server state ---------- */
+
+.automation-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.auto-glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+a.auto-title {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.auto-title:hover,
+a.auto-title:focus-visible {
+  text-decoration: underline;
+}
+
+.auto-description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.auto-problem,
+.auto-lastrun {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.auto-problem {
+  color: var(--red);
+}
+
+.automation-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 13px;
+}
+
+.automation-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-pop);
+  box-shadow: var(--shadow-pop);
+}
+
+.automation-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.automation-menu button:hover,
+.automation-menu button:focus-visible {
+  background: var(--bg-inset);
+}
+
+.automation-menu-danger {
+  color: var(--red);
+}
+
+/* ---------- Editor ---------- */
+
+/* The shell already sets narrow-screen padding on `.workspace-content`; only
+   take it over at the widths where the editor needs its own two-column space. */
+@media (min-width: 861px) {
+  .automation-editor .workspace-content {
+    padding: var(--content-pad);
+  }
+}
+
+.automation-editor .workspace-content {
+  display: flex;
+  min-height: 0;
+}
+
+.automation-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.automation-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.save-state {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.save-state-error {
+  color: var(--red);
+}
+
+.save-state-saved {
+  color: var(--green);
+}
+
+.automation-problems ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.automation-grant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.automation-grant {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.automation-grant-allowed {
+  background: var(--green-soft);
+}
+
+.automation-grant-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.automation-grant-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.automation-grant-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.automation-grant-warn {
+  color: var(--red);
+}
+
+.automation-grant-actions {
+  margin-left: auto;
+}
+
+.automation-hook {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-radius: 6px;
+  background: var(--bg-inset);
+  font-size: 12px;
+}
+
+/* ---------- Runs ---------- */
+
+.run-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.run-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.run-detail-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.run-status {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  font-size: 11.5px;
+}
+
+.run-status-good,
+.run-tone-good {
+  color: var(--green);
+}
+
+.run-status-bad,
+.run-tone-bad {
+  color: var(--red);
+}
+
+.run-status-warn,
+.run-tone-warn {
+  color: var(--accent-strong);
+}
+
+.run-status-active,
+.run-tone-active {
+  color: var(--accent-strong);
+}
+
+.run-events {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.run-event-node {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.run-event-data {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.run-event-good {
+  color: var(--green);
+}
+
+.run-event-bad {
+  color: var(--red);
+}
+
+.run-approval {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+
+.run-approval p {
+  margin: 0 0 10px;
+}
+
+.run-approval-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.run-history {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.run-history-row:hover,
+.run-history-row:focus-visible {
+  background: var(--bg-inset);
+}
+
+.run-history-row-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.run-history-when {
+  color: var(--text-faint);
+}
+
+/* Below this width the canvas and its inspector stop sitting side by side and
+   the whole page scrolls instead, so the canvas keeps a usable height. */
+@media (max-width: 1100px) {
+  .automation-editor-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .automation-editor .workspace-content {
+    display: block;
+    overflow: auto;
+  }
+
+  .automation-side {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 860px) {
+  .automation-actions .save-state {
+    display: none;
+  }
 }

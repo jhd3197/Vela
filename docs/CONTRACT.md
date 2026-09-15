@@ -263,9 +263,64 @@ the record import contract. Meals declares `data.legacyBundle` (`keys`, `field`,
 `schema`, `initial`); the hub validates its namespaced browser keys and retains
 each distinct bundle as an imported copy before the user applies it inside Meals.
 
-This is a synchronous app-action broker, not an automation scheduler or assistant
-integration. It runs no scripts, containers, arbitrary network calls or native
-code. See [the Meals and Notes guide](APPS.md#meals-and-notes).
+This is a synchronous app-action broker. It runs no scripts, containers,
+arbitrary network calls or native code. See
+[the Meals and Notes guide](APPS.md#meals-and-notes).
+
+An automation is the second kind of caller. It holds no app session and cannot
+declare requests in a manifest, so it authorizes differently while sharing the
+same transactional write: a grant binds one workflow to one action, to the inputs
+the user reviewed, to the target's manifest fingerprint and to its installation
+identity. Editing the granted step, updating the app or reinstalling it ends the
+grant, and authorization is rechecked inside the write transaction so a
+revocation stops a call already in flight. Automation receipts and activity
+entries use a caller id of `automation:{workflowId}`, which cannot collide with an
+app id. See [the automations guide](AUTOMATIONS.md).
+
+### Automation contract
+
+Automations are hub-authenticated; an app session cannot reach any of their
+endpoints. Vela owns saved workflows, their revisions, permissions, schedules,
+runs and events in `automations.sqlite`.
+
+- The document format is Tramo's `WorkflowDoc` (`version: 1`). Vela validates it
+  on save, import, activation and dispatch against one catalog of vetted step
+  types, and refuses anything else. A newer document version is refused rather
+  than downgraded.
+- A draft may be incomplete. Activating or running additionally requires exactly
+  one trigger at the root, every step reachable from it, every required setting
+  filled in, and every app action allowed.
+- Activation freezes the current revision. A run pins the revision, catalog
+  version and runtime it executed against; editing the draft afterwards never
+  changes a queued, running or waiting run.
+- Execution happens in a private Node worker on a versioned, bounded stdio
+  protocol. It receives the approved revision and nothing else — no hub token, no
+  app session, no data directory, no listening port — and asks Vela to perform
+  every side effect. It exits on its own if Vela stops talking to it.
+- Step types that evaluate configuration as code, or reach the network directly,
+  are excluded from the executor registry. Both the server and the worker refuse
+  an unknown step type instead of skipping it.
+- Vela is the only scheduler. One due moment is claimed once; occurrences that
+  pass while Vela is not running are skipped and reported, never replayed as a
+  burst. Webhook ingress authenticates with a per-workflow secret, is limited to
+  a 64 KiB JSON body, refuses an identical replay, and changes nothing about
+  Vela's bind, TLS or origin policy.
+
+| Endpoint | Authorization / behavior |
+| --- | --- |
+| `GET/POST /api/automations` | Hub; list with live state and statistics, or create |
+| `GET /api/automations/catalog` | Hub; vetted step definitions plus installed app actions |
+| `GET /api/automations/status` | Hub; runtime availability and the notification destination |
+| `GET/PUT/PATCH/DELETE /api/automations/{id}` | Hub; `PUT` takes the expected revision and returns 409 on conflict |
+| `POST /api/automations/{id}/activate|pause|archive|restore|duplicate` | Hub; activation requires an executable revision and current grants |
+| `GET /api/automations/{id}/export`, `POST /api/automations/import` | Hub; steps only — never permissions, schedules or secrets |
+| `PUT /api/automations/{id}/grants` | Hub; `{app, action, allow, requestContract, targetContract}`, rejecting a changed review |
+| `POST /api/automations/{id}/runs` | Hub; returns a run id immediately |
+| `POST /api/automations/{id}/webhook` | Hub; issues a new address and secret, shown once |
+| `GET /api/automations/runs`, `/runs/{runId}`, `/runs/{runId}/events` | Hub; durable history and ordered events |
+| `POST /api/automations/runs/{runId}/cancel` | Hub; stops future steps, never claims to undo finished ones |
+| `GET /api/automations/approvals`, `POST /api/automations/runs/{runId}/approvals/{gate}` | Hub; durable pending state and authenticated decisions |
+| `POST /api/automations/hooks/{tokenId}` | Per-workflow secret in `X-Vela-Automation-Secret`; starts that one workflow and nothing else |
 
 ### Release contract
 

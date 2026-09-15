@@ -48,6 +48,15 @@ backup. All clients of the same Vela server share these settings.
 This is a host feature, separate from imported app packages. Connected web apps
 do not receive Vela SDK sessions, storage grants or app actions.
 
+## Wire apps together
+
+**Automations** runs a set of steps for you — on a schedule, when a request
+arrives, or when you press Run — and can ask an installed app to do one thing it
+offers, such as Notes creating a note. You see the exact request and allow it
+before anything runs. Automations run on the Vela server while the browser is
+closed, and stop while Vela is not running. See
+[the automations guide](AUTOMATIONS.md).
+
 ## Install and update
 
 Open **Library → Import apps & refresh catalog**. Upload an app release ZIP or

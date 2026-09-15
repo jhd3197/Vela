@@ -20,8 +20,13 @@ use `source .venv/bin/activate`. Then:
 pip install -r requirements.txt
 npm --prefix web ci
 npm --prefix web run build
+python scripts/setup-automation-worker.py
 python -m vela --open-browser
 ```
+
+The automation step installs the workflow engine the automations feature runs in.
+Skipping it leaves the rest of Vela working; the automations page then explains
+that the runtime is missing. See [Automations](#automations).
 
 For live frontend development, leave the server running and run
 `npm --prefix web run dev` in another terminal. Open http://localhost:5173.
@@ -58,6 +63,7 @@ The dashboard lives in `web/src/`. Reuse these foundations when adding a feature
 | `engine.jsx` | One engine status provider shared by the shell and dashboard pages |
 | `pages/` | Page composition and feature-specific behavior |
 | `api.js`, `store.jsx`, `bridge/` | Authenticated host requests, shared app state, and the host/app boundary |
+| `automationsApi.js`, `components/automations/` | Automation requests and the embedded workflow editor |
 
 Run `npm --prefix web ci` after pulling dependency changes. Vite compiles SCSS
 during development and builds; server users need no Sass installation.
@@ -247,6 +253,75 @@ remain in sibling repositories, as described in [REPOSITORIES.md](REPOSITORIES.m
 Run the relevant [checks and browser suites](TESTING.md), including both themes
 and desktop/phone layouts for shared styles or controls. Add an Unreleased
 changelog entry for user behavior or contributor workflow changes.
+
+## Automations
+
+Automations are a Python service in `vela/automations/` plus a private Node worker
+in `scripts/automation-worker/`. Vela owns everything durable — saved workflows,
+revisions, permissions, schedules, runs and their events, all in
+`automations.sqlite` beside the app data. The worker only executes one approved
+revision at a time and asks Vela to perform every side effect.
+
+| Location | Responsibility |
+| --- | --- |
+| `automations/catalog.py` | The one vetted node catalog, shared by the editor, validation and the worker |
+| `automations/validate.py` | What may be stored as a draft, and what may be activated or run |
+| `automations/store.py` | SQLite: workflows, revisions, runs, events, grants, schedules, webhooks, approvals |
+| `automations/effects.py` | Permission checks and the app-action and notification effects |
+| `automations/worker.py` | Starting, supervising and stopping the Node worker |
+| `automations/service.py` | The run queue, the scheduler and the HTTP-facing behavior |
+| `scripts/automation-worker/` | The worker: its stdio protocol and its executor allow-list |
+
+Adding a step means changing three places that must agree: its definition in
+`catalog.py`, any extra rules in `validate.py`, and its executor in
+`scripts/automation-worker/src/executors.mjs`. A node type with no executor is
+refused rather than skipped, on both sides of the boundary.
+
+The dashboard embeds Tramo's own editor (`@tramo/editor`) with a registry built
+from the server's catalog, so the step picker can only offer what Vela will also
+validate and execute. Tramo's `--tr-*` variables are mapped to Vela's theme
+tokens in `styles/components/_automation-canvas.scss`, scoped to the editor.
+
+### Set up and update the runtime
+
+```bash
+python scripts/setup-automation-worker.py
+```
+
+This installs the pinned `@tramo/runtime` from npm and writes
+`scripts/automation-worker/provenance.json` recording where it came from. When
+that version is not published yet, pass a local Tramo checkout — a
+development-only path that is recorded as such in the provenance file:
+
+```bash
+python scripts/setup-automation-worker.py --tramo-source ../tramo
+```
+
+Tramo is developed in its own repository; see [REPOSITORIES.md](REPOSITORIES.md).
+Fix anything generic there rather than in Vela, and adopt it here by changing the
+pinned version.
+
+### What is deliberately excluded
+
+Tramo ships many more node types than Vela registers. The ones that compile
+configuration strings with `new Function` — `js-transform`, `if`, `switch`,
+`json-parse`, the loop family, the state variables, `call-flow` — and the ones
+that reach the network directly — `http-request`, `mcp-tool-call`, the AI nodes —
+are left out of the executor registry, not merely out of the picker. A separate
+process is isolation for crashes and lifetimes, not a sandbox; leaving an
+executor unregistered is what makes its node unreachable.
+
+### Ship the runtime in a download
+
+```bash
+python scripts/fetch-node-runtime.py
+```
+
+This downloads the pinned Node binary, verifies it against the official digest
+committed in that script, and puts it in `.local/node-runtime/`. `build-server.py`
+adds it and the worker to the bundle, and says which of the two is missing if a
+build would ship without automations. It adds roughly 80 MiB to the installed
+size and about 30 MiB to a download.
 
 ## Container build
 

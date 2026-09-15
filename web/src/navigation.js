@@ -53,6 +53,9 @@ export const dashboardPages = [
     weight: 'fill',
     rail: 'tools',
     railOrder: 2,
+    // The editor is part of the route so a reload, a link and the browser's
+    // back button all land on the same automation.
+    childPaths: ['/automations/:workflowId'],
     component: Automations,
   },
   { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Home, popup: true },

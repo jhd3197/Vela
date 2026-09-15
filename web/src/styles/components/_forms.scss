@@ -39,7 +39,9 @@
   color: var(--text-faint);
 }
 
-.field input {
+.field input,
+.field textarea,
+.field select {
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -52,16 +54,25 @@
   transition: border-color 140ms ease;
 }
 
-.field input:focus {
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
   border-color: var(--accent-line);
 }
 
-.field input::placeholder {
+.field input::placeholder,
+.field textarea::placeholder {
   color: var(--text-faint);
 }
 
-.field input:disabled {
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled {
   opacity: 0.6;
+}
+
+.field textarea {
+  resize: vertical;
 }
 
 .field-side {

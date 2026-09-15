@@ -49,6 +49,11 @@ desktop.ini
 .vscode/
 *.swp
 
+# Automation worker dependency tree and the record of where it came from.
+# `package-lock.json` is deliberately NOT ignored: once the pinned engine is on
+# the registry, committing it is what makes a release build reproducible.
+/scripts/automation-worker/provenance.json
+
 # Scratch / playground
 playground.py
 scratch.*

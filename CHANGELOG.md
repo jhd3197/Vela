@@ -8,6 +8,36 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Automations** is now a working feature instead of a preview. Build an
+  automation visually from a trigger and a set of steps, and Vela runs it on the
+  server computer, including while the browser is closed. Triggers are Run
+  manually, a repeating schedule in a timezone you choose, or an authenticated
+  web request. Steps cover building text, branching on one field, waiting,
+  writing to the run log, sending a notification, waiting for your approval, and
+  asking an installed app to perform an action it offers. Saved automations,
+  their versions, permissions, schedules and run history survive a restart, and
+  every run records what each step did and how long it took. A run that Vela
+  could not finish says so rather than reporting success: cancelling stops the
+  steps that had not started and never claims to undo the ones that had.
+  Automations do not run while Vela is off — scheduled times that pass are
+  skipped and reported, not replayed as a burst. See
+  [the automations guide](docs/AUTOMATIONS.md).
+- An automation that wants to change an installed app's data asks first. Vela
+  shows the exact app, action and inputs, and the permission belongs to that one
+  automation and that app as it is installed now. Editing the step, adding
+  another step that calls it, updating the app or reinstalling it ends the
+  permission and Vela asks again; removing it stops the next call, including in a
+  run already under way. Repeating a step inside one run reuses its result rather
+  than writing twice, while running the automation again is a new write. Existing
+  app-to-app permissions are unchanged.
+- Vela server downloads include the engine automations run in, so there is
+  nothing extra to install. It adds roughly 30 MB to a download. A build without
+  it still installs and runs; its automations page explains what is missing
+  instead of failing a run halfway. Contributors building from source run
+  `python scripts/setup-automation-worker.py` once, and
+  `python scripts/fetch-node-runtime.py` before building a download; see
+  [the developer guide](docs/DEVELOPMENT.md#automations). Update Python
+  requirements for the timezone database that schedules need.
 - ServerKit install badge, deployment manifest and container build with
   persistent app data and password-protected access through a trusted HTTPS
   proxy. Set the public origin and proxy address before the first deployment.
