@@ -767,6 +767,36 @@ class AutomationApiTests(unittest.TestCase):
         self.assertEqual(logged[-1]['message'], 'after approval')
 
     @NEEDS_WORKER
+    def test_one_automation_runs_at_a_time(self):
+        workflow = self.create('Waiting')
+        doc = document(
+            node('start', 'manual-trigger', payload='{}'),
+            node('gate', 'approval-gate', message='Proceed?', timeoutSec=0),
+            edges=[edge('e1', 'start', 'gate')])
+        self.save(workflow, doc)
+        run = self.wait_for(self.client.post(f'/api/automations/{workflow["id"]}/runs',
+                                             headers=self.hub, json={}).json()['id'])
+        self.assertEqual(run['status'], 'waiting')
+        second = self.client.post(f'/api/automations/{workflow["id"]}/runs', headers=self.hub,
+                                  json={})
+        self.assertEqual(second.status_code, 409)
+        self.assertIn('waiting for your decision', second.json()['detail'])
+
+        # A schedule that comes due meanwhile is skipped and recorded, not
+        # stacked up behind a run that may never be decided.
+        automations = self.client.app.state.automations
+        automations.store.save_schedule(
+            workflow['id'], 'start', {'every': 1, 'unit': 'hours'}, 'UTC',
+            (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat())
+        automations.store.set_status(workflow['id'], 'active', active_revision=run['revision'])
+        automations._dispatch_due()
+        occurrences = automations.store.recent_occurrences(workflow['id'])
+        self.assertEqual(len(occurrences), 1)
+        self.assertIn('waiting for a decision', occurrences[0]['outcome'])
+        self.assertEqual(len(self.client.get(f'/api/automations/runs?workflowId={workflow["id"]}',
+                                             headers=self.hub).json()['runs']), 1)
+
+    @NEEDS_WORKER
     def test_a_rejected_approval_takes_the_other_branch(self):
         workflow = self.create('Rejected')
         doc = document(

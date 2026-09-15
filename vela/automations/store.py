@@ -313,13 +313,27 @@ class Store:
             db.execute('DELETE FROM approvals WHERE run_id=?', (row['id'],))
             db.execute('DELETE FROM runs WHERE id=?', (row['id'],))
 
+    def live_run(self, workflow_id, statuses=LIVE_STATUSES):
+        """The first run of this workflow in one of the given states, if any."""
+        placeholders = ','.join('?' * len(statuses))
+        with self.connection() as db:
+            row = db.execute(
+                f'SELECT * FROM runs WHERE workflow_id=? AND status IN ({placeholders}) '
+                'ORDER BY queued_at LIMIT 1', (workflow_id, *statuses)).fetchone()
+        return dict(row) if row else None
+
     def claim_next_run(self):
-        """Atomically take the oldest queued run, one active run per workflow."""
+        """Atomically take the oldest queued run, one active run per workflow.
+
+        A run waiting for an approval still occupies its workflow: it has work
+        left to do against the revision it started on, so a second run must not
+        overtake it.
+        """
         with self.connection() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute(
                 "SELECT * FROM runs WHERE status='queued' AND workflow_id NOT IN "
-                "(SELECT workflow_id FROM runs WHERE status IN ('running')) "
+                "(SELECT workflow_id FROM runs WHERE status IN ('running','waiting')) "
                 'ORDER BY queued_at LIMIT 1').fetchone()
             if not row:
                 return None

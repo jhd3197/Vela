@@ -413,6 +413,15 @@ class Automations:
             raise AppServiceError(503, state['detail'])
         if workflow['status'] == 'archived':
             raise AppServiceError(409, 'Restore this automation before running it.')
+        # Vela runs one at a time for each automation. Someone pressing Run is
+        # told so straight away rather than having their run queue up silently.
+        live = self.store.live_run(workflow_id, ('running', 'waiting'))
+        if live:
+            raise AppServiceError(
+                409,
+                'This automation is waiting for your decision on its current run.'
+                if live['status'] == 'waiting'
+                else 'This automation is already running. Wait for it to finish, or cancel it.')
         # A manual run of an unactivated draft still pins that exact revision, so
         # later edits cannot change what is already queued.
         self.store.freeze_revision(workflow_id, revision)
@@ -654,6 +663,14 @@ class Automations:
                 continue
             if skipped:
                 self._log(f'automations: skipped {skipped} missed occurrence(s) for {workflow_id}')
+            # A run waiting for an approval can wait indefinitely, so a scheduled
+            # occurrence is skipped and recorded rather than queued behind it.
+            # A run that is merely busy will finish, so its occurrence queues.
+            if self.store.live_run(workflow_id, ('waiting',)):
+                self.store.record_occurrence(
+                    workflow_id, occurrence, None,
+                    'skipped: the previous run was waiting for a decision')
+                continue
             try:
                 run_id = self.store.queue_run(
                     workflow_id, schedule['active_revision'], 'schedule',
@@ -713,6 +730,9 @@ class Automations:
             except (ValueError, UnicodeDecodeError) as exc:
                 raise AppServiceError(422, 'The request body must be JSON.') from exc
         body_hash = hashlib.sha256(body or b'').hexdigest()
+        if self.store.live_run(record['workflow_id'], ('waiting',)):
+            raise AppServiceError(409, 'That automation is waiting for a decision on its current '
+                                       'run, so Vela is not starting another one.')
         if not self.store.note_webhook_delivery(token_id, body_hash):
             raise AppServiceError(409, 'Vela already accepted an identical request. '
                                        'Include something unique, such as a request id.')

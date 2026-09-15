@@ -79,7 +79,10 @@ schedules run at a time you set, in a timezone you name.
 - On the day clocks go forward, a time inside the missing hour runs once, at the
   next real moment. On the day clocks go back, a time that happens twice runs
   once, on the first.
-- One automation has at most one run going at a time.
+- One automation has at most one run going at a time. Pressing Run while one is
+  going says so. A scheduled time that arrives while a run is still **waiting for
+  your approval** is skipped and recorded, because that run could wait
+  indefinitely; one that arrives while a run is simply busy waits its turn.
 
 ## Web requests
 
