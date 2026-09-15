@@ -1,19 +1,41 @@
-import { List, LockSimple } from '@phosphor-icons/react';
+import { List, LockSimple, WarningCircle } from '@phosphor-icons/react';
 import { useEngine } from '../store.jsx';
+import { useDeveloperTools } from '../developer.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import NotificationBell from './NotificationBell.jsx';
 
-// The host badge doubles as the server indicator the sidebar used to carry:
-// where Vela is served from, and whether the engine is actually answering.
+// Where Vela is served from is a developer fact, so a healthy server says
+// nothing at all. A confirmed failure — the engine resource actually errored —
+// says so in plain words and offers the retry. A missing or still-loading
+// answer is neither an outage nor a success, so it stays silent.
 function ServerBadge() {
-  const { engine, engineError } = useEngine();
-  const online = Boolean(engine) && !engineError;
-  const state = engineError ? 'Server unreachable' : online ? 'Server online' : 'Connecting…';
+  const developer = useDeveloperTools();
+  const { engine, engineError, engineRefreshing, refreshEngine } = useEngine();
+
+  if (engineError) {
+    return (
+      <span className="connection-alert" role="alert">
+        <WarningCircle size={14} aria-hidden="true" />
+        <span>Can’t connect to Vela</span>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={engineRefreshing}
+          onClick={() => refreshEngine()}
+        >
+          {engineRefreshing ? 'Retrying…' : 'Retry'}
+        </button>
+      </span>
+    );
+  }
+
+  if (!developer || !engine) return null;
+
   return (
-    <span className={`host-badge${online ? ' host-badge-ok' : ''}`} role="status">
+    <span className="host-badge host-badge-ok" role="status">
       <LockSimple size={13} aria-hidden="true" />
       <span className="host-badge-name">{window.location.host}</span>
-      <span className="sr-only">{state}</span>
+      <span className="sr-only">Server online</span>
     </span>
   );
 }
@@ -21,8 +43,8 @@ function ServerBadge() {
 // The contextual header above every workspace. Composition is per route:
 // the phone drawer opener (unless the page supplies its own), a leading
 // control (panel toggle or back), an optional title block, either the
-// global search or route actions, then the server badge and notifications that
-// must stay reachable everywhere.
+// global search or route actions, then the connection state and notifications
+// that must stay reachable everywhere.
 export default function WorkspaceHeader({
   lead,
   title,

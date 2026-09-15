@@ -8,7 +8,8 @@ import Shell from '../components/Shell.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import AppDataMigration from '../components/AppDataMigration.jsx';
 import AppConnection from '../components/AppConnection.jsx';
-import AppActions from '../components/AppActions.jsx';
+import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
+import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { createBridge } from '../bridge/host.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
@@ -27,7 +28,7 @@ export default function AppView() {
 function Workspace({ id, retry }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { apps, busyIds, runAction } = useApps();
+  const { apps, busyIds, openApp, openingId, runAction } = useApps();
   const { status } = useAppStatus(id);
   const summary = apps?.find((item) => item.id === id);
   const app = summary && { ...summary, ...status };
@@ -50,6 +51,7 @@ function Workspace({ id, retry }) {
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [dirty, setDirty] = useState({ dirty: false, canSave: false });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -265,13 +267,9 @@ function Workspace({ id, retry }) {
               Hide app bar
             </button>
           )}
-          {app?.running && isProcessApp(app) && (
-            <button
-              className="btn btn-small"
-              disabled={busyIds.has(id)}
-              onClick={() => runAction(id, 'stop')}
-            >
-              Stop
+          {app?.installed && (
+            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
+              App settings
             </button>
           )}
           <button className="btn btn-small" onClick={requestLeave}>
@@ -297,9 +295,14 @@ function Workspace({ id, retry }) {
               <button onClick={requestLeave}>Return to apps</button>
               <button onClick={requestLeave}>Close app view</button>
               <button onClick={toggleCompact}>Show compact bar</button>
-              {isProcessApp(app) && app?.running && (
-                <button disabled={busyIds.has(id)} onClick={() => runAction(id, 'stop')}>
-                  Stop backend
+              {app?.installed && (
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    setSettingsOpen(true);
+                  }}
+                >
+                  App settings
                 </button>
               )}
             </div>
@@ -312,8 +315,8 @@ function Workspace({ id, retry }) {
         </div>
       )}
       {app?.installed && <AppDataMigration app={app} />}
-      {app?.installed && <AppConnection app={app} />}
-      {app?.installed && <AppActions app={app} />}
+      {app?.installed && <AppConnection app={app} setupOnly />}
+      {app?.installed && <PermissionNotice app={app} onReview={() => setSettingsOpen(true)} />}
       {apps !== null && !app && (
         <div className="appview-interstitial">
           <h2>App not found</h2>
@@ -338,13 +341,14 @@ function Workspace({ id, retry }) {
       )}
       {app?.installed && !app.running && isProcessApp(app) && (
         <div className="appview-interstitial">
-          <h2>{app.name} is stopped</h2>
+          <h2>{app.name} is not running</h2>
+          <p>Opening it starts {app.name} on this computer.</p>
           <button
             className="btn btn-primary"
-            disabled={busyIds.has(id)}
-            onClick={() => runAction(id, 'launch')}
+            disabled={busyIds.has(id) || openingId === id}
+            onClick={() => openApp(id, { returnTo: returnTo.current })}
           >
-            Launch {app.name}
+            {openingId === id ? `Opening ${app.name}…` : `Open ${app.name}`}
           </button>
         </div>
       )}
@@ -438,6 +442,9 @@ function Workspace({ id, retry }) {
           </button>
         </div>
       </Dialog>
+      {settingsOpen && app?.installed && (
+        <AppSettingsDrawer app={app} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
   if (mode !== 'hub') return content;
@@ -448,26 +455,12 @@ function Workspace({ id, retry }) {
       <WorkspacePage
         scroll={false}
         title={app?.name || (missing ? 'App unavailable' : 'App')}
-        subtitle={
-          app?.installed
-            ? isProcessApp(app)
-              ? app.running
-                ? 'Running locally'
-                : 'Stopped'
-              : app.version
-                ? `v${app.version}`
-                : 'Installed'
-            : undefined
-        }
+        subtitle={app?.description || undefined}
         lead={app ? <AppIcon app={app} size={26} /> : null}
         actions={
-          app?.running && isProcessApp(app) ? (
-            <button
-              className="btn btn-small"
-              disabled={busyIds.has(id)}
-              onClick={() => runAction(id, 'stop')}
-            >
-              Stop
+          app?.installed ? (
+            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
+              App settings
             </button>
           ) : null
         }

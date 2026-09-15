@@ -64,14 +64,40 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
-- Home states the date, server version and how many apps are installed and
-  running, shows placeholders while that list loads, and animates a progress
-  line only while an install, launch or stop is actually in flight. Library now
-  shows catalog cards with each app's description, category, version and the one
-  action that applies to it, category filters with counts, a filter for pending
-  updates, and a single Add an app dialog covering the supported sources: a
-  release archive, a folder on the computer running Vela, or connecting an HTTPS
-  service you already run.
+- Vela now keeps its technical side out of the way until you ask for it. A new
+  **Settings → General → Show developer tools** switch, off to begin with, adds
+  app logs, process details, runtime commands and ports, execution history,
+  manual start and stop controls, the **System** overview and the server-folder
+  install source. It changes only what that browser shows: it never alters an
+  app's permissions, starts or stops anything, or changes what Vela allows, and
+  it is remembered per browser, so a phone does not inherit a desktop choice.
+  Switching it takes effect at once, without reloading the page, closing an open
+  app or discarding an unsent message. Links you already have to `/environments`
+  and the technical settings keep working: they explain what they are and offer
+  to turn the switch on, and visiting one never turns it on by itself.
+- Managing an app moved from above it into **App settings**, reached from the
+  app's own bar or Vela menu: its permissions, its connection, importing earlier
+  data, updating it and removing it. Everyday use starts with the app itself,
+  not a stack of panels. Permission requests stay in plain view without
+  developer tools — a waiting decision is announced above the app with a
+  **Review** control, and the review names the app asking, the action, the app it
+  happens in, and what Allow does and does not give away. **Stop allowing**
+  revokes it. The technical record of what has run is now a per-app diagnostic,
+  collapsed and loaded only when you open it. Required setup, data migrations,
+  failed updates and outages are still shown whether or not developer tools are
+  on.
+- Home is now the app launcher and nothing else: your installed apps, each
+  described in its own words, and one **Add an app**. Choosing an app opens it,
+  and opening a stopped app starts it once and says so while it does. The server
+  version, the installed and running counts, the system widgets and the second
+  catalog banner are gone from it; the facts they carried are in Settings and
+  System, and nothing invented has taken their place. An empty server says
+  “Add your first app”. Library still shows catalog cards with each app's
+  description, category, version and the one action that applies to it, category
+  filters with counts, a filter for pending updates, and a single Add an app
+  dialog covering the supported sources: **Install from file**, **Connect a
+  website**, and a folder on the computer running Vela while developer tools are
+  on.
 - Ask keeps your conversations. A panel beside the conversation lists them by
   date with search, rename, archive and permanent delete, the open conversation
   is part of the address so reloading or sharing the link returns to it, and each
@@ -85,13 +111,15 @@ until the release workflow prepares a tested server version.
   drawer control, the title and New, and the composer is a single rounded field,
   so the chat fills the screen.
 - The dashboard now uses a narrow app rail instead of a labelled sidebar. The
-  rail keeps Home, Ask, your installed apps, Library, Automations, Apps, System
-  and Settings one click away, marks the open destination and names each icon on
-  hover and keyboard focus. Search, the server address, and notifications moved
-  into a contextual header above each page. On phones the bottom bar is gone:
-  the header's navigation control slides the same rail in from the left edge,
-  with your installed apps, beside a labelled list of every destination. Content
-  and app workspaces now use the full height of the screen.
+  rail keeps Home, Ask, your installed apps and Library one click away, with
+  Automations and Manage apps named in a **More** menu beside them and Settings
+  at the foot. It marks the open destination and names each icon on hover and
+  keyboard focus. Search and notifications moved into a contextual header above
+  each page. On phones the bottom bar is gone: Home keeps the rail on screen
+  beside its content, so a ready app is one tap away with no menu step, and
+  every other page's header navigation control slides the same rail in from the
+  left edge beside a labelled list of every destination. Content and app
+  workspaces now use the full height of the screen.
 - Apps that ask for the hub's own layout, and connected web services, now open
   beside the rail with a single contextual header showing the app's icon, name
   and state instead of a second app bar. Connected services keep their edit,
@@ -100,9 +128,13 @@ until the release workflow prepares a tested server version.
   presentation are unchanged until their manifest opts in. Opening an app that
   has been removed now lands in the normal workspace with a way back.
 - Settings opens in a compact popup over the current screen, with searchable
-  categories, light and dark previews, and separate chat privacy controls.
-  Existing settings links open the matching category; phone layouts keep the
-  categories and controls inside the popup.
+  categories, light and dark previews, and separate chat privacy controls. The
+  categories are now General, Appearance, Chat & privacy, Local AI,
+  Notifications and Backups & storage, plus Developer tools once that is
+  switched on. Existing settings links still open a matching category — the
+  storage link lands in Backups & storage, and the network and app-environment
+  links in Developer tools. Phone layouts keep the categories and controls
+  inside the popup.
 - Ask now keeps its multiline composer at the bottom, with a separately scrolling
   conversation, formatted replies, copy controls, expandable checks, and a jump
   to the latest response. Type `@` to find an installed app by name or ID and
@@ -135,8 +167,10 @@ until the release workflow prepares a tested server version.
   still holds a handle on the files that were just written. The move into place
   retries briefly before reporting a permission error.
 - Long dashboard pages scroll independently of the desktop navigation, which
-  stays in place. Server connection status is shown by the address badge in
-  each page's header.
+  stays in place. A server that is answering no longer reports itself in every
+  header; a connection that has actually failed says “Can't connect to Vela”
+  and offers Retry, and data that is merely missing or still loading is treated
+  as neither success nor an outage.
 - Browser tabs and Home Screen installs now show Vela's purple-and-cyan sail
   logo with its transparent corners instead of the old amber icon. After updating
   the server, remove and re-add an existing Home Screen shortcut if it still shows

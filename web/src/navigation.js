@@ -15,9 +15,10 @@ import Environments from './pages/Environments.jsx';
 import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
-// `rail` places a destination in the narrow rail: `primary` sits above the
-// installed-app shortcuts, `tools` below the separator. Phones show the same
-// rail inside a drawer, so every destination is reachable at every width.
+// `rail` places a destination: `primary` sits above the installed-app
+// shortcuts, `tools` below the separator, and `more` inside the labelled
+// secondary menu. `developer` marks a destination that only appears while
+// "Show developer tools" is on; its route stays valid either way.
 export const dashboardPages = [
   { to: '/', label: 'Home', end: true, icon: HouseSimple, rail: 'primary', component: Home },
   {
@@ -29,7 +30,6 @@ export const dashboardPages = [
     childPaths: ['/ask/:conversationId'],
     component: Ask,
   },
-  { to: '/apps', label: 'Apps', icon: SquaresFour, rail: 'tools', railOrder: 3, component: Apps },
   {
     to: '/library',
     label: 'Library',
@@ -39,29 +39,41 @@ export const dashboardPages = [
     component: Library,
   },
   {
-    to: '/environments',
-    label: 'System',
-    icon: HardDrives,
-    rail: 'tools',
-    railOrder: 4,
-    component: Environments,
-  },
-  {
     to: '/automations',
     label: 'Automations',
     icon: Lightning,
     weight: 'fill',
-    rail: 'tools',
-    railOrder: 2,
+    rail: 'more',
+    railOrder: 1,
     // The editor is part of the route so a reload, a link and the browser's
     // back button all land on the same automation.
     childPaths: ['/automations/:workflowId'],
     component: Automations,
   },
+  {
+    to: '/apps',
+    label: 'Manage apps',
+    icon: SquaresFour,
+    rail: 'more',
+    railOrder: 2,
+    component: Apps,
+  },
+  {
+    to: '/environments',
+    label: 'System',
+    icon: HardDrives,
+    rail: 'more',
+    railOrder: 3,
+    developer: true,
+    component: Environments,
+  },
   { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Home, popup: true },
 ];
 
-export const railGroup = (group) =>
-  dashboardPages
+export const visiblePages = (developer) =>
+  dashboardPages.filter((page) => !page.developer || developer);
+
+export const railGroup = (group, developer = false) =>
+  visiblePages(developer)
     .filter((page) => page.rail === group)
     .sort((a, b) => (a.railOrder ?? 0) - (b.railOrder ?? 0));

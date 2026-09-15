@@ -133,7 +133,7 @@ try {
     await page.getByLabel('Password', { exact: true }).fill('fixture-password-123');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('button', { name: 'Add an app', exact: true }).click();
-    await page.getByRole('radio', { name: /Connect a web service/ }).click();
+    await page.getByRole('radio', { name: /Connect a website/ }).click();
     await page.getByRole('button', { name: 'Set up a connection', exact: true }).click();
     await page.getByLabel('App name', { exact: true }).fill(`Reading ${viewport.width}`);
     await page.getByLabel('Web address').fill(base + '/library');

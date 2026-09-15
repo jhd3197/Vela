@@ -39,6 +39,16 @@ try {
     });
   const errors = [];
   for (const page of [meals, notes]) page.on('pageerror', (error) => errors.push(error.message));
+  // The permission decision belongs to everyday use; the execution record is a
+  // diagnostic, so this browser turns Developer tools on to reach it.
+  await meals.addInitScript(() => {
+    // This also runs inside the sandboxed app frame, which has no storage.
+    try {
+      localStorage.setItem('vela-developer-tools', 'on');
+    } catch {
+      /* the host document is the one that matters */
+    }
+  });
   await meals.goto(base + '/app/meals');
   await notes.goto(base + '/app/notes');
   const mf = meals.frameLocator('iframe'),
@@ -48,10 +58,14 @@ try {
   await mf.locator('#actionStatus').filter({ hasText: 'Allow this action' }).waitFor();
   await meals.reload();
   await mf.locator('#retrySend').waitFor();
-  await meals.getByText('App actions & activity', { exact: true }).click();
-  await meals.getByRole('button', { name: 'Allow action', exact: true }).click();
-  await meals.getByRole('button', { name: 'Revoke action', exact: true }).waitFor();
-  await meals.getByText('App actions & activity', { exact: true }).click();
+  // A waiting decision is announced above the app and reviewed in its settings.
+  const appSettings = meals.getByRole('dialog', { name: 'Meals settings' });
+  await meals.getByRole('button', { name: 'Review', exact: true }).click();
+  await appSettings.getByText(/Meals wants to .* in Notes/).waitFor();
+  await appSettings.getByRole('button', { name: 'Allow', exact: true }).click();
+  await appSettings.getByRole('button', { name: 'Stop allowing', exact: true }).waitFor();
+  await meals.keyboard.press('Escape');
+  await appSettings.waitFor({ state: 'detached' });
   await mf.locator('#retrySend').click();
   await mf.locator('#actionStatus').filter({ hasText: 'Created in Notes' }).waitFor();
   await nf.locator('#titleInput').waitFor();
@@ -92,20 +106,25 @@ try {
   assert.equal(await nf.locator('.note-item').count(), 3);
   const shots = path.join(root, 'docs/screenshots/increment-5');
   await fs.mkdir(shots, { recursive: true });
-  await meals.getByText('App actions & activity', { exact: true }).click();
-  await meals
+  // The execution record is a diagnostic: collapsed, and loaded only when asked.
+  await meals.getByRole('button', { name: 'App settings', exact: true }).click();
+  await appSettings.getByText('Diagnostics', { exact: true }).click();
+  await appSettings
     .getByText(/meals → notes · create-note · succeeded/)
     .first()
     .waitFor();
   await meals.screenshot({ path: path.join(shots, 'meals-action-desktop.png') });
   await notes.screenshot({ path: path.join(shots, 'notes-mobile.png') });
-  await meals.getByRole('button', { name: 'Revoke action', exact: true }).click();
+  await appSettings.getByRole('button', { name: 'Stop allowing', exact: true }).click();
+  await appSettings.getByRole('button', { name: 'Allow', exact: true }).waitFor();
+  await meals.keyboard.press('Escape');
+  await appSettings.waitFor({ state: 'detached' });
   await mf.locator('#sendWeek').click();
   await mf.locator('#actionStatus').filter({ hasText: 'Allow this action' }).waitFor();
   assert.equal(await nf.locator('.note-item').count(), 3);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: explicit grant, durable send retry after reload, recipe/week to Notes, two clients, stale draft recovery, activity, revocation',
+    'PASS: contextual permission notice, explicit grant in app settings, durable send retry after reload, recipe/week to Notes, two clients, stale draft recovery, activity under developer diagnostics, revocation',
   );
 } finally {
   await browser?.close();

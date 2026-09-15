@@ -1,8 +1,9 @@
 import { useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SignOut } from '@phosphor-icons/react';
-import { dashboardPages } from '../navigation.js';
+import { visiblePages } from '../navigation.js';
 import { useApps } from '../store.jsx';
+import { useDeveloperTools } from '../developer.js';
 import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
@@ -15,40 +16,42 @@ function NavList({ onClose, firstRef }) {
   const { apps } = useApps();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
+  const developer = useDeveloperTools();
   const installed = railApps(apps);
 
   return (
     <nav className="nav-drawer" aria-label="Destinations">
       <p className="section-head">Vela</p>
-      {dashboardPages.map(({ to, end, label, popup, icon: Icon, weight = 'regular' }, index) =>
-        popup ? (
-          <button
-            key={to}
-            type="button"
-            className="nav-item"
-            ref={index === 0 ? firstRef : undefined}
-            aria-haspopup="dialog"
-            onClick={() => {
-              onClose();
-              openSettings();
-            }}
-          >
-            <Icon size={18} weight={weight} aria-hidden="true" />
-            <span>{label}</span>
-          </button>
-        ) : (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            ref={index === 0 ? firstRef : undefined}
-            onClick={onClose}
-            className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
-          >
-            <Icon size={18} weight={weight} aria-hidden="true" />
-            <span>{label}</span>
-          </NavLink>
-        ),
+      {visiblePages(developer).map(
+        ({ to, end, label, popup, icon: Icon, weight = 'regular' }, index) =>
+          popup ? (
+            <button
+              key={to}
+              type="button"
+              className="nav-item"
+              ref={index === 0 ? firstRef : undefined}
+              aria-haspopup="dialog"
+              onClick={() => {
+                onClose();
+                openSettings();
+              }}
+            >
+              <Icon size={18} weight={weight} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ) : (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              ref={index === 0 ? firstRef : undefined}
+              onClick={onClose}
+              className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
+            >
+              <Icon size={18} weight={weight} aria-hidden="true" />
+              <span>{label}</span>
+            </NavLink>
+          ),
       )}
 
       {installed.length > 0 && (

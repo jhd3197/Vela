@@ -1,6 +1,7 @@
 import { useResource } from './hooks/useResource.js';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api } from './api.js';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api, isProcessApp } from './api.js';
 import ReleaseReview from './components/ReleaseReview.jsx';
 export { useEngine } from './engine.jsx';
 
@@ -13,7 +14,10 @@ let toastSeq = 0;
 // tracking, and the toast stack. Lives above the router so every page and the
 // embedded app view share one source of truth.
 export function AppsProvider({ children }) {
+  const navigate = useNavigate();
   const [platform, setPlatform] = useState(null);
+  const [openingId, setOpeningId] = useState(null);
+  const opening = useRef(false);
   const [apps, setApps] = useState(null);
   const [error, setError] = useState(null);
   const [busyIds, setBusyIds] = useState(() => new Set());
@@ -92,6 +96,38 @@ export function AppsProvider({ children }) {
     [pushToast, refreshApps, apps],
   );
 
+  // The one deliberate way to open an app. Nothing else may start a process:
+  // not polling, not a prefetch, not a render effect, and not a passive visit
+  // to /app/<id>. An installed, supported process app that is stopped is
+  // started once through the existing launch action, and only then opened.
+  // Repeated clicks collapse into the first one.
+  const openApp = useCallback(
+    async (id, { returnTo = '/' } = {}) => {
+      if (opening.current) return;
+      const app = (apps || []).find((item) => item.id === id);
+      const go = () => navigate(`/app/${id}`, { state: { returnTo } });
+      const needsStart =
+        app?.installed && app.supported && isProcessApp(app) && !app.running && !busyIds.has(id);
+      if (!needsStart) {
+        go();
+        return;
+      }
+      opening.current = true;
+      setOpeningId(id);
+      try {
+        await api.launch(id);
+        await refreshApps();
+        go();
+      } catch (err) {
+        pushToast(err.message || `Could not open ${app.name}.`);
+      } finally {
+        opening.current = false;
+        setOpeningId(null);
+      }
+    },
+    [apps, busyIds, navigate, refreshApps, pushToast],
+  );
+
   const getAppById = useCallback((id) => (apps || []).find((a) => a.id === id) || null, [apps]);
 
   const value = {
@@ -99,6 +135,8 @@ export function AppsProvider({ children }) {
     apps,
     error,
     busyIds,
+    openingId,
+    openApp,
     toasts,
     pushToast,
     dismissToast,

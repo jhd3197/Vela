@@ -2,26 +2,43 @@
 
 ## Move around Vela
 
-A narrow rail runs down the left of the dashboard: Home, Ask, then a shortcut for
-every app you have installed, then Library, Automations, Apps, System and
-Settings. Hover or tab to an icon to see its name. The open destination is marked
-on the rail, so you always know where you are. Stopped apps stay in the rail —
-opening one offers to start it.
+Home is your app launcher: it shows the apps you have installed and one place to
+add another. Choosing an app opens it; if it is stopped, opening it starts it.
 
-On a phone the rail becomes the bar along the bottom, and the menu button in the
-header opens a drawer with the same destinations plus every installed app by
-name.
+A narrow rail runs down the left of the dashboard: Home, Ask, a shortcut for
+every installed app, then Library and a **More** menu holding Automations and
+Manage apps. Settings sits at the bottom. Hover or tab to an icon to see its
+name. The open destination is marked on the rail, so you always know where you
+are.
 
-Apps that ask for it open beside the rail, with their name and state in the bar
-above them; others open on their own. Either way, if an app has unsaved work,
-leaving it asks before anything is lost.
+On Home the rail stays on screen at every size, including on a phone, so a
+ready app is always one tap away. Other pages move the same rail into a drawer
+opened from the menu button in their header; the drawer also lists every
+destination and installed app by name.
+
+Apps that ask for it open beside the rail, with their name in the bar above
+them; others open on their own. Either way, if an app has unsaved work, leaving
+it asks before anything is lost. **App settings**, in that bar or in the app's
+Vela menu, holds the app's permissions, its connection, updates and removal.
+
+## Show developer tools
+
+Vela hides the technical side of your server until you ask for it. Turn on
+**Settings → General → Show developer tools** to add app logs, process details,
+runtime commands and ports, execution history, manual start and stop controls,
+the **System** overview and the server-folder install source.
+
+The switch changes only what this browser shows. It never changes an app's
+permissions, starts or stops anything, or affects what Vela allows. It is
+remembered in this browser alone, so your phone does not inherit the choice you
+made on a desktop.
 
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In
-**Library → Add an app → Connect a web service**, enter its name, HTTPS address
+**Library → Add an app → Connect a website**, enter its name, HTTPS address
 and icon color. The
-connection appears in Library, Apps and Home. Open it to use the service inside
+connection appears in Library, Manage apps and Home. Open it to use the service inside
 Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
 bar above it, always outside the service's frame.
 
@@ -99,15 +116,18 @@ Earlier Notes records can be imported through **Import earlier Notes data**.
 Meals retains imported browser copies under **Earlier browser copies**; applying
 one explicitly replaces the current plan and favorites after a revision check.
 
-In Meals' host controls, open **App actions & activity** and allow **Create note**
-in Notes. Then use **Send week to Notes** or **Send recipe to Notes**. The grant
-allows that named write action, not access to Notes' existing records. It can
-be revoked from the same controls; changed installations/contracts need a fresh
-grant.
+When Meals first asks, a line above the app says what it wants to do and where.
+**Review** opens **App settings → Permissions**, which names the action, the app
+it happens in, and what allowing it does and does not give away. Choose
+**Allow**, then use **Send week to Notes** or **Send recipe to Notes**. The grant
+allows that named write action, not access to Notes' existing records. **Stop
+allowing** revokes it from the same place; changed installations or contracts
+need a fresh grant.
 
 If a send is interrupted, **Retry unfinished send** reuses the saved request key
-so the same request does not create duplicate notes. Activity shows the action's
-status without exposing note contents.
+so the same request does not create duplicate notes. The record of what has run
+is a diagnostic: it appears under **App settings → Diagnostics** once developer
+tools are on, and shows each action's status without exposing note contents.
 
 ## Ask about your server
 

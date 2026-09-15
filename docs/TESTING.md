@@ -69,13 +69,23 @@ shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The rail suite uses an isolated Vite fixture with disposable app records to check
 the narrow rail: an empty installation, many apps, long and duplicate names,
-stable ordering, keyboard focus and selection, a short window, and the phone
-navigation drawer's focus handling. Screenshots go to `docs/screenshots/rail/`.
-The dashboard suite checks all seven routes at desktop and phone widths in both
-themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
+stable ordering, keyboard focus and selection, the secondary menu's contents and
+focus return, a short window, Home keeping its navigation on a phone with no
+hamburger and without covering its content, and the phone navigation drawer's
+focus handling on every other page. Screenshots go to `docs/screenshots/rail/`.
+The dashboard suite checks the default destinations at desktop and phone widths
+in both themes, Home's navigation across reload, Back, rotation and scrolling,
+the supported add-app sources, and the `/environments` deep link explaining
+itself and offering an explicit enable action while developer tools are off. It
+saves screenshots under `docs/screenshots/shared-foundations/`.
 The settings suite checks popup navigation, retained page and form drafts,
 preference saving and rollback, keyboard focus, deep links and narrow layouts
-with disposable API responses. Screenshots are saved under `docs/screenshots/settings/`.
+with disposable API responses. It also covers the developer-tools preference:
+off by default, switching without reloading or losing an unsent message,
+persisting across a reload, following another tab on the same origin, explaining
+itself when a bookmark lands on a hidden section, and falling back to the
+session when the browser refuses to store it. Screenshots are saved under
+`docs/screenshots/settings/`.
 The chat suite serves the built dashboard with disposable app records, a
 controlled response stream and a stand-in conversation store. It checks the
 bottom composer, app mentions, keyboard input, formatted responses, stop/retry,

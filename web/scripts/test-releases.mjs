@@ -84,7 +84,7 @@ try {
   await frame.locator('#syncStatus').filter({ hasText: 'Saved to your engine' }).waitFor();
   await page.goto(base + '/library');
   await page.getByRole('button', { name: 'Add an app', exact: true }).click();
-  await page.getByLabel('Release archive', { exact: true }).setInputFiles(archive);
+  await page.getByLabel('Install from file', { exact: true }).setInputFiles(archive);
   await dialog.getByRole('checkbox').check();
   const shots = path.join(root, 'docs/screenshots/increment-4');
   await fs.mkdir(shots, { recursive: true });

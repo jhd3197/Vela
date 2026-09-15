@@ -44,12 +44,27 @@ try {
     assert.ok(overflow.body <= 1 && overflow.content <= 1, `${label}: ${JSON.stringify(overflow)}`);
   };
 
-  // An empty installation still exposes every fixed destination.
+  // An empty installation still exposes every fixed destination: three
+  // shortcuts, the labelled secondary menu, and Settings.
   await page.goto(`${base}?apps=empty`);
   await page.locator('.rail').waitFor();
   assert.equal(await page.locator('.rail-apps').count(), 0);
-  assert.equal(await page.locator('.rail-group a, .rail-foot button').count(), 7);
+  assert.equal(await page.locator('.rail-group a, .rail-foot button').count(), 4);
   assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  const more = page.getByRole('menu', { name: 'More' });
+  assert.deepEqual(await more.getByRole('menuitem').allInnerTexts(), [
+    'Automations',
+    'Manage apps',
+  ]);
+  // Escape closes the menu and hands focus back to the control that opened it.
+  await page.keyboard.press('Escape');
+  await more.waitFor({ state: 'detached' });
+  assert.equal(
+    await page.evaluate(() => document.activeElement.textContent.trim()),
+    'More',
+    'dismissing the secondary menu returns focus to its opener',
+  );
   await noOverflow('empty');
 
   // Many apps, long names and duplicate display names keep the rail narrow and
@@ -133,14 +148,34 @@ try {
   assert.ok(reachable.bottom <= reachable.height + 1, JSON.stringify(reachable));
   assert.ok(reachable.scrollable, 'the app shortcuts scroll in a short window');
 
-  // Phones move the rail into a drawer, beside a labelled list of the same
-  // destinations.
+  // A phone keeps Home's rail on screen — a ready app is one tap away, with no
+  // hamburger — and the rail sits beside the content rather than over it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
-  await page.getByRole('button', { name: 'Open navigation' }).waitFor();
+  await page.locator('.rail-apps a').first().waitFor();
   await page.addStyleTag({
     content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
   });
+  assert.equal(await page.locator('.rail').isVisible(), true);
+  assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+  const beside = await page.evaluate(() => {
+    const rail = document.querySelector('.rail').getBoundingClientRect();
+    const main = document.querySelector('.workspace-main').getBoundingClientRect();
+    return { railRight: rail.right, mainLeft: main.left, appsScrollable: true };
+  });
+  assert.ok(beside.railRight <= beside.mainLeft + 1, JSON.stringify(beside));
+  await shot('home-phone-rail');
+  await noOverflow('home phone');
+  // One tap opens a ready app from Home.
+  await page.locator('.rail-apps a[href="/app/gamma"]').click();
+  await page.getByRole('heading', { name: 'App workspace' }).waitFor();
+
+  // Every other workspace moves the same rail into a drawer, beside a labelled
+  // list of the same destinations.
+  await page.locator('.rail-item').first().waitFor({ state: 'attached' });
+  await page.goto(base);
+  await page.locator('.rail a[href="/library"]').click();
+  await page.getByRole('button', { name: 'Open navigation' }).waitFor();
   assert.equal(await page.locator('.rail').isVisible(), false);
   const opener = page.getByRole('button', { name: 'Open navigation' });
   await opener.click();
@@ -173,7 +208,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, phone drawer navigation and focus return',
+    'PASS: empty and many-app rails, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, Home navigation without a hamburger on a phone, drawer navigation and focus return',
   );
 } finally {
   await browser?.close();

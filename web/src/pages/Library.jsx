@@ -256,7 +256,7 @@ export default function Library() {
               updatesOnly
                 ? 'Every installed app is on its pinned release.'
                 : list.length === 0
-                  ? 'No catalog is configured on this computer. Add an app from a release archive, a folder on the server, or connect a web service you already run.'
+                  ? 'No catalog is configured on this computer. You can still install an app from a file you were given, or connect a website you already run.'
                   : 'Try a different search or category.'
             }
           >

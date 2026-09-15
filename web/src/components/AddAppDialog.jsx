@@ -1,37 +1,46 @@
 import { useRef, useState } from 'react';
 import { FileZip, FolderOpen, Globe } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
+import { useDeveloperTools } from '../developer.js';
 import Button from './ui/Button.jsx';
 import Dialog from './ui/Dialog.jsx';
 
 // The supported ways to add an app, in one place. Every option here is backed
-// by an existing service: a release archive, a folder on the computer running
-// Vela, or a connection to an HTTPS service you already run. Manifest URLs and
-// pasted JSON are not supported sources and are deliberately absent.
+// by an existing service: a file you were given, a connection to an HTTPS
+// service you already run, or — while developing — a folder on the computer
+// running Vela. Most people arrive from the Library instead; this dialog is
+// the secondary route. Manifest URLs and pasted JSON are not supported sources
+// and are deliberately absent.
 const SOURCES = [
   {
     key: 'zip',
     icon: FileZip,
-    title: 'Release archive',
+    title: 'Install from file',
     hint: 'A .zip built from an app repository, up to 32 MiB',
+  },
+  {
+    key: 'connect',
+    icon: Globe,
+    title: 'Connect a website',
+    hint: 'An HTTPS service you already run, kept on its own address',
   },
   {
     key: 'folder',
     icon: FolderOpen,
     title: 'Folder on the server computer',
     hint: 'A path on the machine running Vela, not on this device',
-  },
-  {
-    key: 'connect',
-    icon: Globe,
-    title: 'Connect a web service',
-    hint: 'An HTTPS service you already run, kept on its own address',
+    developer: true,
   },
 ];
 
 export default function AddAppDialog({ onClose, onConnect }) {
   const { reviewRelease } = useApps();
-  const [source, setSource] = useState('zip');
+  const developer = useDeveloperTools();
+  const sources = SOURCES.filter((entry) => !entry.developer || developer);
+  const [chosen, setSource] = useState('zip');
+  // Losing the developer preference mid-dialog must not leave a hidden source
+  // selected with its form still on screen.
+  const source = sources.some((entry) => entry.key === chosen) ? chosen : 'zip';
   const [folder, setFolder] = useState('');
   const [error, setError] = useState('');
   const closeRef = useRef(null);
@@ -69,7 +78,7 @@ export default function AddAppDialog({ onClose, onConnect }) {
       </p>
 
       <div className="source-list" role="radiogroup" aria-labelledby="add-app-title">
-        {SOURCES.map(({ key, icon: Icon, title, hint }) => (
+        {sources.map(({ key, icon: Icon, title, hint }) => (
           <button
             key={key}
             type="button"
@@ -91,7 +100,7 @@ export default function AddAppDialog({ onClose, onConnect }) {
 
       {source === 'zip' && (
         <label className="source-field">
-          <span>Release archive</span>
+          <span>Install from file</span>
           <input type="file" accept=".zip,application/zip" onChange={chooseFile} />
         </label>
       )}

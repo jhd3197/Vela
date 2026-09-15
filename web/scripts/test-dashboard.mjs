@@ -24,14 +24,17 @@ server.stderr.on('data', (data) => {
 server.on('error', (error) => {
   output += error.message;
 });
+// Where each destination lives: `rail` is a shortcut beside the workspace,
+// `more` is the labelled secondary menu, `popup` opens over the current page.
+// System is absent entirely until Developer tools is on, and is checked
+// separately below.
 const pages = [
-  ['/', 'Home'],
-  ['/apps', 'Apps'],
-  ['/library', 'Library'],
-  ['/ask', 'Ask'],
-  ['/environments', 'System'],
-  ['/automations', 'Automations'],
-  ['/settings', 'Settings'],
+  ['/', 'Home', 'rail'],
+  ['/ask', 'Ask', 'rail'],
+  ['/library', 'Library', 'rail'],
+  ['/automations', 'Automations', 'more'],
+  ['/apps', 'Manage apps', 'more'],
+  ['/settings', 'Settings', 'popup'],
 ];
 try {
   for (let i = 0; i < 100; i++) {
@@ -62,10 +65,12 @@ try {
   ]) {
     await page.setViewportSize(viewport);
     for (const theme of ['light', 'dark']) {
-      for (const [route, label] of pages) {
+      for (const [route, label, where] of pages) {
         await page.goto(base + route);
         await page.locator('.rail a').first().waitFor({ state: 'attached' });
-        await page.waitForFunction(() => document.querySelector('.host-badge-ok'));
+        // A healthy server says nothing; the only connection element is the
+        // failure notice, which must not be present against this fixture.
+        assert.equal(await page.locator('.connection-alert').count(), 0);
         await page.evaluate(async (theme) => {
           document.documentElement.dataset.theme = theme;
           await document.fonts.ready;
@@ -75,22 +80,41 @@ try {
             '*, *::before, *::after { animation: none !important; transition: none !important; }',
         });
         const phone = viewport.width < 860;
-        if (label === 'Settings') {
+        // Home keeps its own navigation at every width; the other workspaces
+        // move the same rail into the drawer opened from their header.
+        const drawered = phone && route !== '/';
+        if (where === 'popup') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
         } else {
-          // On a phone the same rail sits inside the navigation drawer.
-          if (phone) await page.getByRole('button', { name: 'Open navigation' }).click();
-          const nav = page.locator(phone ? '.drawer-nav .rail' : '.rail');
+          if (drawered) await page.getByRole('button', { name: 'Open navigation' }).click();
+          const nav = page.locator(drawered ? '.drawer-nav .rail' : '.rail');
           await nav.waitFor();
-          // The rail's fixed destinations, excluding the dynamic app shortcuts.
-          assert.equal(await nav.locator('.rail-group a, .rail-foot button').count(), 7);
-          assert.equal(
-            await nav
-              .getByRole('link', { name: label, exact: label !== 'Library' })
-              .getAttribute('aria-current'),
-            'page',
-          );
-          if (phone) {
+          // Home, Ask and Library are shortcuts; the rest are named in the
+          // secondary menu. Settings closes the set.
+          assert.equal(await nav.locator('.rail-group a').count(), 3);
+          assert.equal(await nav.locator('.rail-foot button').count(), 1);
+          if (where === 'rail') {
+            assert.equal(
+              await nav
+                .getByRole('link', { name: label, exact: label !== 'Library' })
+                .getAttribute('aria-current'),
+              'page',
+            );
+          } else {
+            await nav.getByRole('button', { name: 'More', exact: true }).click();
+            const menu = nav.getByRole('menu', { name: 'More' });
+            // System stays out of the menu while Developer tools is off.
+            assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), [
+              'Automations',
+              'Manage apps',
+            ]);
+            assert.equal(
+              await menu.getByRole('menuitem', { name: label, exact: true }).getAttribute('class'),
+              'rail-menu-item is-active',
+            );
+            await page.keyboard.press('Escape');
+          }
+          if (drawered) {
             await page.keyboard.press('Escape');
             await page
               .getByRole('dialog', { name: 'Vela navigation' })
@@ -145,7 +169,10 @@ try {
           assert.deepEqual(differences, [], `CSS changed: ${route} ${theme} ${viewport.width}`);
         }
         await page.screenshot({
-          path: path.join(shots, `${label.toLowerCase()}-${theme}-${viewport.width}.png`),
+          path: path.join(
+            shots,
+            `${label.toLowerCase().replace(/ /g, '-')}-${theme}-${viewport.width}.png`,
+          ),
         });
       }
     }
@@ -160,36 +187,71 @@ try {
     { width: 900, height: 420 },
   ]) {
     await page.setViewportSize(size);
-    const phone = size.width < 860;
-    for (const [route, label] of pages) {
-      if (label === 'Settings') continue;
+    for (const [route, label, where] of pages) {
+      if (where === 'popup') continue;
       await page.goto(base + route);
-      await page.locator(phone ? '[aria-label="Open navigation"]' : '.rail').waitFor();
-      const box = await page.evaluate(
-        (selector) => {
-          const content = document.querySelector('.workspace-content');
-          const rect = document.querySelector(selector).getBoundingClientRect();
-          return {
-            body: document.documentElement.scrollWidth - innerWidth,
-            content: content.scrollWidth - content.clientWidth,
-            navVisible: rect.width > 0 && rect.height > 0,
-            navBottom: rect.bottom,
-            height: innerHeight,
-          };
-        },
-        phone ? '[aria-label="Open navigation"]' : '.rail',
-      );
-      const where = `${label} ${size.width}x${size.height}`;
-      assert.ok(box.body <= 1, `${where} body overflow: ${JSON.stringify(box)}`);
-      assert.ok(box.content <= 1, `${where} content overflow: ${JSON.stringify(box)}`);
-      assert.ok(box.navVisible, `${where} navigation must stay visible`);
+      // Home's rail is the navigation at every width; elsewhere a phone gets
+      // the drawer opener.
+      const selector =
+        size.width < 860 && route !== '/' ? '[aria-label="Open navigation"]' : '.rail';
+      await page.locator(selector).waitFor();
+      const box = await page.evaluate((selector) => {
+        const content = document.querySelector('.workspace-content');
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return {
+          body: document.documentElement.scrollWidth - innerWidth,
+          content: content.scrollWidth - content.clientWidth,
+          navVisible: rect.width > 0 && rect.height > 0,
+          navBottom: rect.bottom,
+          height: innerHeight,
+        };
+      }, selector);
+      const at = `${label} ${size.width}x${size.height}`;
+      assert.ok(box.body <= 1, `${at} body overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.content <= 1, `${at} content overflow: ${JSON.stringify(box)}`);
+      assert.ok(box.navVisible, `${at} navigation must stay visible`);
       assert.ok(
         box.navBottom <= box.height + 1,
-        `${where} navigation must fit: ${JSON.stringify(box)}`,
+        `${at} navigation must fit: ${JSON.stringify(box)}`,
       );
     }
   }
-  await page.setViewportSize({ width: 1366, height: 900 });
+
+  // Home's navigation survives a fresh browser, a reload, Back, a rotation and
+  // a scrolled page, and it never sits on top of the content it navigates.
+  for (const size of [
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto(base + '/');
+    await page.locator('.rail').waitFor();
+    assert.equal(
+      await page.getByRole('button', { name: 'Open navigation' }).count(),
+      0,
+      `Home must not need a hamburger at ${size.width}px`,
+    );
+    await page.reload();
+    await page.locator('.rail').waitFor();
+    await page.locator('.rail a[href="/library"]').click();
+    await page.waitForURL(`${base}/library`);
+    await page.goBack();
+    await page.waitForURL(`${base}/`);
+    const geometry = await page.evaluate(() => {
+      const content = document.querySelector('.workspace-content');
+      content.scrollTop = content.scrollHeight;
+      const rail = document.querySelector('.rail').getBoundingClientRect();
+      const main = document.querySelector('.workspace-main').getBoundingClientRect();
+      return { railRight: rail.right, mainLeft: main.left, railWidth: rail.width };
+    });
+    assert.ok(geometry.railWidth > 0, `rail hidden at ${size.width}x${size.height}`);
+    assert.ok(
+      geometry.railRight <= geometry.mainLeft + 1,
+      `the rail must not cover Home at ${size.width}x${size.height}: ${JSON.stringify(geometry)}`,
+    );
+    await page.locator('.rail').waitFor();
+  }
 
   // Real page interactions using the shared header, fields, and empty state.
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -199,17 +261,19 @@ try {
   await page.getByRole('searchbox', { name: 'Search library' }).fill('');
 
   // Adding an app offers exactly the sources the server supports. A manifest
-  // URL and pasted JSON are not supported and must not be advertised.
+  // URL and pasted JSON are not supported and must not be advertised. The
+  // server-folder source is a development tool and stays out of the way until
+  // Developer tools is on.
   const opener = page.getByRole('button', { name: 'Add an app', exact: true });
   await opener.click();
   const addDialog = page.getByRole('dialog', { name: 'Add an app', exact: true });
-  assert.equal(await addDialog.getByRole('radio').count(), 3);
+  assert.equal(await addDialog.getByRole('radio').count(), 2);
+  assert.equal(await addDialog.getByRole('radio', { name: /Folder on the server/ }).count(), 0);
   assert.equal(await addDialog.getByText(/vela\.json|Paste the JSON|From a URL/).count(), 0);
-  // The folder path is on the machine running Vela, not on this device.
-  await addDialog.getByRole('radio', { name: /Folder on the server computer/ }).click();
-  await addDialog.getByLabel('App folder on the server computer').waitFor();
-  await addDialog.getByRole('radio', { name: /Release archive/ }).click();
-  await addDialog.getByLabel('Release archive', { exact: true }).waitFor();
+  await addDialog.getByRole('radio', { name: /Connect a website/ }).click();
+  await addDialog.getByRole('button', { name: 'Set up a connection' }).waitFor();
+  await addDialog.getByRole('radio', { name: /Install from file/ }).click();
+  await addDialog.getByLabel('Install from file', { exact: true }).waitFor();
   await page.keyboard.press('Escape');
   await addDialog.waitFor({ state: 'detached' });
   assert.equal(
@@ -227,12 +291,35 @@ try {
   await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await addDialog.waitFor({ state: 'detached' });
   await page.setViewportSize({ width: 1366, height: 900 });
+
+  // A direct link to a technical destination explains itself and offers the
+  // switch. Visiting it must never turn the preference on by itself.
+  await page.goto(base + '/environments');
+  await page.getByRole('heading', { name: 'Developer tools are off' }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
+  await page.getByRole('button', { name: 'Enable developer tools' }).click();
+  await page.getByRole('heading', { name: 'Local Engine' }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), 'on');
+  // System now joins the secondary menu, and the folder source reappears.
+  await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
+  assert.deepEqual(
+    await page.getByRole('menu', { name: 'More' }).getByRole('menuitem').allInnerTexts(),
+    ['Automations', 'Manage apps', 'System'],
+  );
+  await page.keyboard.press('Escape');
+  await page.goto(base + '/library');
+  await opener.click();
+  await addDialog.waitFor();
+  assert.equal(await addDialog.getByRole('radio').count(), 3);
+  await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.evaluate(() => localStorage.removeItem('vela-developer-tools'));
+
   await page.goto(base + '/settings#notifications');
   await page.getByLabel('Topic', { exact: true }).fill('local-fixture-topic');
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: seven dashboard routes, navigation, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources and field labels' +
+    'PASS: six default destinations, the secondary menu, Home navigation without a hamburger across reload/back/rotation/scroll, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources, the developer-tools deep link and field labels' +
       (originalCss ? '; computed styles match the original CSS' : ''),
   );
 } finally {
