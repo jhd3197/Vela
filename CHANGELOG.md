@@ -97,7 +97,10 @@ until the release workflow prepares a tested server version.
 - Long dashboard pages scroll independently of the desktop navigation, which
   stays in place. Server connection status is shown by the address badge in
   each page's header.
-- Browser tabs now show Vela's purple-and-cyan sail logo instead of the old amber icon.
+- Browser tabs and Home Screen installs now show Vela's purple-and-cyan sail
+  logo with its transparent corners instead of the old amber icon. After updating
+  the server, remove and re-add an existing Home Screen shortcut if it still shows
+  the old icon.
 - The dashboard Ask page can talk to the local model again. Sending a message
   failed immediately with "Request failed (422)" because the dashboard posted a
   request shape the server rejected. Failed requests now also show the server's
