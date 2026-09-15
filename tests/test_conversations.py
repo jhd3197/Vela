@@ -139,7 +139,7 @@ class AssistantContinuityTests(unittest.TestCase):
     def _assistant(self, answer="An answer"):
         assistant = Assistant(self.settings, None, None, self.config, self.store)
 
-        async def turn(messages, emit):
+        async def turn(bot, available, messages, emit):
             self.seen.append(messages)
             emit({"text": answer})
             return {"role": "assistant", "content": answer}
@@ -180,7 +180,7 @@ class AssistantContinuityTests(unittest.TestCase):
     def test_a_failed_turn_keeps_the_partial_answer(self):
         assistant = self._assistant()
 
-        async def failing(messages, emit):
+        async def failing(bot, available, messages, emit):
             emit({"text": "Partly wri"})
             raise RuntimeError("stream ended")
 

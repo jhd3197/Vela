@@ -8,6 +8,25 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Custom bots and shared rooms** in Ask. Create a bot with its own name,
+  instructions and model, chat with it, and bring two to four of them into a
+  room to work on something together. Vela can draft a bot's instructions from a
+  plain description, and you can try a bot out before saving it — the preview is
+  never written down. A new bot can read nothing about this hub; the editor can
+  allow any of the four read-only things the built-in assistant already does, and
+  Vela re-checks that permission at the moment a bot uses it rather than trusting
+  its instructions. Rooms answer either by mention, where only the bots you
+  `@mention` reply and the lead answers otherwise, or as a roundtable where every
+  bot replies once in order and sees what was said before it. Each bot answers
+  exactly once per message, a bot writing `@someone` never summons anyone, Stop
+  cancels the whole run including bots that had not started, and a bot that fails
+  can be retried on its own without repeating replies that already worked. The
+  `@` picker now lists bots and apps as separate, labelled groups, and app
+  mentions keep their existing meaning. Existing conversations keep their
+  addresses, history, drafts and archive state, and become direct chats with the
+  built-in Vela assistant; their old answers are attributed to Vela without
+  claiming a model that was never recorded. See
+  [the bots and rooms guide](docs/BOTS.md).
 - **Automations** is now a working feature instead of a preview. Build an
   automation visually from a trigger and a set of steps, and Vela runs it on the
   server computer, including while the browser is closed. Triggers are Run

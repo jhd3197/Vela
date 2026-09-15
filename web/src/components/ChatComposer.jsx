@@ -1,22 +1,49 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, At, Square, SquaresFour } from '@phosphor-icons/react';
+import { ArrowUp, At, Square, SquaresFour, UsersThree } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
+import BotIcon from './bots/BotIcon.jsx';
 
-export default function ChatComposer({ input, setInput, busy, disabled, onSend, onStop, model }) {
+export default function ChatComposer({
+  input,
+  setInput,
+  busy,
+  disabled,
+  onSend,
+  onStop,
+  model,
+  bots = [],
+  room = false,
+  mode = 'mention',
+  leadBotId = '',
+  botLabel = null,
+}) {
   const { apps, error } = useApps();
   // The phone composer is a single rounded line, so its hint has to be short.
   const phone = useMediaQuery('(max-width: 860px)');
   const field = useRef(null);
   const [mention, setMention] = useState(null);
   const [selected, setSelected] = useState(0);
-  const matches = (apps ?? [])
-    .filter(
-      (app) =>
-        app.installed &&
-        `${app.name} ${app.id}`.toLowerCase().includes(mention?.query.toLowerCase() ?? ''),
-    )
-    .slice(0, 8);
+  // Bot mentions resolve to ids as they are inserted. The typed text is only a
+  // label: routing always uses the id, so two bots with the same display name
+  // can never be confused for one another.
+  const [recipients, setRecipients] = useState([]);
+  const query = mention?.query.toLowerCase() ?? '';
+
+  const botMatches = room
+    ? [
+        ...('all'.startsWith(query) || !query ? [{ id: 'all', name: 'Everyone', all: true }] : []),
+        ...bots.filter((bot) => bot.name.toLowerCase().includes(query)),
+      ].slice(0, 6)
+    : [];
+  const appMatches = (apps ?? [])
+    .filter((app) => app.installed && `${app.name} ${app.id}`.toLowerCase().includes(query))
+    .slice(0, room ? 4 : 8);
+  // One flat list for keyboard navigation; two labelled groups on screen.
+  const matches = [
+    ...botMatches.map((bot) => ({ kind: 'bot', entity: bot })),
+    ...appMatches.map((app) => ({ kind: 'app', entity: app })),
+  ];
   const activeIndex = Math.min(selected, Math.max(0, matches.length - 1));
 
   useEffect(() => {
@@ -29,6 +56,8 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
     if (!input) setMention(null);
+    // A recipient whose label was deleted from the box is no longer addressed.
+    setRecipients((current) => current.filter((entry) => input.includes(`@${entry.label}`)));
   }, [input]);
 
   function detect(value, cursor) {
@@ -39,17 +68,33 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
     setSelected(0);
   }
 
-  function insert(app) {
-    const token = `@${app.id} `;
+  function insert(match) {
+    // A bot is addressed by name in the text but by id in the request.
+    const label = match.kind === 'bot' ? match.entity.name.replace(/\s+/g, '') : match.entity.id;
+    const token = `@${label} `;
     const next = input.slice(0, mention.start) + token + input.slice(mention.end);
     if (next.length > 4000) return;
     const cursor = mention.start + token.length;
     setInput(next);
+    if (match.kind === 'bot')
+      setRecipients((current) => [
+        ...current.filter((entry) => entry.id !== match.entity.id),
+        { id: match.entity.id, label },
+      ]);
     setMention(null);
     requestAnimationFrame(() => {
       field.current?.focus();
       field.current?.setSelectionRange(cursor, cursor);
     });
+  }
+
+  function send() {
+    if (busy || disabled) return;
+    onSend(
+      input,
+      recipients.map((entry) => entry.id),
+    );
+    setRecipients([]);
   }
 
   function openPicker() {
@@ -90,9 +135,18 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (!busy && !disabled) onSend(input);
+      send();
     }
   }
+
+  // Who this message will actually reach, said before it is sent.
+  const addressed = recipients.length
+    ? recipients.some((entry) => entry.id === 'all')
+      ? 'Everyone in this room'
+      : recipients.map((entry) => entry.label).join(', ')
+    : mode === 'roundtable'
+      ? 'Everyone, in order'
+      : (bots.find((bot) => bot.id === leadBotId)?.name ?? bots[0]?.name ?? 'the lead');
 
   return (
     <div className="chat-dock">
@@ -100,36 +154,66 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
         className="chat-composer"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!busy && !disabled) onSend(input);
+          send();
         }}
       >
         {mention && (
           <div className="mention-picker">
             <div className="mention-heading">
-              Mention an app <span>↑ ↓ to browse · Enter to select</span>
+              {room ? 'Mention a bot or app' : 'Mention an app'}{' '}
+              <span>↑ ↓ to browse · Enter to select</span>
             </div>
-            <div id="app-mentions" role="listbox" aria-label="Installed apps">
-              {matches.map((app, index) => (
-                <button
-                  type="button"
-                  role="option"
-                  id={`app-mention-${index}`}
-                  key={app.id}
-                  aria-selected={index === activeIndex}
-                  tabIndex={-1}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => insert(app)}
-                >
-                  <SquaresFour size={20} aria-hidden />
-                  <span>
-                    <strong>{app.name || app.id}</strong>
-                    <small>@{app.id}</small>
-                  </span>
-                  <small>
-                    {app.kind === 'connected-web' ? 'Web app' : app.running ? 'Running' : 'Stopped'}
-                  </small>
-                </button>
-              ))}
+            <div
+              id="app-mentions"
+              role="listbox"
+              aria-label={room ? 'Bots and apps' : 'Installed apps'}
+            >
+              {matches.map((match, index) => {
+                const entity = match.entity;
+                return (
+                  <button
+                    type="button"
+                    role="option"
+                    id={`app-mention-${index}`}
+                    key={`${match.kind}-${entity.id}`}
+                    aria-selected={index === activeIndex}
+                    tabIndex={-1}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insert(match)}
+                  >
+                    {match.kind === 'bot' ? (
+                      entity.all ? (
+                        <UsersThree size={20} aria-hidden />
+                      ) : (
+                        <BotIcon bot={entity} size={16} />
+                      )
+                    ) : (
+                      <SquaresFour size={20} aria-hidden />
+                    )}
+                    <span>
+                      <strong>{entity.name || entity.id}</strong>
+                      <small>
+                        {match.kind === 'bot'
+                          ? entity.all
+                            ? 'Every bot in this room'
+                            : entity.description || 'Bot in this room'
+                          : `@${entity.id}`}
+                      </small>
+                    </span>
+                    {/* The group each entry belongs to, so a bot and an app of
+                        the same name are never mistaken for each other. */}
+                    <small>
+                      {match.kind === 'bot'
+                        ? 'Bot'
+                        : entity.kind === 'connected-web'
+                          ? 'Web app'
+                          : entity.running
+                            ? 'Running'
+                            : 'Stopped'}
+                    </small>
+                  </button>
+                );
+              })}
             </div>
             {!matches.length && (
               <p role="status">
@@ -137,11 +221,15 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
                   ? 'Apps unavailable. Try again when the server reconnects.'
                   : apps === null
                     ? 'Loading apps…'
-                    : 'No installed apps match. Try a name or app ID.'}
+                    : room
+                      ? 'No bot or installed app matches.'
+                      : 'No installed apps match. Try a name or app ID.'}
               </p>
             )}
             <div className="mention-foot">
-              Adds the app ID to your question. App data stays private.
+              {room
+                ? 'Bots answer; app mentions only add the app ID to your message.'
+                : 'Adds the app ID to your question. App data stays private.'}
             </div>
           </div>
         )}
@@ -179,12 +267,12 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
             className="composer-mention"
             onMouseDown={(event) => event.preventDefault()}
             onClick={openPicker}
-            aria-label="Mention an app"
+            aria-label={room ? 'Mention a bot or app' : 'Mention an app'}
           >
-            <At size={17} aria-hidden /> <span>App</span>
+            <At size={17} aria-hidden /> <span>{room ? 'Mention' : 'App'}</span>
           </button>
           <span className="composer-model" title={model}>
-            {model || 'Vela assistant'}
+            {botLabel ?? model ?? 'Vela assistant'}
           </span>
           {busy ? (
             <button
@@ -213,7 +301,15 @@ export default function ChatComposer({ input, setInput, busy, disabled, onSend, 
         </div>
       </form>
       <div className="composer-hint" id="composer-hint">
-        <span>Enter to send · Shift+Enter for a new line</span>
+        <span>
+          {room ? (
+            <>
+              Goes to <strong>{addressed}</strong> · Enter to send
+            </>
+          ) : (
+            'Enter to send · Shift+Enter for a new line'
+          )}
+        </span>
         <span>
           {input.length > 3500
             ? `${input.length}/4000`

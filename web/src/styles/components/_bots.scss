@@ -1,0 +1,535 @@
+/* Bots and rooms: the Ask panel's Bots tab, the bot editor, the room dialog,
+   and the attribution that rooms add to the transcript. Reuses the existing
+   conversation-panel, drawer, dialog and form rules; only what is genuinely
+   new to bots lives here. */
+
+/* Each bot's colour is presentation only. The server validates the name
+   against a closed set, so these are the only values that can arrive. */
+.bot-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55em;
+  height: 1.55em;
+  flex: none;
+  border-radius: var(--radius-sm);
+  color: var(--bot-ink, var(--accent-strong));
+  background: var(--bot-wash, var(--accent-soft));
+}
+
+@mixin bot-color($hue, $ink-light, $ink-dark) {
+  --bot-wash: color-mix(in srgb, #{$hue} 16%, transparent);
+  --bot-ink: #{$ink-light};
+
+  [data-theme='dark'] & {
+    --bot-wash: color-mix(in srgb, #{$hue} 22%, transparent);
+    --bot-ink: #{$ink-dark};
+  }
+}
+
+.bot-color-indigo {
+  @include bot-color(#796cbf, #5d5294, #b7aff0);
+}
+.bot-color-violet {
+  @include bot-color(#9b5bd6, #7838b4, #cfa8f0);
+}
+.bot-color-teal {
+  @include bot-color(#2f9e8f, #1f7469, #7fd8ca);
+}
+.bot-color-amber {
+  @include bot-color(#c98a2b, #96631a, #edbe74);
+}
+.bot-color-rose {
+  @include bot-color(#cf5b78, #a53a56, #f0a3b6);
+}
+.bot-color-slate {
+  @include bot-color(#69708a, #4c5268, #b0b6cc);
+}
+.bot-color-emerald {
+  @include bot-color(#3b9c5e, #277243, #8ddaa6);
+}
+.bot-color-sky {
+  @include bot-color(#3a8ac9, #24659b, #93c8ee);
+}
+
+/* ---- panel tabs ---------------------------------------------------- */
+
+.conversation-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 12px 10px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+
+  button {
+    flex: 1;
+    padding: 6px 4px;
+    border: 0;
+    border-radius: calc(var(--radius-sm) - 2px);
+    background: transparent;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &.is-active {
+      background: var(--bg-card);
+      color: var(--text);
+      box-shadow: var(--shadow-card);
+    }
+  }
+}
+
+/* ---- bots list ----------------------------------------------------- */
+
+.bots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+
+  .conversation-group-label {
+    margin: 6px 0 0;
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.bot-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bot-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    background: var(--bg-inset);
+  }
+}
+
+.bot-open {
+  display: flex;
+  flex: 1;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bot-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.bot-row-name {
+  overflow: hidden;
+  font-size: 0.86rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bot-row-meta {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A room row shows its members as a small stack of icons. */
+.room-badges {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
+.conversation-kind {
+  margin-right: 4px;
+  color: var(--text-faint);
+  vertical-align: -2px;
+}
+
+.conversation-title .bot-icon {
+  margin-right: 5px;
+  vertical-align: -3px;
+}
+
+/* ---- bot editor ---------------------------------------------------- */
+
+.bot-editor {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 100%;
+}
+
+.bot-editor-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    margin: 0;
+    font-size: 1.02rem;
+  }
+}
+
+.bot-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 16px 18px 20px;
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    margin-bottom: 6px;
+    padding: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+}
+
+.bot-starter-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.bot-starter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-line);
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 0.83rem;
+  }
+
+  small {
+    overflow: hidden;
+    color: var(--text-faint);
+    font-size: 0.73rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.bot-icon-grid,
+.bot-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bot-icon-grid button {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+
+  &.is-selected {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+  }
+}
+
+.bot-color-grid {
+  margin-top: 7px;
+}
+
+.bot-swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--bot-wash, var(--accent-soft));
+  box-shadow: inset 0 0 0 1px var(--bot-ink, var(--accent));
+  cursor: pointer;
+
+  &.is-selected {
+    border-color: var(--bot-ink, var(--accent));
+  }
+}
+
+.bot-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+
+  .btn {
+    align-self: flex-start;
+  }
+}
+
+.bot-draft-error {
+  color: var(--danger, #b3344f);
+}
+
+.bot-tool {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 8px 2px;
+
+  input {
+    margin-top: 2px;
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+  }
+
+  strong {
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+
+  small {
+    color: var(--text-faint);
+    font-size: 0.76rem;
+  }
+}
+
+.bot-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+
+  h3 {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+}
+
+.bot-preview-ask {
+  display: flex;
+  gap: 6px;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.bot-preview-answer {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  font-size: 0.86rem;
+  white-space: pre-wrap;
+}
+
+.bot-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+/* ---- room dialog --------------------------------------------------- */
+
+.room-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 6px;
+    padding: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+}
+
+.room-member,
+.room-mode label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 5px;
+  cursor: pointer;
+
+  &.is-selected {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 0.85rem;
+  }
+
+  small {
+    color: var(--text-faint);
+    font-size: 0.76rem;
+  }
+}
+
+.room-mode label {
+  align-items: flex-start;
+}
+
+/* ---- room transcript ----------------------------------------------- */
+
+/* Who is answering, and who is still waiting, while a room run is going. */
+.room-queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 9px 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+    font-size: 0.78rem;
+
+    small {
+      color: var(--text-faint);
+    }
+
+    &[data-state='responding'] {
+      border-color: var(--accent-line);
+
+      small {
+        color: var(--accent-strong);
+      }
+    }
+
+    &[data-state='failed'] small {
+      color: var(--danger, #b3344f);
+    }
+
+    &[data-state='complete'] {
+      opacity: 0.65;
+    }
+  }
+}
+
+.room-retry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+
+/* The model an answer actually used, beside its author. Absent when the
+   transcript never recorded one — nothing is invented to fill the gap. */
+.chat-author-model {
+  margin-left: 7px;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.chat-failed {
+  display: block;
+  margin-top: 5px;
+  color: var(--danger, #b3344f);
+  font-size: 0.79rem;
+}
+
+.chat-assistant[data-state='failed'] .chat-text {
+  opacity: 0.85;
+}
+
+@media (max-width: 860px) {
+  .bot-editor {
+    width: 100%;
+  }
+
+  .bot-starter-row {
+    grid-template-columns: 1fr;
+  }
+}

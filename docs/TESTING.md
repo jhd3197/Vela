@@ -96,6 +96,34 @@ rename, archive/restore, permanent deletion, an unavailable conversation id, a
 one-time legacy transcript import that is never repeated, a stale stream that
 must not write into another conversation, and history being turned off.
 Screenshots are saved under `docs/screenshots/chat/`.
+
+Bots and rooms are covered by the Python suite (`tests/test_bots_rooms.py`) with
+a deterministic fake model stream, so they need no model server. It covers the
+migration of a pre-bots database and repeating that migration, profile isolation
+between concurrent requests, a tool revoked between snapshot and call, a private
+chat staying out of a room, bot deletion keeping its attribution, ambiguous and
+out-of-room mentions, roundtable ordering, duplicate sends, cancellation and
+restart, per-bot failure and retry, and history-off and purge behavior.
+
+Check these in the browser by hand, at desktop and phone widths in both themes,
+because no automated browser suite covers them yet:
+
+1. **Bots tab** — create a bot from a starter, edit it, duplicate it and confirm
+   the copy has no tools selected, archive and restore it, then delete it and
+   confirm an existing chat still shows its name on the old answers.
+2. **Assisted drafting** — draft instructions from a description, edit the
+   result, and confirm that creating a bot still works with the model stopped.
+3. **Preview** — try a bot before saving and confirm no conversation appears in
+   the Chats tab afterwards.
+4. **Direct chats** — two bots with different instructions answer differently in
+   their own chats, each showing its own name and model.
+5. **Rooms** — create a three-bot roundtable, confirm each answers once in order,
+   then use mention mode and `@all`. Check the composer says who the message
+   will reach, and that the `@` picker separates Bots from Apps.
+6. **Stop and retry** — Stop mid-run and confirm queued bots never answer and
+   partial text is kept; make one bot fail and confirm only that bot retries.
+7. **Repair** — delete a bot that is in a room and confirm the room refuses to
+   run and offers Edit room.
 The automations suite serves a disposable engine with the pinned Notes fixture
 installed and builds an automation the way a person would: the empty state with
 no invented activity, creating one, the step picker offering only vetted steps
