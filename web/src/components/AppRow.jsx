@@ -9,9 +9,7 @@ export default function AppRow({ app, busy, onAction, onDetails, variant = 'apps
   const meta =
     app.kind === 'connected-web'
       ? 'Connected web app'
-      : app.running
-        ? 'Running locally'
-        : [`v${app.version}`, app.category].filter(Boolean).join(' · ');
+      : [app.version && `v${app.version}`, app.category].filter(Boolean).join(' · ');
 
   return (
     <button
@@ -21,7 +19,7 @@ export default function AppRow({ app, busy, onAction, onDetails, variant = 'apps
       <AppIcon app={app} size={38} />
       <span className="group-row-main">
         <span className="group-row-name">{app.name}</span>
-        <span className={`group-row-meta${app.running ? ' group-row-meta-accent' : ''}`}>
+        <span className="group-row-meta">
           {app.supported ? meta : 'Not supported on this platform'}
         </span>
       </span>

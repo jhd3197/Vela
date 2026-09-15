@@ -1,0 +1,111 @@
+/* ---------- Tramo editor inside Vela ----------
+
+   The editor ships its own stylesheet with `tr-` prefixed classes and a set of
+   `--tr-*` variables on :root. Everything below is scoped to the editor
+   container, so Vela's own surfaces keep their values and the editor follows
+   Vela's theme in both light and dark without a second theme switch. */
+
+@use '../breakpoints' as bp;
+
+.automation-canvas {
+  --tr-bg: var(--bg-workspace);
+  --tr-surface: var(--bg-card);
+  --tr-surface-alt: var(--bg-inset);
+  --tr-border: var(--border);
+  --tr-border-strong: var(--border-strong);
+  --tr-text: var(--text);
+  --tr-text-dim: var(--text-dim);
+  --tr-text-muted: var(--text-faint);
+  --tr-accent: var(--accent);
+  --tr-accent-soft: var(--accent-soft);
+  --tr-danger: var(--red);
+  --tr-success: var(--green);
+  --tr-radius: var(--radius-sm);
+  --tr-radius-sm: 6px;
+  --tr-shadow: var(--shadow-card);
+  --tr-sans: var(--font);
+  --tr-mono: var(--mono);
+  --tr-edge: var(--border-strong);
+  --tr-plus: var(--text-faint);
+  --tr-plus-hover: var(--accent);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: var(--bg-card);
+}
+
+.automation-canvas-surface {
+  position: relative;
+  min-width: 0;
+  min-height: 420px;
+}
+
+.automation-canvas .tr-rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-card);
+  overflow: auto;
+}
+
+/* The step picker is portalled to <body>, so it cannot inherit the container's
+   variables. Give it the same values. */
+.tr-picker {
+  --tr-surface: var(--bg-pop);
+  --tr-surface-alt: var(--bg-inset);
+  --tr-border: var(--border);
+  --tr-text: var(--text);
+  --tr-text-muted: var(--text-faint);
+  --tr-accent: var(--accent);
+  --tr-accent-soft: var(--accent-soft);
+  --tr-shadow: var(--shadow-pop);
+  --tr-sans: var(--font);
+  --tr-mono: var(--mono);
+}
+
+/* Below this width the inspector stops sitting beside the canvas and moves
+   under it, so both keep a usable width. These rules live here, in the module
+   that owns `.automation-canvas`, because it loads after the page module. */
+@media (max-width: bp.$split) {
+  .automation-canvas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .automation-canvas-surface {
+    min-height: 58vh;
+  }
+
+  .automation-canvas .tr-rail {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    max-height: 340px;
+  }
+}
+
+@media (max-width: bp.$phone) {
+  .automation-canvas-surface {
+    min-height: 50vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automation-canvas .tr-canvas-v2--panning .tr-canvas-v2__world {
+    transition: none;
+  }
+}
+
+/* Vela's catalog has no Model Context Protocol steps: the server strips
+   `meta.mcpServers` on save and refuses `mcp-tool-call` node types, so this
+   import tile leads nowhere. Hiding it removes a dead end from the picker; the
+   refusal itself is enforced on the server, not here. */
+/* Scoped through `.tr-picker` so this wins over the editor's own rule, which
+   Vite injects after this sheet when the editor chunk loads. */
+.tr-picker .tr-picker__feat--add {
+  display: none;
+}

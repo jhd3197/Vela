@@ -8,7 +8,9 @@ import { useApps } from '../store.jsx';
 // One workspace: an optional context panel, the contextual header, and the
 // main surface. `scroll={false}` hands scrolling to the page itself, which Ask
 // needs so its composer stays outside the transcript. `nav={false}` drops the
-// phone drawer opener for a page whose own lead control opens the drawer.
+// phone drawer opener for a page whose own lead control opens the drawer; the
+// shell drops it as well wherever the rail is already on screen, so Home never
+// shows a hamburger beside its own navigation.
 export default function WorkspacePage({
   title,
   subtitle,
@@ -23,7 +25,7 @@ export default function WorkspacePage({
   children,
 }) {
   const location = useLocation();
-  const { openNav } = useShell();
+  const { openNav, railFixed } = useShell();
   const { apps, error, refreshApps } = useApps();
   const contentRef = useRef(null);
   const hasApps = Boolean(apps);
@@ -50,7 +52,7 @@ export default function WorkspacePage({
           actions={actions}
           search={search}
           compactSearch={compactSearch}
-          onOpenNav={nav ? openNav : null}
+          onOpenNav={nav && !railFixed ? openNav : null}
         />
         <main
           className={`workspace-content${scroll ? '' : ' workspace-content-fixed'}`}
@@ -59,8 +61,8 @@ export default function WorkspacePage({
           {error && (
             <div className="banner banner-error" role="alert">
               <div>
-                <strong>Cannot reach the Vela backend.</strong>
-                <p>Make sure the server is running on port 7700, then try again.</p>
+                <strong>Can’t connect to Vela.</strong>
+                <p>Make sure the Vela server is running on this computer, then try again.</p>
               </div>
               <Button onClick={() => refreshApps()}>Retry</Button>
             </div>

@@ -143,7 +143,13 @@ class Auth:
                     not self.phone_origin or request.url.scheme != 'https' or
                     str(request.base_url).rstrip('/') != self.phone_origin):
                 return JSONResponse({'detail': 'Use the configured Wi-Fi address'}, status_code=403)
-            public = path in ("/api/health", "/api/session", "/api/login", "/api/logout") or (path.startswith("/api/apps/") and path.endswith("/icon"))
+            # Automation webhooks carry their own per-workflow secret. They are
+            # exempt from the hub token, not from anything else: the bind, TLS
+            # and origin rules below still apply, and the secret starts one
+            # workflow rather than granting any hub or app access.
+            public = (path in ("/api/health", "/api/session", "/api/login", "/api/logout")
+                      or path.startswith("/api/automations/hooks/")
+                      or (path.startswith("/api/apps/") and path.endswith("/icon")))
             token = request.headers.get("authorization", "").removeprefix("Bearer ")
             # The computer's bootstrap token must never authenticate a network
             # request, including on the supplemental Wi-Fi listener.

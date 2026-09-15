@@ -5,7 +5,7 @@ import { useAsyncAction } from '../hooks/useAsyncAction.js';
 import Button from './ui/Button.jsx';
 import FormField from './ui/FormField.jsx';
 
-function ConnectionForm({ app }) {
+function ConnectionForm({ app, setupOnly }) {
   const [endpoint, setEndpoint] = useState('http://127.0.0.1:11434');
   const [updated, setUpdated] = useState(null);
   const load = useCallback((options) => api.getConnection(app.id, options), [app.id]);
@@ -26,6 +26,10 @@ function ConnectionForm({ app }) {
     if (result) setUpdated(result.value);
   };
   const failure = error || (!updated && loadError);
+
+  // Above the app, only an unfinished setup earns space. Once the service is
+  // connected the form stays available in the app's settings.
+  if (setupOnly && status?.connected) return null;
 
   return (
     <details className="app-migration" open={!status?.connected}>
@@ -49,16 +53,22 @@ function ConnectionForm({ app }) {
         </Button>
         {status?.connected && (
           <Button size="small" pending={pending} onClick={disconnect}>
-            Disconnect wrapper
+            Disconnect
           </Button>
         )}
       </div>
+      {status?.connected && (
+        <p className="panel-note">
+          Disconnecting stops {app.name} reaching this server. It does not change the server itself,
+          and you can connect it again here.
+        </p>
+      )}
       {failure && <p role="alert">{failure.message}</p>}
     </details>
   );
 }
 
-export default function AppConnection({ app }) {
+export default function AppConnection({ app, setupOnly = false }) {
   if (!app.connection || !app.installed) return null;
-  return <ConnectionForm key={app.id} app={app} />;
+  return <ConnectionForm key={app.id} app={app} setupOnly={setupOnly} />;
 }

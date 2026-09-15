@@ -18,9 +18,12 @@
   border: 1px solid var(--border);
 }
 
+/* `min(220px, 100%)` keeps the track from being wider than the container it
+   sits in: a plain 220px minimum overflows a 200%-zoomed phone. The same
+   guard applies to the other auto-fit grids. */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px 16px;
 }
 
@@ -39,7 +42,9 @@
   color: var(--text-faint);
 }
 
-.field input {
+.field input,
+.field textarea,
+.field select {
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -52,16 +57,25 @@
   transition: border-color 140ms ease;
 }
 
-.field input:focus {
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
   border-color: var(--accent-line);
 }
 
-.field input::placeholder {
+.field input::placeholder,
+.field textarea::placeholder {
   color: var(--text-faint);
 }
 
-.field input:disabled {
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled {
   opacity: 0.6;
+}
+
+.field textarea {
+  resize: vertical;
 }
 
 .field-side {

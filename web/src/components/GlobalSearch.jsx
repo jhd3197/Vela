@@ -2,19 +2,33 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GearSix, Heartbeat, MagnifyingGlass, Note, Receipt, Sparkle } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
+import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 
+// Settings destinations the palette can reach. Developer entries stay out of
+// the results while the preference is off; searching for them then points at
+// the preference itself rather than pretending the destination is missing.
 const SETTINGS_ENTRIES = [
-  { label: 'General', to: '/settings' },
-  { label: 'Appearance & theme', to: '/settings#appearance' },
-  { label: 'Local AI', to: '/settings#ai' },
-  { label: 'Notifications', to: '/settings#notifications' },
-  { label: 'Backups', to: '/settings#backups' },
-  { label: 'App Environments', to: '/environments' },
-  { label: 'Chat & privacy', to: '/settings#chat' },
-  { label: 'Storage', to: '/settings#storage' },
-  { label: 'Network', to: '/settings#network' },
+  { label: 'General', to: '/settings#general', keywords: 'about version platform phone' },
+  { label: 'Appearance & theme', to: '/settings#appearance', keywords: 'light dark' },
+  { label: 'Local AI', to: '/settings#ai', keywords: 'ollama model' },
+  { label: 'Notifications', to: '/settings#notifications', keywords: 'ntfy push alerts' },
+  { label: 'Backups & storage', to: '/settings#backups', keywords: 'restore snapshot disk space' },
+  { label: 'Chat & privacy', to: '/settings#chat', keywords: 'history retention' },
+  {
+    label: 'Developer tools',
+    to: '/settings#developer',
+    keywords: 'logs system network endpoint diagnostics',
+    developer: true,
+  },
+  { label: 'System', to: '/environments', keywords: 'engine running storage', developer: true },
+  {
+    label: 'Show developer tools',
+    to: '/settings#general',
+    keywords: 'developer logs system diagnostics environments',
+    whileOff: true,
+  },
 ];
 
 // Mini-apps keep their data in same-origin localStorage under vela.* keys, so
@@ -94,6 +108,7 @@ export default function GlobalSearch({ compact = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { openSettings } = useSettingsPopup();
+  const developer = useDeveloperTools();
   const [query, setQuery] = useState(() => sessionStorage.getItem('vela.launcher.query') || '');
   useEffect(() => {
     sessionStorage.setItem('vela.launcher.query', query);
@@ -144,12 +159,13 @@ export default function GlobalSearch({ compact = false }) {
         (a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q),
       )
       .slice(0, 5);
-    const settingHits = SETTINGS_ENTRIES.filter((s) => s.label.toLowerCase().includes(q)).slice(
-      0,
-      3,
-    );
+    const settingHits = SETTINGS_ENTRIES.filter(
+      (s) =>
+        (s.developer ? developer : s.whileOff ? !developer : true) &&
+        `${s.label} ${s.keywords || ''}`.toLowerCase().includes(q),
+    ).slice(0, 3);
     return { apps: appHits, settings: settingHits, data: searchAppData(q) };
-  }, [query, apps]);
+  }, [query, apps, developer]);
 
   const go = (to) => {
     setOpen(false);

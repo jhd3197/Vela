@@ -21,6 +21,7 @@ import {
 } from '@phosphor-icons/react';
 import {
   createConversation,
+  createRoom,
   deleteConversation,
   getAiStatus,
   getSettings,
@@ -31,10 +32,22 @@ import {
   streamChat,
   updateConversation,
 } from '../chatApi.js';
+import {
+  createBot,
+  deleteBot,
+  duplicateBot,
+  listBots,
+  setRoomMembers,
+  updateBot,
+} from '../botsApi.js';
 import ChatComposer from '../components/ChatComposer.jsx';
 import ConversationPanel from '../components/ConversationPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
+import BotIcon from '../components/bots/BotIcon.jsx';
+import BotEditor from '../components/bots/BotEditor.jsx';
+import RoomDialog from '../components/bots/RoomDialog.jsx';
+import { SPLIT as NARROW } from '../breakpoints.js';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
 function ChatMarkdown({ children }) {
@@ -51,8 +64,14 @@ function ChatMarkdown({ children }) {
 // imported once, guarded by a server-side marker.
 const LEGACY_KEY = 'vela-chat';
 const PANEL_KEY = 'vela.ask.panel.v1';
+const TAB_KEY = 'vela.ask.tab.v1';
 const DRAFT_DEBOUNCE_MS = 700;
-const NARROW = '(max-width: 1100px)';
+
+// One send gets one id. Retrying the same send reuses it, so a dropped
+// connection cannot produce a second set of answers.
+function newRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random()}`;
+}
 
 const TOOLS = [
   { name: 'list_apps', label: 'Listing apps', icon: SquaresFour },
@@ -252,6 +271,21 @@ export default function Ask() {
   const [listError, setListError] = useState('');
   const [query, setQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+
+  // Bots and rooms. `conversation` holds the kind/bot binding for whatever is
+  // open, so the transcript and composer know who they are talking to.
+  const [tab, setTab] = useState(() => readStored(TAB_KEY, 'chats'));
+  const [builtin, setBuiltin] = useState(null);
+  const [bots, setBots] = useState([]);
+  const [botsLoading, setBotsLoading] = useState(true);
+  const [botsError, setBotsError] = useState('');
+  const [editingBot, setEditingBot] = useState(null);
+  const [roomDialog, setRoomDialog] = useState(null);
+  const [conversation, setConversation] = useState(null);
+  // Live per-responder state during a room run, keyed by bot id.
+  const [responders, setResponders] = useState([]);
+  // Which bot a brand-new chat will be bound to, before it exists on the server.
+  const [pendingBot, setPendingBot] = useState('vela');
   // The panel is a column on wide screens. Below 1100px it moves into the
   // navigation drawer beside the rail, opened on demand from the header, so it
   // starts closed there rather than covering the conversation.
@@ -277,6 +311,20 @@ export default function Ask() {
   // Which conversation the transcript effect last handled, so a settings change
   // never looks like a route change and discards what is being typed.
   const loadedFor = useRef(conversationId);
+
+  const refreshBots = useCallback(async (signal) => {
+    try {
+      const data = await listBots({ signal });
+      setBuiltin(data.builtin);
+      setBots(data.bots || []);
+      setBotsError('');
+    } catch (failure) {
+      if (failure?.name !== 'AbortError')
+        setBotsError(failure instanceof Error ? failure.message : 'Could not load bots.');
+    } finally {
+      setBotsLoading(false);
+    }
+  }, []);
 
   const refreshList = useCallback(
     async (signal) => {
@@ -346,6 +394,16 @@ export default function Ask() {
 
   useEffect(() => () => controller.current?.abort(), []);
 
+  // Bots load independently of chat history: they are settings, and stay
+  // available when retention is off.
+  useEffect(() => {
+    const ac = new AbortController();
+    refreshBots(ac.signal);
+    return () => ac.abort();
+  }, [refreshBots]);
+
+  useEffect(() => writeStored(TAB_KEY, tab), [tab]);
+
   useEffect(() => {
     const update = (event) => setSettings((current) => ({ ...current, ...event.detail }));
     window.addEventListener('vela:chat-settings', update);
@@ -413,8 +471,10 @@ export default function Ask() {
     setActivities([]);
     setError(null);
     setLoadError('');
+    setResponders([]);
     if (!conversationId) {
       setMessages([]);
+      setConversation(null);
       setTitle('New conversation');
       // Only a real move to another conversation discards the draft.
       if (changed) setInput('');
@@ -430,6 +490,7 @@ export default function Ask() {
     readConversation(conversationId, { signal: ac.signal })
       .then((data) => {
         setMessages(data.messages || []);
+        setConversation(data);
         setTitle(data.title);
         draftFor.current = conversationId;
         setInput(data.draft || '');
@@ -503,20 +564,22 @@ export default function Ask() {
   // Flush a pending draft before this view stops owning it.
   useEffect(() => () => clearTimeout(draftTimer.current), []);
 
-  async function ask(text, retryIndex) {
+  async function ask(text, retryIndex, options = {}) {
     text = text.trim();
     if (!text || text.length > 4000 || controller.current || !settings || !ai?.reachable) return;
     followRef.current = true;
     setBusy(true);
-    if (retryIndex === undefined) setInput('');
+    if (retryIndex === undefined && !options.only) setInput('');
     setStream('');
     setError(null);
     setActivities([]);
+    setResponders([]);
 
     let target = conversationId;
     if (historyEnabled && !target) {
       try {
-        target = (await createConversation()).id;
+        // A new chat is bound to whichever bot the composer is pointed at.
+        target = (await createConversation({ kind: 'direct', botId: pendingBot })).id;
       } catch (failure) {
         setBusy(false);
         setError(failure instanceof Error ? failure.message : 'Could not start a conversation.');
@@ -526,6 +589,11 @@ export default function Ask() {
       activeId.current = target;
       navigate(`/ask/${target}`, { replace: true });
     }
+
+    const room = conversation?.kind === 'room';
+    // The id survives a retry of the same send, which is what stops a network
+    // hiccup from producing two answers.
+    const requestId = options.requestId ?? newRequestId();
     // Bind this request to one conversation; a later switch aborts it, and
     // nothing it produces may be applied to a different one.
     const boundTo = target;
@@ -535,9 +603,10 @@ export default function Ask() {
       updateConversation(target, { draft: '' }).catch(() => {});
     }
 
-    const next =
-      retryIndex === undefined
-        ? [...messages, { role: 'user', content: text }]
+    const next = options.only
+      ? messages
+      : retryIndex === undefined
+        ? [...messages, { role: 'user', content: text, senderKind: 'user' }]
         : messages.slice(0, retryIndex + 1);
     setMessages(next);
     const ac = new AbortController();
@@ -546,18 +615,110 @@ export default function Ask() {
     let complete = false;
     let streamError = '';
     let turnTools = [];
+    // Room answers accumulate per responder and are appended as each finishes,
+    // so an earlier bot's reply stays on screen while a later one is writing.
+    let settled = [...next];
+    let currentBot = null;
     try {
       await streamChat({
         message: text,
         conversationId: boundTo ?? null,
+        requestId,
+        recipients: options.recipients ?? [],
+        only: options.only ?? [],
         signal: ac.signal,
         onEvent: (event) => {
           // A frame that names a different conversation can never be applied
           // to the one on screen.
           if (!stillShowing()) return;
           if (event.conversationId && boundTo && event.conversationId !== boundTo) return;
-          if (event.error) streamError = event.error;
+          if (event.error && !event.botId) streamError = event.error;
           if (event.title) setTitle(event.title);
+
+          if (event.room?.responders) {
+            setResponders(event.room.responders.map((r) => ({ ...r, text: '', error: '' })));
+            return;
+          }
+
+          if (room && event.botId) {
+            // Attribution is per frame, so nothing a bot streams can be shown
+            // under another bot's name.
+            if (event.state === 'responding') {
+              currentBot = { ...event, text: '' };
+              final = '';
+            }
+            if (typeof event.text === 'string' && currentBot?.botId === event.botId) {
+              final = final && event.text.startsWith(final) ? event.text : final + event.text;
+              currentBot = { ...currentBot, text: final };
+              setStream(final);
+            }
+            if (
+              event.state === 'complete' ||
+              event.state === 'failed' ||
+              event.state === 'stopped'
+            ) {
+              if (event.state === 'complete' && final) {
+                settled = [
+                  ...settled,
+                  {
+                    role: 'assistant',
+                    senderKind: 'bot',
+                    content: final,
+                    botId: event.botId,
+                    botName: event.botName,
+                    model: event.model,
+                    tools: turnTools,
+                    state: 'complete',
+                  },
+                ];
+                setMessages(settled);
+              } else if (event.state !== 'complete') {
+                settled = [
+                  ...settled,
+                  {
+                    role: 'assistant',
+                    senderKind: 'bot',
+                    content: final,
+                    botId: event.botId,
+                    botName: event.botName,
+                    model: event.model,
+                    tools: turnTools,
+                    state: event.state,
+                    error: event.error,
+                    interrupted: true,
+                  },
+                ];
+                setMessages(settled);
+              }
+              final = '';
+              turnTools = [];
+              currentBot = null;
+              setStream('');
+              setActivities([]);
+            }
+            setResponders((current) =>
+              current.map((r) =>
+                r.botId === event.botId
+                  ? { ...r, state: event.state ?? r.state, error: event.error ?? r.error }
+                  : r,
+              ),
+            );
+            if (event.activity) {
+              const now = Date.now();
+              const prior = turnTools.find((a) => a.id === event.activity.id);
+              const entry = {
+                id: event.activity.id,
+                tool: event.activity.tool,
+                state: event.activity.state,
+                started: prior?.started ?? now,
+                ended: event.activity.state === 'running' ? undefined : now,
+              };
+              turnTools = [...turnTools.filter((a) => a.id !== entry.id), entry];
+              setActivities(turnTools);
+            }
+            return;
+          }
+
           if (typeof event.text === 'string') {
             // Tolerate both cumulative snapshots and per-token deltas.
             final = final && event.text.startsWith(final) ? event.text : final + event.text;
@@ -582,21 +743,63 @@ export default function Ask() {
         },
       });
       if (streamError) throw new Error(streamError);
-      if (!complete)
+      // A room ends when its last responder settles; there is no single `done`.
+      if (!complete && !room)
         throw new Error('Connection ended before the answer finished. Please try again.');
-      if (stillShowing())
-        setMessages([...next, { role: 'assistant', content: final, tools: turnTools }]);
+      if (stillShowing() && !room)
+        setMessages([
+          ...next,
+          {
+            role: 'assistant',
+            senderKind: 'bot',
+            content: final,
+            tools: turnTools,
+            botId: conversation?.botId ?? pendingBot,
+            botName: botName(conversation?.botId ?? pendingBot),
+            model: ai?.chat_model,
+            state: 'complete',
+          },
+        ]);
     } catch (e) {
-      const settled = turnTools.map((activity) =>
+      const stopped = turnTools.map((activity) =>
         activity.state === 'running'
           ? { ...activity, state: 'error', ended: Date.now() }
           : activity,
       );
       if (stillShowing()) {
-        setMessages([
-          ...next,
-          { role: 'assistant', content: final, tools: settled, interrupted: true },
-        ]);
+        if (room) {
+          // Whatever each bot already finished is on screen; only the one that
+          // was mid-answer is marked incomplete.
+          if (final)
+            setMessages([
+              ...settled,
+              {
+                role: 'assistant',
+                senderKind: 'bot',
+                content: final,
+                tools: stopped,
+                botId: currentBot?.botId,
+                botName: currentBot?.botName,
+                model: currentBot?.model,
+                state: 'stopped',
+                interrupted: true,
+              },
+            ]);
+        } else {
+          setMessages([
+            ...next,
+            {
+              role: 'assistant',
+              senderKind: 'bot',
+              content: final,
+              tools: stopped,
+              botId: conversation?.botId ?? pendingBot,
+              botName: botName(conversation?.botId ?? pendingBot),
+              interrupted: true,
+              state: 'stopped',
+            },
+          ]);
+        }
         setError(
           ac.signal.aborted ? 'Response stopped.' : e instanceof Error ? e.message : 'Chat failed',
         );
@@ -606,6 +809,7 @@ export default function Ask() {
       setBusy(false);
       setStream('');
       setActivities([]);
+      setResponders([]);
       refreshList();
     }
   }
@@ -618,7 +822,55 @@ export default function Ask() {
   const startNew = () => {
     controller.current?.abort();
     closeDrawer();
+    setPendingBot('vela');
     navigate('/ask');
+  };
+
+  // ---- bots and rooms -------------------------------------------------
+
+  const saveBot = async (fields) => {
+    if (editingBot?.id) await updateBot(editingBot.id, fields);
+    else await createBot(fields);
+    await refreshBots();
+  };
+
+  const chatWithBot = (bot) => {
+    // Choosing another bot starts a new chat rather than reinterpreting an old
+    // transcript under different instructions.
+    controller.current?.abort();
+    closeDrawer();
+    setPendingBot(bot.id);
+    setTab('chats');
+    navigate('/ask');
+  };
+
+  const duplicate = async (bot) => {
+    await duplicateBot(bot.id);
+    await refreshBots();
+  };
+
+  const archiveBot = async (bot) => {
+    await updateBot(bot.id, { archived: !bot.archived });
+    await refreshBots();
+  };
+
+  const removeBot = async (bot) => {
+    await deleteBot(bot.id);
+    await refreshBots();
+  };
+
+  const saveRoom = async (fields) => {
+    if (roomDialog?.id) {
+      const updated = await setRoomMembers(roomDialog.id, fields.botIds, fields.leadBotId);
+      setConversation(updated);
+      refreshList();
+      return;
+    }
+    const created = await createRoom(fields);
+    setTab('rooms');
+    closeDrawer();
+    refreshList();
+    navigate(`/ask/${created.id}`);
   };
 
   const selectConversation = (conversation) => {
@@ -648,6 +900,28 @@ export default function Ask() {
   const lastQuestionIndex = messages.findLastIndex((message) => message.role === 'user');
   const canSend = Boolean(settings && ai?.reachable);
 
+  // Every bot the UI might need to name, including archived and deleted ones,
+  // so a transcript can always render the author it recorded.
+  const knownBots = new Map([
+    ...(builtin ? [[builtin.id, builtin]] : []),
+    ...bots.map((bot) => [bot.id, bot]),
+  ]);
+  const botName = (id) => knownBots.get(id)?.name ?? (id === 'vela' ? 'Vela' : 'Bot');
+  const isRoom = conversation?.kind === 'room';
+  const roomMembers = isRoom
+    ? (conversation.botIds ?? []).map(
+        (id) => knownBots.get(id) ?? { id, name: 'Removed bot', color: 'slate', missing: true },
+      )
+    : [];
+  const availableMembers = roomMembers.filter((bot) => !bot.missing && !bot.archived);
+  const roomBroken = isRoom && availableMembers.length < 2;
+  const activeBot = isRoom ? null : knownBots.get(conversation?.botId ?? pendingBot);
+  const botGone = !isRoom && conversation?.botId && !knownBots.has(conversation.botId);
+  // Only a bot whose own answer failed can be retried, and only that one.
+  const failedBots = messages
+    .filter((m) => m.senderKind === 'bot' && m.state === 'failed' && m.botId)
+    .map((m) => m.botId);
+
   const conversationPanel = (
     <ConversationPanel
       drawer={narrow}
@@ -656,6 +930,19 @@ export default function Ask() {
       loading={listLoading}
       error={listError}
       historyEnabled={historyEnabled}
+      tab={tab}
+      onTab={setTab}
+      builtin={builtin}
+      bots={bots}
+      botsLoading={botsLoading}
+      botsError={botsError}
+      onNewBot={() => setEditingBot({})}
+      onEditBot={setEditingBot}
+      onDuplicateBot={duplicate}
+      onArchiveBot={archiveBot}
+      onDeleteBot={removeBot}
+      onChatWithBot={chatWithBot}
+      onNewRoom={() => setRoomDialog({})}
       query={query}
       onQuery={setQuery}
       showArchived={showArchived}
@@ -679,11 +966,15 @@ export default function Ask() {
       className="ask-main"
       title={title}
       subtitle={
-        ai?.reachable
-          ? `${model || 'Local model'} · on this machine`
-          : aiOffline
+        !ai?.reachable
+          ? aiOffline
             ? 'Assistant unavailable'
             : 'Connecting to assistant…'
+          : isRoom
+            ? `${roomMembers.length} bots · ${
+                conversation.mode === 'roundtable' ? 'Roundtable' : 'Mention or lead'
+              }`
+            : `${activeBot?.name ?? 'Vela'} · ${activeBot?.model || model || 'Local model'}`
       }
       lead={
         <button
@@ -742,6 +1033,38 @@ export default function Ask() {
           </div>
         )}
 
+        {botGone && (
+          <div className="banner banner-error ask-banner" role="alert">
+            <div>
+              <strong>This chat’s bot is no longer available.</strong>
+              <p>
+                Its history is kept and still shows who wrote it. Start a new chat to carry on with
+                another bot — Vela will not answer as a different one here.
+              </p>
+            </div>
+            <button className="btn" onClick={startNew}>
+              New chat
+            </button>
+          </div>
+        )}
+
+        {roomBroken && (
+          <div className="banner banner-error ask-banner" role="alert">
+            <div>
+              <strong>This room needs at least two available bots.</strong>
+              <p>
+                {roomMembers.filter((bot) => bot.missing).length
+                  ? 'A bot in this room was deleted.'
+                  : 'A bot in this room is archived.'}{' '}
+                Change who is in the room before sending again.
+              </p>
+            </div>
+            <button className="btn" onClick={() => setRoomDialog(conversation)}>
+              Edit room
+            </button>
+          </div>
+        )}
+
         <div className="chat-stage">
           <div
             className="chat-log"
@@ -788,14 +1111,30 @@ export default function Ask() {
                   ) : (
                     <>
                       <ToolCalls activities={m.tools ?? []} />
-                      <div className="chat-assistant">
+                      <div className="chat-assistant" data-state={m.state}>
                         <span className="chat-avatar" aria-hidden>
-                          <Sparkle size={12} />
+                          {knownBots.get(m.botId) ? (
+                            <BotIcon bot={knownBots.get(m.botId)} size={12} />
+                          ) : (
+                            <Sparkle size={12} />
+                          )}
                         </span>
                         <div className="chat-text">
-                          <span className="chat-author">Vela</span>
+                          <span className="chat-author">
+                            {m.botName || botName(m.botId)}
+                            {/* Only a model that was actually recorded is shown. */}
+                            {m.model && <span className="chat-author-model">{m.model}</span>}
+                          </span>
                           <ChatMarkdown>{m.content}</ChatMarkdown>
-                          {m.interrupted && (
+                          {m.state === 'failed' && (
+                            <span className="chat-failed" role="alert">
+                              {m.error || 'This bot could not answer.'}
+                            </span>
+                          )}
+                          {m.state === 'stopped' && (
+                            <span className="chat-interrupted">Stopped</span>
+                          )}
+                          {m.interrupted && m.state !== 'failed' && m.state !== 'stopped' && (
                             <span className="chat-interrupted">Response incomplete</span>
                           )}
                           {m.content && (
@@ -813,14 +1152,44 @@ export default function Ask() {
 
               <ToolCalls activities={activities} live />
 
+              {busy && responders.length > 1 && (
+                <ul className="room-queue" aria-label="Who is answering">
+                  {responders.map((responder) => (
+                    <li key={responder.botId} data-state={responder.state}>
+                      {knownBots.get(responder.botId) && (
+                        <BotIcon bot={knownBots.get(responder.botId)} size={11} />
+                      )}
+                      <span>{responder.name}</span>
+                      <small>
+                        {responder.state === 'responding'
+                          ? 'Answering…'
+                          : responder.state === 'complete'
+                            ? 'Done'
+                            : responder.state === 'failed'
+                              ? 'Failed'
+                              : responder.state === 'stopped'
+                                ? 'Stopped'
+                                : 'Waiting'}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {busy && (
                 <div className="chat-assistant" aria-busy="true">
                   <span className="chat-avatar" aria-hidden>
-                    <Sparkle size={12} />
+                    {(() => {
+                      const speaking = responders.find((r) => r.state === 'responding');
+                      const bot = knownBots.get(speaking?.botId ?? activeBot?.id);
+                      return bot ? <BotIcon bot={bot} size={12} /> : <Sparkle size={12} />;
+                    })()}
                   </span>
                   <div className="chat-text">
                     <span className="chat-author">
-                      Vela{' '}
+                      {responders.find((r) => r.state === 'responding')?.name ??
+                        activeBot?.name ??
+                        'Vela'}{' '}
                       <span className="chat-stream-label" role="status">
                         Responding…
                       </span>
@@ -839,10 +1208,34 @@ export default function Ask() {
                 </div>
               )}
 
+              {/* Retrying a failed bot reruns only that bot: the ones that
+                  already answered keep their replies. */}
+              {!busy && isRoom && failedBots.length > 0 && lastQuestionIndex >= 0 && (
+                <div className="room-retry" role="group" aria-label="Retry a bot">
+                  {[...new Set(failedBots)].map((botId) => (
+                    <button
+                      key={botId}
+                      type="button"
+                      className="btn btn-small"
+                      disabled={busy || !canSend}
+                      onClick={() =>
+                        ask(messages[lastQuestionIndex].content, undefined, {
+                          only: [botId],
+                          recipients: [botId],
+                        })
+                      }
+                    >
+                      <ArrowClockwise size={13} aria-hidden />
+                      Retry {botName(botId)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {error && (
                 <div className="chat-error" role="alert">
                   <span>{error}</span>
-                  {lastQuestionIndex >= 0 && (
+                  {lastQuestionIndex >= 0 && !isRoom && (
                     <button
                       type="button"
                       className="btn"
@@ -868,12 +1261,36 @@ export default function Ask() {
           input={input}
           setInput={changeInput}
           busy={busy}
-          disabled={!canSend}
-          onSend={ask}
+          disabled={!canSend || roomBroken || botGone}
+          onSend={(text, recipients) => ask(text, undefined, { recipients })}
           onStop={() => controller.current?.abort()}
-          model={model}
+          model={activeBot?.model || model}
+          bots={isRoom ? availableMembers : []}
+          room={isRoom}
+          mode={conversation?.mode}
+          leadBotId={conversation?.leadBotId}
+          botLabel={isRoom ? null : (activeBot?.name ?? 'Vela')}
         />
       </div>
+
+      {editingBot && (
+        <BotEditor
+          bot={editingBot.id ? editingBot : null}
+          models={ai?.models ?? []}
+          defaultModel={ai?.chat_model}
+          onClose={() => setEditingBot(null)}
+          onSave={saveBot}
+        />
+      )}
+
+      {roomDialog && (
+        <RoomDialog
+          bots={bots.filter((bot) => !bot.archived)}
+          room={roomDialog.id ? roomDialog : null}
+          onClose={() => setRoomDialog(null)}
+          onSave={saveRoom}
+        />
+      )}
     </WorkspacePage>
   );
 }

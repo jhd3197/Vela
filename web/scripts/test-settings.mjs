@@ -96,7 +96,7 @@ try {
   await page.screenshot({ path: path.join(shots, 'desktop-light.png') });
   await dialog.getByRole('button', { name: 'Notifications', exact: true }).click();
   await dialog.getByLabel('Topic', { exact: true }).fill('unsaved-fixture-topic');
-  await dialog.getByRole('button', { name: 'Storage', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Backups & storage', exact: true }).click();
   await dialog.getByRole('button', { name: 'Notifications', exact: true }).click();
   assert.equal(
     await dialog.getByLabel('Topic', { exact: true }).inputValue(),
@@ -147,13 +147,100 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.equal(new URL(page.url()).pathname, '/');
   await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('storage');
-  await page.getByRole('button', { name: 'Storage Settings' }).click();
-  await dialog.getByText('/fixture/data', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Backups & storage Settings' }).click();
+  await dialog.getByText('2.0 KB', { exact: true }).waitFor();
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+
+  // Developer tools: off by default, reversible, and presentation only. The
+  // data directory is one of the facts it reveals.
+  await page.goto('https://vela.test/ask');
+  const draft = page.locator('textarea');
+  await draft.fill('Draft that must survive the switch');
+  assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
+  assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 1);
+  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await dialog.waitFor();
+  assert.equal(
+    await dialog.getByRole('button', { name: 'Developer tools', exact: true }).count(),
+    0,
+    'Developer tools is not a category until it is switched on',
+  );
+  await dialog
+    .getByRole('navigation')
+    .getByRole('button', { name: 'General', exact: true })
+    .click();
+  const devSwitch = dialog.getByRole('group', { name: 'Show developer tools' });
+  assert.equal(
+    await devSwitch.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'),
+    'true',
+  );
+  await devSwitch.getByRole('button', { name: 'On', exact: true }).click();
+  await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
+  await dialog.getByText('/fixture/data', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), 'on');
+  // Nothing beneath the popup reloaded, remounted or lost its draft.
+  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  assert.equal(await draft.inputValue(), 'Draft that must survive the switch');
+  assert.equal(new URL(page.url()).pathname, '/ask');
+
+  // The choice survives a reload, and another tab on the same origin follows.
+  await page.reload();
+  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
+  await dialog.getByText('/fixture/data', { exact: true }).waitFor();
+  const second = await context.newPage();
+  await second.goto('https://vela.test/');
+  await second.locator('.rail').waitFor();
+  // A real write from the other tab, delivered as a storage event.
+  await second.evaluate(() => localStorage.setItem('vela-developer-tools', 'off'));
+  await dialog
+    .getByRole('navigation')
+    .getByRole('button', { name: 'Developer tools' })
+    .waitFor({ state: 'detached' });
+  // The panel that was open explains itself and offers the switch back.
+  await dialog.getByRole('heading', { name: 'Developer tools are off' }).waitFor();
+  await dialog.getByRole('button', { name: 'Back to General' }).click();
+  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await second.close();
+
+  // A browser that refuses to store this preference still applies the choice
+  // for the session and says that it will not last. Only this one key is
+  // denied, so the rest of the dashboard behaves normally.
+  const sealed = await context.newPage();
+  await sealed.addInitScript(() => {
+    const { getItem, setItem } = Storage.prototype;
+    Storage.prototype.getItem = function (key) {
+      if (key === 'vela-developer-tools') throw new Error('storage denied');
+      return getItem.call(this, key);
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'vela-developer-tools') throw new Error('storage denied');
+      return setItem.call(this, key, value);
+    };
+  });
+  await sealed.goto('https://vela.test/');
+  await sealed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  const sealedDialog = sealed.getByRole('dialog', { name: 'Settings', exact: true });
+  await sealedDialog
+    .getByRole('navigation')
+    .getByRole('button', { name: 'General', exact: true })
+    .click();
+  await sealedDialog
+    .getByRole('group', { name: 'Show developer tools' })
+    .getByRole('button', { name: 'On', exact: true })
+    .click();
+  await sealedDialog
+    .getByRole('navigation')
+    .getByRole('button', { name: 'Developer tools' })
+    .waitFor();
+  await sealedDialog.getByText(/not storing preferences/).waitFor();
+  await sealed.close();
+  await page.goto('https://vela.test/');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
-    await page.getByRole('button', { name: 'Open navigation' }).click();
-    await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+    // Home keeps its rail at phone widths, so Settings is reached from it
+    // directly; other workspaces still open the drawer first.
+    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
     for (const theme of ['light', 'dark']) {
       await dialog
         .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
@@ -182,7 +269,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links and phone layouts',
+    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, and phone layouts',
   );
 } finally {
   await browser.close();

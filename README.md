@@ -104,6 +104,16 @@ or `vela-templates` for a v2 starter). Installed apps live in `~/.vela/` (overri
 The full format and REST API are documented in
 [docs/CONTRACT.md](docs/CONTRACT.md).
 
+Apps can also be wired together. **Automations** builds a set of steps visually —
+on a schedule, on an authenticated web request, or when you press Run — and Vela
+runs them on the server computer while the browser is closed. An automation that
+wants to change an app's data shows the exact request and waits for you to allow
+it. See the [automations guide](docs/AUTOMATIONS.md).
+
+Ask can be more than one assistant. Create **bots** with their own instructions,
+model and read-only access, chat with one, or put two to four of them in a
+**room** where they answer in turn. See the [bots and rooms guide](docs/BOTS.md).
+
 The [repository guide](docs/REPOSITORIES.md) describes the current split into
 the hub, public SDK, contracts, templates, catalog and independent apps.
 
@@ -157,6 +167,7 @@ fork → branch → change → verify → pull request
 ```
 
 **Useful links:** [Server guide](docs/SERVER.md) · [App guide](docs/APPS.md) ·
+[Automations](docs/AUTOMATIONS.md) · [Bots and rooms](docs/BOTS.md) ·
 [Developer guide](docs/DEVELOPMENT.md) · [Report a vulnerability](SECURITY.md)
 
 ---

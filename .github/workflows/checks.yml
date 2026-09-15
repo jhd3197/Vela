@@ -28,6 +28,12 @@ jobs:
       - name: Install Windows packaging dependencies
         if: runner.os == 'Windows'
         run: python -m pip install -r scripts/requirements-build.txt
+      - name: Install the automation runtime the download ships
+        if: runner.os == 'Windows'
+        run: python scripts/setup-automation-worker.py
+      - name: Download the pinned Node runtime the download ships
+        if: runner.os == 'Windows'
+        run: python scripts/fetch-node-runtime.py
       - name: Build and verify Windows downloads before merge
         if: runner.os == 'Windows'
         run: |

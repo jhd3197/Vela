@@ -204,15 +204,16 @@ try {
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
-    // On a phone the rail lives inside the navigation drawer.
+    // Manage apps is named in the rail's secondary menu; on a phone that rail
+    // lives inside the navigation drawer.
     const openApps = async () => {
-      if (viewport.width < 500) {
-        await page.getByRole('button', { name: 'Open navigation' }).click();
-        await page
-          .getByRole('dialog', { name: 'Vela navigation' })
-          .locator('.rail a[href="/apps"]')
-          .click();
-      } else await page.locator('.rail a[href="/apps"]').click();
+      const root =
+        viewport.width < 500
+          ? page.getByRole('dialog', { name: 'Vela navigation' }).locator('.rail')
+          : page.locator('.rail');
+      if (viewport.width < 500) await page.getByRole('button', { name: 'Open navigation' }).click();
+      await root.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Manage apps', exact: true }).click();
     };
     await openApps();
     await page.getByRole('dialog').waitFor();
@@ -237,7 +238,7 @@ try {
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
     await page.getByRole('tab', { name: 'Running', exact: true }).click();
-    await page.getByRole('button', { name: /Chat Fixture.*Running locally/ }).click();
+    await page.getByRole('button', { name: /Chat Fixture.*Running/ }).click();
     await page.getByRole('button', { name: 'Open', exact: true }).click();
     await page
       .frameLocator('iframe')

@@ -13,22 +13,23 @@ import {
   Palette,
   ChatCircleText,
   Sparkle,
-  HardDrives,
-  Globe,
   Info,
-  SquaresFour,
   MagnifyingGlass,
   Check,
+  Wrench,
   X,
 } from '@phosphor-icons/react';
 import { api, formatBytes, platformLabel, relTime } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
 import { getTheme, setTheme } from '../theme.js';
+import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
 
 // Settings backed by the hub's settings API: theme, chat retention, ntfy
 // notifications, local AI model, and backups. Read-only fact grids report
-// what the backend actually exposes.
+// what the backend actually exposes. Categories follow what a person is trying
+// to do; the technical ones are gathered under Developer tools, which appears
+// only while that browser-local preference is on.
 
 function StatusPill({ state, text }) {
   return (
@@ -520,6 +521,13 @@ function BackupsSection({ onPendingChange }) {
 
 const SECTIONS = [
   {
+    id: 'general',
+    label: 'General',
+    icon: Info,
+    description: 'Your server, your devices, and how much Vela shows.',
+    keywords: 'version platform phone install home screen about developer tools logs system',
+  },
+  {
     id: 'appearance',
     label: 'Appearance',
     icon: Palette,
@@ -549,50 +557,44 @@ const SECTIONS = [
   },
   {
     id: 'backups',
-    label: 'Backups',
+    label: 'Backups & storage',
     icon: ShieldCheck,
-    description: 'Keep a recoverable copy of your apps and data.',
-    keywords: 'restore snapshot verify',
+    description: 'Keep a recoverable copy, and see what Vela is using.',
+    keywords: 'restore snapshot verify disk space storage used',
   },
   {
-    id: 'environments',
-    label: 'App environments',
-    icon: SquaresFour,
-    description: 'See where your apps run.',
-    keywords: 'apps engine system running',
-  },
-  {
-    id: 'storage',
-    label: 'Storage',
-    icon: HardDrives,
-    description: 'Your apps and data, on your own computer.',
-    keywords: 'disk directory space',
-  },
-  {
-    id: 'network',
-    label: 'Network',
-    icon: Globe,
-    description: 'How your dashboard reaches the server.',
-    keywords: 'connection address api',
-  },
-  {
-    id: 'general',
-    label: 'General',
-    icon: Info,
-    description: 'About your server and setting up your devices.',
-    keywords: 'version platform phone install home screen about',
+    id: 'developer',
+    label: 'Developer tools',
+    icon: Wrench,
+    developer: true,
+    description: 'Logs, system details and the tools for developing apps.',
+    keywords: 'developer logs system environments network endpoint api data directory diagnostics',
   },
 ];
+
+// Earlier releases linked to their own sections. Those bookmarks keep working:
+// the technical ones land in Developer tools, which offers to turn the
+// preference on rather than switching it on by itself.
+const SECTION_ALIASES = {
+  environments: 'developer',
+  network: 'developer',
+  storage: 'backups',
+};
+
+function resolveSection(id) {
+  const wanted = SECTION_ALIASES[id] || id;
+  return SECTIONS.some((s) => s.id === wanted) ? wanted : 'general';
+}
 
 export default function Settings({ initialSection = 'appearance', onClose }) {
   const { platform, pushToast } = useApps();
   const { engine } = useEngine();
-  const [active, setActive] = useState(() =>
-    SECTIONS.some((s) => s.id === initialSection) ? initialSection : 'appearance',
-  );
+  const developer = useDeveloperTools();
+  const [active, setActive] = useState(() => resolveSection(initialSection));
   const [query, setQuery] = useState('');
   const closeRef = useRef(null);
   const contentRef = useRef(null);
+  const lockedRef = useRef(null);
   const [health, setHealth] = useState(null);
   const [settings, setSettings] = useState(null);
   const [theme, setThemeState] = useState(getTheme);
@@ -604,6 +606,7 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
     setPendingSections((previous) => ({ ...previous, [section]: pending }));
   }, []);
   const pending = saving || Object.values(pendingSections).some(Boolean);
+  const locked = active === 'developer' && !developer;
 
   useEffect(() => {
     api
@@ -622,6 +625,12 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
   }, [active]);
+
+  // Losing the tools — here or in another tab — leaves the explanation in
+  // focus instead of an empty panel. The section, and the way back, stay put.
+  useEffect(() => {
+    if (locked) lockedRef.current?.focus();
+  }, [locked]);
 
   // Merge a successful PATCH into local settings state (deep for nested dicts).
   const onPatched = (patch) => {
@@ -692,7 +701,8 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
   };
 
   const section = SECTIONS.find((s) => s.id === active);
-  const matches = SECTIONS.filter((s) =>
+  const listed = SECTIONS.filter((s) => !s.developer || developer);
+  const matches = listed.filter((s) =>
     `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
@@ -767,6 +777,59 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
               Could not load settings. Close this window and try again.
             </p>
           )}
+
+          <section className="panel" id="settings-general" hidden={active !== 'general'}>
+            <div className="panel-head">
+              <h2>General</h2>
+            </div>
+            <div className="settings-row">
+              <div>
+                <h3 id="developer-tools-label">Show developer tools</h3>
+                <p>Show app logs, system details, and tools for developing apps in this browser.</p>
+                {!developerToolsPersist() && (
+                  <p className="panel-note">
+                    This browser is not storing preferences, so the choice lasts until you close the
+                    tab.
+                  </p>
+                )}
+              </div>
+              <div className="seg" role="group" aria-labelledby="developer-tools-label">
+                {[true, false].map((value) => (
+                  <button
+                    key={String(value)}
+                    type="button"
+                    aria-pressed={developer === value}
+                    disabled={pending}
+                    className={`seg-opt${developer === value ? ' seg-opt-active' : ''}`}
+                    onClick={() => setDeveloperTools(value)}
+                  >
+                    {value ? 'On' : 'Off'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <dl className="fact-grid">
+              <div className="fact">
+                <dt>Platform</dt>
+                <dd>{platform ? platformLabel(platform.current) : '—'}</dd>
+              </div>
+              <div className="fact">
+                <dt>Vela version</dt>
+                <dd className="mono">{health?.version || '—'}</dd>
+              </div>
+              <div className="fact fact-wide">
+                <dt>Supported platforms</dt>
+                <dd>{platform ? platform.supported.map(platformLabel).join(' · ') : '—'}</dd>
+              </div>
+            </dl>
+            <AddToHomeScreen appName="Vela" forHub />
+            <div className="phone-setup-settings">
+              <Link className="btn" to="/?setup=phone">
+                Set up my phone
+              </Link>
+              <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
+            </div>
+          </section>
 
           <section className="panel" id="settings-appearance" hidden={active !== 'appearance'}>
             <div className="panel-head">
@@ -857,86 +920,83 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
 
           <div hidden={active !== 'backups'}>
             <BackupsSection onPendingChange={onPendingChange} />
+            <section className="panel">
+              <div className="panel-head">
+                <h2>Storage</h2>
+              </div>
+              <dl className="fact-grid">
+                <div className="fact">
+                  <dt>Used by Vela</dt>
+                  <dd>{engine ? formatBytes(engine.storage_bytes) : '—'}</dd>
+                </div>
+              </dl>
+              <p className="panel-note">
+                Your apps and their data stay on this computer. Removing an app releases the space
+                it was using.
+              </p>
+            </section>
           </div>
 
-          <section className="panel" hidden={active !== 'general'}>
-            <div className="panel-head">
-              <h2>General</h2>
-            </div>
-            <dl className="fact-grid">
-              <div className="fact">
-                <dt>Platform</dt>
-                <dd>{platform ? platformLabel(platform.current) : '—'}</dd>
-              </div>
-              <div className="fact">
-                <dt>Hub version</dt>
-                <dd className="mono">{health?.version || '—'}</dd>
-              </div>
-              <div className="fact fact-wide">
-                <dt>Supported platforms</dt>
-                <dd>{platform ? platform.supported.map(platformLabel).join(' · ') : '—'}</dd>
-              </div>
-            </dl>
-            <AddToHomeScreen appName="Vela" forHub />
-            <div className="phone-setup-settings">
-              <Link className="btn" to="/?setup=phone">
-                Set up my phone
-              </Link>
-              <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
-            </div>
-          </section>
-
-          <section className="panel" hidden={active !== 'environments'}>
-            <div className="panel-head">
-              <h2>App Environments</h2>
-              <Link className="btn btn-small" to="/environments">
-                Open Environments
-              </Link>
-            </div>
-            <p className="panel-note">
-              Apps run in the local engine on this machine —{' '}
-              {engine
-                ? `${engine.apps_installed ?? 0} installed, ${engine.apps_running ?? 0} running.`
-                : 'status unavailable.'}
-            </p>
-          </section>
-
-          <section className="panel" hidden={active !== 'storage'}>
-            <div className="panel-head">
-              <h2>Storage</h2>
-            </div>
-            <dl className="fact-grid">
-              <div className="fact">
-                <dt>Used by Vela</dt>
-                <dd>{engine ? formatBytes(engine.storage_bytes) : '—'}</dd>
-              </div>
-              <div className="fact fact-wide">
-                <dt>Data directory</dt>
-                <dd className="mono">{engine?.data_dir || '—'}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="panel" hidden={active !== 'network'}>
-            <div className="panel-head">
-              <h2>Network</h2>
-            </div>
-            <dl className="fact-grid">
-              <div className="fact">
-                <dt>Engine endpoint</dt>
-                <dd className="mono">{engine?.endpoint || '—'}</dd>
-              </div>
-              <div className="fact">
-                <dt>API base</dt>
-                <dd className="mono">/api (same origin)</dd>
-              </div>
-              <div className="fact fact-wide">
-                <dt>App serving</dt>
-                <dd className="mono">
-                  /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
-                </dd>
-              </div>
-            </dl>
+          <section className="panel" id="settings-developer" hidden={active !== 'developer'}>
+            {locked ? (
+              <>
+                <div className="panel-head">
+                  <h2 tabIndex={-1} ref={lockedRef}>
+                    Developer tools are off
+                  </h2>
+                </div>
+                <p className="panel-note">
+                  App logs, system details and the tools for developing apps are hidden in this
+                  browser. Turning them on changes what you see here — it does not change any app’s
+                  permissions or start anything.
+                </p>
+                <div className="actions">
+                  <Button
+                    variant="primary"
+                    disabled={pending}
+                    onClick={() => setDeveloperTools(true)}
+                  >
+                    Enable developer tools
+                  </Button>
+                  <Button disabled={pending} onClick={() => setActive('general')}>
+                    Back to General
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="panel-head">
+                  <h2>Developer tools</h2>
+                  <Link className="btn btn-small" to="/environments">
+                    Open System
+                  </Link>
+                </div>
+                <p className="panel-note">
+                  App logs and per-app diagnostics live with each app, under App settings. This
+                  shows the server behind them.
+                </p>
+                <dl className="fact-grid">
+                  <div className="fact">
+                    <dt>Engine endpoint</dt>
+                    <dd className="mono">{engine?.endpoint || '—'}</dd>
+                  </div>
+                  <div className="fact">
+                    <dt>API base</dt>
+                    <dd className="mono">/api (same origin)</dd>
+                  </div>
+                  <div className="fact fact-wide">
+                    <dt>Data directory</dt>
+                    <dd className="mono">{engine?.data_dir || '—'}</dd>
+                  </div>
+                  <div className="fact fact-wide">
+                    <dt>App serving</dt>
+                    <dd className="mono">
+                      /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
+                    </dd>
+                  </div>
+                </dl>
+              </>
+            )}
           </section>
         </div>
         <footer className="settings-footer">

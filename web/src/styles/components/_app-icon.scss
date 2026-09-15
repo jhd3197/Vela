@@ -1,21 +1,44 @@
 /* ---------- App icon tiles ---------- */
 
+/* The tile carries the app's colour and the mark inside carries its shape, so
+   a row of apps is told apart by silhouette first and hue second. The ground
+   is a wash rather than a saturated gradient: it keeps the rail calm at small
+   sizes and leaves strong colour to mean "selected" rather than "an app".
+
+   Tones arrive as custom properties from `appTint.js`, already normalised for
+   lightness and mapped into sRGB, with the plain treatment as the fallback
+   for an app whose colour could not be read. */
+
 .appicon {
   display: grid;
   place-items: center;
   flex-shrink: 0;
   user-select: none;
-  color: #fff;
-  background: linear-gradient(
-    155deg,
-    color-mix(in oklab, var(--tile-color) 55%, white),
-    color-mix(in oklab, var(--tile-color) 86%, black)
-  );
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--tile-color) 32%, transparent);
+  color: var(--tile-mark, var(--text-dim));
+  background: var(--tile-wash, var(--bg-inset));
+  box-shadow: inset 0 0 0 1px var(--tile-line, var(--border));
 }
 
-.appicon-plain {
+.appicon svg {
+  display: block;
+  overflow: visible;
+}
+
+.appicon-monogram {
+  font-family: var(--font);
+}
+
+[data-theme='dark'] .appicon {
+  color: var(--tile-mark-dark, var(--text-dim));
+  background: var(--tile-wash-dark, var(--bg-inset));
+  box-shadow: inset 0 0 0 1px var(--tile-line-dark, var(--border));
+}
+
+/* An app with no colour of its own, and any caller that asks for the neutral
+   treatment explicitly. */
+.appicon-plain,
+[data-theme='dark'] .appicon-plain {
   color: var(--text-dim);
   background: linear-gradient(155deg, var(--bg-card), var(--bg-inset));
-  box-shadow: 0 0 0 1px var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
 }

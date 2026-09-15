@@ -20,8 +20,13 @@ use `source .venv/bin/activate`. Then:
 pip install -r requirements.txt
 npm --prefix web ci
 npm --prefix web run build
+python scripts/setup-automation-worker.py
 python -m vela --open-browser
 ```
+
+The automation step installs the workflow engine the automations feature runs in.
+Skipping it leaves the rest of Vela working; the automations page then explains
+that the runtime is missing. See [Automations](#automations).
 
 For live frontend development, leave the server running and run
 `npm --prefix web run dev` in another terminal. Open http://localhost:5173.
@@ -58,6 +63,7 @@ The dashboard lives in `web/src/`. Reuse these foundations when adding a feature
 | `engine.jsx` | One engine status provider shared by the shell and dashboard pages |
 | `pages/` | Page composition and feature-specific behavior |
 | `api.js`, `store.jsx`, `bridge/` | Authenticated host requests, shared app state, and the host/app boundary |
+| `automationsApi.js`, `components/automations/` | Automation requests and the embedded workflow editor |
 
 Run `npm --prefix web ci` after pulling dependency changes. Vite compiles SCSS
 during development and builds; server users need no Sass installation.
@@ -157,12 +163,21 @@ bar, declare `"view": {"surface": "embedded", "chrome": "hub"}` in `app.json`.
 `compact` (the default) and `seamless` keep their existing standalone chrome, so
 this is an explicit, per-app choice and nothing changes until a manifest opts in.
 
-For the appearance itself, copy `vela-app.css` and `vela-theme.js` from a
-generated app (`create-vela-app`) or from
+For the appearance itself, copy `vela-app.css`, `vela-theme.js` and
+`vela-viewport.js` from a generated app (`create-vela-app`) or from
 [vela-templates](https://github.com/jhd3197/vela-templates). They provide the
-server's surfaces, spacing and controls, and mirror the server's light/dark
-preference from the bridge context onto `data-vela-theme`. Override
-`--vela-accent` to keep the app's own identity.
+server's surfaces, spacing and controls, mirror the server's light/dark
+preference from the bridge context onto `data-vela-theme`, and mirror the
+reported viewport insets onto `--vela-inset-*`. Override `--vela-accent` to keep
+the app's own identity.
+
+Size the app to the frame it was given: `vela-app.css` uses `height: 100%` and
+shrinkable regions, not a viewport unit. Inside a frame `100dvh` is the frame's
+height, `env(safe-area-inset-*)` is zero, and the frame's own visual viewport
+describes the frame rather than the phone. The host sizes the frame to the
+workspace it can actually show and reports what it could not show; `.vela-layout`
+subtracts that once. Do not subtract it again lower down, and do not add a
+second estimate of the keyboard.
 [vela-notes](https://github.com/jhd3197/vela-notes) is the worked example of a
 list-plus-editor app using this layout. No host code, DOM or credentials are
 shared: the bridge already sends the theme, and the stylesheet is the app's own.
@@ -238,6 +253,64 @@ Use its `drawer-header`, `drawer-body` and `drawer-footer` sections for content.
 Keep permission reviews, saving and error messages in the feature itself.
 See app details, release review and the unsaved-work prompt for real consumers.
 
+### Layouts, touch and the viewport
+
+One service owns viewport measurement: `src/viewport.js`, started once in
+`main.jsx` and read through `hooks/useViewport.js`. It observes the visual
+viewport, coalesces events to one measurement per frame, notifies consumers only
+when a value they can see has changed, and publishes three custom properties on
+the document so most layout needs no React render at all:
+
+| Property | Meaning |
+| --- | --- |
+| `--vela-visible-height` | The height the browser is actually showing, in CSS pixels |
+| `--vela-visible-top` | Where that rectangle starts inside the layout viewport |
+| `--vela-keyboard-inset` | The bottom gap attributable to an on-screen keyboard |
+
+Always give these a fallback (`var(--vela-visible-height, 100dvh)`) so a page
+loaded before the service starts, or a browser without `VisualViewport`, still
+lays out. Do not add a listener of your own; subscribe to the service instead,
+so there is one measurement and one policy.
+
+A smaller visible rectangle is not proof of a keyboard. Browser chrome moves by
+about a toolbar's height, and pinch zoom can halve the rectangle while occluding
+nothing. `--vela-keyboard-inset` is non-zero only when a text entry holds focus,
+the page is not zoomed, and the remaining gap is large enough to be a keyboard —
+so a browser that already resized the layout is never charged twice. While the
+reader is zoomed, `--vela-visible-height` falls back to the layout viewport: a
+zoomed page keeps its layout and is panned, not reflowed.
+
+Subtract each inset exactly once, and say where:
+
+- `.shell` keeps the dynamic viewport. Keyboard-sensitive regions inside it, such
+  as Ask's workspace, subtract `--vela-keyboard-inset` themselves.
+- `.appview`, which renders outside the shell, is sized to the visible rectangle,
+  so an app frame inside it has nothing left to subtract.
+- Dialogs and drawers are in the top layer, outside ordinary shell layout, so
+  they apply the same geometry directly.
+- An app frame is told what remains occluded, in the frame's own coordinates, as
+  `context.viewport.insets`.
+
+Structural thresholds are named once in `styles/_breakpoints.scss`, with the
+reason for each, and mirrored in `src/breakpoints.js` for the few components
+that decide what to render rather than how to style it. Ordinary reflow — a grid
+that wants more columns, a header row that wraps — belongs to `auto-fit`,
+`flex-wrap` or a container query, not to a new threshold. Give an `auto-fit`
+track `minmax(min(240px, 100%), 1fr)` so it cannot outgrow a narrow container.
+
+`styles/layout/_mobile.scss` is imported last and owns the shared touch policy:
+a 16px floor on field text so iOS does not zoom on focus, `touch-action:
+manipulation` on ordinary controls while pinch zoom, panning and selection stay
+available, and `overscroll-behavior-y: contain` on each region that scrolls.
+Do not suppress selection, context menus or scrolling globally, and keep
+`touch-action: none` scoped to a surface that owns a custom gesture — the
+workflow canvas does this inside `.tr-canvas-v2`, with visible fit and zoom
+controls beside it.
+
+Do not remount an iframe, editor, conversation or canvas because its container
+crossed a threshold: keep the same instance, its unsaved text, its selection and
+its scroll position across the change.
+
 Keep app lifecycle operations in the existing app provider. Keep permission
 reviews, grants and migration decisions explicit in their feature components.
 New HTTP endpoints should call Vela's existing Python domain services; add
@@ -247,6 +320,75 @@ remain in sibling repositories, as described in [REPOSITORIES.md](REPOSITORIES.m
 Run the relevant [checks and browser suites](TESTING.md), including both themes
 and desktop/phone layouts for shared styles or controls. Add an Unreleased
 changelog entry for user behavior or contributor workflow changes.
+
+## Automations
+
+Automations are a Python service in `vela/automations/` plus a private Node worker
+in `scripts/automation-worker/`. Vela owns everything durable — saved workflows,
+revisions, permissions, schedules, runs and their events, all in
+`automations.sqlite` beside the app data. The worker only executes one approved
+revision at a time and asks Vela to perform every side effect.
+
+| Location | Responsibility |
+| --- | --- |
+| `automations/catalog.py` | The one vetted node catalog, shared by the editor, validation and the worker |
+| `automations/validate.py` | What may be stored as a draft, and what may be activated or run |
+| `automations/store.py` | SQLite: workflows, revisions, runs, events, grants, schedules, webhooks, approvals |
+| `automations/effects.py` | Permission checks and the app-action and notification effects |
+| `automations/worker.py` | Starting, supervising and stopping the Node worker |
+| `automations/service.py` | The run queue, the scheduler and the HTTP-facing behavior |
+| `scripts/automation-worker/` | The worker: its stdio protocol and its executor allow-list |
+
+Adding a step means changing three places that must agree: its definition in
+`catalog.py`, any extra rules in `validate.py`, and its executor in
+`scripts/automation-worker/src/executors.mjs`. A node type with no executor is
+refused rather than skipped, on both sides of the boundary.
+
+The dashboard embeds Tramo's own editor (`@tramo/editor`) with a registry built
+from the server's catalog, so the step picker can only offer what Vela will also
+validate and execute. Tramo's `--tr-*` variables are mapped to Vela's theme
+tokens in `styles/components/_automation-canvas.scss`, scoped to the editor.
+
+### Set up and update the runtime
+
+```bash
+python scripts/setup-automation-worker.py
+```
+
+This installs the pinned `@tramo/runtime` from npm and writes
+`scripts/automation-worker/provenance.json` recording where it came from. When
+that version is not published yet, pass a local Tramo checkout — a
+development-only path that is recorded as such in the provenance file:
+
+```bash
+python scripts/setup-automation-worker.py --tramo-source ../tramo
+```
+
+Tramo is developed in its own repository; see [REPOSITORIES.md](REPOSITORIES.md).
+Fix anything generic there rather than in Vela, and adopt it here by changing the
+pinned version.
+
+### What is deliberately excluded
+
+Tramo ships many more node types than Vela registers. The ones that compile
+configuration strings with `new Function` — `js-transform`, `if`, `switch`,
+`json-parse`, the loop family, the state variables, `call-flow` — and the ones
+that reach the network directly — `http-request`, `mcp-tool-call`, the AI nodes —
+are left out of the executor registry, not merely out of the picker. A separate
+process is isolation for crashes and lifetimes, not a sandbox; leaving an
+executor unregistered is what makes its node unreachable.
+
+### Ship the runtime in a download
+
+```bash
+python scripts/fetch-node-runtime.py
+```
+
+This downloads the pinned Node binary, verifies it against the official digest
+committed in that script, and puts it in `.local/node-runtime/`. `build-server.py`
+adds it and the worker to the bundle, and says which of the two is missing if a
+build would ship without automations. It adds roughly 80 MiB to the installed
+size and about 30 MiB to a download.
 
 ## Container build
 

@@ -1,0 +1,17 @@
+{
+  "name": "vela-automation-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Private supervised Node worker that executes approved Vela automation revisions with @tramo/runtime. Vela starts and stops it; it has no network listener and no Vela credentials.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "dependencies": {
+    "@tramo/runtime": "0.2.2"
+  },
+  "scripts": {
+    "test": "node --test test"
+  }
+}

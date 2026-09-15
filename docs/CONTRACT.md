@@ -112,8 +112,15 @@ supported. External and headless entries may declare an empty runtime object.
 renders no bars and retains a 44px-or-larger Vela menu outside the app. That
 menu can return, close, show the compact bar, or stop a managed process. A user
 compact preference persists per app. Failed loading retains host controls.
-The host reports viewport dimensions, visual insets and its control rectangle
-to the SDK; apps should avoid that rectangle. Closing never implies stopping.
+The host reports viewport dimensions, insets and its control rectangle to the
+SDK; apps should avoid that rectangle. `viewport.width`/`height` are the frame's
+own box, `visualHeight` is how much of that box is on screen, and `insets` are
+the parts of the frame the browser is not showing — browser chrome, a device
+safe area or an open keyboard — expressed in the frame's own coordinates, not
+the host's. A frame the host has already sized to the visible area therefore
+reports zero insets, so an app never subtracts the same keyboard twice. Inside a
+frame `env(safe-area-inset-*)` is zero and the frame's visual viewport describes
+the frame, so these values are the only source. Closing never implies stopping.
 Unsaved work supports save/discard/cancel and a save timeout. Native page
 unload uses the browser's confirmation.
 
@@ -263,9 +270,64 @@ the record import contract. Meals declares `data.legacyBundle` (`keys`, `field`,
 `schema`, `initial`); the hub validates its namespaced browser keys and retains
 each distinct bundle as an imported copy before the user applies it inside Meals.
 
-This is a synchronous app-action broker, not an automation scheduler or assistant
-integration. It runs no scripts, containers, arbitrary network calls or native
-code. See [the Meals and Notes guide](APPS.md#meals-and-notes).
+This is a synchronous app-action broker. It runs no scripts, containers,
+arbitrary network calls or native code. See
+[the Meals and Notes guide](APPS.md#meals-and-notes).
+
+An automation is the second kind of caller. It holds no app session and cannot
+declare requests in a manifest, so it authorizes differently while sharing the
+same transactional write: a grant binds one workflow to one action, to the inputs
+the user reviewed, to the target's manifest fingerprint and to its installation
+identity. Editing the granted step, updating the app or reinstalling it ends the
+grant, and authorization is rechecked inside the write transaction so a
+revocation stops a call already in flight. Automation receipts and activity
+entries use a caller id of `automation:{workflowId}`, which cannot collide with an
+app id. See [the automations guide](AUTOMATIONS.md).
+
+### Automation contract
+
+Automations are hub-authenticated; an app session cannot reach any of their
+endpoints. Vela owns saved workflows, their revisions, permissions, schedules,
+runs and events in `automations.sqlite`.
+
+- The document format is Tramo's `WorkflowDoc` (`version: 1`). Vela validates it
+  on save, import, activation and dispatch against one catalog of vetted step
+  types, and refuses anything else. A newer document version is refused rather
+  than downgraded.
+- A draft may be incomplete. Activating or running additionally requires exactly
+  one trigger at the root, every step reachable from it, every required setting
+  filled in, and every app action allowed.
+- Activation freezes the current revision. A run pins the revision, catalog
+  version and runtime it executed against; editing the draft afterwards never
+  changes a queued, running or waiting run.
+- Execution happens in a private Node worker on a versioned, bounded stdio
+  protocol. It receives the approved revision and nothing else — no hub token, no
+  app session, no data directory, no listening port — and asks Vela to perform
+  every side effect. It exits on its own if Vela stops talking to it.
+- Step types that evaluate configuration as code, or reach the network directly,
+  are excluded from the executor registry. Both the server and the worker refuse
+  an unknown step type instead of skipping it.
+- Vela is the only scheduler. One due moment is claimed once; occurrences that
+  pass while Vela is not running are skipped and reported, never replayed as a
+  burst. Webhook ingress authenticates with a per-workflow secret, is limited to
+  a 64 KiB JSON body, refuses an identical replay, and changes nothing about
+  Vela's bind, TLS or origin policy.
+
+| Endpoint | Authorization / behavior |
+| --- | --- |
+| `GET/POST /api/automations` | Hub; list with live state and statistics, or create |
+| `GET /api/automations/catalog` | Hub; vetted step definitions plus installed app actions |
+| `GET /api/automations/status` | Hub; runtime availability and the notification destination |
+| `GET/PUT/PATCH/DELETE /api/automations/{id}` | Hub; `PUT` takes the expected revision and returns 409 on conflict |
+| `POST /api/automations/{id}/activate|pause|archive|restore|duplicate` | Hub; activation requires an executable revision and current grants |
+| `GET /api/automations/{id}/export`, `POST /api/automations/import` | Hub; steps only — never permissions, schedules or secrets |
+| `PUT /api/automations/{id}/grants` | Hub; `{app, action, allow, requestContract, targetContract}`, rejecting a changed review |
+| `POST /api/automations/{id}/runs` | Hub; returns a run id immediately |
+| `POST /api/automations/{id}/webhook` | Hub; issues a new address and secret, shown once |
+| `GET /api/automations/runs`, `/runs/{runId}`, `/runs/{runId}/events` | Hub; durable history and ordered events |
+| `POST /api/automations/runs/{runId}/cancel` | Hub; stops future steps, never claims to undo finished ones |
+| `GET /api/automations/approvals`, `POST /api/automations/runs/{runId}/approvals/{gate}` | Hub; durable pending state and authenticated decisions |
+| `POST /api/automations/hooks/{tokenId}` | Per-workflow secret in `X-Vela-Automation-Secret`; starts that one workflow and nothing else |
 
 ### Release contract
 
@@ -309,7 +371,7 @@ managed by the operator; no automatic release-history pruning is implemented.
 
 ### Engine API details
 
-`GET /api/engine` â€” the "Local Engine" status powering the Environments UI:
+`GET /api/engine` â€” the "Local Engine" status powering the System UI:
 ```json
 {
   "status": "running",
@@ -721,36 +783,44 @@ purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
 restrained 14px card corners), in light and dark.
 
 - **Rail** (desktop, 62px): the Vela mark, then Home and Ask, then a shortcut
-  for every installed app in a stable name order, a separator, Library,
-  Automations, Apps and System, then Settings and — for a remote session —
-  Sign out. The open destination gets both a raised surface and an edge marker
-  plus `aria-current`; every icon is named on hover and keyboard focus. The
-  shortcut region scrolls so the utility controls stay reachable in a short
-  window.
-- **Phone**: there is no bottom bar. The header's navigation control opens a
-  drawer from the left edge that carries the same rail (icons, app shortcuts,
-  Settings) beside a second column: a labelled list of every destination and
-  installed app, or the open page's own panel — Ask puts its conversation
-  list there, so apps and conversations are one gesture away from the chat.
+  for every installed app in a stable name order, a separator, Library and a
+  **More** menu naming Automations and Manage apps (and System while developer
+  tools are on), then Settings and — for a remote session — Sign out. The open
+  destination gets both a raised surface and an edge marker plus `aria-current`;
+  every icon is named on hover and keyboard focus. The secondary menu closes on
+  Escape or an outside click and returns focus to its opener. The shortcut
+  region scrolls so the utility controls stay reachable in a short window.
+- **Phone**: there is no bottom bar. Home keeps the rail on screen at every
+  width — beside its content, never over it, and with no navigation control in
+  its header — so a ready app opens with one tap. Every other page's header
+  navigation control opens a drawer from the left edge that carries the same
+  rail (icons, app shortcuts, Settings) beside a second column: a labelled list
+  of every destination and installed app, or the open page's own panel — Ask
+  puts its conversation list there, so apps and conversations are one gesture
+  away from the chat.
 - **Workspace**: an optional context panel, a contextual header and the content
   surface. The header carries the ⌘K search palette (apps, settings entries and
-  same-origin mini-app data), the server address badge that doubles as the
-  connection indicator, and the notification bell. Pages that show their own
-  `<h1>` do not repeat it in the header; Ask and app workspaces do use it.
-- **Home** (`/`): a greeting, the date, the server version and the installed and
-  running counts; a tile grid of installed apps with one truthful secondary line
-  and an "Add an app" tile; widgets built from `GET /api/engine`; and a
-  getting-started banner while supported apps remain uninstalled. Placeholders
-  show while the first app list loads; the progress line animates only while a
-  lifecycle action is actually running.
-- **Apps** (`/apps`): installed apps as rows with Open (→ `/app/{id}`), Stop,
-  Uninstall and status. Filter tabs: All / Running / Not installed.
+  same-origin mini-app data) and the notification bell. A healthy server is not
+  reported: the header shows a “Can’t connect to Vela” notice with Retry only
+  when the engine resource has actually failed, and the server address badge
+  only while developer tools are on. Missing or still-loading data is neither.
+  Pages that show their own `<h1>` do not repeat it in the header; Ask and app
+  workspaces do use it.
+- **Home** (`/`): the app launcher. A greeting and the date, then a tile grid of
+  installed apps — each an Open control showing the app's own short purpose —
+  and one "Add an app" tile, with "Add your first app" as the empty state. No
+  engine counters, version strings, system widgets or second catalog promotion;
+  invented activity, recents or favorites are not substitutes for them.
+  Placeholders show while the first app list loads.
+- **Manage apps** (`/apps`): installed apps as rows leading to the detail
+  drawer, with status. Filter tabs: All / Running / Not installed.
 - **Library** (`/library`): catalog cards — icon tile, name, category and
   version, the app's own description, and the one action that applies (Open,
   Install, or a named update). Search, category chips with counts, a filter for
   pending updates, and a single "Add an app" dialog offering only supported
-  sources: a release archive, a folder on the server computer, or connecting an
-  HTTPS service. Manifest URLs and pasted JSON are not supported sources.
+  sources: "Install from file", "Connect a website", and — only while developer
+  tools are on — a folder on the server computer. Manifest URLs and pasted JSON
+  are not supported sources.
 - **Ask** (`/ask`, `/ask/{conversationId}`): a conversation panel with date
   groups, search, archived view and per-conversation rename/archive/delete; a
   contextual header with the conversation title, model and connection state; the
@@ -758,22 +828,46 @@ restrained 14px card corners), in light and dark.
 - **Embedded app view** (`/app/{id}`): versioned hub/compact/seamless
   presentation over an iframe of `/apps/{id}/`. `hub` renders inside the shell
   with the contextual header naming the app and no second app bar; `compact` and
-  `seamless` keep their own standalone chrome. If the app is installed but a
-  process app that is stopped, show a launch interstitial with a Launch button
-  instead of the iframe. A removed or unknown id recovers inside the shell.
-- **System** (`/environments`): the Local Engine card from `GET /api/engine` —
-  status dot and Running pill, endpoint, applications installed, storage used,
-  data directory — plus the running apps ("Manage" → Apps).
+  `seamless` keep their own standalone chrome, and each offers **App settings**.
+  If the app is installed but a process app that is stopped, show an
+  interstitial with one Open button instead of the iframe; nothing else — not
+  polling, a prefetch, a render effect or a passive visit — may start a process.
+  A removed or unknown id recovers inside the shell.
+- **System** (`/environments`): a developer destination. With developer tools
+  off the route stays valid and explains itself, offering an explicit "Enable
+  developer tools" action and a way back; visiting never enables it. With them
+  on: the Local Engine card from `GET /api/engine` — status dot and Running
+  pill, endpoint, applications installed, storage used, data directory — plus
+  the running apps.
 - **Settings**: a popup over the current screen with searchable categories for
-  Appearance, Chat & privacy, Local AI, Notifications, Backups, App environments,
-  Storage, Network and General. Theme previews and chat preferences save through
-  the settings API; notification connection details have an explicit Save action.
-  Switching categories keeps unsaved form entries. Existing `/settings#category`
-  links open the matching category over Home. General includes phone setup and
-  Home Screen installation. Backups can be created and verified through the API.
-- **App detail** (drawer, from any card): description, author, version, category,
-  status, actions, log tail for process apps, and the Add-to-Home-Screen section
-  for web apps.
+  General, Appearance, Chat & privacy, Local AI, Notifications, Backups &
+  storage, and Developer tools while that preference is on. Theme previews and
+  chat preferences save through the settings API; notification connection
+  details have an explicit Save action. Switching categories keeps unsaved form
+  entries. Existing `/settings#category` links open the matching category over
+  Home, with `#storage` → Backups & storage and `#network`/`#environments` →
+  Developer tools. General includes phone setup, Home Screen installation and
+  the developer-tools switch. Backups can be created and verified through the API.
+- **Developer tools**: one browser-local preference (`vela-developer-tools`),
+  off when absent and off for any unrecognized value, never inferred from the
+  host, user agent or installed apps. It is reactive and shared: switching it
+  updates navigation, search, settings, app menus and app details immediately,
+  without reloading, remounting an open app, discarding a draft, changing a
+  grant or touching app lifecycle. Unavailable storage falls back to memory for
+  the session and says so; another tab on the same origin is followed.
+- **App detail** (drawer, from any card): description, author, access and trust,
+  release history, the Add-to-Home-Screen section for web apps, the app's
+  permissions, and — under developer tools — a collapsed Diagnostics block.
+- **App settings** (drawer, from an app's own workspace): permissions,
+  connection setup, earlier-data import, update and removal, plus Diagnostics
+  under developer tools.
+- **App diagnostics**: one collapsed block per app holding identifiers, runtime,
+  process and start time, platform commands and ports, the log tail, manual
+  start/stop and the action execution history. It fetches nothing until opened.
+- **Permissions**: action requests are decisions, not diagnostics. They stay
+  available with developer tools off, a waiting decision is announced above the
+  app with a Review control, and the drawer names the requesting app, the
+  action, the app it happens in, and what Allow does and does not grant.
 - Poll `GET /api/apps` every 5s globally; `status` for the focused app; `engine`
   every 10s. All consumers share those requests; pages do not add their own.
 - All fetches relative `/api/...`; Vite proxy forwards `/api` and `/apps`.

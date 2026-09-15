@@ -71,7 +71,30 @@ export function listConversations({ query = '', archived = false, signal } = {})
   return json(`/api/chat/conversations${suffix}`, { signal });
 }
 
-export const createConversation = () => json('/api/chat/conversations', { method: 'POST' });
+/**
+ * Start a conversation. With no argument this is the pre-bots behaviour: a
+ * direct chat with the built-in Vela assistant.
+ */
+export const createConversation = (payload) =>
+  json('/api/chat/conversations', {
+    method: 'POST',
+    body: JSON.stringify(payload ?? { kind: 'direct', botId: 'vela' }),
+  });
+
+export const createRoom = ({ title, botIds, mode = 'mention', leadBotId = '', purpose = '' }) =>
+  createConversation({ kind: 'room', title, botIds, mode, leadBotId, purpose });
+
+/** Preview an unsaved bot with one message. Stores nothing and grants no tools. */
+export async function previewBot({ name, instructions, model, message, signal, onEvent }) {
+  const res = await hubFetch('/api/bots/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    signal,
+    body: JSON.stringify({ name, instructions, model, message, tools: [] }),
+  });
+  if (!res.ok || !res.body) throw await readError(res);
+  await consumeEvents(res, onEvent);
+}
 
 export const readConversation = (id, { signal } = {}) =>
   json(`/api/chat/conversations/${encodeURIComponent(id)}`, { signal });
@@ -93,7 +116,15 @@ export const importLegacyChat = (messages) =>
  * Calls onEvent(parsedJson) for each `data:` frame; resolves when the stream
  * ends. Aborts cleanly through the provided AbortSignal.
  */
-export async function streamChat({ message, conversationId, signal, onEvent }) {
+export async function streamChat({
+  message,
+  conversationId,
+  requestId,
+  recipients,
+  only,
+  signal,
+  onEvent,
+}) {
   let res;
   try {
     res = await hubFetch('/api/chat', {
@@ -103,6 +134,12 @@ export async function streamChat({ message, conversationId, signal, onEvent }) {
       body: JSON.stringify({
         messages: [{ role: 'user', content: message }],
         conversationId: conversationId ?? null,
+        // Identifies this send, so a retry of the same request resumes rather
+        // than producing a second set of answers.
+        requestId: requestId ?? null,
+        // Structured bot ids. Display names are never sent for routing.
+        recipients: recipients ?? [],
+        only: only ?? [],
       }),
     });
   } catch (err) {
@@ -110,7 +147,11 @@ export async function streamChat({ message, conversationId, signal, onEvent }) {
     throw new Error('Cannot reach the Vela backend.', { cause: err });
   }
   if (!res.ok || !res.body) throw await readError(res);
+  await consumeEvents(res, onEvent);
+}
 
+/** Read an SSE body and hand each `data:` frame to `onEvent`. */
+async function consumeEvents(res, onEvent) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

@@ -8,9 +8,12 @@ import {
   Plus,
   SidebarSimple,
   Trash,
+  UsersThree,
 } from '@phosphor-icons/react';
 import Button from './ui/Button.jsx';
 import Dialog from './ui/Dialog.jsx';
+import BotIcon from './bots/BotIcon.jsx';
+import BotsList from './bots/BotsList.jsx';
 
 // Date groups are derived from each conversation's own timestamp; nothing here
 // is a fabricated bucket.
@@ -122,7 +125,29 @@ function DeleteDialog({ conversation, onClose, onConfirm }) {
   );
 }
 
-function ConversationRow({ conversation, active, onSelect, onRename, onArchive, onDelete }) {
+// A room row shows who is in it, so the list distinguishes a three-bot room
+// from a chat at a glance.
+function RoomBadges({ conversation, botsById }) {
+  const members = (conversation.botIds ?? []).map((id) => botsById.get(id)).filter(Boolean);
+  if (!members.length) return null;
+  return (
+    <span className="room-badges" aria-hidden="true">
+      {members.map((bot) => (
+        <BotIcon key={bot.id} bot={bot} size={11} />
+      ))}
+    </span>
+  );
+}
+
+function ConversationRow({
+  conversation,
+  active,
+  botsById,
+  onSelect,
+  onRename,
+  onArchive,
+  onDelete,
+}) {
   const [menu, setMenu] = useState(false);
   const menuRef = useRef(null);
   const trigger = useRef(null);
@@ -153,8 +178,19 @@ function ConversationRow({ conversation, active, onSelect, onRename, onArchive, 
         aria-current={active ? 'true' : undefined}
         onClick={() => onSelect(conversation)}
       >
-        <span className="conversation-title">{conversation.title}</span>
+        <span className="conversation-title">
+          {conversation.kind === 'room' && (
+            <UsersThree size={13} className="conversation-kind" aria-label="Room" />
+          )}
+          {conversation.kind !== 'room' && botsById.get(conversation.botId) && (
+            <BotIcon bot={botsById.get(conversation.botId)} size={12} />
+          )}
+          {conversation.title}
+        </span>
         <span className="conversation-meta">
+          {conversation.kind === 'room' && (
+            <RoomBadges conversation={conversation} botsById={botsById} />
+          )}
           {conversation.preview ||
             `${conversation.messageCount} ${conversation.messageCount === 1 ? 'message' : 'messages'}`}
         </span>
@@ -237,9 +273,64 @@ export default function ConversationPanel({
   onCollapse,
   model,
   reachable,
+  tab = 'chats',
+  onTab,
+  builtin,
+  bots = [],
+  botsLoading = false,
+  botsError = '',
+  onNewBot,
+  onEditBot,
+  onDuplicateBot,
+  onArchiveBot,
+  onDeleteBot,
+  onChatWithBot,
+  onNewRoom,
 }) {
   const [renaming, setRenaming] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const botsById = new Map([
+    ...(builtin ? [[builtin.id, builtin]] : []),
+    ...bots.map((bot) => [bot.id, bot]),
+  ]);
+  const rooms = conversations.filter((conversation) => conversation.kind === 'room');
+  const chats = conversations.filter((conversation) => conversation.kind !== 'room');
+  const shown = tab === 'rooms' ? rooms : chats;
+
+  const renderList = (items) => (
+    <>
+      {historyEnabled && !loading && !error && items.length === 0 && (
+        <p className="panel-note">
+          {query
+            ? `No ${tab === 'rooms' ? 'room' : 'conversation'} matches “${query}”.`
+            : showArchived
+              ? 'Nothing is archived.'
+              : tab === 'rooms'
+                ? 'Rooms you create will be listed here.'
+                : 'Your conversations will be listed here.'}
+        </p>
+      )}
+      {group(items).map((section) => (
+        <div className="conversation-group" key={section.label}>
+          <p className="section-head">{section.label}</p>
+          <ul>
+            {section.items.map((conversation) => (
+              <ConversationRow
+                key={conversation.id}
+                conversation={conversation}
+                active={conversation.id === activeId}
+                botsById={botsById}
+                onSelect={onSelect}
+                onRename={setRenaming}
+                onArchive={onArchive}
+                onDelete={setDeleting}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </>
+  );
 
   return (
     <aside
@@ -264,13 +355,45 @@ export default function ConversationPanel({
         )}
       </div>
 
-      <div className="conversation-panel-new">
-        <Button variant="primary" block onClick={onNew}>
-          <Plus size={15} aria-hidden="true" /> New conversation
-        </Button>
+      <div className="conversation-tabs" role="tablist" aria-label="Ask sections">
+        {[
+          ['chats', 'Chats'],
+          ['bots', 'Bots'],
+          ['rooms', 'Rooms'],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`ask-tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls={`ask-panel-${key}`}
+            className={tab === key ? 'is-active' : ''}
+            onClick={() => onTab?.(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {historyEnabled && (
+      {tab !== 'bots' && (
+        <div className="conversation-panel-new">
+          <Button
+            variant="primary"
+            block
+            onClick={tab === 'rooms' ? onNewRoom : onNew}
+            disabled={tab === 'rooms' && bots.length < 2}
+          >
+            <Plus size={15} aria-hidden="true" />{' '}
+            {tab === 'rooms' ? 'New room' : 'New conversation'}
+          </Button>
+          {tab === 'rooms' && bots.length < 2 && (
+            <p className="panel-note">A room needs at least two of your own bots.</p>
+          )}
+        </div>
+      )}
+
+      {historyEnabled && tab !== 'bots' && (
         <div className="conversation-panel-search">
           <div className="searchbox">
             <MagnifyingGlass className="searchbox-icon" size={14} aria-hidden="true" />
@@ -293,50 +416,47 @@ export default function ConversationPanel({
         </div>
       )}
 
-      <div className="conversation-list">
-        {!historyEnabled && (
-          <p className="panel-note">
-            Chat history is turned off, so conversations are not saved. Turn it on in Settings under
-            Chat &amp; privacy to keep them.
-          </p>
+      <div
+        className="conversation-list"
+        role="tabpanel"
+        id={`ask-panel-${tab}`}
+        aria-labelledby={`ask-tab-${tab}`}
+      >
+        {tab === 'bots' ? (
+          <BotsList
+            builtin={builtin}
+            bots={bots}
+            loading={botsLoading}
+            error={botsError}
+            onChat={onChatWithBot}
+            onNew={onNewBot}
+            onEdit={onEditBot}
+            onDuplicate={onDuplicateBot}
+            onArchive={onArchiveBot}
+            onDelete={onDeleteBot}
+          />
+        ) : (
+          <>
+            {!historyEnabled && (
+              <p className="panel-note">
+                Chat history is turned off, so conversations are not saved. Your bots and rooms are
+                kept as settings. Turn history on in Settings under Chat &amp; privacy to keep
+                transcripts.
+              </p>
+            )}
+            {historyEnabled && loading && (
+              <p className="panel-note" role="status">
+                Loading conversations…
+              </p>
+            )}
+            {historyEnabled && error && (
+              <p className="panel-note" role="alert">
+                {error}
+              </p>
+            )}
+            {renderList(shown)}
+          </>
         )}
-        {historyEnabled && loading && (
-          <p className="panel-note" role="status">
-            Loading conversations…
-          </p>
-        )}
-        {historyEnabled && error && (
-          <p className="panel-note" role="alert">
-            {error}
-          </p>
-        )}
-        {historyEnabled && !loading && !error && conversations.length === 0 && (
-          <p className="panel-note">
-            {query
-              ? `No conversation matches “${query}”.`
-              : showArchived
-                ? 'Nothing is archived.'
-                : 'Your conversations will be listed here.'}
-          </p>
-        )}
-        {group(conversations).map((section) => (
-          <div className="conversation-group" key={section.label}>
-            <p className="section-head">{section.label}</p>
-            <ul>
-              {section.items.map((conversation) => (
-                <ConversationRow
-                  key={conversation.id}
-                  conversation={conversation}
-                  active={conversation.id === activeId}
-                  onSelect={onSelect}
-                  onRename={setRenaming}
-                  onArchive={onArchive}
-                  onDelete={setDeleting}
-                />
-              ))}
-            </ul>
-          </div>
-        ))}
       </div>
 
       <p className="conversation-panel-foot">Runs on this machine</p>

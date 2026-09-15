@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import Drawer from './ui/Drawer.jsx';
 import ReleaseHistory from './ReleaseHistory.jsx';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { X } from '@phosphor-icons/react';
-import { api, isWebApp, isProcessApp, platformLabel } from '../api.js';
+import { api, isWebApp, isProcessApp } from '../api.js';
 import { useAppStatus, useApps } from '../store.jsx';
+import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import AddToHomeScreen from './AddToHomeScreen.jsx';
+import AppPermissions from './AppPermissions.jsx';
+import AppDiagnostics from './AppDiagnostics.jsx';
 import ConnectedAppForm from './ConnectedAppForm.jsx';
 
-// App detail drawer: description, author, version, category, live status
-// (3s poll), log tail for process apps, Add-to-Home-Screen for web apps.
-// Open navigates to the embedded view — never to a port.
+// App detail drawer: what the app is, who wrote it, what it can reach, what it
+// may do in other apps, and the actions that apply to it. Identifiers, the
+// process, its logs and its execution history are diagnostics, so they load on
+// request under Developer tools. Open goes through the shared Open action —
+// never to a port, and never starting anything the user did not ask for.
 export default function AppDetailDrawer(props) {
   if (props.app?.kind === 'connected-web')
     return <ConnectedAppDetail key={props.app.id} {...props} />;
@@ -20,7 +25,7 @@ export default function AppDetailDrawer(props) {
 }
 
 function ConnectedAppDetail({ app, onClose }) {
-  const navigate = useNavigate();
+  const { openApp } = useApps();
   const location = useLocation();
   const [editing, setEditing] = useState(false);
   return (
@@ -56,9 +61,7 @@ function ConnectedAppDetail({ app, onClose }) {
             className="btn btn-primary"
             onClick={() => {
               onClose();
-              navigate(`/app/${app.id}`, {
-                state: { returnTo: location.pathname + location.search },
-              });
+              openApp(app.id, { returnTo: location.pathname + location.search });
             }}
           >
             Open
@@ -82,17 +85,16 @@ function ConnectedAppDetail({ app, onClose }) {
 }
 
 function PackageAppDetail({ app, busy, onAction, onClose }) {
-  const navigate = useNavigate();
-  const { refreshApps } = useApps();
+  const { openApp, openingId, refreshApps } = useApps();
+  const developer = useDeveloperTools();
   const [upgradeError, setUpgradeError] = useState('');
   const [upgrading, setUpgrading] = useState(false);
   const location = useLocation();
   const [detail, setDetail] = useState(null);
-  const { status, statusError } = useAppStatus(app?.id, { enabled: Boolean(app) });
-  const logRef = useRef(null);
+  const { status } = useAppStatus(app?.id, { enabled: Boolean(app) });
   const closeButton = useRef(null);
   const appId = app?.id;
-  const pending = busy || upgrading;
+  const pending = busy || upgrading || openingId === appId;
 
   useEffect(() => {
     if (!appId) return undefined;
@@ -111,23 +113,16 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
     };
   }, [appId]);
 
-  // Keep the log tail pinned to the bottom as new lines arrive.
-  useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [status?.logs]);
-
   if (!app) return null;
 
   const webApp = isWebApp(detail ?? app);
-  const manifestPlatforms = detail?.manifest?.platforms || null;
   const live = status
     ? { ...app, installed: status.installed, running: status.running, url: status.url }
     : app;
 
   const openEmbedded = () => {
     onClose();
-    navigate(`/app/${app.id}`, { state: { returnTo: location.pathname + location.search } });
+    openApp(app.id, { returnTo: location.pathname + location.search });
   };
 
   return (
@@ -165,7 +160,7 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
       <div className="drawer-body">
         <div className="drawer-row">
           <StatusBadge app={live} />
-          {live.running && (
+          {live.running && developer && (
             <span className="drawer-running-note">Running locally inside the hub</span>
           )}
         </div>
@@ -181,8 +176,6 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
                 <dd>{app.author}</dd>
               </>
             )}
-            <dt>App ID</dt>
-            <dd className="mono">{app.id}</dd>
             <dt>Access</dt>
             <dd>
               {isProcessApp(app)
@@ -193,29 +186,12 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
                     : 'No engine data access'
                   : 'Trusted legacy app'}
             </dd>
-            {webApp ? (
+            {webApp && (
               <>
                 <dt>Type</dt>
                 <dd>
                   {app.schemaVersion === 2 ? 'Static app — isolated view' : 'Legacy web app (PWA)'}
                 </dd>
-                <dt>Installed</dt>
-                <dd>{live.installed ? 'Yes' : 'No'}</dd>
-              </>
-            ) : (
-              <>
-                {status?.pid != null && (
-                  <>
-                    <dt>PID</dt>
-                    <dd className="mono">{status.pid}</dd>
-                  </>
-                )}
-                {status?.started_at && (
-                  <>
-                    <dt>Started</dt>
-                    <dd>{new Date(status.started_at).toLocaleString()}</dd>
-                  </>
-                )}
               </>
             )}
           </dl>
@@ -223,54 +199,16 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
 
         {webApp && app.schemaVersion !== 2 && <AddToHomeScreen appName={app.name} />}
 
-        {manifestPlatforms && (
-          <section className="drawer-section">
-            <h3 className="drawer-section-title">Platforms</h3>
-            <ul className="drawer-platforms">
-              {Object.entries(manifestPlatforms).map(([key, cfg]) => (
-                <li key={key} className={cfg ? '' : 'platform-unsupported'}>
-                  <span className="platform-name">{platformLabel(key)}</span>
-                  {cfg ? (
-                    <span className="mono platform-detail">
-                      {key === 'web'
-                        ? `entry ${cfg.entry || 'index.html'}`
-                        : `${cfg.port != null ? `port ${cfg.port}` : 'no port'}${cfg.run ? ` · ${cfg.run}` : ''}`}
-                    </span>
-                  ) : (
-                    <span className="platform-detail">unsupported</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         <ReleaseHistory app={app} />
-        {isProcessApp(app) && (
-          <section className="drawer-section">
-            <h3 className="drawer-section-title">Logs</h3>
-            {statusError ? (
-              <p className="drawer-log-empty">Status unavailable: {statusError}</p>
-            ) : status?.logs ? (
-              <pre ref={logRef} className="drawer-log mono">
-                {status.logs}
-              </pre>
-            ) : (
-              <p className="drawer-log-empty">
-                {status?.running
-                  ? 'No log output yet.'
-                  : 'Logs appear here while the app is running.'}
-              </p>
-            )}
-          </section>
-        )}
+        {live.installed && <AppPermissions app={app} />}
+        {developer && live.installed && <AppDiagnostics app={app} />}
       </div>
 
       <div className="drawer-footer">
         {app.upgradeAvailable && (
           <p>
-            A new SDK version is available. Your earlier browser records and installed package are
-            retained.
+            A newer build of {app.name} is available. Your existing records and the installed
+            package are kept.
           </p>
         )}
         {upgradeError && <p role="alert">{upgradeError}</p>}
@@ -291,12 +229,12 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
                 }
               }}
             >
-              Upgrade to SDK version
+              Update app
             </button>
           )}
           {app.supported && live.installed && (
             <button className="btn btn-primary" disabled={pending} onClick={openEmbedded}>
-              Open
+              {openingId === app.id ? 'Opening…' : 'Open'}
             </button>
           )}
           {app.supported && !live.installed && (
@@ -308,23 +246,13 @@ function PackageAppDetail({ app, busy, onAction, onClose }) {
               Install
             </button>
           )}
-          {app.supported && live.installed && !live.running && (
-            <button className="btn" disabled={pending} onClick={() => onAction(app.id, 'launch')}>
-              Launch
-            </button>
-          )}
-          {app.supported && live.running && isProcessApp(app) && (
-            <button className="btn" disabled={pending} onClick={() => onAction(app.id, 'stop')}>
-              Stop
-            </button>
-          )}
           {app.supported && live.installed && (
             <button
               className="btn btn-danger"
               disabled={pending}
               onClick={() => onAction(app.id, 'uninstall')}
             >
-              Uninstall
+              Remove
             </button>
           )}
         </div>

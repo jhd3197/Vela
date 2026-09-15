@@ -8,9 +8,12 @@ import Shell from '../components/Shell.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import AppDataMigration from '../components/AppDataMigration.jsx';
 import AppConnection from '../components/AppConnection.jsx';
-import AppActions from '../components/AppActions.jsx';
+import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
+import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { createBridge } from '../bridge/host.js';
+import useViewport from '../hooks/useViewport.js';
+import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
 
 export default function AppView() {
@@ -27,7 +30,7 @@ export default function AppView() {
 function Workspace({ id, retry }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { apps, busyIds, runAction } = useApps();
+  const { apps, busyIds, openApp, openingId, runAction } = useApps();
   const { status } = useAppStatus(id);
   const summary = apps?.find((item) => item.id === id);
   const app = summary && { ...summary, ...status };
@@ -50,14 +53,13 @@ function Workspace({ id, retry }) {
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [dirty, setDirty] = useState({ dirty: false, canSave: false });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [visualViewport, setVisualViewport] = useState(() => ({
-    height: window.visualViewport?.height || innerHeight,
-    top: window.visualViewport?.offsetTop || 0,
-  }));
+  // One host-owned measurement, shared with the shell and every other consumer.
+  const view = useViewport();
   const frame = useRef(null),
     exitControl = useRef(null),
     bridge = useRef(null),
@@ -84,10 +86,15 @@ function Workspace({ id, retry }) {
   const leaveRef = useRef(requestLeave);
   leaveRef.current = requestLeave;
 
+  // The frame's own box, and how much of it the browser is not showing. Host
+  // offsets are in the host's coordinate space, so they are converted here
+  // rather than handed to the app to reinterpret.
   function viewportContext() {
     const box = mode === 'seamless' ? exitControl.current?.getBoundingClientRect() : null;
     const frameBox = frame.current?.getBoundingClientRect();
-    const viewport = window.visualViewport;
+    const state = view;
+    const visible = visibleRect(state);
+    const usable = frameBox ? intersectRect(frameBox, visible) : null;
     return {
       installationId: session?.installationId,
       protocol: 1,
@@ -99,16 +106,10 @@ function Workspace({ id, retry }) {
       viewport: {
         width: frame.current?.clientWidth || innerWidth,
         height: frame.current?.clientHeight || innerHeight,
-        visualHeight: viewport?.height || innerHeight,
-        insets: {
-          top: viewport?.offsetTop || 0,
-          left: viewport?.offsetLeft || 0,
-          bottom: Math.max(
-            0,
-            innerHeight - (viewport?.height || innerHeight) - (viewport?.offsetTop || 0),
-          ),
-          right: 0,
-        },
+        visualHeight: usable ? usable.height : state.height || innerHeight,
+        insets: frameBox
+          ? occlusionOf(frameBox, visible)
+          : { top: 0, right: 0, bottom: 0, left: 0 },
         hostControl: box
           ? {
               x: box.x - (frameBox?.x || 0),
@@ -166,34 +167,19 @@ function Workspace({ id, retry }) {
     resize.observe(frame.current);
     const theme = new MutationObserver(update);
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
     return () => {
       active.close();
       bridge.current = null;
       resize.disconnect();
       theme.disconnect();
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
     };
   }, [session, running]);
 
+  // The shared service already coalesces viewport events; the app only needs
+  // the resulting geometry once it settles.
   useEffect(() => {
     bridge.current?.updateContext(contextRef.current());
-  }, [mode]);
-  useEffect(() => {
-    const update = () =>
-      setVisualViewport({
-        height: window.visualViewport?.height || innerHeight,
-        top: window.visualViewport?.offsetTop || 0,
-      });
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
-    };
-  }, []);
+  }, [mode, view]);
   useEffect(() => {
     const warn = (event) => {
       if (dirtyRef.current.dirty) {
@@ -241,10 +227,7 @@ function Workspace({ id, retry }) {
     }
   };
   const content = (
-    <div
-      className={`appview appview-${mode}`}
-      style={mode !== 'hub' ? { height: visualViewport.height } : undefined}
-    >
+    <div className={`appview appview-${mode}`}>
       {mode === 'compact' && (
         <header className="appview-chrome">
           <button
@@ -265,13 +248,9 @@ function Workspace({ id, retry }) {
               Hide app bar
             </button>
           )}
-          {app?.running && isProcessApp(app) && (
-            <button
-              className="btn btn-small"
-              disabled={busyIds.has(id)}
-              onClick={() => runAction(id, 'stop')}
-            >
-              Stop
+          {app?.installed && (
+            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
+              App settings
             </button>
           )}
           <button className="btn btn-small" onClick={requestLeave}>
@@ -280,7 +259,7 @@ function Workspace({ id, retry }) {
         </header>
       )}
       {mode === 'seamless' && (
-        <div className="appview-exit" ref={exitControl} style={{ marginTop: visualViewport.top }}>
+        <div className="appview-exit" ref={exitControl}>
           <button
             ref={menuButton}
             className="btn appview-exit-button"
@@ -297,9 +276,14 @@ function Workspace({ id, retry }) {
               <button onClick={requestLeave}>Return to apps</button>
               <button onClick={requestLeave}>Close app view</button>
               <button onClick={toggleCompact}>Show compact bar</button>
-              {isProcessApp(app) && app?.running && (
-                <button disabled={busyIds.has(id)} onClick={() => runAction(id, 'stop')}>
-                  Stop backend
+              {app?.installed && (
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    setSettingsOpen(true);
+                  }}
+                >
+                  App settings
                 </button>
               )}
             </div>
@@ -312,8 +296,8 @@ function Workspace({ id, retry }) {
         </div>
       )}
       {app?.installed && <AppDataMigration app={app} />}
-      {app?.installed && <AppConnection app={app} />}
-      {app?.installed && <AppActions app={app} />}
+      {app?.installed && <AppConnection app={app} setupOnly />}
+      {app?.installed && <PermissionNotice app={app} onReview={() => setSettingsOpen(true)} />}
       {apps !== null && !app && (
         <div className="appview-interstitial">
           <h2>App not found</h2>
@@ -338,13 +322,14 @@ function Workspace({ id, retry }) {
       )}
       {app?.installed && !app.running && isProcessApp(app) && (
         <div className="appview-interstitial">
-          <h2>{app.name} is stopped</h2>
+          <h2>{app.name} is not running</h2>
+          <p>Opening it starts {app.name} on this computer.</p>
           <button
             className="btn btn-primary"
-            disabled={busyIds.has(id)}
-            onClick={() => runAction(id, 'launch')}
+            disabled={busyIds.has(id) || openingId === id}
+            onClick={() => openApp(id, { returnTo: returnTo.current })}
           >
-            Launch {app.name}
+            {openingId === id ? `Opening ${app.name}…` : `Open ${app.name}`}
           </button>
         </div>
       )}
@@ -438,6 +423,9 @@ function Workspace({ id, retry }) {
           </button>
         </div>
       </Dialog>
+      {settingsOpen && app?.installed && (
+        <AppSettingsDrawer app={app} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
   if (mode !== 'hub') return content;
@@ -448,26 +436,12 @@ function Workspace({ id, retry }) {
       <WorkspacePage
         scroll={false}
         title={app?.name || (missing ? 'App unavailable' : 'App')}
-        subtitle={
-          app?.installed
-            ? isProcessApp(app)
-              ? app.running
-                ? 'Running locally'
-                : 'Stopped'
-              : app.version
-                ? `v${app.version}`
-                : 'Installed'
-            : undefined
-        }
+        subtitle={app?.description || undefined}
         lead={app ? <AppIcon app={app} size={26} /> : null}
         actions={
-          app?.running && isProcessApp(app) ? (
-            <button
-              className="btn btn-small"
-              disabled={busyIds.has(id)}
-              onClick={() => runAction(id, 'stop')}
-            >
-              Stop
+          app?.installed ? (
+            <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
+              App settings
             </button>
           ) : null
         }

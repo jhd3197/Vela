@@ -14,8 +14,54 @@ from urllib.request import Request, build_opener, ProxyHandler
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def check_automations(request, hub):
+    """Run a real workflow on the runtime that shipped inside this download.
+
+    The point is that nothing else is installed on this machine: no sibling
+    checkout, no Node on PATH. If the runtime was not bundled, say so plainly
+    instead of passing quietly.
+    """
+    status = json.loads(request('/api/automations/status', headers=hub))
+    if not status['available']:
+        raise AssertionError('Packaged server cannot run automations: ' + str(status['detail']))
+    assert 'node-runtime' in Path(status['node']).as_posix(), (
+        f"Packaged server used {status['node']} instead of its bundled runtime")
+    created = json.loads(request('/api/automations', 'POST', {'name': 'Bundle check'}, hub))
+    document = {
+        'version': 1,
+        'meta': {},
+        'nodes': [
+            {'id': 'start', 'type': 'manual-trigger', 'config': {'payload': '{"name": "Vela"}'}},
+            {'id': 'say', 'type': 'template', 'config': {'template': 'Hello {{name}}'}},
+            {'id': 'note', 'type': 'log', 'config': {'level': 'info', 'prefix': 'bundle'}},
+        ],
+        'edges': [{'id': 'e1', 'source': 'start', 'target': 'say'},
+                  {'id': 'e2', 'source': 'say', 'target': 'note'}],
+    }
+    saved = json.loads(request('/api/automations/' + created['id'], 'PUT',
+                               {'revision': created['documentRevision'], 'document': document}, hub))
+    assert saved['draftProblems'] == [], saved['draftProblems']
+    run = json.loads(request('/api/automations/' + created['id'] + '/runs', 'POST', {}, hub))
+    for _ in range(300):
+        detail = json.loads(request('/api/automations/runs/' + run['id'], headers=hub))
+        if detail['status'] not in ('queued', 'running'):
+            break
+        time.sleep(0.2)
+    else:
+        raise AssertionError('Automation run did not finish inside the packaged server')
+    assert detail['status'] == 'succeeded', f"Automation run {detail['status']}: {detail['error']}"
+    logged = [event for event in detail['events']
+              if event['type'] == 'node-log' and event['nodeId'] == 'note']
+    assert logged and logged[0]['data'] == 'Hello Vela', logged
+    worker = detail['runtime']['worker']
+    print(f"       automations ran on bundled Node {worker['node']} with tramo {worker['tramo']}")
+
+
 def main():
-    with tempfile.TemporaryDirectory(prefix='vela-server-smoke-') as temporary:
+    # The automation runtime can still hold its executable for a moment after the
+    # server stops, so a failed cleanup must not be read as a failed smoke test.
+    with tempfile.TemporaryDirectory(prefix='vela-server-smoke-',
+                                     ignore_cleanup_errors=True) as temporary:
         work = Path(temporary)
         shutil.copytree(ROOT / '.local/server-build/dist/Vela', work / 'Vela')
         executable = work / 'Vela' / ('Vela.exe' if os.name == 'nt' else 'Vela')
@@ -25,6 +71,10 @@ def main():
             port = listener.getsockname()[1]
         env = {k: v for k, v in os.environ.items()
                if not k.startswith(('VELA_', 'PYTHON', 'VIRTUAL_ENV'))}
+        # Prove the download does not depend on a developer's Node installation.
+        env['PATH'] = os.pathsep.join(
+            entry for entry in env.get('PATH', '').split(os.pathsep)
+            if entry and 'node' not in entry.lower())
         env['VELA_DATA_DIR'] = str(work / 'data')
         base = f'http://127.0.0.1:{port}'
         opener = build_opener(ProxyHandler({}))
@@ -64,7 +114,9 @@ def main():
                 app = {'Authorization': 'Bearer ' + session['token']}
                 request('/api/app/storage', 'PUT', {'value': {'messages': []}, 'revision': 0}, app)
                 assert json.loads(request('/api/app/storage', headers=app))['value'] == {'messages': []}
-                print('PASS: relocated server starts, serves dashboard/assets, validates and installs an app, serves SDK, and stores app data')
+                check_automations(request, hub)
+                print('PASS: relocated server starts, serves dashboard/assets, validates and installs an app, '
+                      'serves SDK, stores app data, and runs an automation on its bundled runtime')
             except Exception:
                 output.flush()
                 print((work / 'server.log').read_text(encoding='utf-8'))

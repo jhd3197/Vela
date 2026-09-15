@@ -144,6 +144,27 @@
   text-overflow: ellipsis;
 }
 
+/* A confirmed connection failure, with its recovery action. Unlike the
+   developer host badge it stays visible at phone widths, because it is the
+   one thing the person can act on. */
+.connection-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.connection-alert svg {
+  color: var(--red);
+  flex: none;
+}
+
 .icon-btn {
   display: grid;
   place-items: center;

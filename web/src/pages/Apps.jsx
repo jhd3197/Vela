@@ -15,9 +15,10 @@ const FILTERS = [
   { key: 'not-installed', label: 'Not installed' },
 ];
 
-// Apps page per the "All apps" prototype: a segmented filter, installed
-// apps grouped in one card list, available apps below, and a dashed
-// "Add an app" row that leads to the Library. Rows open the detail drawer.
+// Manage apps: the maintenance surface behind Home. A segmented filter,
+// installed apps in one card list, available apps below, and a dashed
+// "Add an app" row that leads to the Library. Rows open the detail drawer,
+// where an app is opened, updated or removed.
 export default function Apps() {
   const { apps, busyIds, runAction } = useApps();
   const [filter, setFilter] = useState(() => sessionStorage.getItem('vela.apps.filter') || 'all');
@@ -45,8 +46,8 @@ export default function Apps() {
     <WorkspacePage>
       <div className="page-inner">
         <PageHeader
-          title="Apps"
-          description="Everything on this machine — open, stop, or remove."
+          title="Manage apps"
+          description="Everything on this computer — open, update or remove."
           actions={
             <div className="seg" role="tablist">
               {FILTERS.map((f) => (
@@ -71,7 +72,7 @@ export default function Apps() {
             title={filter === 'all' ? 'No apps yet' : 'Nothing here'}
             description={
               filter === 'all'
-                ? 'Install apps from the Library and they will show up here.'
+                ? 'Apps you add from the Library show up here.'
                 : 'No apps match this filter right now.'
             }
           >
