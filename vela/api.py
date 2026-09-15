@@ -144,6 +144,32 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class QuickEnrollRequest(BaseModel):
+    """Enable or change app lock. The secret is validated by `vela.access`."""
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=256)
+    method: str = Field(pattern="^(pin|pattern)$")
+    # A six-digit string, or the drawn dot order. Never stored or logged.
+    secret: str | list[int] = Field(union_mode="left_to_right")
+
+
+class QuickTimeoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=256)
+    timeout: int
+
+
+class QuickDisableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=256)
+
+
+class QuickUnlockRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    secret: str | list[int] | None = Field(default=None, union_mode="left_to_right")
+    password: str | None = Field(default=None, max_length=256)
+
+
 class PhoneAccessRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     address: str = Field(min_length=1, max_length=64)
@@ -380,6 +406,41 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         response = JSONResponse({"ok": True})
         response.delete_cookie("__Host-vela-session", secure=True, httponly=True, samesite="strict", path="/")
         return response
+
+    # ----------------------------------------------------------- app lock
+    #
+    # Reauthentication for a session that is already signed in, enforced by the
+    # middleware rather than by the page. See the local plan for the contract.
+
+    @app.get("/api/security")
+    def security_status(request: Request):
+        return auth.quick_status(request)
+
+    @app.post("/api/security/enroll")
+    def security_enroll(payload: QuickEnrollRequest, request: Request):
+        return auth.enroll_quick(request, payload.password, payload.method, payload.secret)
+
+    @app.patch("/api/security")
+    def security_timeout(payload: QuickTimeoutRequest, request: Request):
+        return auth.update_quick(request, payload.password, payload.timeout)
+
+    @app.delete("/api/security")
+    def security_disable(payload: QuickDisableRequest, request: Request):
+        return auth.disable_quick(request, payload.password)
+
+    @app.post("/api/security/lock")
+    def security_lock(request: Request):
+        return auth.lock_now(request)
+
+    @app.post("/api/security/unlock")
+    def security_unlock(payload: QuickUnlockRequest, request: Request):
+        if (payload.secret is None) == (payload.password is None):
+            raise AppServiceError(422, "Send either the unlock code or the Vela password")
+        return auth.unlock(request, secret=payload.secret, password=payload.password)
+
+    @app.post("/api/security/activity")
+    def security_activity(request: Request):
+        return auth.record_activity(request)
 
     @app.post("/api/apps/{app_id}/session")
     def open_app_session(app_id: str, request: Request):

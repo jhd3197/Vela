@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from fastapi.responses import JSONResponse
 
 from .app_storage import AppServiceError
-from .access import verify_password
+from .access import build_verifier, verify_password, verify_secret
 
 
 class Auth:
@@ -25,6 +25,10 @@ class Auth:
         self.password_file = config.data_dir / "access.json" if config else None
         self.hub_sessions = {}
         self.attempts = {}
+        # Quick-unlock enrollment, in memory only, keyed by hub session token.
+        # A restart, a sign-out or a new access password drops it, and the
+        # person signs in with the Vela password again.
+        self.quick = {}
         if self.remote and (not self.origin or not self.origin.startswith("https://") or not self.password_file.is_file()):
             raise ValueError("Remote access requires an HTTPS public origin and a configured access password")
 
@@ -50,6 +54,7 @@ class Auth:
         with self.lock:
             self.phone_origin = None
             self.hub_sessions.clear()
+            self.quick.clear()
             self.sessions = {key: value for key, value in self.sessions.items()
                              if value.get('owner') == self.hub_token}
 
@@ -79,12 +84,151 @@ class Auth:
             self.attempts.pop(peer, None)
             self.hub_sessions = {key: expiry for key, expiry in self.hub_sessions.items() if expiry > now}
             self.hub_sessions[token] = now + 43200
+            self.quick = {key: value for key, value in self.quick.items() if key in self.hub_sessions}
         return token
+
+    # ------------------------------------------------------------ quick unlock
+    #
+    # Reauthentication for a session that is already signed in. It never starts
+    # a session: a fresh or expired one still needs the Vela password, and the
+    # computer's bootstrap token is a separate trust boundary that is left alone.
+
+    TIMEOUTS = (60, 300, 900)
+    MAX_FAILURES = 5
+    UNLOCK_PATHS = ("/api/security", "/api/security/unlock", "/api/security/lock")
+
+    def quick_session(self, request):
+        """The hub token quick unlock applies to, or None where it does not."""
+        if not self.is_remote_request(request):
+            return None
+        token = (getattr(request.state, "hub_token", None)
+                 or request.headers.get("authorization", "").removeprefix("Bearer "))
+        return token if token and self.valid_hub_token(token) else None
+
+    def _locked(self, record):
+        return bool(record["locked"] or time.monotonic() - record["activity"] > record["timeout"])
+
+    def quick_status(self, request):
+        token = self.quick_session(request)
+        with self.lock:
+            record = self.quick.get(token or "")
+            if not record:
+                return {"available": bool(token), "enrolled": False, "method": None,
+                        "timeout": 300, "locked": False, "passwordRequired": False,
+                        "attemptsRemaining": self.MAX_FAILURES}
+            return {"available": True, "enrolled": True, "method": record["method"],
+                    "timeout": record["timeout"], "locked": self._locked(record),
+                    "passwordRequired": record["password"],
+                    "attemptsRemaining": max(0, self.MAX_FAILURES - record["failures"])}
+
+    def require_quick_session(self, request):
+        token = self.quick_session(request)
+        if not token:
+            raise AppServiceError(403, "App lock is available on a signed-in phone session")
+        return token
+
+    def check_password(self, password):
+        if not isinstance(password, str) or not verify_password(self.password_file, password):
+            raise AppServiceError(401, "Incorrect Vela password")
+
+    def enroll_quick(self, request, password, method, secret):
+        token = self.require_quick_session(request)
+        self.check_password(password)
+        built = build_verifier(method, secret)
+        if built is None:
+            raise AppServiceError(422, "That unlock code cannot be used")
+        salt, digest = built
+        with self.lock:
+            previous = self.quick.get(token, {})
+            self.quick[token] = {"method": method, "salt": salt, "verifier": digest,
+                                 "timeout": previous.get("timeout", 300), "locked": False,
+                                 "activity": time.monotonic(), "failures": 0, "password": False}
+        return self.quick_status(request)
+
+    def update_quick(self, request, password, timeout):
+        token = self.require_quick_session(request)
+        self.check_password(password)
+        if timeout not in self.TIMEOUTS:
+            raise AppServiceError(422, "Choose 1, 5 or 15 minutes")
+        with self.lock:
+            record = self.quick.get(token)
+            if not record: raise AppServiceError(409, "App lock is not set up on this device")
+            record["timeout"] = timeout
+            record["activity"] = time.monotonic()
+        return self.quick_status(request)
+
+    def disable_quick(self, request, password):
+        token = self.require_quick_session(request)
+        self.check_password(password)
+        with self.lock:
+            self.quick.pop(token, None)
+        return self.quick_status(request)
+
+    def lock_now(self, request):
+        token = self.require_quick_session(request)
+        with self.lock:
+            record = self.quick.get(token)
+            if not record: raise AppServiceError(409, "App lock is not set up on this device")
+            record["locked"] = True
+            # Ends the bridge and any open stream this session started.
+            self.sessions = {key: value for key, value in self.sessions.items()
+                             if value.get("owner") != token}
+        return self.quick_status(request)
+
+    def unlock(self, request, secret=None, password=None):
+        token = self.require_quick_session(request)
+        with self.lock:
+            record = self.quick.get(token)
+            if not record: raise AppServiceError(409, "App lock is not set up on this device")
+            needs_password = record["password"]
+            method, salt, digest = record["method"], record["salt"], record["verifier"]
+        if password is not None:
+            self.check_password(password)
+        elif needs_password:
+            raise AppServiceError(403, "Too many attempts. Use your Vela password.")
+        elif not verify_secret(method, secret, salt, digest):
+            with self.lock:
+                record = self.quick.get(token)
+                if record:
+                    record["failures"] += 1
+                    if record["failures"] >= self.MAX_FAILURES: record["password"] = True
+            raise AppServiceError(401, "That does not match. Try again.")
+        with self.lock:
+            record = self.quick.get(token)
+            if record:
+                record.update(locked=False, failures=0, password=False, activity=time.monotonic())
+        return self.quick_status(request)
+
+    def _touch(self, token):
+        with self.lock:
+            record = self.quick.get(token or "")
+            if record and not self._locked(record): record["activity"] = time.monotonic()
+
+    def record_activity(self, request):
+        self._touch(self.quick_session(request))
+        return self.quick_status(request)
+
+    def reset_quick_unlock(self):
+        """A new access password invalidates every enrollment made under the old one."""
+        with self.lock:
+            self.quick.clear()
+
+    def _lock_response(self, path, token):
+        """423 for a locked session, or None when the request may continue."""
+        with self.lock:
+            record = self.quick.get(token or "")
+            if not record or not self._locked(record): return None
+            record["locked"] = True
+        if path in self.UNLOCK_PATHS or path in ("/api/health", "/api/session", "/api/login", "/api/logout"):
+            return None
+        if path.startswith("/api/apps/") and path.endswith("/icon"): return None
+        return JSONResponse({"detail": "Vela is locked"}, status_code=423)
 
     def logout(self, request):
         token = request.cookies.get("__Host-vela-session", "")
         with self.lock:
             self.hub_sessions.pop(token, None)
+            self.quick.pop(token, None)
             self.sessions = {key: value for key, value in self.sessions.items() if value.get("owner") != token}
 
     def issue(self, manifest, identity, owner=None):
@@ -168,6 +312,17 @@ class Auth:
             elif not public and not self.valid_hub_token(token):
                 return JSONResponse({"detail": "Hub authentication required"}, status_code=401)
             request.state.hub_token = token
+            # Quick unlock. A locked session stops here rather than at one page
+            # component, so app tokens issued before the lock, their open
+            # streams and every other protected route are covered together.
+            if remote_request:
+                owner = (getattr(request.state, "app_session", {}).get("owner")
+                         if path.startswith("/api/app/") else token)
+                locked = self._lock_response(path, owner)
+                if locked is not None: return locked
+                # Only a deliberate user action keeps a session awake. Polling
+                # does not send this header, so a phone on a table still locks.
+                if request.headers.get("x-vela-activity") == "1": self._touch(owner)
             # Proxies probe readiness over the private HTTP connection. This
             # endpoint returns only status/version; all other APIs require HTTPS.
             if remote_request and request.url.scheme != "https" and path != "/api/health":
