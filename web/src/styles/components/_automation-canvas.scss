@@ -5,6 +5,8 @@
    container, so Vela's own surfaces keep their values and the editor follows
    Vela's theme in both light and dark without a second theme switch. */
 
+@use '../breakpoints' as bp;
+
 .automation-canvas {
   --tr-bg: var(--bg-workspace);
   --tr-surface: var(--bg-card);
@@ -69,7 +71,7 @@
 /* Below this width the inspector stops sitting beside the canvas and moves
    under it, so both keep a usable width. These rules live here, in the module
    that owns `.automation-canvas`, because it loads after the page module. */
-@media (max-width: 1100px) {
+@media (max-width: bp.$split) {
   .automation-canvas {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
@@ -86,7 +88,7 @@
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: bp.$phone) {
   .automation-canvas-surface {
     min-height: 50vh;
   }

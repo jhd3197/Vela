@@ -1,0 +1,33 @@
+// Structural layout thresholds, named once.
+//
+// Each value is the size at which a composition stops working, not a device.
+// Nothing here is a phone-detection table: a wide-but-short window, a tablet
+// in split screen and a resized desktop window all cross the same lines, and
+// so does a reader at 200% browser zoom, whose layout viewport is genuinely
+// half as wide. Record the reason for a new one here rather than inventing a
+// per-page number.
+//
+// Ordinary reflow inside a composition — a grid that wants more columns, a
+// header row that wraps — belongs to `auto-fit`, `flex-wrap` or a container
+// query in the module that owns it, not to a new threshold.
+
+// Two panes stop fitting: list and detail, or canvas and inspector, can no
+// longer both hold a usable width, so the secondary pane moves below or away.
+$split: 1100px;
+
+// Multi-column page grids fall to one column while the page keeps its rail.
+$wide: 960px;
+
+// The page-edge rail moves into the navigation drawer, the contextual header
+// gives search its own row, and pages switch to their compact composition.
+// Home is the exception: its rail stays on screen at every width.
+$phone: 860px;
+$phone-up: 861px;
+
+// A narrow phone: the persistent Home rail takes its smaller width so the app
+// grid beside it keeps a readable column.
+$narrow: 400px;
+
+// A short window — landscape on a phone, or a small floating window — still
+// has to reach the composer, the install actions and the rail's utilities.
+$short: 560px;

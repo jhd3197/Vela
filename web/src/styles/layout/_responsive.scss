@@ -1,6 +1,7 @@
 /* ---------- Responsive ---------- */
+@use '../breakpoints' as bp;
 
-@media (max-width: 960px) {
+@media (max-width: bp.$wide) {
   .auto-columns {
     grid-template-columns: 1fr;
   }
@@ -10,7 +11,7 @@
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: bp.$phone) {
   /* The rail leaves the page edge and reappears inside the navigation drawer,
      opened from the header. */
   .rail {
@@ -76,7 +77,7 @@
   }
 
   .tiles-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   }
 
   .group-row {
@@ -112,7 +113,7 @@
 
 /* A short window still has to reach the composer, install actions and the
    rail's utility controls. */
-@media (max-height: 560px) {
+@media (max-height: bp.$short) {
   .rail {
     padding-top: 8px;
   }
@@ -128,7 +129,7 @@
 
 /* A narrow phone gives the launcher rail a little less width so the app grid
    beside it keeps a usable column. */
-@media (max-width: 400px) {
+@media (max-width: bp.$narrow) {
   .shell-rail-fixed .rail {
     --rail-w: 54px;
     --rail-control: 40px;

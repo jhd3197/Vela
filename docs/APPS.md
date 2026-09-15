@@ -21,6 +21,32 @@ them; others open on their own. Either way, if an app has unsaved work, leaving
 it asks before anything is lost. **App settings**, in that bar or in the app's
 Vela menu, holds the app's permissions, its connection, updates and removal.
 
+## On a phone
+
+Vela is meant to be used from a phone as well as a computer. Tapping a field
+does not zoom the page and leave it zoomed, and when the keyboard opens the box
+you are typing in stays above it: the list or conversation above gives up the
+space instead, keeping your place rather than jumping you somewhere else. A
+dialog scrolls inside itself while the page behind it stays where you left it,
+and reaching the end of a list does not start moving the page underneath.
+
+You can still pinch to zoom anywhere, pan a zoomed page, and select and copy
+text normally. Zooming in is not mistaken for the keyboard opening, so the
+layout does not rearrange itself while you are magnifying it. The workflow
+canvas is the one place with its own drag and pinch behaviour, and it keeps
+visible zoom and fit controls for when you would rather tap.
+
+Apps draw everything inside their own frame. Vela sizes that frame to the space
+it can actually show and tells the app what is covered, so an app built on the
+Vela starter behaves the same way. A website you have connected keeps its own
+layout: Vela can give it the right amount of room, but it cannot change how that
+site behaves on a phone.
+
+iPhone and Android are treated with equal priority, in a browser tab and as an
+installed Home Screen app. Where a release has been accepted on real hardware,
+the devices and versions tested are named in the changelog; nothing here is a
+claim that every phone, browser and version behaves identically.
+
 ## Show developer tools
 
 Vela hides the technical side of your server until you ask for it. Turn on

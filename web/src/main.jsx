@@ -19,10 +19,13 @@ import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { initTheme } from './theme.js';
+import { sharedViewport } from './viewport.js';
 import './styles/main.scss';
 
 registerServiceWorker();
 initTheme();
+// One viewport owner for the whole dashboard; layout reads its CSS variables.
+sharedViewport();
 
 const router = createBrowserRouter(
   createRoutesFromElements(

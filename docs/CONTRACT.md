@@ -112,8 +112,15 @@ supported. External and headless entries may declare an empty runtime object.
 renders no bars and retains a 44px-or-larger Vela menu outside the app. That
 menu can return, close, show the compact bar, or stop a managed process. A user
 compact preference persists per app. Failed loading retains host controls.
-The host reports viewport dimensions, visual insets and its control rectangle
-to the SDK; apps should avoid that rectangle. Closing never implies stopping.
+The host reports viewport dimensions, insets and its control rectangle to the
+SDK; apps should avoid that rectangle. `viewport.width`/`height` are the frame's
+own box, `visualHeight` is how much of that box is on screen, and `insets` are
+the parts of the frame the browser is not showing — browser chrome, a device
+safe area or an open keyboard — expressed in the frame's own coordinates, not
+the host's. A frame the host has already sized to the visible area therefore
+reports zero insets, so an app never subtracts the same keyboard twice. Inside a
+frame `env(safe-area-inset-*)` is zero and the frame's visual viewport describes
+the frame, so these values are the only source. Closing never implies stopping.
 Unsaved work supports save/discard/cancel and a save timeout. Native page
 unload uses the browser's confirmation.
 

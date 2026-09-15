@@ -3,6 +3,8 @@
    conversation-panel, drawer, dialog and form rules; only what is genuinely
    new to bots lives here. */
 
+@use '../breakpoints' as bp;
+
 /* Each bot's colour is presentation only. The server validates the name
    against a closed set, so these are the only values that can arrive. */
 .bot-icon {
@@ -229,7 +231,7 @@
 .bot-starter-row {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
 }
 
 .bot-starter {
@@ -524,7 +526,7 @@
   opacity: 0.85;
 }
 
-@media (max-width: 860px) {
+@media (max-width: bp.$phone) {
   .bot-editor {
     width: 100%;
   }

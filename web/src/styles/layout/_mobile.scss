@@ -1,0 +1,146 @@
+/* ---------- Shared mobile rules ----------
+
+   This module is imported last on purpose. The rules below are deliberate
+   policies for touch and for a viewport the browser is still moving — input
+   text size, gesture handling, scroll ownership and keyboard avoidance — and
+   they have to win over the page and component modules that set the same
+   properties for a mouse-sized window.
+
+   The `--vela-*` custom properties come from the host viewport service in
+   `src/viewport.js`. Every use carries a fallback, so a fixture, a page loaded
+   before the service starts, or a browser without VisualViewport still lays
+   out correctly. */
+
+/* ---------- Touch text size ----------
+
+   A field whose text renders below 16px makes iOS zoom the page on focus, and
+   the page never zooms back. Raise the floor without capping anything larger:
+   `1em` is the size the field would otherwise inherit, so a field inside text
+   a reader has scaled up grows with it. Counter-scaling the field to look
+   small again would defeat the point and is deliberately not done.
+
+   The `:not()` clauses are doing two jobs. They keep the rule off controls
+   that render no text of their own, and they carry the specificity needed to
+   beat the component rules that set these fields to 13.5px — every one of
+   which is a class-plus-element selector. A field that genuinely wants larger
+   text sets it on its container, where `1em` picks it up. */
+@media (pointer: coarse) {
+  input:not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not(
+      [type='radio']
+    ):not([type='range']):not([type='color']):not([type='file']):not([type='image']),
+  textarea:not([hidden]),
+  select:not([hidden]) {
+    font-size: max(16px, 1em);
+  }
+
+  /* Ordinary tappable controls: no double-tap zoom delay on the control
+     itself, while pinch zoom, panning, selection and long-press menus all
+     keep working. Custom gesture surfaces opt out on their own — the workflow
+     canvas owns `touch-action: none` inside `.tr-canvas-v2` and offers visible
+     fit/zoom controls beside it. */
+  a,
+  button,
+  summary,
+  label,
+  [role='button'],
+  [role='menuitem'],
+  [role='tab'],
+  [role='option'] {
+    touch-action: manipulation;
+  }
+}
+
+/* ---------- Scroll ownership ----------
+
+   Each region that scrolls says so once, and contains vertical chaining so
+   reaching its end does not move the page behind it. Only the vertical axis is
+   contained: containing both would also block the horizontal edge gestures
+   browsers use for Back. */
+.workspace-content,
+.drawer-body,
+.drawer-nav-panel,
+.rail-apps,
+.modal-dialog,
+.conversation-list,
+.tr-rail {
+  overscroll-behavior-y: contain;
+}
+
+/* Wide content keeps its own horizontal scroller instead of widening the
+   page. Nothing is hidden: the region itself can still be panned. */
+.chat-text pre,
+.drawer-log,
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* A long identifier, URL or hostname in ordinary copy wraps rather than
+   widening the page around it. `break-word` breaks only a word that would
+   otherwise overflow and, unlike `anywhere`, leaves intrinsic min-content
+   sizing alone, so grid and flex tracks keep their measurements. */
+p,
+li,
+dd,
+h1,
+h2,
+h3,
+h4 {
+  overflow-wrap: break-word;
+}
+
+/* ---------- Keyboard and visible-rectangle avoidance ----------
+
+   The on-screen keyboard is only ever subtracted where the browser has not
+   already taken it out of the layout: `--vela-keyboard-inset` is the bottom
+   gap that remains, and it is 0 while the page is pinch-zoomed or while no
+   text entry has focus. */
+
+/* Ask: the transcript gives up the space, the composer stays reachable. */
+.ask-workspace {
+  padding-bottom: calc(12px + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px)));
+}
+
+/* Dialogs and drawers live in the top layer, outside the shell's own layout,
+   so they need the same geometry applied directly. The dialog body scrolls;
+   the page behind it stays where it was. */
+.modal-dialog,
+.appview-dialog {
+  max-height: calc(var(--vela-visible-height, 100dvh) - 32px);
+  overflow-y: auto;
+  /* Re-centre in what is still visible instead of behind the keyboard. */
+  transform: translateY(calc(var(--vela-keyboard-inset, 0px) / -2));
+}
+
+/* An app workspace outside the shell fills what is visible rather than a
+   dynamic viewport unit, which on iOS keeps its keyboard-sized value. */
+.appview {
+  height: var(--vela-visible-height, 100dvh);
+}
+
+/* Inside the shell the workspace already allocates the space. */
+.appview-hub {
+  height: auto;
+}
+
+/* The seamless menu is fixed to the layout viewport, so it follows the
+   visible rectangle when the browser scrolls it. */
+.appview-exit {
+  margin-top: var(--vela-visible-top, 0px);
+}
+
+dialog.drawer-overlay {
+  height: var(--vela-visible-height, 100dvh);
+  margin-top: var(--vela-visible-top, 0px);
+}
+
+.drawer-footer {
+  padding-bottom: calc(16px + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-dialog,
+  .appview-dialog {
+    transition: none;
+  }
+}

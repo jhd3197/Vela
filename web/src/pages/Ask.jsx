@@ -47,6 +47,7 @@ import WorkspacePage from '../components/WorkspacePage.jsx';
 import BotIcon from '../components/bots/BotIcon.jsx';
 import BotEditor from '../components/bots/BotEditor.jsx';
 import RoomDialog from '../components/bots/RoomDialog.jsx';
+import { SPLIT as NARROW } from '../breakpoints.js';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
 function ChatMarkdown({ children }) {
@@ -65,7 +66,6 @@ const LEGACY_KEY = 'vela-chat';
 const PANEL_KEY = 'vela.ask.panel.v1';
 const TAB_KEY = 'vela.ask.tab.v1';
 const DRAFT_DEBOUNCE_MS = 700;
-const NARROW = '(max-width: 1100px)';
 
 // One send gets one id. Retrying the same send reuses it, so a dropped
 // connection cannot produce a second set of answers.

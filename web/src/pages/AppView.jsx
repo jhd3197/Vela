@@ -12,6 +12,8 @@ import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
 import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { createBridge } from '../bridge/host.js';
+import useViewport from '../hooks/useViewport.js';
+import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
 
 export default function AppView() {
@@ -56,10 +58,8 @@ function Workspace({ id, retry }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [visualViewport, setVisualViewport] = useState(() => ({
-    height: window.visualViewport?.height || innerHeight,
-    top: window.visualViewport?.offsetTop || 0,
-  }));
+  // One host-owned measurement, shared with the shell and every other consumer.
+  const view = useViewport();
   const frame = useRef(null),
     exitControl = useRef(null),
     bridge = useRef(null),
@@ -86,10 +86,15 @@ function Workspace({ id, retry }) {
   const leaveRef = useRef(requestLeave);
   leaveRef.current = requestLeave;
 
+  // The frame's own box, and how much of it the browser is not showing. Host
+  // offsets are in the host's coordinate space, so they are converted here
+  // rather than handed to the app to reinterpret.
   function viewportContext() {
     const box = mode === 'seamless' ? exitControl.current?.getBoundingClientRect() : null;
     const frameBox = frame.current?.getBoundingClientRect();
-    const viewport = window.visualViewport;
+    const state = view;
+    const visible = visibleRect(state);
+    const usable = frameBox ? intersectRect(frameBox, visible) : null;
     return {
       installationId: session?.installationId,
       protocol: 1,
@@ -101,16 +106,10 @@ function Workspace({ id, retry }) {
       viewport: {
         width: frame.current?.clientWidth || innerWidth,
         height: frame.current?.clientHeight || innerHeight,
-        visualHeight: viewport?.height || innerHeight,
-        insets: {
-          top: viewport?.offsetTop || 0,
-          left: viewport?.offsetLeft || 0,
-          bottom: Math.max(
-            0,
-            innerHeight - (viewport?.height || innerHeight) - (viewport?.offsetTop || 0),
-          ),
-          right: 0,
-        },
+        visualHeight: usable ? usable.height : state.height || innerHeight,
+        insets: frameBox
+          ? occlusionOf(frameBox, visible)
+          : { top: 0, right: 0, bottom: 0, left: 0 },
         hostControl: box
           ? {
               x: box.x - (frameBox?.x || 0),
@@ -168,34 +167,19 @@ function Workspace({ id, retry }) {
     resize.observe(frame.current);
     const theme = new MutationObserver(update);
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
     return () => {
       active.close();
       bridge.current = null;
       resize.disconnect();
       theme.disconnect();
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
     };
   }, [session, running]);
 
+  // The shared service already coalesces viewport events; the app only needs
+  // the resulting geometry once it settles.
   useEffect(() => {
     bridge.current?.updateContext(contextRef.current());
-  }, [mode]);
-  useEffect(() => {
-    const update = () =>
-      setVisualViewport({
-        height: window.visualViewport?.height || innerHeight,
-        top: window.visualViewport?.offsetTop || 0,
-      });
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
-    };
-  }, []);
+  }, [mode, view]);
   useEffect(() => {
     const warn = (event) => {
       if (dirtyRef.current.dirty) {
@@ -243,10 +227,7 @@ function Workspace({ id, retry }) {
     }
   };
   const content = (
-    <div
-      className={`appview appview-${mode}`}
-      style={mode !== 'hub' ? { height: visualViewport.height } : undefined}
-    >
+    <div className={`appview appview-${mode}`}>
       {mode === 'compact' && (
         <header className="appview-chrome">
           <button
@@ -278,7 +259,7 @@ function Workspace({ id, retry }) {
         </header>
       )}
       {mode === 'seamless' && (
-        <div className="appview-exit" ref={exitControl} style={{ marginTop: visualViewport.top }}>
+        <div className="appview-exit" ref={exitControl}>
           <button
             ref={menuButton}
             className="btn appview-exit-button"
