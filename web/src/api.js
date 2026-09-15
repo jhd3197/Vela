@@ -14,7 +14,11 @@ export function acceptHubSession(token) {
   hubSession = token ? Promise.resolve(token) : null;
 }
 
-export async function hubFetch(path, options = {}) {
+// A 401 usually means this browser's hub token went stale, so one retry with a
+// fresh token is right. It is wrong for a route that checks a credential: there
+// a 401 is the answer, and retrying would spend two of the five attempts the
+// engine allows. Those callers pass `retryUnauthorized: false`.
+export async function hubFetch(path, { retryUnauthorized = true, ...options } = {}) {
   const getToken = () => {
     if (!hubSession) {
       hubSession = fetch('/api/session', {
@@ -41,7 +45,7 @@ export async function hubFetch(path, options = {}) {
     return fetch(path, { ...options, headers });
   };
   let response = await send();
-  if (response.status === 401) {
+  if (response.status === 401 && retryUnauthorized) {
     hubSession = null;
     response = await send();
   }
@@ -178,18 +182,21 @@ export const api = {
   enrollSecurity: (value) =>
     request('/api/security/enroll', {
       method: 'POST',
+      retryUnauthorized: false,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(value),
     }),
   setSecurityTimeout: (value) =>
     request('/api/security', {
       method: 'PATCH',
+      retryUnauthorized: false,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(value),
     }),
   disableSecurity: (password) =>
     request('/api/security', {
       method: 'DELETE',
+      retryUnauthorized: false,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     }),
@@ -197,6 +204,7 @@ export const api = {
   unlock: (value) =>
     request('/api/security/unlock', {
       method: 'POST',
+      retryUnauthorized: false,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(value),
     }),

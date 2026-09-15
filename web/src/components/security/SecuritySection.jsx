@@ -16,6 +16,8 @@ const TIMEOUTS = [
 ];
 
 const methodName = (method) => (method === 'pattern' ? 'Pattern' : 'PIN');
+// "your PIN", "your pattern": the abbreviation keeps its capitals in a sentence.
+const methodWord = (method) => (method === 'pattern' ? 'pattern' : 'PIN');
 const timeoutLabel = (value) => TIMEOUTS.find((item) => item.value === value)?.label || '5 minutes';
 
 function Row({ title, description, value, onClick, action, children }) {
@@ -86,7 +88,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
     if (flow) headingRef.current?.focus();
   }, [flow]);
 
-  const run = async (work, done) => {
+  const run = async (work, done, onFailure) => {
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
@@ -100,6 +102,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
           ? 'Cannot reach Vela right now. Nothing was changed.'
           : failure.message,
       );
+      onFailure?.(failure);
       refresh();
     } finally {
       submitting.current = false;
@@ -131,7 +134,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
         <div className="panel-head">
           <h2 tabIndex={-1} ref={headingRef}>
             {changing
-              ? `Change your ${methodName(status.method).toLowerCase()}`
+              ? `Change your ${methodWord(status.method)}`
               : 'Set up app lock'}
           </h2>
         </div>
@@ -228,9 +231,19 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
         () => api.enrollSecurity({ password, method, secret }),
         () => {
           setNote(
-            `App lock is on. You will unlock Vela with your ${methodName(method).toLowerCase()}.`,
+            `App lock is on. You will unlock Vela with your ${methodWord(method)}.`,
           );
           reset();
+        },
+        // A refused password belongs on the screen that asked for it, rather
+        // than at the end of a journey the reader would then have to repeat.
+        (failure) => {
+          if (failure.status === 401) {
+            setPin('');
+            setDots([]);
+            setFirstSecret(null);
+            setFlow('password');
+          }
         },
       );
     };
@@ -421,7 +434,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
           title="App lock"
           description={
             enrolled
-              ? `Unlock with your ${methodName(status.method).toLowerCase()}.`
+              ? `Unlock with your ${methodWord(status.method)}.`
               : 'Off — this session opens straight into Vela.'
           }
           value={enrolled ? 'On' : 'Off'}
@@ -437,7 +450,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
           <>
             <Row
               title="Unlock method"
-              description={`Change your ${methodName(status.method).toLowerCase()}, or switch method.`}
+              description={`Change your ${methodWord(status.method)}, or switch method.`}
               value={methodName(status.method)}
               onClick={() => {
                 setMethod(status.method);
