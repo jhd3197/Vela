@@ -262,4 +262,11 @@
   .appview-chrome {
     gap: 6px;
   }
+
+  /* An app workspace that keeps the rail is already named by the rail and the
+     header. On a phone the app's own description would cost a line the editor
+     needs, so the header keeps the name alone. */
+  .shell-rail-persistent .workspace-header .workspace-subtitle {
+    display: none;
+  }
 }

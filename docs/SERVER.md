@@ -141,6 +141,33 @@ again; reserving its address in your router avoids changing saved phone URLs.
 Under **Wi-Fi connection details**, choose **Turn off Wi-Fi access** to disconnect
 phones and stop both listeners while keeping the desktop dashboard available.
 
+### Lock your phone's Vela session
+
+On a phone or any browser that signs in with your Vela password, open
+**Settings → Security** and turn on **App lock**. Vela asks for your password,
+then for a six-digit PIN — or a pattern connecting at least four of nine dots —
+twice. After that, opening Vela on that device asks for the PIN or pattern
+instead of the full password.
+
+Choose how soon it locks by itself under **Lock after inactivity**: 1, 5 or 15
+minutes, 5 by default. **Lock now** locks it immediately. Changing the method,
+changing the timer and turning app lock off each ask for your Vela password
+again, and your password always works on the lock screen. After five wrong
+attempts only the password is accepted; reloading the page, opening another tab
+or changing network does not reset that count.
+
+The server enforces the lock. While a session is locked its apps, data,
+automations and open chats stop answering, including app connections that were
+opened before it locked. Background updates do not count as activity, so a phone
+left on a table still locks on time. The PIN or pattern is never written to disk
+and never kept in the browser, so signing out, a server restart or a new access
+password ends app lock and asks for the Vela password again.
+
+App lock protects the browser session it was set up in. It does not encrypt the
+files on your Vela computer and does not lock that computer's screen — use the
+computer's own screen lock for that. The Vela computer's own dashboard opens
+without signing in, so there is no session there to lock.
+
 ### Save Vela to your Home Screen
 
 - **iPhone / iPad:** In Safari, open **Share** (possibly inside **More (…)**), then

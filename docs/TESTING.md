@@ -56,6 +56,7 @@ node web/scripts/test-shared-ui.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-settings.mjs
+node web/scripts/test-security.mjs
 node web/scripts/test-chat.mjs
 node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
@@ -72,14 +73,18 @@ The rail suite uses an isolated Vite fixture with disposable app records to chec
 the narrow rail: an empty installation, many apps, long and duplicate names,
 stable ordering, keyboard focus and selection, the secondary menu's contents and
 focus return, a short window, Home keeping its navigation on a phone with no
-hamburger and without covering its content, and the phone navigation drawer's
-focus handling on every other page. Screenshots go to `docs/screenshots/rail/`.
+hamburger and without covering its content, an app that declares the hub's own
+chrome keeping one rail beside its workspace at 390 and 320 pixels while an app
+that did not keeps its own bar, and the phone navigation drawer's focus handling
+on every other page. Screenshots go to `docs/screenshots/rail/`.
 The dashboard suite checks the default destinations at desktop and phone widths
 in both themes, Home's navigation across reload, Back, rotation and scrolling,
 the supported add-app sources, and the `/environments` deep link explaining
 itself and offering an explicit enable action while developer tools are off. It
 saves screenshots under `docs/screenshots/shared-foundations/`.
-The settings suite checks popup navigation, retained page and form drafts,
+The settings suite checks the wide popup and the phone screens: category
+navigation, the edge-to-edge list, one section at a time with Back, Escape
+stepping through the same screens, retained page and form drafts,
 preference saving and rollback, keyboard focus, deep links and narrow layouts
 with disposable API responses. It also covers the developer-tools preference:
 off by default, switching without reloading or losing an unsent message,
@@ -87,6 +92,16 @@ persisting across a reload, following another tab on the same origin, explaining
 itself when a bookmark lands on a hidden section, and falling back to the
 session when the browser refuses to store it. Screenshots are saved under
 `docs/screenshots/settings/`.
+The security suite drives app lock against a stand-in engine that models the
+contract the real one enforces. It covers setting a PIN up, a refused password
+and a mismatched repeat, Back through the setup steps, Lock now, wrong attempts
+and the fall back to the Vela password, enrolling a pattern by dragging and by
+choosing dots one at a time, a locked answer from any request restoring the lock
+screen, and a short landscape window. Screenshots are saved under
+`docs/screenshots/security/`. The engine's own enforcement — enrollment,
+throttling, previously issued app tokens, streams and the local trust boundary —
+is covered by `tests/test_security.py`, and the pattern rules the browser mirrors
+are pinned by both that file and `tests/pattern.test.mjs`.
 The chat suite serves the built dashboard with disposable app records, a
 controlled response stream and a stand-in conversation store. It checks the
 bottom composer, app mentions, keyboard input, formatted responses, stop/retry,
