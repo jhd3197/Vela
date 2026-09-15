@@ -208,6 +208,24 @@ Run the relevant [checks and browser suites](TESTING.md), including both themes
 and desktop/phone layouts for shared styles or controls. Add an Unreleased
 changelog entry for user behavior or contributor workflow changes.
 
+## Container build
+
+The root `Dockerfile` builds the dashboard with Node.js 22 and packages it with
+the Python server. No sibling repositories are needed. Build with:
+
+```bash
+docker build -t vela:local .
+```
+
+Run `python -m unittest discover -s tests` for container configuration and proxy
+authentication regressions, then smoke-test the image with a disposable volume
+and an HTTPS reverse proxy. Follow the [ServerKit settings](SERVER.md#serverkit),
+publish port 7700 to loopback only, verify sign-in and the Library, and recreate
+the container with the same test volume to verify persistence. Never use an
+installed user's data for this check. The health endpoint alone does not verify
+the proxy configuration. Native apps needing Node.js or other system packages
+require extending the runtime image.
+
 ## Build a server download
 
 From the activated environment, after building the dashboard:

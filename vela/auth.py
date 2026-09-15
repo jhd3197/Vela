@@ -135,7 +135,9 @@ class Auth:
             elif not public and not self.valid_hub_token(token):
                 return JSONResponse({"detail": "Hub authentication required"}, status_code=401)
             request.state.hub_token = token
-            if self.remote and request.url.scheme != "https":
+            # Proxies probe readiness over the private HTTP connection. This
+            # endpoint returns only status/version; all other APIs require HTTPS.
+            if self.remote and request.url.scheme != "https" and path != "/api/health":
                 return JSONResponse({"detail": "HTTPS is required"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"

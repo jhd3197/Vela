@@ -33,6 +33,47 @@ The bundle includes Python, the server dependencies and the dashboard. You do
 not need to install Python, Node.js, Git, or the separate developer repositories.
 Keep the entire extracted folder together, including `_internal`.
 
+## ServerKit
+
+In ServerKit, create a service from `https://github.com/jhd3197/vela` and choose
+the repository's `serverkit.yaml` configuration. Use `dev` until these files
+are released on `main`. The Dockerfile builds the dashboard and Python server;
+the `vela-data` disk stores installed apps, settings, credentials and backups
+at `/data`. Keep that disk when redeploying. Automatic deployment on push is off.
+
+Before starting the service:
+
+1. Set `VELA_PUBLIC_ORIGIN` to your exact browser address, such as
+   `https://vela.example.com`, with no trailing slash or path.
+2. Set `VELA_TRUSTED_PROXIES` to the IP address of ServerKit's reverse proxy
+   as seen from the container. For a host nginx proxy this is normally the
+   Docker network gateway; find it in the container's network details. For a
+   containerized proxy, use that proxy's address. Comma-separated IP addresses
+   or narrowly scoped CIDRs are supported; `*` is rejected.
+3. Retrieve `VELA_INITIAL_PASSWORD` from ServerKit's generated secret. It sets
+   the Vela password on the first start only. An existing password survives
+   redeployment; changing this variable does not reset it.
+4. Add the matching domain in ServerKit, enable HTTPS, and route it to the
+   service's HTTP port **7700**. The proxy must preserve the browser's `Host`
+   header and overwrite `X-Forwarded-Proto` and `X-Forwarded-For` with the
+   actual request scheme and client IP. Keep port 7700 private to the proxy.
+
+Open your HTTPS address and sign in with the generated password. A new Library
+is empty; import app releases to get started. ServerKit requests daily disk
+backups with seven retained copies; check backup success in your panel.
+
+The container requires both the HTTPS origin and trusted proxy configuration
+and refuses to start without them. A healthy service with a failed sign-in
+usually means the origin, proxy address or forwarding headers do not match.
+`/api/health` is available over private HTTP for readiness checks; other API
+requests require HTTPS through the trusted proxy.
+
+Apps run inside this Linux container. Web apps and connections to existing
+services work; native apps need their own runtimes and system dependencies
+in the image. The image includes Python but does not expose the host's Docker
+socket or desktop. See the [developer guide](DEVELOPMENT.md#container-build)
+for building and checking the image.
+
 ## Add apps
 
 Open **Library** and import an app release ZIP. Vela shows the permissions for

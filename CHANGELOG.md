@@ -8,6 +8,9 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- ServerKit install badge, deployment manifest and container build with
+  persistent app data and password-protected access through a trusted HTTPS
+  proxy. Set the public origin and proxy address before the first deployment.
 - Connect existing HTTPS web services from Library with a name, address and
   icon color. Open them inside Vela with reload, edit and browser fallback
   controls. Connections use a separate hostname and keep the service's own

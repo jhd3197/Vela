@@ -20,6 +20,8 @@ Your server keeps your apps, settings and data in one place, on your own machine
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-8b7ff6.svg?style=flat-square)](CHANGELOG.md)
 
+[<img src="https://serverkit.ai/badge/install.png" alt="Install in ServerKit" width="240">](#install-with-serverkit)
+
 <br>
 
 [Quick Start](#-quick-start) · [Your Devices](#-your-devices) · [The Idea](#-the-idea) · [Architecture](#-architecture) · [Platforms](#-platforms) · [Changelog](CHANGELOG.md) · [Develop](#-develop) · [Contributing](#-contributing) · [Support](#-support-vela)
@@ -42,6 +44,18 @@ starts or stops the server, and lets you turn on **Start at sign in**.
 On macOS/Linux, extract the archive and run `./Vela` in a terminal.
 
 [Server guide](docs/SERVER.md) · [Build from source](docs/DEVELOPMENT.md)
+
+### Install with ServerKit
+
+Already running [ServerKit](https://serverkit.ai)? Import
+`https://github.com/jhd3197/vela` as a new service using the repository's
+[serverkit.yaml](serverkit.yaml). It builds the dashboard and server together
+and keeps your apps and data on a persistent disk.
+
+Set your HTTPS address and trusted proxy address, retrieve the generated
+password, and configure the domain in ServerKit. Follow the
+[ServerKit setup guide](docs/SERVER.md#serverkit) for the settings and first sign-in.
+Use the `dev` branch until these deployment files are released on `main`.
 
 ## 📲 Your Devices
 
