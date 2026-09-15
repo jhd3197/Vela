@@ -50,6 +50,7 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- Browser tabs now show Vela's purple-and-cyan sail logo instead of the old amber icon.
 - The dashboard Ask page can talk to the local model again. Sending a message
   failed immediately with "Request failed (422)" because the dashboard posted a
   request shape the server rejected. Failed requests now also show the server's
