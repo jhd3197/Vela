@@ -65,9 +65,7 @@ try {
       for (const [route, label] of pages) {
         await page.goto(base + route);
         await page.locator('.sidebar-nav a').first().waitFor({ state: 'attached' });
-        await page.waitForFunction(() =>
-          document.querySelector('.side-card-status')?.textContent.includes('Local'),
-        );
+        await page.waitForFunction(() => document.querySelector('.side-card-status .dot-ok'));
         await page.evaluate(async (theme) => {
           document.documentElement.dataset.theme = theme;
           await document.fonts.ready;

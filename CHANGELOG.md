@@ -50,6 +50,9 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- Long dashboard pages scroll independently of the desktop navigation, keeping
+  the sidebar and its footer visible. The footer now shows server connection
+  status and the number of running apps instead of a storage meter.
 - Browser tabs now show Vela's purple-and-cyan sail logo instead of the old amber icon.
 - The dashboard Ask page can talk to the local model again. Sending a message
   failed immediately with "Request failed (422)" because the dashboard posted a
