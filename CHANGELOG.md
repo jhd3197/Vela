@@ -6,6 +6,32 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.7 - 2026-09-15
+
+No additional release notes were provided.
+
+## 0.1.6 - 2026-09-15
+
+No additional release notes were provided.
+
+## 0.1.5 - 2026-09-15
+
+No additional release notes were provided.
+
+## 0.1.4 - 2026-09-15
+
+No additional release notes were provided.
+
+## 0.1.3 - 2026-09-15
+
+No additional release notes were provided.
+
+## 0.1.2 - 2026-09-14
+
+No additional release notes were provided.
+
+## 0.1.1 - 2026-09-14
+
 ### Added
 
 - **App lock.** A phone or remote browser signed in to Vela can now be locked
