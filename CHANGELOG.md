@@ -103,6 +103,7 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+<<<<<<< HEAD
 - **Settings is a phone screen on a phone.** Below the shared compact width it
   fills the screen instead of floating in a popup, and opens on a searchable
   list of categories with a short line saying what each one holds. Tapping one
@@ -125,6 +126,8 @@ until the release workflow prepares a tested server version.
   and the app's description is left to the rail and header instead of repeating.
   Apps that present themselves with a compact bar or full screen are unchanged.
 
+=======
+>>>>>>> 83c0573c1d438885decfb06b206888f5b751d12a
 - **Vela lays out for a phone properly.** Tapping a field no longer zooms the
   page and leaves it zoomed: every field a finger can reach now renders at 16
   pixels or more, while larger text you have chosen is kept. When the keyboard

@@ -120,8 +120,11 @@
 /* A short window still has to reach the composer, install actions and the
    rail's utility controls. */
 @media (max-height: bp.$short) {
+<<<<<<< HEAD
   /* A short window gives the extra top space back so the footer controls stay
      reachable; the phone inset is still honoured through the same variable. */
+=======
+>>>>>>> 83c0573c1d438885decfb06b206888f5b751d12a
   .rail {
     --rail-top: 10px;
   }
@@ -138,8 +141,12 @@
 /* A narrow phone gives the launcher rail a little less width so the app grid
    beside it keeps a usable column. */
 @media (max-width: bp.$narrow) {
+<<<<<<< HEAD
   .shell-rail-fixed .rail,
   .shell-rail-persistent .rail {
+=======
+  .shell-rail-fixed .rail {
+>>>>>>> 83c0573c1d438885decfb06b206888f5b751d12a
     --rail-w: 54px;
     --rail-control: 40px;
   }
