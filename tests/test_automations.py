@@ -6,9 +6,11 @@ installed, so the suite still reports honestly on a machine without it.
 """
 import copy
 import json
+import os
 import shutil
 import time
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 
 import test_app_contract as base
@@ -300,6 +302,25 @@ class AutomationApiTests(unittest.TestCase):
                                           headers=self.hub).status_code, 403)
         self.assertEqual(self.client.post('/api/automations/blueprints/nonsense',
                                           headers=self.hub, json={}).status_code, 404)
+
+    def test_a_server_without_the_runtime_explains_itself_and_refuses_to_run(self):
+        workflow = self.create('Greeting')
+        self.save(workflow, TEXT_FLOW)
+        # An installation whose automation runtime is missing must say so, not
+        # accept a run it cannot finish.
+        with mock.patch.dict(os.environ, {'VELA_AUTOMATION_NODE': str(self.root / 'absent-node')}):
+            status = self.client.get('/api/automations/status', headers=self.hub).json()
+            self.assertFalse(status['available'])
+            self.assertIn('Reinstall the Vela download', status['detail'])
+            refused = self.client.post(f'/api/automations/{workflow["id"]}/runs', headers=self.hub,
+                                       json={})
+            self.assertEqual(refused.status_code, 503)
+            self.assertEqual(refused.json()['detail'], status['detail'])
+            # The rest of the page keeps working.
+            self.assertEqual(self.client.get('/api/automations', headers=self.hub).status_code, 200)
+            self.assertEqual(
+                self.client.get(f'/api/automations/{workflow["id"]}', headers=self.hub).status_code,
+                200)
 
     def test_app_sessions_cannot_reach_automations(self):
         self.install('notes')
