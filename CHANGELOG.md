@@ -6,6 +6,52 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **App lock.** A phone or remote browser signed in to Vela can now be locked
+  behind a six-digit PIN or a nine-dot pattern, so a glance at your unlocked
+  phone does not show your apps. Set it up under Settings → Security: Vela asks
+  for your account password, then for the new PIN or pattern twice. Choose how
+  soon it locks on its own — 1, 5 or 15 minutes of no activity, 5 by default —
+  or lock it immediately with Lock now. Changing the method, changing the timer
+  and turning it off each ask for your Vela password again, and your password
+  always works on the lock screen. After five wrong tries only the password is
+  accepted, and that limit follows the session rather than the tab, so reloading
+  the page, opening another tab or changing network does not reset it. The
+  server enforces the lock, not the page: a locked session's apps, data,
+  automations and open chat streams all stop answering until it is unlocked,
+  including app connections that were opened before it locked. Background
+  updates do not count as activity, so a phone left on a table still locks on
+  time. Nothing about the lock is stored in the browser, and the PIN or pattern
+  itself is never written to disk. App lock covers the browser session it was
+  set up in; it does not encrypt files on your Vela computer, does not lock that
+  computer's screen, and the Vela computer's own dashboard, which opens without
+  signing in, is unchanged.
+
+### Changed
+
+- **Settings is a phone screen on a phone.** Below the shared compact width it
+  fills the screen instead of floating in a popup, and opens on a searchable
+  list of categories with a short line saying what each one holds. Tapping one
+  opens that category on its own, with Back in the header; Back, Escape and the
+  phone's own back gesture all step through the same screens you can see. Rows
+  and controls are sized for a finger, form text stays readable, and the layout
+  keeps clear of the notch and the home indicator. A draft you were part way
+  through keeps its place while you move between categories, turn the phone, or
+  cross between the phone and desktop layouts. On a wider screen Settings is the
+  same two-pane popup it was, and existing links such as `/settings#backups`
+  still open their section directly.
+- The navigation rail's logo and destinations sit lower, with real space above
+  them instead of being pinned to the corner, in the desktop rail and the phone
+  navigation drawer alike. A short window gives that space back so the controls
+  at the bottom stay reachable.
+- An app that asks for Vela's own workspace chrome now keeps the app rail on
+  screen on a phone as well as on a desktop, so switching apps, going Home and
+  opening Settings stay one tap away while the app changes its own panes
+  underneath. The rail takes its own narrow column rather than covering the app,
+  and the app's description is left to the rail and header instead of repeating.
+  Apps that present themselves with a compact bar or full screen are unchanged.
+
 ## 0.1.7 - 2026-09-15
 
 No additional release notes were provided.
@@ -33,26 +79,6 @@ No additional release notes were provided.
 ## 0.1.1 - 2026-09-14
 
 ### Added
-
-- **App lock.** A phone or remote browser signed in to Vela can now be locked
-  behind a six-digit PIN or a nine-dot pattern, so a glance at your unlocked
-  phone does not show your apps. Set it up under Settings → Security: Vela asks
-  for your account password, then for the new PIN or pattern twice. Choose how
-  soon it locks on its own — 1, 5 or 15 minutes of no activity, 5 by default —
-  or lock it immediately with Lock now. Changing the method, changing the timer
-  and turning it off each ask for your Vela password again, and your password
-  always works on the lock screen. After five wrong tries only the password is
-  accepted, and that limit follows the session rather than the tab, so reloading
-  the page, opening another tab or changing network does not reset it. The
-  server enforces the lock, not the page: a locked session's apps, data,
-  automations and open chat streams all stop answering until it is unlocked,
-  including app connections that were opened before it locked. Background
-  updates do not count as activity, so a phone left on a table still locks on
-  time. Nothing about the lock is stored in the browser, and the PIN or pattern
-  itself is never written to disk. App lock covers the browser session it was
-  set up in; it does not encrypt files on your Vela computer, does not lock that
-  computer's screen, and the Vela computer's own dashboard, which opens without
-  signing in, is unchanged.
 
 - **Custom bots and shared rooms** in Ask. Create a bot with its own name,
   instructions and model, chat with it, and bring two to four of them into a
@@ -129,31 +155,6 @@ No additional release notes were provided.
 
 ### Changed
 
-<<<<<<< HEAD
-- **Settings is a phone screen on a phone.** Below the shared compact width it
-  fills the screen instead of floating in a popup, and opens on a searchable
-  list of categories with a short line saying what each one holds. Tapping one
-  opens that category on its own, with Back in the header; Back, Escape and the
-  phone's own back gesture all step through the same screens you can see. Rows
-  and controls are sized for a finger, form text stays readable, and the layout
-  keeps clear of the notch and the home indicator. A draft you were part way
-  through keeps its place while you move between categories, turn the phone, or
-  cross between the phone and desktop layouts. On a wider screen Settings is the
-  same two-pane popup it was, and existing links such as `/settings#backups`
-  still open their section directly.
-- The navigation rail's logo and destinations sit lower, with real space above
-  them instead of being pinned to the corner, in the desktop rail and the phone
-  navigation drawer alike. A short window gives that space back so the controls
-  at the bottom stay reachable.
-- An app that asks for Vela's own workspace chrome now keeps the app rail on
-  screen on a phone as well as on a desktop, so switching apps, going Home and
-  opening Settings stay one tap away while the app changes its own panes
-  underneath. The rail takes its own narrow column rather than covering the app,
-  and the app's description is left to the rail and header instead of repeating.
-  Apps that present themselves with a compact bar or full screen are unchanged.
-
-=======
->>>>>>> 83c0573c1d438885decfb06b206888f5b751d12a
 - **Vela lays out for a phone properly.** Tapping a field no longer zooms the
   page and leaves it zoomed: every field a finger can reach now renders at 16
   pixels or more, while larger text you have chosen is kept. When the keyboard
@@ -276,7 +277,7 @@ No additional release notes were provided.
 - Dashboard development now uses organized SCSS modules, shared UI controls and
   request hooks, and one route/navigation definition. The developer guide
   includes an example for adding a page; contributors should run `npm --prefix
-  web ci` to install the Sass build dependency.
+web ci` to install the Sass build dependency.
 - Automatic releases now require the tested Windows installer alongside all
   three portable downloads and checksums. Windows upgrades and uninstall keep
   existing apps and data; installers and executables carry Vela branding.

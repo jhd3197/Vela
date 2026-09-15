@@ -144,7 +144,6 @@ dialog.drawer-overlay {
     transition: none;
   }
 }
-<<<<<<< HEAD
 
 /* A full-screen surface is not a popup: it owns the whole visible rectangle
    rather than being centred inside it, so the keyboard shrinks the scrolling
@@ -163,5 +162,3 @@ dialog.drawer-overlay {
 .lock-dialog .lock-screen {
   overscroll-behavior-y: contain;
 }
-=======
->>>>>>> 83c0573c1d438885decfb06b206888f5b751d12a
