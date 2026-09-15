@@ -59,6 +59,7 @@ node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
 node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
+node web/scripts/test-mobile-layout.mjs
 ```
 
 Run browser suites sequentially because some use the same fixture server port.
@@ -144,6 +145,25 @@ ports, verify the generated certificate chain, restrict public bootstrap routes,
 exercise password login and local-token rejection, and check restart/disable.
 They do not change OS certificate trust or expose a test server on real Wi-Fi.
 
+The mobile-layout suite uses an isolated Vite fixture with the real shell,
+composer, dialog and drawer at a phone size that reports a coarse pointer. It
+checks that every touch field renders at 16 CSS pixels or more while larger
+inherited text is preserved, that the viewport stays scalable and selection and
+context menus are untouched, that each scrolling region owns its scrolling and
+contains only vertical chaining, that a dialog and a drawer scroll their own
+body while the page behind keeps its position, that a dialog and a conversation
+composer stay clear of an on-screen keyboard without moving the reader away from
+what they were reading, that pinch zoom is not mistaken for a keyboard, that
+Home keeps its navigation at narrow, short-landscape and tablet split-screen
+sizes, and that nothing overflows horizontally at 320px or at 200% zoom.
+Screenshots go to `docs/screenshots/mobile/`.
+
+A headless browser has no on-screen keyboard, so the fixture drives a stand-in
+visual viewport: the measurement service, its geometry and every layout rule
+that reads it are real, but the phone hardware is not. Physical keyboard,
+rotation and Home Screen behaviour still have to be accepted on a device, as
+described under the acceptance matrix below.
+
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.
 The connected-web-app suite also requires OpenSSL and uses a disposable HTTPS
@@ -153,6 +173,29 @@ desktop/phone layouts. It never connects to a user's installed services.
 Browser scripts launch temporary fixture servers and save screenshots under
 ignored `docs/screenshots/` paths. `VELA_TEST_PYTHON` overrides the default
 `.venv` Python; `VELA_BROWSER_CHANNEL` can select an installed Chrome browser.
+
+## Phone acceptance
+
+Browser suites catch regressions in Vela's own layout code. They do not
+reproduce a physical keyboard, a browser toolbar that hides as you scroll, or an
+installed Home Screen app. Accept these on hardware, recording the device, OS
+and browser version you used, with equal weight for both:
+
+| Device | Modes |
+| --- | --- |
+| iPhone | Safari tab and Home Screen app |
+| Android | Chrome tab and installed app |
+
+On each, exercise: opening Home in a fresh browser state and reaching a ready
+app in one tap with no menu step; keyboard open, close and dismissal; a long
+draft with caret movement, selection, copy and paste; rotation with the keyboard
+open; a browser toolbar appearing and disappearing; returning from another app;
+scrolling to the end of a long list and inside a dialog; 200% zoom and a larger
+system text size; navigation Back; and editing inside an app frame. Check a
+tablet split-screen layout, a hardware keyboard where you have one, and the
+workflow canvas gestures separately from page scrolling.
+
+Record what you could not test rather than implying it passed.
 
 Phone-size browser checks are not physical iOS/Android verification. Test a
 real phone with a trusted certificate and a real Ollama service before claiming

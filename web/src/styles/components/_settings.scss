@@ -148,7 +148,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
   padding: 24px 28px;
   .panel {
     padding: 0;

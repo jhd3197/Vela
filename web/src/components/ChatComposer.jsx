@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, At, Square, SquaresFour, UsersThree } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
+import { PHONE } from '../breakpoints.js';
 import BotIcon from './bots/BotIcon.jsx';
 
 export default function ChatComposer({
@@ -20,7 +21,7 @@ export default function ChatComposer({
 }) {
   const { apps, error } = useApps();
   // The phone composer is a single rounded line, so its hint has to be short.
-  const phone = useMediaQuery('(max-width: 860px)');
+  const phone = useMediaQuery(PHONE);
   const field = useRef(null);
   const [mention, setMention] = useState(null);
   const [selected, setSelected] = useState(0);

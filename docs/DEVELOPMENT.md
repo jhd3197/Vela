@@ -163,12 +163,21 @@ bar, declare `"view": {"surface": "embedded", "chrome": "hub"}` in `app.json`.
 `compact` (the default) and `seamless` keep their existing standalone chrome, so
 this is an explicit, per-app choice and nothing changes until a manifest opts in.
 
-For the appearance itself, copy `vela-app.css` and `vela-theme.js` from a
-generated app (`create-vela-app`) or from
+For the appearance itself, copy `vela-app.css`, `vela-theme.js` and
+`vela-viewport.js` from a generated app (`create-vela-app`) or from
 [vela-templates](https://github.com/jhd3197/vela-templates). They provide the
-server's surfaces, spacing and controls, and mirror the server's light/dark
-preference from the bridge context onto `data-vela-theme`. Override
-`--vela-accent` to keep the app's own identity.
+server's surfaces, spacing and controls, mirror the server's light/dark
+preference from the bridge context onto `data-vela-theme`, and mirror the
+reported viewport insets onto `--vela-inset-*`. Override `--vela-accent` to keep
+the app's own identity.
+
+Size the app to the frame it was given: `vela-app.css` uses `height: 100%` and
+shrinkable regions, not a viewport unit. Inside a frame `100dvh` is the frame's
+height, `env(safe-area-inset-*)` is zero, and the frame's own visual viewport
+describes the frame rather than the phone. The host sizes the frame to the
+workspace it can actually show and reports what it could not show; `.vela-layout`
+subtracts that once. Do not subtract it again lower down, and do not add a
+second estimate of the keyboard.
 [vela-notes](https://github.com/jhd3197/vela-notes) is the worked example of a
 list-plus-editor app using this layout. No host code, DOM or credentials are
 shared: the bridge already sends the theme, and the stylesheet is the app's own.
@@ -243,6 +252,64 @@ while preserving Vela's existing side-panel layout and full-width phone view.
 Use its `drawer-header`, `drawer-body` and `drawer-footer` sections for content.
 Keep permission reviews, saving and error messages in the feature itself.
 See app details, release review and the unsaved-work prompt for real consumers.
+
+### Layouts, touch and the viewport
+
+One service owns viewport measurement: `src/viewport.js`, started once in
+`main.jsx` and read through `hooks/useViewport.js`. It observes the visual
+viewport, coalesces events to one measurement per frame, notifies consumers only
+when a value they can see has changed, and publishes three custom properties on
+the document so most layout needs no React render at all:
+
+| Property | Meaning |
+| --- | --- |
+| `--vela-visible-height` | The height the browser is actually showing, in CSS pixels |
+| `--vela-visible-top` | Where that rectangle starts inside the layout viewport |
+| `--vela-keyboard-inset` | The bottom gap attributable to an on-screen keyboard |
+
+Always give these a fallback (`var(--vela-visible-height, 100dvh)`) so a page
+loaded before the service starts, or a browser without `VisualViewport`, still
+lays out. Do not add a listener of your own; subscribe to the service instead,
+so there is one measurement and one policy.
+
+A smaller visible rectangle is not proof of a keyboard. Browser chrome moves by
+about a toolbar's height, and pinch zoom can halve the rectangle while occluding
+nothing. `--vela-keyboard-inset` is non-zero only when a text entry holds focus,
+the page is not zoomed, and the remaining gap is large enough to be a keyboard —
+so a browser that already resized the layout is never charged twice. While the
+reader is zoomed, `--vela-visible-height` falls back to the layout viewport: a
+zoomed page keeps its layout and is panned, not reflowed.
+
+Subtract each inset exactly once, and say where:
+
+- `.shell` keeps the dynamic viewport. Keyboard-sensitive regions inside it, such
+  as Ask's workspace, subtract `--vela-keyboard-inset` themselves.
+- `.appview`, which renders outside the shell, is sized to the visible rectangle,
+  so an app frame inside it has nothing left to subtract.
+- Dialogs and drawers are in the top layer, outside ordinary shell layout, so
+  they apply the same geometry directly.
+- An app frame is told what remains occluded, in the frame's own coordinates, as
+  `context.viewport.insets`.
+
+Structural thresholds are named once in `styles/_breakpoints.scss`, with the
+reason for each, and mirrored in `src/breakpoints.js` for the few components
+that decide what to render rather than how to style it. Ordinary reflow — a grid
+that wants more columns, a header row that wraps — belongs to `auto-fit`,
+`flex-wrap` or a container query, not to a new threshold. Give an `auto-fit`
+track `minmax(min(240px, 100%), 1fr)` so it cannot outgrow a narrow container.
+
+`styles/layout/_mobile.scss` is imported last and owns the shared touch policy:
+a 16px floor on field text so iOS does not zoom on focus, `touch-action:
+manipulation` on ordinary controls while pinch zoom, panning and selection stay
+available, and `overscroll-behavior-y: contain` on each region that scrolls.
+Do not suppress selection, context menus or scrolling globally, and keep
+`touch-action: none` scoped to a surface that owns a custom gesture — the
+workflow canvas does this inside `.tr-canvas-v2`, with visible fit and zoom
+controls beside it.
+
+Do not remount an iframe, editor, conversation or canvas because its container
+crossed a threshold: keep the same instance, its unsaved text, its selection and
+its scroll position across the change.
 
 Keep app lifecycle operations in the existing app provider. Keep permission
 reviews, grants and migration decisions explicit in their feature components.

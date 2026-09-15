@@ -83,6 +83,32 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Vela lays out for a phone properly.** Tapping a field no longer zooms the
+  page and leaves it zoomed: every field a finger can reach now renders at 16
+  pixels or more, while larger text you have chosen is kept. When the keyboard
+  opens, the composer, a form dialog's buttons and a drawer's actions stay above
+  it — the list or conversation above gives up the space, and your place in what
+  you were reading is kept rather than jumping. Dialogs and drawers scroll their
+  own body while the page behind them stays where you left it, and reaching the
+  end of a list no longer starts moving the page underneath. Pinch zoom, panning,
+  text selection, copy and paste and the browser's Back gesture all keep working,
+  and zooming in is no longer mistaken for the keyboard opening, so the layout
+  does not rearrange itself while you magnify it. Grids no longer push the page
+  sideways at 200% zoom or on a narrow phone, and long addresses and identifiers
+  wrap instead of widening everything around them. Home keeps its navigation rail
+  and one-tap app shortcuts at every size, including narrow phones, short
+  landscape windows and tablet split screen. Contributors: one viewport service
+  now owns measurement, publishes it as CSS variables, and each safe area and
+  keyboard adjustment has a single named owner, so nothing subtracts the same
+  space twice; see [the developer guide](docs/DEVELOPMENT.md).
+- Apps are told what part of their frame is actually on screen. The viewport
+  insets Vela reports to an app are now measured in the app's own frame instead
+  of the host's coordinates, so an app that respects them protects the right
+  edges and never subtracts a keyboard Vela has already taken out of the frame.
+  A frame Vela has already sized to the visible area reports no insets at all.
+  The bridge protocol, the manifest and the existing fields are unchanged; the
+  Vela starter stylesheet in `vela-templates` and `create-vela-app` adopts them
+  through a new `vela-viewport.js`, and the Notes app uses it.
 - App icons now tell apps apart. Each app draws its own mark — a notepad for
   Notes, a fork and knife for Meals, a heart and pulse for Health, a chip for
   System Info — instead of every app sharing one white glyph on the same
