@@ -235,38 +235,100 @@ try {
     .waitFor();
   await sealedDialog.getByText(/not storing preferences/).waitFor();
   await sealed.close();
-  await page.goto('https://vela.test/');
+  // ---- A phone: Settings is a screen, not a popup. ----
+  await page.goto('https://vela.test/ask');
+  const phoneDraft = page.locator('textarea');
+  await phoneDraft.fill('Draft that must survive the phone screens');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
-    // Home keeps its rail at phone widths, so Settings is reached from it
-    // directly; other workspaces still open the drawer first.
-    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+    // Ask keeps its rail in the phone drawer, so Settings is reached from
+    // there; the unsent question stays mounted behind the whole journey.
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+    await dialog.waitFor();
+    // Ordinary entry lands on the category list, and the list covers the
+    // workspace edge to edge with no popup gap around it.
+    const listHeading = dialog.getByRole('heading', { name: 'Settings', level: 1 });
+    await listHeading.waitFor();
+    const edgeToEdge = await dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return box.left <= 0 && box.right >= innerWidth && box.height >= innerHeight - 1;
+    });
+    assert.ok(edgeToEdge, `Settings is not edge to edge at ${width}px`);
+    assert.equal(await dialog.getByRole('button', { name: 'Done', exact: true }).count(), 0);
+
     for (const theme of ['light', 'dark']) {
-      await dialog
-        .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
-        .click();
-      await page.waitForFunction((t) => document.documentElement.dataset.theme === t, theme);
-      for (const section of ['Notifications', 'General', 'Appearance']) {
+      // One section at a time, reached from the list and left with Back.
+      for (const section of ['Notifications', 'General', 'Appearance', 'Security']) {
         await dialog
           .getByRole('navigation')
-          .getByRole('button', { name: section, exact: true })
+          .getByRole('button', { name: new RegExp(`^${section}`) })
           .click();
+        await dialog
+          .locator('.settings-header')
+          .getByRole('heading', { name: section, level: 2 })
+          .waitFor();
         const fits = await dialog.evaluate((el) => {
           const bounds = el.getBoundingClientRect();
           const content = el.querySelector('.settings-content');
-          return (
-            bounds.left >= 0 &&
-            bounds.right <= innerWidth &&
-            bounds.bottom <= innerHeight &&
-            content.scrollWidth <= content.clientWidth
-          );
+          const header = el.querySelector('.settings-header');
+          return {
+            box: bounds.left >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight,
+            scroll: content.scrollWidth - content.clientWidth,
+            targets: [...header.querySelectorAll('button')].map(
+              (button) => button.getBoundingClientRect().height,
+            ),
+          };
         });
-        assert.ok(fits, `${section} overflows at ${width}px`);
+        assert.ok(fits.box, `${section} overflows the screen at ${width}px`);
+        assert.ok(fits.scroll <= 0, `${section} scrolls sideways by ${fits.scroll}px at ${width}px`);
+        assert.ok(
+          fits.targets.every((height) => height >= 44),
+          `${section} header targets are ${fits.targets.join('/')}px at ${width}px`,
+        );
+        if (section === 'Appearance') {
+          await dialog
+            .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
+            .click();
+          await page.waitForFunction((t) => document.documentElement.dataset.theme === t, theme);
+          await page.screenshot({ path: path.join(shots, `phone-${width}-${theme}.png`) });
+        }
+        if (section === 'Security')
+          await page.screenshot({ path: path.join(shots, `phone-security-${width}-${theme}.png`) });
+        await dialog.getByRole('button', { name: 'Back to Settings' }).click();
+        await listHeading.waitFor();
       }
-      await page.screenshot({ path: path.join(shots, `phone-${width}-${theme}.png`) });
     }
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+
+    // Search still narrows the list, and a search result opens its section.
+    const phoneSearch = dialog.getByRole('searchbox', { name: 'Find a setting' });
+    await phoneSearch.fill('pin');
+    assert.equal(await dialog.getByRole('navigation').getByRole('button').count(), 1);
+    await phoneSearch.fill('');
+
+    // Escape follows the same visible hierarchy as Back: section, list, out.
+    await dialog
+      .getByRole('navigation')
+      .getByRole('button', { name: /^Appearance/ })
+      .click();
+    await page.keyboard.press('Escape');
+    await listHeading.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    // Nothing beneath the screen reloaded or lost its draft.
+    assert.equal(await phoneDraft.inputValue(), 'Draft that must survive the phone screens');
   }
+
+  // A section asked for by name still opens directly, and the wide window
+  // keeps the two-pane popup with its Done footer.
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.goto('https://vela.test/settings#backups');
+  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
+  await dialog.getByRole('button', { name: 'Back to Settings' }).click();
+  await dialog.getByRole('heading', { name: 'Settings', level: 1 }).waitFor();
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await dialog.getByRole('button', { name: 'Done', exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
     'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, and phone layouts',

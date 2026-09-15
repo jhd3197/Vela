@@ -440,8 +440,21 @@ button.notif-foot {
     }
   }
 
-  .settings-back {
+  /* A phone screen is a phone screen whatever the browser reports about the
+     pointer, so Back and Close hold the touch target here unconditionally. */
+  .settings-header .icon-btn,
+  .settings-list-head .icon-btn {
     flex: none;
+    width: 44px;
+    height: 44px;
+  }
+
+  /* The screen header already names the section, so a panel head that only
+     repeats it is dropped. The ones that carry a status pill or an action
+     beside the name stay: there they label a group rather than the page. */
+  #settings-general > .panel-head,
+  #settings-appearance > .panel-head {
+    display: none;
   }
 
   .settings-content {

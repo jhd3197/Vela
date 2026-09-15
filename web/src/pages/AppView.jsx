@@ -15,6 +15,7 @@ import { createBridge } from '../bridge/host.js';
 import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
+import { reportAppActivity } from '../components/SecurityProvider.jsx';
 
 export default function AppView() {
   const { id } = useParams();
@@ -156,7 +157,13 @@ function Workspace({ id, retry }) {
       frame: frame.current,
       session,
       context: contextRef.current(),
-      onDirty: setDirty,
+      onDirty: (state) => {
+        // Editing inside the frame is real activity. The host cannot see the
+        // keystrokes, so the app's own dirty report stands in for them and
+        // keeps the inactivity lock from firing mid-sentence.
+        reportAppActivity();
+        setDirty(state);
+      },
       onNavigate: () => leaveRef.current(),
       onReady: () => setReady(true),
       onError: setError,
@@ -430,9 +437,11 @@ function Workspace({ id, retry }) {
   );
   if (mode !== 'hub') return content;
   // The rail already names and selects the open app, so the hub workspace uses
-  // the contextual header instead of a second app bar.
+  // the contextual header instead of a second app bar. It also stays on screen
+  // at phone widths: an app that asked for the hub's own chrome is part of the
+  // workspace, and switching apps should not need a hamburger first.
   return (
-    <Shell>
+    <Shell persistentRail>
       <WorkspacePage
         scroll={false}
         title={app?.name || (missing ? 'App unavailable' : 'App')}
