@@ -197,6 +197,9 @@ class PhoneAccess:
                 fingerprint = await asyncio.to_thread(certificates, self.directory, address)
                 if not self.auth.password_file.is_file():
                     await asyncio.to_thread(set_password, self.auth.password_file, password)
+                    # A new access password invalidates any quick-unlock
+                    # enrollment made under the previous one.
+                    self.auth.reset_quick_unlock()
                 origin = f'https://{address}:{secure_port}'
                 public = self.public_app(address, origin, fingerprint, setup_port)
 

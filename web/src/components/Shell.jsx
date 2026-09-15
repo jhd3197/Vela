@@ -13,9 +13,15 @@ import { useSettingsPopup } from './SettingsProvider.jsx';
 // away with no hamburger step; it sits beside the content rather than over it.
 // Other workspaces move it into the drawer opened from their header. The shell
 // renders once around every host route and never remounts on navigation.
-export default function Shell({ children }) {
+//
+// `persistentRail` asks for the same treatment for a workspace that is not
+// Home. An app whose manifest declares the `hub` chrome uses it, so app
+// switching stays one tap away while its own panes change beneath. It is an
+// explicit option rather than a list of app ids, and it changes nothing about
+// how `compact` and `seamless` apps are presented.
+export default function Shell({ children, persistentRail = false }) {
   const location = useLocation();
-  const railFixed = location.pathname === '/';
+  const railFixed = location.pathname === '/' || persistentRail;
   const { settingsOpen } = useSettingsPopup();
   const { toasts, dismissToast } = useApps();
   const [navOpen, setNavOpen] = useState(false);
@@ -25,7 +31,11 @@ export default function Shell({ children }) {
 
   return (
     <ShellContext.Provider value={shell}>
-      <div className={`shell${railFixed ? ' shell-rail-fixed' : ''}`}>
+      <div
+        className={`shell${railFixed ? ' shell-rail-fixed' : ''}${
+          persistentRail ? ' shell-rail-persistent' : ''
+        }`}
+      >
         <div className="ambient-glow" aria-hidden="true" />
         <AppRail />
         <div className="workspace">{children || <Outlet />}</div>

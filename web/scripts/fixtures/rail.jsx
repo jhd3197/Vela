@@ -12,6 +12,7 @@ import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
 import Shell from '../../src/components/Shell.jsx';
+import AppView from '../../src/pages/AppView.jsx';
 import WorkspacePage from '../../src/components/WorkspacePage.jsx';
 import '../../src/styles/main.scss';
 
@@ -36,6 +37,25 @@ const SETS = {
     { id: 'epsilon', name: 'Epsilon', installed: true, running: false, color: '#5be3b4' },
     { id: 'zeta', name: 'Zeta', installed: true, running: true, color: '#c4a7ff' },
     { id: 'shop', name: 'Uninstalled', installed: false, supported: true, category: 'wellness' },
+    // Two presentation contracts side by side: an app that asked for the hub's
+    // own chrome keeps the rail at every width, and one that did not is
+    // unaffected by that choice.
+    {
+      id: 'workspace',
+      name: 'Workspace app',
+      installed: true,
+      running: false,
+      color: '#7c4dee',
+      view: { surface: 'none', chrome: 'hub' },
+    },
+    {
+      id: 'standalone',
+      name: 'Standalone app',
+      installed: true,
+      running: false,
+      color: '#21a377',
+      view: { surface: 'none', chrome: 'compact' },
+    },
   ],
 };
 
@@ -100,8 +120,9 @@ const router = createMemoryRouter(
         {dashboardPages.map(({ to, label }) => (
           <Route key={to} path={to} element={<Page label={label} />} />
         ))}
-        <Route path="/app/:id" element={<Page label="App workspace" />} />
       </Route>
+      {/* The manifest chooses the host navigation, exactly as in the real app. */}
+      <Route path="/app/:id" element={<AppView />} />
     </Route>,
   ),
   { initialEntries: ['/'] },

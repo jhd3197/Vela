@@ -25,8 +25,14 @@
   /* Home is the launcher, so its navigation stays on screen at phone widths:
      the rail sits beside the content it never covers, and the redundant
      hamburger is gone. Other workspaces keep the contextual drawer. */
-  .shell-rail-fixed .rail {
+  .shell-rail-fixed .rail,
+  .shell-rail-persistent .rail {
     display: flex;
+  }
+
+  /* One inset, applied once, on top of the shared top padding. */
+  .rail {
+    padding-top: calc(var(--rail-top, 28px) + env(safe-area-inset-top));
   }
 
   .workspace-header .workspace-nav-button {
@@ -114,8 +120,10 @@
 /* A short window still has to reach the composer, install actions and the
    rail's utility controls. */
 @media (max-height: bp.$short) {
+  /* A short window gives the extra top space back so the footer controls stay
+     reachable; the phone inset is still honoured through the same variable. */
   .rail {
-    padding-top: 8px;
+    --rail-top: 10px;
   }
 
   .rail-mark {
@@ -130,12 +138,14 @@
 /* A narrow phone gives the launcher rail a little less width so the app grid
    beside it keeps a usable column. */
 @media (max-width: bp.$narrow) {
-  .shell-rail-fixed .rail {
+  .shell-rail-fixed .rail,
+  .shell-rail-persistent .rail {
     --rail-w: 54px;
     --rail-control: 40px;
   }
 
-  .shell-rail-fixed .rail-menu {
+  .shell-rail-fixed .rail-menu,
+  .shell-rail-persistent .rail-menu {
     left: calc(100% + 6px);
     min-width: 168px;
   }

@@ -21,6 +21,13 @@
     height: 44px;
   }
 
+  /* On a phone the rail is the only navigation on screen, so its controls meet
+     the touch target even where the rail column itself is narrow. */
+  .rail-item {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .tile-card,
   .group-row {
     touch-action: manipulation;

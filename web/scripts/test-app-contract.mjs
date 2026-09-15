@@ -183,11 +183,16 @@ try {
         Math.abs(reported.height - actual.height) <= 1,
         JSON.stringify({ reported, actual }),
       );
-      if (mode === 'hub')
+      // A hub app keeps the rail at every width, so its frame is always the
+      // window minus that column rather than the whole window.
+      if (mode === 'hub') {
+        const rail = await page.locator('.rail').evaluate((el) => el.getBoundingClientRect().width);
+        assert.ok(rail >= 44, `the hub rail is ${rail}px at ${viewport.width}px`);
         assert.ok(
-          actual.width <= viewport.width - (viewport.width < 500 ? 0 : 62),
-          'the hub frame sits beside the rail',
+          actual.width <= viewport.width - rail,
+          'the hub frame sits beside the rail rather than under it',
         );
+      }
       await page.screenshot({ path: path.join(shots, `${mode}-${viewport.width}.png`) });
     }
     // Polling updates the header, not the app: the iframe must not remount.
@@ -206,13 +211,10 @@ try {
       .fill('Guard this draft');
     // Manage apps is named in the rail's secondary menu; on a phone that rail
     // lives inside the navigation drawer.
+    // A hub app keeps the rail on screen at every width, so the same control
+    // opens Manage apps on a phone and on a desktop.
     const openApps = async () => {
-      const root =
-        viewport.width < 500
-          ? page.getByRole('dialog', { name: 'Vela navigation' }).locator('.rail')
-          : page.locator('.rail');
-      if (viewport.width < 500) await page.getByRole('button', { name: 'Open navigation' }).click();
-      await root.getByRole('button', { name: 'More', exact: true }).click();
+      await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
       await page.getByRole('menuitem', { name: 'Manage apps', exact: true }).click();
     };
     await openApps();
@@ -220,13 +222,10 @@ try {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
     if (viewport.width < 500) {
-      // The phone navigation drawer is a navigation control like any other.
-      await page.getByRole('button', { name: 'Open navigation' }).click();
-      const drawer = page.getByRole('dialog', { name: 'Vela navigation' });
-      await drawer
-        .locator('.nav-drawer')
-        .getByRole('link', { name: 'Library', exact: true })
-        .click();
+      // The rail a hub app keeps on a phone is a navigation control like any
+      // other: leaving through it asks about the unsaved draft first.
+      assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+      await page.locator('.rail a[href="/library"]').click();
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       assert.ok(page.url().endsWith('/app/hub-fixture'));
       assert.equal(

@@ -9,7 +9,10 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 14px 0 calc(12px + env(safe-area-inset-bottom));
+  /* The logo and the upper destinations sit lower than the window edge so the
+     rail reads as a column rather than something pinned to the corner. The
+     phone adds its own inset on top of the same value, once. */
+  padding: var(--rail-top, 28px) 0 calc(12px + env(safe-area-inset-bottom));
   background: var(--bg-rail);
   backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);

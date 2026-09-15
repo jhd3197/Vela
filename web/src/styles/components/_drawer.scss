@@ -42,7 +42,7 @@
 .drawer-nav .rail {
   display: none;
   height: 100%;
-  padding-top: calc(14px + env(safe-area-inset-top));
+  padding-top: calc(var(--rail-top, 28px) + env(safe-area-inset-top));
   backdrop-filter: none;
 }
 

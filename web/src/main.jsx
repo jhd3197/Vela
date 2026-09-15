@@ -14,6 +14,7 @@ import { registerServiceWorker } from './pwa.js';
 import Shell from './components/Shell.jsx';
 import ThemeSync from './components/ThemeSync.jsx';
 import SettingsProvider from './components/SettingsProvider.jsx';
+import SecurityProvider from './components/SecurityProvider.jsx';
 import Home from './pages/Home.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
@@ -34,14 +35,16 @@ const router = createBrowserRouter(
       <Route
         element={
           <AuthGate>
-            <EngineProvider>
-              <AppsProvider>
-                <ThemeSync />
-                <SettingsProvider>
-                  <Outlet />
-                </SettingsProvider>
-              </AppsProvider>
-            </EngineProvider>
+            <SecurityProvider>
+              <EngineProvider>
+                <AppsProvider>
+                  <ThemeSync />
+                  <SettingsProvider>
+                    <Outlet />
+                  </SettingsProvider>
+                </AppsProvider>
+              </EngineProvider>
+            </SecurityProvider>
           </AuthGate>
         }
       >

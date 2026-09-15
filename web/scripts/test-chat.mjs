@@ -237,7 +237,7 @@ try {
     await page.setViewportSize(viewport);
     for (const theme of ['light', 'dark']) {
       await page.goto(base + '/ask');
-      await page.getByText('qwen3:8b · on this machine', { exact: true }).waitFor();
+      await page.getByText('Vela · qwen3:8b', { exact: true }).waitFor();
       await page.addStyleTag({
         content:
           '*, *::before, *::after { transition: none !important; animation: none !important; }',
@@ -384,7 +384,7 @@ try {
   await checkLayout();
   reachable = true;
   await page.getByRole('button', { name: 'Reconnect' }).click();
-  await page.getByText('qwen3:8b · on this machine', { exact: true }).waitFor();
+  await page.getByText('Vela · qwen3:8b', { exact: true }).waitFor();
   assert.equal(await input.inputValue(), 'My draft while offline');
   assert.equal(await send.isEnabled(), true);
   // ---- durable conversations ----------------------------------------

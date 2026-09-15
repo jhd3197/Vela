@@ -235,41 +235,218 @@ try {
     .waitFor();
   await sealedDialog.getByText(/not storing preferences/).waitFor();
   await sealed.close();
-  await page.goto('https://vela.test/');
+  // ---- A phone: Settings is a screen, not a popup. ----
+  await page.goto('https://vela.test/ask');
+  const phoneDraft = page.locator('textarea');
+  await phoneDraft.fill('Draft that must survive the phone screens');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
-    // Home keeps its rail at phone widths, so Settings is reached from it
-    // directly; other workspaces still open the drawer first.
-    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+    // Ask keeps its rail in the phone drawer, so Settings is reached from
+    // there; the unsent question stays mounted behind the whole journey.
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+    await dialog.waitFor();
+    // Ordinary entry lands on the category list, and the list covers the
+    // workspace edge to edge with no popup gap around it.
+    const listHeading = dialog.getByRole('heading', { name: 'Settings', level: 1 });
+    await listHeading.waitFor();
+    const edgeToEdge = await dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return box.left <= 0 && box.right >= innerWidth && box.height >= innerHeight - 1;
+    });
+    assert.ok(edgeToEdge, `Settings is not edge to edge at ${width}px`);
+    assert.equal(await dialog.getByRole('button', { name: 'Done', exact: true }).count(), 0);
+
     for (const theme of ['light', 'dark']) {
-      await dialog
-        .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
-        .click();
-      await page.waitForFunction((t) => document.documentElement.dataset.theme === t, theme);
-      for (const section of ['Notifications', 'General', 'Appearance']) {
+      // One section at a time, reached from the list and left with Back.
+      for (const section of ['Notifications', 'General', 'Appearance', 'Security']) {
         await dialog
           .getByRole('navigation')
-          .getByRole('button', { name: section, exact: true })
+          .getByRole('button', { name: new RegExp(`^${section}`) })
           .click();
+        await dialog
+          .locator('.settings-header')
+          .getByRole('heading', { name: section, level: 2 })
+          .waitFor();
         const fits = await dialog.evaluate((el) => {
           const bounds = el.getBoundingClientRect();
           const content = el.querySelector('.settings-content');
-          return (
-            bounds.left >= 0 &&
-            bounds.right <= innerWidth &&
-            bounds.bottom <= innerHeight &&
-            content.scrollWidth <= content.clientWidth
-          );
+          const header = el.querySelector('.settings-header');
+          return {
+            box: bounds.left >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight,
+            scroll: content.scrollWidth - content.clientWidth,
+            targets: [...header.querySelectorAll('button')].map(
+              (button) => button.getBoundingClientRect().height,
+            ),
+          };
         });
-        assert.ok(fits, `${section} overflows at ${width}px`);
+        assert.ok(fits.box, `${section} overflows the screen at ${width}px`);
+        assert.ok(
+          fits.scroll <= 0,
+          `${section} scrolls sideways by ${fits.scroll}px at ${width}px`,
+        );
+        assert.ok(
+          fits.targets.every((height) => height >= 44),
+          `${section} header targets are ${fits.targets.join('/')}px at ${width}px`,
+        );
+        if (section === 'Appearance') {
+          await dialog
+            .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
+            .click();
+          await page.waitForFunction((t) => document.documentElement.dataset.theme === t, theme);
+          await page.screenshot({ path: path.join(shots, `phone-${width}-${theme}.png`) });
+        }
+        if (section === 'Security')
+          await page.screenshot({ path: path.join(shots, `phone-security-${width}-${theme}.png`) });
+        await dialog.getByRole('button', { name: 'Back to Settings' }).click();
+        await listHeading.waitFor();
       }
-      await page.screenshot({ path: path.join(shots, `phone-${width}-${theme}.png`) });
     }
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+
+    // Search still narrows the list, and a search result opens its section.
+    const phoneSearch = dialog.getByRole('searchbox', { name: 'Find a setting' });
+    await phoneSearch.fill('pin');
+    assert.equal(await dialog.getByRole('navigation').getByRole('button').count(), 1);
+    await phoneSearch.fill('');
+
+    // Escape follows the same visible hierarchy as Back: section, list, out.
+    await dialog
+      .getByRole('navigation')
+      .getByRole('button', { name: /^Appearance/ })
+      .click();
+    await page.keyboard.press('Escape');
+    await listHeading.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    // Nothing beneath the screen reloaded or lost its draft.
+    assert.equal(await phoneDraft.inputValue(), 'Draft that must survive the phone screens');
   }
+
+  // ---- Every supported width, both compositions, and the line between. ----
+  await page.goto('https://vela.test/ask');
+  const crossing = page.locator('textarea');
+  await crossing.fill('A draft that must survive the crossover');
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.locator('.drawer-nav .rail').getByRole('button', { name: 'Settings' }).click();
+  await dialog.waitFor();
+  await dialog
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Notifications/ })
+    .click();
+  await dialog.getByLabel('Topic', { exact: true }).fill('crossover-fixture-topic');
+  for (const [width, height] of [
+    [320, 700],
+    [430, 900],
+    [768, 1024],
+    [860, 800],
+    [740, 380],
+    [861, 800],
+    [1440, 900],
+  ]) {
+    await page.setViewportSize({ width, height });
+    const shape = await dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const content = el.querySelector('.settings-content');
+      return {
+        screen: el.classList.contains('settings-screen'),
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        sideways: content.scrollWidth - content.clientWidth,
+      };
+    });
+    // Through the compact threshold it is a screen; above it, a popup.
+    assert.equal(shape.screen, width <= 860, `wrong composition at ${width}px`);
+    if (shape.screen)
+      assert.ok(
+        shape.left <= 0 && shape.right >= width,
+        `the screen leaves a gap at ${width}px: ${JSON.stringify(shape)}`,
+      );
+    else assert.ok(shape.left > 0, `the popup lost its margin at ${width}px`);
+    assert.ok(shape.bottom <= height + 1, `overflows the window at ${width}x${height}`);
+    assert.ok(shape.sideways <= 0, `scrolls sideways at ${width}px`);
+    // The draft survives every one of those, including the crossover itself.
+    assert.equal(
+      await dialog.getByLabel('Topic', { exact: true }).inputValue(),
+      'crossover-fixture-topic',
+      `the draft was lost at ${width}px`,
+    );
+  }
+
+  // A reader at 200% zoom has a genuinely narrow layout viewport, so they get
+  // the same screen composition rather than a popup squeezed into it.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const zoomed = await context.newPage();
+  await zoomed.goto('https://vela.test/');
+  await zoomed.setViewportSize({ width: 720, height: 450 });
+  await zoomed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  const zoomedDialog = zoomed.getByRole('dialog', { name: 'Settings', exact: true });
+  await zoomedDialog.waitFor();
+  assert.ok(await zoomedDialog.evaluate((el) => el.classList.contains('settings-screen')));
+  await zoomed.close();
+
+  // Reduced motion removes the screen transition rather than shortening it.
+  const still = await context.newPage();
+  await still.emulateMedia({ reducedMotion: 'reduce' });
+  await still.setViewportSize({ width: 390, height: 780 });
+  await still.goto('https://vela.test/');
+  await still.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  const stillDialog = still.getByRole('dialog', { name: 'Settings', exact: true });
+  await stillDialog
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Appearance/ })
+    .click();
+  assert.equal(
+    await stillDialog
+      .locator('.settings-main')
+      .evaluate((el) => getComputedStyle(el).animationName),
+    'none',
+  );
+
+  // An open keyboard shrinks the scrolling body, not the header. A headless
+  // browser has no keyboard, so the measurement service's own variables stand
+  // in for one; the layout rules that read them are the real ones.
+  await still.evaluate(() => {
+    // The measurement service publishes these as inline custom properties, so
+    // the stand-in writes them the same way.
+    document.documentElement.style.setProperty('--vela-visible-height', '420px');
+    document.documentElement.style.setProperty('--vela-keyboard-inset', '360px');
+  });
+  const withKeyboard = await stillDialog.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const header = el.querySelector('.settings-header').getBoundingClientRect();
+    const content = el.querySelector('.settings-content');
+    return {
+      height: box.height,
+      top: box.top,
+      headerTop: header.top,
+      contentScrolls: content.scrollHeight > content.clientHeight || content.clientHeight > 0,
+    };
+  });
+  assert.ok(
+    Math.abs(withKeyboard.height - 420) <= 1 && withKeyboard.top <= 1,
+    `the screen must own the visible rectangle: ${JSON.stringify(withKeyboard)}`,
+  );
+  assert.ok(
+    withKeyboard.headerTop >= -1 && withKeyboard.headerTop < 60,
+    'the header is pushed off the top when the keyboard opens',
+  );
+  await still.close();
+
+  // A section asked for by name still opens directly, and the wide window
+  // keeps the two-pane popup with its Done footer.
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.goto('https://vela.test/settings#backups');
+  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
+  await dialog.getByRole('button', { name: 'Back to Settings' }).click();
+  await dialog.getByRole('heading', { name: 'Settings', level: 1 }).waitFor();
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await dialog.getByRole('button', { name: 'Done', exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, and phone layouts',
+    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();

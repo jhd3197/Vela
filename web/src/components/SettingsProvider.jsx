@@ -14,8 +14,11 @@ export default function SettingsProvider({ children }) {
   const [request, setRequest] = useState(null);
   const routed = location.pathname === '/settings';
   const open = routed || request?.locationKey === location.key;
-  const openSettings = (section = 'appearance') =>
-    setRequest({ section, locationKey: location.key });
+  // No default section: an ordinary open lands on the category list on a phone
+  // and on the popup's usual section on a wide screen. An explicit section, a
+  // search result and a `/settings#section` bookmark all still open directly.
+  const openSettings = (section) =>
+    setRequest({ section: section || null, locationKey: location.key });
   const close = () => {
     setRequest(null);
     if (routed) navigate('/', { replace: true });
@@ -24,9 +27,14 @@ export default function SettingsProvider({ children }) {
   return (
     <SettingsContext.Provider value={{ openSettings, settingsOpen: open }}>
       {children}
+      {/* `explicit` says whether a section was actually asked for: a phone
+          opens the category list when it was not, and that section when it was. */}
       {open && (
         <Settings
-          initialSection={routed ? location.hash.slice(1) || 'general' : request.section}
+          initialSection={
+            routed ? location.hash.slice(1) || 'general' : request.section || 'appearance'
+          }
+          explicit={routed ? Boolean(location.hash.slice(1)) : Boolean(request.section)}
           onClose={close}
         />
       )}

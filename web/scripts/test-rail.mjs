@@ -75,7 +75,7 @@ try {
     content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
   });
   const shortcuts = page.locator('.rail-apps a');
-  assert.equal(await shortcuts.count(), 10);
+  assert.equal(await shortcuts.count(), 12);
   const names = await shortcuts.evaluateAll((items) =>
     items.map((item) => item.querySelector('.rail-tip').textContent),
   );
@@ -106,12 +106,9 @@ try {
   const afterTab = await page.evaluate(() => document.activeElement.getAttribute('href'));
   assert.notEqual(beforeTab, afterTab, 'Tab moves through the rail');
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'App workspace' }).waitFor();
-  assert.equal(
-    await page.locator('.rail-apps a[aria-current="page"]').getAttribute('href'),
-    afterTab,
-    'the open app is the selected shortcut',
-  );
+  await page.locator('.appview').waitFor();
+  await page.goto(base);
+  await page.locator('.rail-apps a').first().waitFor();
 
   // Landmarks: one navigation for the rail, one main surface, one header.
   const landmarks = await page.evaluate(() => ({
@@ -168,11 +165,13 @@ try {
   await noOverflow('home phone');
   // One tap opens a ready app from Home.
   await page.locator('.rail-apps a[href="/app/gamma"]').click();
-  await page.getByRole('heading', { name: 'App workspace' }).waitFor();
+  await page.locator('.appview').waitFor();
+
+  // An app with its own chrome carries its own way back instead of the rail.
+  await page.getByRole('button', { name: 'Back to Apps' }).waitFor();
 
   // Every other workspace moves the same rail into a drawer, beside a labelled
   // list of the same destinations.
-  await page.locator('.rail-item').first().waitFor({ state: 'attached' });
   await page.goto(base);
   await page.locator('.rail a[href="/library"]').click();
   await page.getByRole('button', { name: 'Open navigation' }).waitFor();
@@ -203,12 +202,52 @@ try {
   await opener.click();
   await drawer.locator('.rail').getByRole('link', { name: 'Gamma' }).click();
   await drawer.waitFor({ state: 'detached' });
-  await page.getByRole('heading', { name: 'App workspace' }).waitFor();
+  await page.locator('.appview').waitFor();
   await noOverflow('phone');
+
+  // An app that asked for the hub's own chrome keeps the rail on screen at
+  // phone widths, with no hamburger and no second rail, so switching apps
+  // stays one tap away while its own panes change beneath.
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(base);
+    await page.locator('.rail-apps a[href="/app/workspace"]').click();
+    await page.locator('.shell-rail-persistent .rail').waitFor();
+    assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
+    assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
+    assert.equal(
+      await page.locator('.rail a[href="/app/workspace"]').getAttribute('aria-current'),
+      'page',
+      'the open app is not marked in the rail',
+    );
+    // Home and Settings stay reachable from inside the app workspace.
+    assert.equal(await page.locator('.rail a[href="/"]').count(), 1);
+    assert.equal(await page.locator('.rail').getByRole('button', { name: 'Settings' }).count(), 1);
+    // The rail takes its own column rather than covering the app.
+    const geometry = await page.evaluate(() => {
+      const rail = document.querySelector('.rail').getBoundingClientRect();
+      const workspace = document.querySelector('.workspace').getBoundingClientRect();
+      return { railWidth: rail.width, gap: workspace.left - rail.right };
+    });
+    assert.ok(geometry.gap >= -1, `the rail overlaps the workspace at ${width}px`);
+    assert.ok(
+      geometry.railWidth >= 44 && geometry.railWidth <= 70,
+      `rail is ${geometry.railWidth}px at ${width}px`,
+    );
+    await noOverflow(`hub app at ${width}px`);
+    if (width === 390) await shot('hub-app-phone-rail');
+
+    // An app that did not ask for it keeps the presentation it had. It is
+    // reached from the rail the hub app is still showing.
+    await page.locator('.rail-apps a[href="/app/standalone"]').click();
+    await page.locator('.appview-compact').waitFor();
+    assert.equal(await page.locator('.rail').count(), 0, `a compact app grew a rail at ${width}px`);
+  }
+  await page.setViewportSize({ width: 390, height: 720 });
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, Home navigation without a hamburger on a phone, drawer navigation and focus return',
+    'PASS: empty and many-app rails, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, Home navigation without a hamburger on a phone, a hub app keeping one rail beside its workspace at 390/320px while a compact app keeps its own chrome, drawer navigation and focus return',
   );
 } finally {
   await browser?.close();
