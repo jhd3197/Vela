@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { useAuth } from './AuthGate.jsx';
 import LockScreen from './security/LockScreen.jsx';
 
 const SecurityContext = createContext({
@@ -17,7 +16,6 @@ const ACTIVITY_INTERVAL = 20000;
 const POLL_INTERVAL = 15000;
 
 export default function SecurityProvider({ children }) {
-  const { remote } = useAuth();
   const [status, setStatus] = useState(null);
   // A session that went to the background is treated as covered until the
   // engine has answered again, so protected content is never revealed first.
@@ -88,7 +86,7 @@ export default function SecurityProvider({ children }) {
     };
   }, [enrolled, locked]);
 
-  const value = { status, refresh, apply: setStatus, remote };
+  const value = { status, refresh, apply: setStatus };
 
   return (
     <SecurityContext.Provider value={value}>
