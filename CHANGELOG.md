@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.9 - 2026-09-15
+
 ### Changed
 
 - **The app rail stays on screen on a phone.** Every dashboard page, including
