@@ -35,6 +35,13 @@ until the release workflow prepares a tested server version.
   into a contextual header above each page. On phones the same destinations,
   including every installed app, open from a navigation drawer beside the
   existing bottom bar.
+- Apps that ask for the hub's own layout, and connected web services, now open
+  beside the rail with a single contextual header showing the app's icon, name
+  and state instead of a second app bar. Connected services keep their edit,
+  reload and open-in-browser controls in that header, and their own origin,
+  login and data are untouched. Apps that declare the compact or seamless
+  presentation are unchanged until their manifest opts in. Opening an app that
+  has been removed now lands in the normal workspace with a way back.
 - Settings opens in a compact popup over the current screen, with searchable
   categories, light and dark previews, and separate chat privacy controls.
   Existing settings links open the matching category; phone layouts keep the

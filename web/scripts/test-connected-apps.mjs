@@ -216,7 +216,11 @@ try {
     await page.getByRole('button', { name: 'Save changes' }).click();
     await page.waitForFunction(() => document.querySelector('iframe')?.srcdoc.includes('/blocked'));
     await page.getByRole('link', { name: 'Open in browser' }).waitFor();
-    await page.getByRole('button', { name: 'Back to Apps' }).click();
+    // The host rail (or the phone bar) is the way out; the frame has no chrome.
+    await page
+      .locator(viewport.width < 500 ? '.tabbar' : '.rail')
+      .getByRole('link', { name: 'Library', exact: true })
+      .click();
     await page.waitForURL(base + '/library');
     await page
       .getByRole('button', { name: new RegExp(`Reading ${viewport.width} Connected web app`) })

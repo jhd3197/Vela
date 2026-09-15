@@ -148,11 +148,14 @@ try {
     );
     for (const mode of ['compact', 'hub']) {
       await page.goto(`${base}/app/${mode}-fixture`);
-      await page.locator('.appview-chrome').waitFor();
+      // Compact keeps its own app bar; hub uses the shell's contextual header.
+      await page.locator(mode === 'hub' ? '.workspace-header' : '.appview-chrome').waitFor();
       await page.waitForFunction(
         () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
       );
       assert.equal(await page.locator('.rail').count(), mode === 'hub' ? 1 : 0);
+      // No duplicate navigation: the hub workspace has one header, not two.
+      assert.equal(await page.locator('.appview-chrome').count(), mode === 'hub' ? 0 : 1);
       if (mode === 'hub' && viewport.width < 500) {
         const composer = await page
           .frameLocator('iframe')
@@ -164,8 +167,44 @@ try {
           'Hub navigation must not cover the composer',
         );
       }
+      // The bridge reports the frame's real box, so the rail and contextual
+      // header are outside the app's coordinate space.
+      const modeFrame = page.frames().find((item) => item.url().includes(`/apps/${mode}-fixture/`));
+      const reported = await modeFrame.evaluate(() => ({
+        width: Vela.context.viewport.width,
+        height: Vela.context.viewport.height,
+        chrome: Vela.context.view.chrome,
+        theme: Vela.context.theme,
+      }));
+      const actual = await page
+        .locator('iframe')
+        .evaluate((frame) => ({ width: frame.clientWidth, height: frame.clientHeight }));
+      assert.equal(reported.chrome, mode);
+      assert.equal(
+        reported.theme,
+        await page.evaluate(() => document.documentElement.dataset.theme),
+      );
+      assert.ok(Math.abs(reported.width - actual.width) <= 1, JSON.stringify({ reported, actual }));
+      assert.ok(
+        Math.abs(reported.height - actual.height) <= 1,
+        JSON.stringify({ reported, actual }),
+      );
+      if (mode === 'hub')
+        assert.ok(
+          actual.width <= viewport.width - (viewport.width < 500 ? 0 : 62),
+          'the hub frame sits beside the rail',
+        );
       await page.screenshot({ path: path.join(shots, `${mode}-${viewport.width}.png`) });
     }
+    // Polling updates the header, not the app: the iframe must not remount.
+    await page.evaluate(() => (document.querySelector('iframe').dataset.marker = 'kept'));
+    await page.waitForTimeout(6500);
+    assert.equal(
+      await page.evaluate(() => document.querySelector('iframe').dataset.marker),
+      'kept',
+      'app polling must not remount the workspace iframe',
+    );
+
     // Every hub navigation route participates in the unsaved-work guard.
     await page
       .frameLocator('iframe')
@@ -178,6 +217,18 @@ try {
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
+    if (viewport.width < 500) {
+      // The phone navigation drawer is a navigation control like any other.
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      const drawer = page.getByRole('dialog', { name: 'Vela navigation' });
+      await drawer.getByRole('link', { name: 'Library', exact: true }).click();
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      assert.ok(page.url().endsWith('/app/hub-fixture'));
+      assert.equal(
+        await page.frameLocator('iframe').getByRole('textbox', { name: 'Message' }).inputValue(),
+        'Guard this draft',
+      );
+    }
     await appsLink.click();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);

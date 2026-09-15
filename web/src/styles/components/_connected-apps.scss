@@ -55,14 +55,7 @@
 }
 
 .connected-app-view {
-  height: 100dvh;
-  .appview-chrome {
-    flex-wrap: wrap;
-    flex-shrink: 0;
-  }
-  .appview-title {
-    min-width: 0;
-  }
+  min-height: 0;
 }
 
 .connected-app-help {
@@ -82,16 +75,7 @@
 }
 
 @media (max-width: 540px) {
-  .connected-app-view .appview-chrome {
-    gap: 8px;
-  }
-  .connected-app-view .appview-back {
-    padding-inline: 8px;
-  }
-  .connected-app-view .btn {
+  .workspace-header .btn {
     min-height: 44px;
-  }
-  .connected-app-view .appview-title {
-    flex: 1 1 calc(100% - 110px);
   }
 }

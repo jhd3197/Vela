@@ -63,7 +63,7 @@ hostname, including when the hub address changes. No server-side URL fetch, DNS
 lookup or proxy is performed.
 
 Summaries have `kind: "connected-web"`, `schemaVersion: null`, `runtime: "connected"`,
-`view: {surface: "connected", chrome: "compact", url}`, `installed: true`,
+`view: {surface: "connected", chrome: "hub", url}`, `installed: true`,
 `running: false` and no capabilities. `installed` means the connection is saved;
 `running` does not claim upstream availability. Engine installed counts include
 registrations; running counts do not. Package lifecycle and app-session endpoints
@@ -77,7 +77,10 @@ blocked. No bridge, app bearer or hub bearer is supplied to either frame. Host
 referrers are suppressed; subsequent navigation within the service uses its own
 referrer policy. Upstream frame policies and browser cookie policies still apply.
 The host always offers browser fallback; iframe load events cannot reliably prove
-that an upstream service is available or successfully rendered.
+that an upstream service is available or successfully rendered. These summaries
+are host-owned, so the hub renders them inside its own rail and contextual
+header (`chrome: "hub"`), with edit, reload and open-in-browser controls in that
+header. This presentation choice never reaches into the service's own document.
 
 ### Package manifests
 

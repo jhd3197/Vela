@@ -1,8 +1,4 @@
 /* The transcript scrolls independently of the header and composer. */
-.workspace-content-fixed > .banner {
-  flex-shrink: 0;
-  margin: 14px 26px 0;
-}
 .ask-workspace {
   flex: 1;
   min-height: 0;

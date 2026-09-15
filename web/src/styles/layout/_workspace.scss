@@ -87,10 +87,15 @@
   padding-bottom: calc(48px + env(safe-area-inset-bottom));
 }
 
-/* Pages that own their own scrolling regions, such as Ask. */
+/* Pages that own their own scrolling regions, such as Ask and app workspaces. */
 .workspace-content-fixed {
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 0;
+}
+
+.workspace-content-fixed > .banner {
+  flex-shrink: 0;
+  margin: 14px 26px 0;
 }

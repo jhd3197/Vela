@@ -73,6 +73,19 @@
   flex: none;
 }
 
+/* Narrow headers keep the action but drop its visible label; the control's
+   aria-label carries the same name. */
+@media (max-width: 640px) {
+  .btn-compact {
+    width: 34px;
+    padding: 0;
+  }
+
+  .btn-compact .btn-label {
+    display: none;
+  }
+}
+
 .btn-block {
   width: 100%;
 }

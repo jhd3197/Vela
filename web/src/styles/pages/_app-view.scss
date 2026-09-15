@@ -255,11 +255,9 @@
   min-width: 0;
   min-height: 0;
   flex: 1;
+  background: var(--bg-workspace);
 }
 @media (max-width: 860px) {
-  .appview-hub {
-    padding-bottom: calc(66px + env(safe-area-inset-bottom));
-  }
   .appview-chrome {
     gap: 6px;
   }
