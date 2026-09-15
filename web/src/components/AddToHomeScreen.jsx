@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { isIOS, isStandalone, promptInstall, useInstallPrompt } from '../pwa.js';
+import { isAndroid, isIOS, isStandalone, promptInstall, useInstallPrompt } from '../pwa.js';
 import IOSInstallSteps from './IOSInstallSteps.jsx';
+import AndroidInstallSteps from './AndroidInstallSteps.jsx';
 
 // "Add to Home Screen" section. Used for web apps in the detail drawer and
 // (with forHub) for the hub itself. iOS has no install-prompt API on any
@@ -41,6 +42,8 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
       setBusy(true);
       try {
         setOutcome(await promptInstall(installEvent));
+      } catch {
+        setOutcome('failed');
       } finally {
         setBusy(false);
       }
@@ -55,12 +58,25 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
         {outcome === 'dismissed' && (
           <p className="a2hs-note">Install dismissed — you can install any time from this panel.</p>
         )}
+        {outcome === 'failed' && (
+          <p role="status" className="a2hs-note">
+            Use your browser menu to add Vela to your Home Screen.
+          </p>
+        )}
+        {isAndroid() && <AndroidInstallSteps />}
         {!forHub && (
           <p className="a2hs-note">The same flow installs the Vela hub itself from this page.</p>
         )}
       </section>
     );
   }
+
+  if (isAndroid())
+    return (
+      <section className="drawer-section a2hs">
+        <AndroidInstallSteps />
+      </section>
+    );
 
   return (
     <section className="drawer-section a2hs">

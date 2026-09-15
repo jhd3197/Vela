@@ -615,7 +615,7 @@ export default function Settings() {
         <AddToHomeScreen appName="Vela" forHub />
         <div className="phone-setup-settings">
           <Link className="btn" to="/?setup=phone">
-            Set up my iPhone
+            Set up my phone
           </Link>
           <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
         </div>

@@ -101,46 +101,73 @@ Phone, tablet and other computer browsers connect to the same Vela Server.
 They do not each need their own server installation. The server computer must
 stay on and reachable while you use its apps.
 
-The dashboard shows a welcome popup on the first visit in each browser. Choose
-**Set up my iPhone** to connect your phone, or **Stay on this computer** to
-continue. Reopen the guide from **Settings → Set up my iPhone** at any time.
+The welcome popup opens phone setup directly. Reopen it from
+**Settings → Set up my phone**. If Vela is already hosted at an HTTPS domain,
+the popup shows that domain's QR code immediately.
 
-This preview opens locally by default. Network access needs a server
-password and a trusted HTTPS certificate. The welcome guide explains these
-requirements; it does not configure network access automatically.
-Quit the running server first. In a terminal in the installed or extracted folder, run `Vela.exe --set-password` on Windows
-(or `./Vela --set-password` on macOS/Linux), then start with your certificate:
+### Connect over the same Wi-Fi
+
+1. On the Vela computer, open the welcome popup or **Set up my phone** in Settings.
+2. Choose the computer's Wi-Fi address. If this is the first setup, choose a
+   Vela password of at least 12 characters. Click **Enable Wi-Fi & show QR**.
+3. Scan the QR code using your phone's Camera app and tap the link. Both devices
+   must be on the same network. The QR uses the computer's network address,
+   even when its dashboard is open at `127.0.0.1`.
+4. The phone page guides the one-time certificate setup. On iPhone, open the
+   page in Safari; another iPhone browser gets a link to copy into Safari.
+   Compare the downloaded certificate's SHA-256 fingerprint with **Wi-Fi
+   connection details** on the computer before trusting it.
+5. Open **Open secure Vela** on the phone. Follow the Home Screen steps, then
+   open the new Vela icon and sign in with your Vela password.
+
+On iPhone, install the downloaded profile in **Settings → General → VPN & Device
+Management**, then enable it in **General → About → Certificate Trust Settings**.
+See [Apple's certificate trust instructions](https://support.apple.com/102390).
+On Android, install it as a **CA certificate** in the phone's security/credential
+settings; names vary by phone. Remove the Vela certificate if you stop using
+that server.
+
+Vela creates a certificate restricted to private network addresses, and serves
+only setup instructions and the public certificate over HTTP on port **7701**.
+Apps, passwords and sessions use HTTPS on port **7702**. The QR contains no
+password or session. No router port forwarding is needed. If the phone cannot
+connect, allow Vela through the computer's firewall on your private network;
+guest Wi-Fi or device isolation can block the connection. Vela does not change
+firewall rules or install certificates on your devices automatically.
+
+Wi-Fi access resumes when Vela restarts. Keep the computer on and reachable.
+If its network address changes, reopen setup, choose the new address and scan
+again; reserving its address in your router avoids changing saved phone URLs.
+Under **Wi-Fi connection details**, choose **Turn off Wi-Fi access** to disconnect
+phones and stop both listeners while keeping the desktop dashboard available.
+
+### Save Vela to your Home Screen
+
+- **iPhone / iPad:** In Safari, open **Share** (possibly inside **More (…)**), then
+  **Add to Home Screen**. If needed, find it in **Edit Actions**. Leave **Open as
+  Web App** on when offered, then tap **Add**.
+- **Android:** In Chrome, open the three-dot menu and choose **Add to Home screen**
+  or **Install app**. Confirm **Install** or **Add**. When supported, Vela also
+  offers the browser's install button directly.
+
+See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/iphea86e5236/ios)
+and [Chrome's Android web app instructions](https://support.google.com/chrome/answer/9658361?co=GENIE.Platform%3DAndroid).
+Saving Vela does not install another server or make app data available while
+that server is offline.
+
+### Use an existing HTTPS certificate
+
+For a custom domain or managed network, you can still start Vela with your own
+certificate. Quit the running server, then use `Vela.exe --set-password` on
+Windows (or `./Vela --set-password` on macOS/Linux). Start with:
 
 ```powershell
 .\Vela.exe --host 0.0.0.0 --cert C:\certs\vela.pem --key C:\certs\vela-key.pem --origin https://vela.home:7700
 ```
 
-Use the configured HTTPS address on your other devices and sign in. The
-certificate must be trusted there. Vela does not configure DNS, certificates or
-firewall access automatically. Once connected, you can save the dashboard to
-your home screen. Saving it does not install another server or make app data
-available while the server is offline.
-
-### Save Vela on your iPhone
-
-1. Open your configured HTTPS Vela address on the server computer and sign in.
-2. Choose **Set up my iPhone** in the welcome popup or Settings. Scan its QR
-   code with the iPhone Camera app and tap the link. Use the same Wi-Fi or a
-   network that can reach your server.
-3. The setup page detects Safari and shows the Home Screen steps. If it detects
-   another browser, copy the link into Safari. If detection is wrong, choose
-   **I'm already in Safari** to see the steps.
-4. In Safari, open **Share** (possibly inside **More (…)**), then **Add to Home
-   Screen**. If needed, find it in **Edit Actions**. Leave **Open as Web App** on
-   when offered, then tap **Add**.
-5. Open the Vela icon on your Home Screen and sign in if asked.
-
-The QR contains only the setup address, not your password or session. The
-instructions can open before sign-in; your apps still require authentication.
-The wizard offers a QR only for a server with phone access enabled, since a
-`localhost` address on your computer would point to the phone itself when scanned.
-See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/iphea86e5236/ios)
-for Safari's current menu options.
+Open that HTTPS address on the computer. Phone setup uses it for the QR and
+skips the built-in Wi-Fi certificate guide. DNS, certificate trust and firewall
+access must already be configured for that address.
 
 ## Other launch options
 

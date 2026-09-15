@@ -20,13 +20,14 @@ export function dismissWelcome() {
 
 // Only share the authenticated server origin, never the current URL's tokens,
 // app path or query string. Local-only servers cannot be reached by a phone.
-export function phoneSetupUrl(origin, remote) {
+export function phoneSetupUrl(origin, remote, { allowLocalHttp = false } = {}) {
   if (!remote) return null;
   try {
     const url = new URL(origin);
     const host = url.hostname.toLowerCase();
     if (
-      url.protocol !== 'https:' ||
+      (url.protocol !== 'https:' &&
+        !(allowLocalHttp && url.protocol === 'http:' && isPrivateIPv4(host))) ||
       url.username ||
       url.password ||
       host === 'localhost' ||
@@ -41,6 +42,17 @@ export function phoneSetupUrl(origin, remote) {
   } catch {
     return null;
   }
+}
+
+function isPrivateIPv4(host) {
+  const parts = host.split('.').map(Number);
+  return (
+    parts.length === 4 &&
+    parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) &&
+    (parts[0] === 10 ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168))
+  );
 }
 
 export function isIOSSafari(ua = navigator.userAgent) {

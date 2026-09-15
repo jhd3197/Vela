@@ -58,11 +58,15 @@ controlled response stream. It checks the bottom composer, app mentions,
 keyboard input, formatted responses, stop/retry, scrolling, chat retention and
 offline recovery, and saves screenshots under `docs/screenshots/chat/`.
 The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
-local-only access guidance, HTTPS QR handoff, Safari/other-browser instructions,
-clipboard and storage fallback, installed mode and narrow layouts. It uses the
+Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
+certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the
 built UI with disposable API responses and writes screenshots under
 `docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
 Home Screen installation on a physical iPhone before claiming device acceptance.
+The Python phone-access tests run HTTP and HTTPS listeners on disposable loopback
+ports, verify the generated certificate chain, restrict public bootstrap routes,
+exercise password login and local-token rejection, and check restart/disable.
+They do not change OS certificate trust or expose a test server on real Wi-Fi.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.

@@ -61,6 +61,10 @@ export function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 
+export function isAndroid() {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+}
+
 export function registerServiceWorker() {
   // Prod only: in dev the Vite server and its proxy should always be live,
   // and a caching SW would fight hot module reload.

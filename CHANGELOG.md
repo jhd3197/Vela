@@ -15,10 +15,12 @@ until the release workflow prepares a tested server version.
   icon color. Open them inside Vela with reload, edit and browser fallback
   controls. Connections use a separate hostname and keep the service's own
   login and data; removing a connection does not stop or uninstall the service.
-- A welcome popup guides iPhone setup, with a QR code for servers that already
-  have HTTPS phone access, Safari guidance and Home Screen instructions. Reopen
-  it from Settings. Local-only servers explain the required network setup.
-  Contributors should run `npm --prefix web ci` for the QR-code dependency.
+- The welcome popup connects iPhone and Android users with a QR code. Enable
+  password-protected Wi-Fi access directly on the server computer; the phone
+  page guides certificate trust, browser choice and Home Screen installation.
+  Hosted servers use their configured HTTPS domain. Reopen setup or turn off
+  Wi-Fi access from Settings. Contributors should update Python requirements
+  and run `npm --prefix web ci` for certificate and QR-code dependencies.
 - Windows installer with the Vela sail icon, Start menu integration and optional
   startup at sign-in. Windows portable downloads remain available.
 - Windows tray controls for server status, opening the dashboard, starting and
