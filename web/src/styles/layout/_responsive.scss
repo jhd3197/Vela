@@ -47,8 +47,10 @@
     padding: 16px 16px calc(92px + env(safe-area-inset-bottom));
   }
 
+  /* Reserve the phone bar's full height so an app workspace that fills its
+     frame is never clipped by it. */
   .workspace-content-fixed {
-    padding: 0 0 calc(64px + env(safe-area-inset-bottom));
+    padding: 0 0 calc(74px + env(safe-area-inset-bottom));
   }
 
   /* A header that also carries a title and actions gives search its own row
