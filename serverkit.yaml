@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://serverkit.ai/serverkit-yaml.schema.json
+version: 1
+project: vela
+
+services:
+  - name: vela
+    type: docker
+    dockerfilePath: Dockerfile
+    port: 7700
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: VELA_DATA_DIR
+        value: /data
+      # Set the exact browser address, e.g. https://vela.example.com (no slash).
+      - key: VELA_PUBLIC_ORIGIN
+      # IP of ServerKit's proxy as seen inside the container; see docs/SERVER.md.
+      - key: VELA_TRUSTED_PROXIES
+      # First-start password only. Retrieve it from ServerKit's secret vault.
+      - key: VELA_INITIAL_PASSWORD
+        generate: true
+    disks:
+      - name: vela-data
+        mountPath: /data
+        size: 4GB
+        backup:
+          schedule: daily
+          retain: 7

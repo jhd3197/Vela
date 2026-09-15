@@ -13,7 +13,6 @@ import Apps from './pages/Apps.jsx';
 import Library from './pages/Library.jsx';
 import Environments from './pages/Environments.jsx';
 import Automations from './pages/Automations.jsx';
-import Settings from './pages/Settings.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
 // Order also controls navigation; tabHidden keeps the phone bar to five items.
@@ -37,5 +36,5 @@ export const dashboardPages = [
     tabHidden: true,
     component: Automations,
   },
-  { to: '/settings', label: 'Settings', icon: GearSix, component: Settings },
+  { to: '/settings', label: 'Settings', icon: GearSix, component: Home, popup: true },
 ];

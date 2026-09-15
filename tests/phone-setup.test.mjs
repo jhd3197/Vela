@@ -64,6 +64,23 @@ test("Safari instructions distinguish alternate browsers and embedded webviews",
   assert.equal(isIOSSafari(safari.replace("Version/18.0 ", "")), false);
 });
 
+test("managed Wi-Fi QR permits only a private HTTP bootstrap address", () => {
+  assert.equal(
+    phoneSetupUrl("http://192.168.1.20:7701/setup", true, {
+      allowLocalHttp: true,
+    }),
+    "http://192.168.1.20:7701/setup",
+  );
+  for (const url of [
+    "http://example.com",
+    "http://127.0.0.1:7701",
+    "http://8.8.8.8",
+    "http://user:password@192.168.1.20",
+  ]) {
+    assert.equal(phoneSetupUrl(url, true, { allowLocalHttp: true }), null);
+  }
+});
+
 test("blocked storage cannot prevent using or dismissing the welcome guide", () => {
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,

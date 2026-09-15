@@ -41,6 +41,7 @@ node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-settings.mjs
 node web/scripts/test-chat.mjs
 node web/scripts/test-phone-setup.mjs
 ```
@@ -53,16 +54,23 @@ shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
+The settings suite checks popup navigation, retained page and form drafts,
+preference saving and rollback, keyboard focus, deep links and narrow layouts
+with disposable API responses. Screenshots are saved under `docs/screenshots/settings/`.
 The chat suite serves the built dashboard with disposable app records and a
 controlled response stream. It checks the bottom composer, app mentions,
 keyboard input, formatted responses, stop/retry, scrolling, chat retention and
 offline recovery, and saves screenshots under `docs/screenshots/chat/`.
 The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
-local-only access guidance, HTTPS QR handoff, Safari/other-browser instructions,
-clipboard and storage fallback, installed mode and narrow layouts. It uses the
+Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
+certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the
 built UI with disposable API responses and writes screenshots under
 `docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
 Home Screen installation on a physical iPhone before claiming device acceptance.
+The Python phone-access tests run HTTP and HTTPS listeners on disposable loopback
+ports, verify the generated certificate chain, restrict public bootstrap routes,
+exercise password login and local-token rejection, and check restart/disable.
+They do not change OS certificate trust or expose a test server on real Wi-Fi.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.

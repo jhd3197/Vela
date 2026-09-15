@@ -18,14 +18,19 @@ No additional release notes were provided.
 
 ### Added
 
+- ServerKit install badge, deployment manifest and container build with
+  persistent app data and password-protected access through a trusted HTTPS
+  proxy. Set the public origin and proxy address before the first deployment.
 - Connect existing HTTPS web services from Library with a name, address and
   icon color. Open them inside Vela with reload, edit and browser fallback
   controls. Connections use a separate hostname and keep the service's own
   login and data; removing a connection does not stop or uninstall the service.
-- A welcome popup guides iPhone setup, with a QR code for servers that already
-  have HTTPS phone access, Safari guidance and Home Screen instructions. Reopen
-  it from Settings. Local-only servers explain the required network setup.
-  Contributors should run `npm --prefix web ci` for the QR-code dependency.
+- The welcome popup connects iPhone and Android users with a QR code. Enable
+  password-protected Wi-Fi access directly on the server computer; the phone
+  page guides certificate trust, browser choice and Home Screen installation.
+  Hosted servers use their configured HTTPS domain. Reopen setup or turn off
+  Wi-Fi access from Settings. Contributors should update Python requirements
+  and run `npm --prefix web ci` for certificate and QR-code dependencies.
 - Windows installer with the Vela sail icon, Start menu integration and optional
   startup at sign-in. Windows portable downloads remain available.
 - Windows tray controls for server status, opening the dashboard, starting and
@@ -33,6 +38,10 @@ No additional release notes were provided.
 
 ### Changed
 
+- Settings opens in a compact popup over the current screen, with searchable
+  categories, light and dark previews, and separate chat privacy controls.
+  Existing settings links open the matching category; phone layouts keep the
+  categories and controls inside the popup.
 - Ask now keeps its multiline composer at the bottom, with a separately scrolling
   conversation, formatted replies, copy controls, expandable checks, and a jump
   to the latest response. Type `@` to find an installed app by name or ID and
@@ -55,6 +64,10 @@ No additional release notes were provided.
 
 ### Fixed
 
+- Long dashboard pages scroll independently of the desktop navigation, keeping
+  the sidebar and its footer visible. The footer now shows server connection
+  status and the number of running apps instead of a storage meter.
+- Browser tabs now show Vela's purple-and-cyan sail logo instead of the old amber icon.
 - The dashboard Ask page can talk to the local model again. Sending a message
   failed immediately with "Request failed (422)" because the dashboard posted a
   request shape the server rejected. Failed requests now also show the server's

@@ -30,6 +30,7 @@ async function fixture({
     serviceWorkers: 'block',
   });
   const apiCalls = [];
+  let phoneEnabled = remote;
   await context.addInitScript(
     ({ standalone, blockedStorage }) => {
       Object.defineProperty(navigator, 'standalone', { value: standalone });
@@ -50,9 +51,39 @@ async function fixture({
   );
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    if (!['vela.test', 'localhost'].includes(url.hostname)) return route.abort();
+    if (!['vela.test', 'localhost', '192.168.1.20'].includes(url.hostname)) return route.abort();
+    if (url.pathname === '/phone-bootstrap' && url.hostname === '192.168.1.20') {
+      return route.fulfill({
+        json: {
+          secure_url: 'https://192.168.1.20:7702/setup',
+          certificate_url: '/vela-phone.cer',
+          fingerprint: 'A'.repeat(64),
+        },
+      });
+    }
     if (url.pathname.startsWith('/api/')) {
       apiCalls.push(url.pathname);
+      if (url.pathname === '/api/phone-access') {
+        if (route.request().method() === 'POST') {
+          assert.deepEqual(route.request().postDataJSON(), {
+            address: '192.168.1.20',
+            password: 'fixture-password',
+          });
+          phoneEnabled = true;
+        }
+        if (route.request().method() === 'DELETE') phoneEnabled = false;
+        return route.fulfill({
+          json: {
+            enabled: phoneEnabled,
+            managed: !remote,
+            setup_url: remote ? 'https://vela.test/setup' : 'http://192.168.1.20:7701/setup',
+            secure_url: 'https://192.168.1.20:7702/setup',
+            addresses: ['192.168.1.20'],
+            needs_password: true,
+            fingerprint: 'A'.repeat(64),
+          },
+        });
+      }
       const responses = {
         '/api/session': { token: 'disposable-fixture-token', remote },
         '/api/apps': { apps: [] },
@@ -119,20 +150,30 @@ try {
   await fs.mkdir(shots, { recursive: true });
   const local = await fixture({ remote: false });
   await local.page.goto(local.base);
-  await local.page.getByRole('heading', { name: 'Welcome to Vela.' }).waitFor();
+  await local.page.getByRole('heading', { name: 'Vela on your phone.' }).waitFor();
   assert.equal(await local.page.evaluate(() => document.activeElement.id), 'welcome-title');
   await screenshot(local.page, 'welcome-desktop');
-  await local.page.getByRole('button', { name: 'Set up my iPhone' }).click();
-  await local.page.getByRole('heading', { name: 'First, connect your phone to Vela' }).waitFor();
+  await local.page.getByRole('heading', { name: 'Connect over your Wi-Fi' }).waitFor();
   assert.equal(await local.page.locator('.welcome-qr').count(), 0);
   await screenshot(local.page, 'local-access');
+  await local.page.getByLabel('Choose a Vela password').fill('fixture-password');
+  await local.page.getByRole('button', { name: 'Enable Wi-Fi & show QR' }).click();
+  await local.page.locator('.welcome-qr svg').waitFor();
+  assert.equal(
+    await local.page.getByLabel('Vela setup address').inputValue(),
+    'http://192.168.1.20:7701/setup',
+  );
+  await screenshot(local.page, 'wifi-qr');
   await local.page.keyboard.press('Escape');
   await local.page.reload();
   await local.page.locator('.sidebar').waitFor();
   assert.equal(await local.page.getByRole('dialog').isVisible(), false);
   await local.page.goto(local.base + '/settings');
-  await local.page.getByRole('link', { name: 'Set up my iPhone' }).click();
-  await local.page.getByRole('heading', { name: 'First, connect your phone to Vela' }).waitFor();
+  await local.page.getByRole('link', { name: 'Set up my phone' }).click();
+  await local.page.locator('.welcome-qr svg').waitFor();
+  await local.page.getByText('Wi-Fi connection details', { exact: true }).click();
+  await local.page.getByRole('button', { name: 'Turn off Wi-Fi access' }).click();
+  await local.page.getByRole('heading', { name: 'Connect over your Wi-Fi' }).waitFor();
   await local.page.getByRole('button', { name: 'Done for now' }).click();
   assert.equal(new URL(local.page.url()).search, '');
   await local.context.close();
@@ -162,6 +203,46 @@ try {
     await screenshot(desktop.page, `qr-${width}`);
   }
   await desktop.context.close();
+
+  const android = await fixture({
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36',
+    width: 390,
+  });
+  await android.page.goto(address);
+  await android.page.getByRole('heading', { name: 'On your Android phone' }).waitFor();
+  assert.equal(await android.page.getByRole('heading', { name: 'Open in Safari' }).count(), 0);
+  await screenshot(android.page, 'android');
+  await android.context.close();
+
+  const offlineSetup = await fixture({ userAgent: safari, width: 390 });
+  await offlineSetup.context.route('**/phone-bootstrap', (route) => route.fulfill({ status: 503 }));
+  await offlineSetup.page.goto('http://192.168.1.20:7701/setup');
+  await offlineSetup.page.getByRole('button', { name: 'Retry connection' }).waitFor();
+  assert.equal(await offlineSetup.page.getByRole('link', { name: 'Continue to Vela' }).count(), 0);
+  await offlineSetup.context.close();
+
+  for (const [name, userAgent] of [
+    ['wifi-safari', safari],
+    ['wifi-chrome-ios', safari.replace('Version/18.0', 'CriOS/129.0')],
+    ['wifi-android', 'Mozilla/5.0 (Linux; Android 15) Chrome/130.0 Mobile Safari/537.36'],
+  ]) {
+    const wifi = await fixture({ userAgent, width: 390 });
+    await wifi.page.goto('http://192.168.1.20:7701/setup');
+    if (name === 'wifi-chrome-ios') {
+      await wifi.page.getByRole('heading', { name: 'Open in Safari' }).waitFor();
+      assert.equal(await wifi.page.getByRole('link', { name: 'Download certificate' }).count(), 0);
+      await wifi.page.getByRole('button', { name: 'I’m already in Safari' }).click();
+    }
+    await wifi.page.getByRole('heading', { name: 'Connect securely to your computer' }).waitFor();
+    assert.equal(
+      await wifi.page.getByRole('link', { name: 'Open secure Vela' }).getAttribute('href'),
+      'https://192.168.1.20:7702/setup',
+    );
+    assert.equal(wifi.apiCalls.length, 0);
+    await screenshot(wifi.page, name);
+    await wifi.context.close();
+  }
 
   for (const [name, userAgent] of [
     ['safari', safari],
@@ -211,8 +292,12 @@ try {
 
   const blocked = await fixture({ blockedStorage: true });
   await blocked.page.goto(blocked.base);
-  await blocked.page.getByRole('button', { name: 'Stay on this computer' }).click();
-  await blocked.page.locator('.sidebar-nav').getByRole('link', { name: 'Settings' }).click();
+  await blocked.page.getByRole('button', { name: 'Done for now' }).click();
+  await blocked.page.locator('.sidebar-nav').getByRole('button', { name: 'Settings' }).click();
+  await blocked.page
+    .getByRole('dialog', { name: 'Settings', exact: true })
+    .getByRole('button', { name: 'Done', exact: true })
+    .click();
   await blocked.page
     .locator('.sidebar-nav')
     .getByRole('link', { name: 'Home', exact: true })

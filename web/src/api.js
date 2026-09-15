@@ -77,6 +77,14 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getPhoneAccess: () => request('/api/phone-access'),
+  enablePhoneAccess: (value) =>
+    request('/api/phone-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  disablePhoneAccess: () => request('/api/phone-access', { method: 'DELETE' }),
   addWebApp: (value) =>
     request('/api/web-apps', {
       method: 'POST',

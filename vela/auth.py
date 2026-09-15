@@ -20,6 +20,7 @@ class Auth:
         self.sessions = {}
         self.lock = threading.RLock()
         self.remote = bool(config and config.remote_access)
+        self.phone_origin = None
         self.origin = config.public_origin if config else None
         self.password_file = config.data_dir / "access.json" if config else None
         self.hub_sessions = {}
@@ -33,20 +34,35 @@ class Auth:
             return self.hub_sessions.get(token, 0) > time.monotonic()
 
     def allowed_origin(self, request):
-        if self.remote:
-            return (request.url.scheme == "https" and str(request.base_url).rstrip("/") == self.origin
-                    and request.headers.get("origin", self.origin) == self.origin
+        if self.is_remote_request(request):
+            origin = self.origin if self.remote else self.phone_origin
+            return (origin and request.url.scheme == "https" and str(request.base_url).rstrip("/") == origin
+                    and request.headers.get("origin", origin) == origin
                     and request.headers.get("sec-fetch-site") != "cross-site")
         return self.local_request(request)
 
+    def is_remote_request(self, request):
+        return (self.remote or (bool(self.phone_origin) and str(request.base_url).rstrip('/') == self.phone_origin)
+                or not self.local_request(request))
+
+    def disable_phone_access(self):
+        if self.remote: return
+        with self.lock:
+            self.phone_origin = None
+            self.hub_sessions.clear()
+            self.sessions = {key: value for key, value in self.sessions.items()
+                             if value.get('owner') == self.hub_token}
+
     def bootstrap(self, request):
-        if not self.remote: return self.hub_token
+        if not self.is_remote_request(request): return self.hub_token
         token = request.cookies.get("__Host-vela-session", "")
+        if not self.remote and token == self.hub_token:
+            raise AppServiceError(401, 'Sign in to Vela')
         if not self.valid_hub_token(token): raise AppServiceError(401, "Sign in to Vela")
         return token
 
     def login(self, request, password):
-        if not self.remote: raise AppServiceError(400, "This engine uses local access")
+        if not self.is_remote_request(request): raise AppServiceError(400, "This engine uses local access")
         peer = request.client.host
         now = time.monotonic()
         with self.lock:
@@ -86,7 +102,7 @@ class Auth:
     def resolve(self, token):
         with self.lock:
             session = self.sessions.get(token)
-            if not session or session["expires"] <= time.monotonic() or (self.remote and not self.valid_hub_token(session.get("owner", ""))):
+            if not session or session["expires"] <= time.monotonic() or ((self.remote or (session.get('owner') and session['owner'] != self.hub_token)) and not self.valid_hub_token(session.get("owner") or "")):
                 self.sessions.pop(token, None)
                 raise AppServiceError(401, "App session expired or invalid")
             return dict(session)
@@ -121,26 +137,39 @@ class Auth:
 
     async def middleware(self, request, call_next):
         path = request.url.path
+        remote_request = self.is_remote_request(request)
         if path.startswith("/api/"):
+            if remote_request and not self.remote and path != '/api/health' and (
+                    not self.phone_origin or request.url.scheme != 'https' or
+                    str(request.base_url).rstrip('/') != self.phone_origin):
+                return JSONResponse({'detail': 'Use the configured Wi-Fi address'}, status_code=403)
             public = path in ("/api/health", "/api/session", "/api/login", "/api/logout") or (path.startswith("/api/apps/") and path.endswith("/icon"))
             token = request.headers.get("authorization", "").removeprefix("Bearer ")
+            # The computer's bootstrap token must never authenticate a network
+            # request, including on the supplemental Wi-Fi listener.
+            if remote_request and not self.remote and token == self.hub_token:
+                return JSONResponse({"detail": "Phone sign-in required"}, status_code=401)
             if path in ("/api/session", "/api/login", "/api/logout"):
                 if not self.allowed_origin(request) or request.headers.get("x-vela-bootstrap") != "1":
                     return JSONResponse({"detail": "Local same-origin bootstrap required"}, status_code=403)
             elif path.startswith("/api/app/"):
                 try:
                     request.state.app_session = self.resolve(token)
+                    if remote_request and not self.remote and request.state.app_session.get('owner') == self.hub_token:
+                        return JSONResponse({'detail': 'Open the app from your phone session'}, status_code=401)
                 except AppServiceError as exc:
                     return JSONResponse({"detail": exc.detail}, status_code=exc.status)
             elif not public and not self.valid_hub_token(token):
                 return JSONResponse({"detail": "Hub authentication required"}, status_code=401)
             request.state.hub_token = token
-            if self.remote and request.url.scheme != "https":
+            # Proxies probe readiness over the private HTTP connection. This
+            # endpoint returns only status/version; all other APIs require HTTPS.
+            if remote_request and request.url.scheme != "https" and path != "/api/health":
                 return JSONResponse({"detail": "HTTPS is required"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        if self.remote:
+        if remote_request:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         if path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"

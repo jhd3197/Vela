@@ -32,6 +32,7 @@ from .releases import Releases
 from .actions import Actions
 from .package_files import MAX_BYTES
 from .connected_apps import ConnectedApps
+from .phone_access import PhoneAccess
 
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config"}
@@ -63,6 +64,12 @@ class StorageWrite(BaseModel):
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     password: str = Field(min_length=1, max_length=256)
+
+
+class PhoneAccessRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    address: str = Field(min_length=1, max_length=64)
+    password: str = Field(default='', max_length=256)
 
 
 class ConnectionRequest(BaseModel):
@@ -157,6 +164,33 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
+    phone_access = PhoneAccess(app, config, auth)
+    app.state.phone_access = phone_access
+
+    @app.get('/api/phone-access')
+    def phone_access_status():
+        return phone_access.status()
+
+    @app.post('/api/phone-access')
+    async def enable_phone_access(payload: PhoneAccessRequest, request: Request):
+        if auth.is_remote_request(request) or not auth.local_request(request):
+            raise AppServiceError(403, 'Manage Wi-Fi access from the Vela computer')
+        return await phone_access.start(payload.address, payload.password)
+
+    @app.delete('/api/phone-access')
+    async def disable_phone_access(request: Request):
+        if auth.is_remote_request(request) or not auth.local_request(request):
+            raise AppServiceError(403, 'Manage Wi-Fi access from the Vela computer')
+        await phone_access.stop(disable=True)
+        return phone_access.status()
+
+    @app.on_event('startup')
+    async def restore_phone_access():
+        await phone_access.restore()
+
+    @app.on_event('shutdown')
+    async def stop_phone_access():
+        await phone_access.stop()
 
     @app.exception_handler(AppServiceError)
     async def app_error(request, exc):
@@ -231,7 +265,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.get("/api/session")
     def hub_session(request: Request):
-        return {"token": auth.bootstrap(request), "remote": auth.remote}
+        return {"token": auth.bootstrap(request), "remote": auth.is_remote_request(request)}
 
     @app.post("/api/login")
     def login(payload: LoginRequest, request: Request):

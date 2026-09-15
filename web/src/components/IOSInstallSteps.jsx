@@ -3,7 +3,7 @@ import { Export, PlusSquare, Compass } from '@phosphor-icons/react';
 import { isIOSSafari } from '../phone-setup.js';
 import Button from './ui/Button.jsx';
 
-export default function IOSInstallSteps() {
+export default function IOSInstallSteps({ children }) {
   const [showSteps, setShowSteps] = useState(isIOSSafari);
   const [copyStatus, setCopyStatus] = useState('');
   const link = new URL('/setup', window.location.origin).href;
@@ -45,46 +45,48 @@ export default function IOSInstallSteps() {
   }
 
   return (
-    <div className="phone-instructions">
-      <ol className="a2hs-steps phone-steps">
-        <li>
-          <span className="a2hs-step-num">1</span>
-          <div>
-            <strong>
-              <Export size={19} aria-hidden="true" /> Open the Share menu
-            </strong>
-            <p>
-              In Safari, tap Share (the square with an arrow pointing up). You may need to open the
-              More (…) menu first.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span className="a2hs-step-num">2</span>
-          <div>
-            <strong>
-              <PlusSquare size={19} aria-hidden="true" /> Add to Home Screen
-            </strong>
-            <p>
-              Scroll through the share actions and tap Add to Home Screen. If it’s missing, look in
-              Edit Actions.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span className="a2hs-step-num">3</span>
-          <div>
-            <strong>Keep Vela one tap away</strong>
-            <p>
-              Leave Open as Web App on if shown, then tap Add. Open the new Vela icon on your Home
-              Screen and sign in if asked.
-            </p>
-          </div>
-        </li>
-      </ol>
-      <p className="phone-note">
-        Keep your Vela computer on and connected while you use your apps.
-      </p>
-    </div>
+    children || (
+      <div className="phone-instructions">
+        <ol className="a2hs-steps phone-steps">
+          <li>
+            <span className="a2hs-step-num">1</span>
+            <div>
+              <strong>
+                <Export size={19} aria-hidden="true" /> Open the Share menu
+              </strong>
+              <p>
+                In Safari, tap Share (the square with an arrow pointing up). You may need to open
+                the More (…) menu first.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span className="a2hs-step-num">2</span>
+            <div>
+              <strong>
+                <PlusSquare size={19} aria-hidden="true" /> Add to Home Screen
+              </strong>
+              <p>
+                Scroll through the share actions and tap Add to Home Screen. If it’s missing, look
+                in Edit Actions.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span className="a2hs-step-num">3</span>
+            <div>
+              <strong>Keep Vela one tap away</strong>
+              <p>
+                Leave Open as Web App on if shown, then tap Add. Open the new Vela icon on your Home
+                Screen and sign in if asked.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <p className="phone-note">
+          Keep your Vela computer on and connected while you use your apps.
+        </p>
+      </div>
+    )
   );
 }

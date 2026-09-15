@@ -2,21 +2,23 @@ import Button from './ui/Button.jsx';
 import { dashboardPages } from '../navigation.js';
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { formatBytes } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
 import TopBar from './TopBar.jsx';
 import Toasts from './Toasts.jsx';
 import WelcomeSetup from './WelcomeSetup.jsx';
+import { useSettingsPopup } from './SettingsProvider.jsx';
 
-// Hub shell: glassy sidebar (brand, nav, storage meter) on desktop, a bottom
+// Hub shell: glassy sidebar (brand, nav, server status) on desktop, a bottom
 // tab bar on mobile, and the shared top bar with search on every page.
 export default function Shell({ children }) {
   const pageRef = useRef(null);
   const location = useLocation();
+  const { openSettings, settingsOpen } = useSettingsPopup();
   const { apps, error, refreshApps, toasts, dismissToast } = useApps();
-  const { engine } = useEngine();
+  const { engine, engineError } = useEngine();
+  const serverOnline = Boolean(engine) && !engineError;
+  const runningCount = engine?.apps_running ?? 0;
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
-  const storageBytes = engine?.storage_bytes;
   const hasApps = Boolean(apps);
   const hasChildren = Boolean(children);
   useEffect(() => {
@@ -40,41 +42,47 @@ export default function Shell({ children }) {
           <span className="brand-name">Vela</span>
         </div>
         <nav className="sidebar-nav">
-          {dashboardPages.map(({ to, label, end, icon: Icon, weight = 'regular' }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
-            >
-              <Icon size={17} weight={weight} />
-              <span>{label}</span>
-              {label === 'Library' && availableCount > 0 && (
-                <span className="nav-tag">{availableCount} new</span>
-              )}
-            </NavLink>
-          ))}
+          {dashboardPages.map(({ to, label, end, popup, icon: Icon, weight = 'regular' }) =>
+            popup ? (
+              <button
+                key={to}
+                type="button"
+                className="nav-item"
+                aria-haspopup="dialog"
+                onClick={() => openSettings()}
+              >
+                <Icon size={17} weight={weight} />
+                <span>{label}</span>
+              </button>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `nav-item${isActive ? ' nav-item-active' : ''}`}
+              >
+                <Icon size={17} weight={weight} />
+                <span>{label}</span>
+                {label === 'Library' && availableCount > 0 && (
+                  <span className="nav-tag">{availableCount} new</span>
+                )}
+              </NavLink>
+            ),
+          )}
         </nav>
         <div className="sidebar-foot">
-          <div className="side-card">
-            <div className="side-card-row">
-              <span>Storage</span>
-              <span>{engine ? formatBytes(storageBytes) : '—'}</span>
-            </div>
-            <div className="meter">
-              <div
-                className="meter-fill"
-                style={{
-                  width: engine
-                    ? `${Math.min(100, Math.max(4, (storageBytes / (200 * 1024 ** 3)) * 100))}%`
-                    : '4%',
-                }}
-              />
-            </div>
+          <div className="side-card" role="status">
             <div className="side-card-status">
-              <span className={`dot${engine ? ' dot-ok' : ''}`} />
-              {engine ? `Local · ${engine.apps_running ?? 0} running` : 'Connecting…'}
+              <span className={`dot${serverOnline ? ' dot-ok' : ''}`} aria-hidden="true" />
+              {engineError ? 'Server unreachable' : serverOnline ? 'Server online' : 'Connecting…'}
             </div>
+            <span className="side-card-detail">
+              {engineError
+                ? 'Waiting to reconnect'
+                : serverOnline
+                  ? `${runningCount} ${runningCount === 1 ? 'app' : 'apps'} running`
+                  : 'Checking your Vela server'}
+            </span>
           </div>
         </div>
       </aside>
@@ -99,21 +107,34 @@ export default function Shell({ children }) {
       <nav className="tabbar">
         {dashboardPages
           .filter((i) => !i.tabHidden)
-          .map(({ to, label, end, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => `tab-item${isActive ? ' tab-item-active' : ''}`}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
+          .map(({ to, label, end, popup, icon: Icon }) =>
+            popup ? (
+              <button
+                key={to}
+                type="button"
+                className="tab-item"
+                aria-haspopup="dialog"
+                onClick={() => openSettings()}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </button>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `tab-item${isActive ? ' tab-item-active' : ''}`}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </NavLink>
+            ),
+          )}
       </nav>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
-      {!hasChildren && <WelcomeSetup key={location.key} />}
+      {!hasChildren && !settingsOpen && <WelcomeSetup key={location.key} />}
     </div>
   );
 }

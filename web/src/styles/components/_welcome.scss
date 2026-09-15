@@ -199,6 +199,29 @@
   padding: 0 20px 20px;
 }
 
+.phone-connection-details {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-dim);
+  summary {
+    cursor: pointer;
+    color: var(--text);
+  }
+}
+.phone-fingerprint {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.welcome-network > .btn {
+  margin-top: 16px;
+}
+.phone-link[type='password'] {
+  font: 16px var(--font);
+}
+
 @media (max-width: 580px) {
   .welcome-top {
     padding: 12px 16px 0;

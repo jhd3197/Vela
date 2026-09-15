@@ -33,6 +33,47 @@ The bundle includes Python, the server dependencies and the dashboard. You do
 not need to install Python, Node.js, Git, or the separate developer repositories.
 Keep the entire extracted folder together, including `_internal`.
 
+## ServerKit
+
+In ServerKit, create a service from `https://github.com/jhd3197/vela` and choose
+the repository's `serverkit.yaml` configuration. Use `dev` until these files
+are released on `main`. The Dockerfile builds the dashboard and Python server;
+the `vela-data` disk stores installed apps, settings, credentials and backups
+at `/data`. Keep that disk when redeploying. Automatic deployment on push is off.
+
+Before starting the service:
+
+1. Set `VELA_PUBLIC_ORIGIN` to your exact browser address, such as
+   `https://vela.example.com`, with no trailing slash or path.
+2. Set `VELA_TRUSTED_PROXIES` to the IP address of ServerKit's reverse proxy
+   as seen from the container. For a host nginx proxy this is normally the
+   Docker network gateway; find it in the container's network details. For a
+   containerized proxy, use that proxy's address. Comma-separated IP addresses
+   or narrowly scoped CIDRs are supported; `*` is rejected.
+3. Retrieve `VELA_INITIAL_PASSWORD` from ServerKit's generated secret. It sets
+   the Vela password on the first start only. An existing password survives
+   redeployment; changing this variable does not reset it.
+4. Add the matching domain in ServerKit, enable HTTPS, and route it to the
+   service's HTTP port **7700**. The proxy must preserve the browser's `Host`
+   header and overwrite `X-Forwarded-Proto` and `X-Forwarded-For` with the
+   actual request scheme and client IP. Keep port 7700 private to the proxy.
+
+Open your HTTPS address and sign in with the generated password. A new Library
+is empty; import app releases to get started. ServerKit requests daily disk
+backups with seven retained copies; check backup success in your panel.
+
+The container requires both the HTTPS origin and trusted proxy configuration
+and refuses to start without them. A healthy service with a failed sign-in
+usually means the origin, proxy address or forwarding headers do not match.
+`/api/health` is available over private HTTP for readiness checks; other API
+requests require HTTPS through the trusted proxy.
+
+Apps run inside this Linux container. Web apps and connections to existing
+services work; native apps need their own runtimes and system dependencies
+in the image. The image includes Python but does not expose the host's Docker
+socket or desktop. See the [developer guide](DEVELOPMENT.md#container-build)
+for building and checking the image.
+
 ## Add apps
 
 Open **Library** and import an app release ZIP. Vela shows the permissions for
@@ -60,46 +101,73 @@ Phone, tablet and other computer browsers connect to the same Vela Server.
 They do not each need their own server installation. The server computer must
 stay on and reachable while you use its apps.
 
-The dashboard shows a welcome popup on the first visit in each browser. Choose
-**Set up my iPhone** to connect your phone, or **Stay on this computer** to
-continue. Reopen the guide from **Settings → Set up my iPhone** at any time.
+The welcome popup opens phone setup directly. Reopen it from
+**Settings → Set up my phone**. If Vela is already hosted at an HTTPS domain,
+the popup shows that domain's QR code immediately.
 
-This preview opens locally by default. Network access needs a server
-password and a trusted HTTPS certificate. The welcome guide explains these
-requirements; it does not configure network access automatically.
-Quit the running server first. In a terminal in the installed or extracted folder, run `Vela.exe --set-password` on Windows
-(or `./Vela --set-password` on macOS/Linux), then start with your certificate:
+### Connect over the same Wi-Fi
+
+1. On the Vela computer, open the welcome popup or **Set up my phone** in Settings.
+2. Choose the computer's Wi-Fi address. If this is the first setup, choose a
+   Vela password of at least 12 characters. Click **Enable Wi-Fi & show QR**.
+3. Scan the QR code using your phone's Camera app and tap the link. Both devices
+   must be on the same network. The QR uses the computer's network address,
+   even when its dashboard is open at `127.0.0.1`.
+4. The phone page guides the one-time certificate setup. On iPhone, open the
+   page in Safari; another iPhone browser gets a link to copy into Safari.
+   Compare the downloaded certificate's SHA-256 fingerprint with **Wi-Fi
+   connection details** on the computer before trusting it.
+5. Open **Open secure Vela** on the phone. Follow the Home Screen steps, then
+   open the new Vela icon and sign in with your Vela password.
+
+On iPhone, install the downloaded profile in **Settings → General → VPN & Device
+Management**, then enable it in **General → About → Certificate Trust Settings**.
+See [Apple's certificate trust instructions](https://support.apple.com/102390).
+On Android, install it as a **CA certificate** in the phone's security/credential
+settings; names vary by phone. Remove the Vela certificate if you stop using
+that server.
+
+Vela creates a certificate restricted to private network addresses, and serves
+only setup instructions and the public certificate over HTTP on port **7701**.
+Apps, passwords and sessions use HTTPS on port **7702**. The QR contains no
+password or session. No router port forwarding is needed. If the phone cannot
+connect, allow Vela through the computer's firewall on your private network;
+guest Wi-Fi or device isolation can block the connection. Vela does not change
+firewall rules or install certificates on your devices automatically.
+
+Wi-Fi access resumes when Vela restarts. Keep the computer on and reachable.
+If its network address changes, reopen setup, choose the new address and scan
+again; reserving its address in your router avoids changing saved phone URLs.
+Under **Wi-Fi connection details**, choose **Turn off Wi-Fi access** to disconnect
+phones and stop both listeners while keeping the desktop dashboard available.
+
+### Save Vela to your Home Screen
+
+- **iPhone / iPad:** In Safari, open **Share** (possibly inside **More (…)**), then
+  **Add to Home Screen**. If needed, find it in **Edit Actions**. Leave **Open as
+  Web App** on when offered, then tap **Add**.
+- **Android:** In Chrome, open the three-dot menu and choose **Add to Home screen**
+  or **Install app**. Confirm **Install** or **Add**. When supported, Vela also
+  offers the browser's install button directly.
+
+See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/iphea86e5236/ios)
+and [Chrome's Android web app instructions](https://support.google.com/chrome/answer/9658361?co=GENIE.Platform%3DAndroid).
+Saving Vela does not install another server or make app data available while
+that server is offline.
+
+### Use an existing HTTPS certificate
+
+For a custom domain or managed network, you can still start Vela with your own
+certificate. Quit the running server, then use `Vela.exe --set-password` on
+Windows (or `./Vela --set-password` on macOS/Linux). Start with:
 
 ```powershell
 .\Vela.exe --host 0.0.0.0 --cert C:\certs\vela.pem --key C:\certs\vela-key.pem --origin https://vela.home:7700
 ```
 
-Use the configured HTTPS address on your other devices and sign in. The
-certificate must be trusted there. Vela does not configure DNS, certificates or
-firewall access automatically. Once connected, you can save the dashboard to
-your home screen. Saving it does not install another server or make app data
-available while the server is offline.
-
-### Save Vela on your iPhone
-
-1. Open your configured HTTPS Vela address on the server computer and sign in.
-2. Choose **Set up my iPhone** in the welcome popup or Settings. Scan its QR
-   code with the iPhone Camera app and tap the link. Use the same Wi-Fi or a
-   network that can reach your server.
-3. The setup page detects Safari and shows the Home Screen steps. If it detects
-   another browser, copy the link into Safari. If detection is wrong, choose
-   **I'm already in Safari** to see the steps.
-4. In Safari, open **Share** (possibly inside **More (…)**), then **Add to Home
-   Screen**. If needed, find it in **Edit Actions**. Leave **Open as Web App** on
-   when offered, then tap **Add**.
-5. Open the Vela icon on your Home Screen and sign in if asked.
-
-The QR contains only the setup address, not your password or session. The
-instructions can open before sign-in; your apps still require authentication.
-The wizard offers a QR only for a server with phone access enabled, since a
-`localhost` address on your computer would point to the phone itself when scanned.
-See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/iphea86e5236/ios)
-for Safari's current menu options.
+Open that HTTPS address on the computer. Phone setup uses it for the QR and
+skips the built-in Wi-Fi certificate guide. DNS, certificate trust and firewall
+access must already be configured for that address.
 
 ## Other launch options
 
