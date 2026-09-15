@@ -36,6 +36,15 @@ until the release workflow prepares a tested server version.
   updates, and a single Add an app dialog covering the supported sources: a
   release archive, a folder on the computer running Vela, or connecting an HTTPS
   service you already run.
+- Ask keeps your conversations. A panel beside the conversation lists them by
+  date with search, rename, archive and permanent delete, the open conversation
+  is part of the address so reloading or sharing the link returns to it, and each
+  conversation keeps its own unsent draft. Follow-up questions use that stored
+  conversation, so restarting the server no longer answers as if the history were
+  not there, and a stopped answer is kept with the question it belongs to.
+  Starting another conversation never erases the previous one. The transcript
+  your browser used to hold is imported once, and turning chat history off in
+  Settings still deletes everything that was stored.
 - The dashboard now uses a narrow app rail instead of a labelled sidebar. The
   rail keeps Home, Ask, your installed apps, Library, Automations, Apps, System
   and Settings one click away, marks the open destination and names each icon on

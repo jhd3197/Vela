@@ -586,9 +586,22 @@ Local AI assistant backed by Ollama (`OLLAMA_URL` env var, default
 `http://localhost:11434`), scoped to hub data via tools: `list_apps`,
 `app_status(app_id)` (pid/port/uptime for process apps), `app_logs(app_id, tail?)`,
 `engine_status`. Bounded: max 5 model rounds and 8 tool calls per turn, 256KB
-response cap, 24KB per tool result. Conversations live in memory keyed by UUID
-(30-minute TTL, cap 100, last 16 messages of history; history disabled when
-`chat_history` is false). Rate limit: 12 requests/minute per client.
+response cap, 24KB per tool result. Rate limit: 12 requests/minute per client.
+
+Conversations are stored in `chat.sqlite` beside the other hub data when
+`chat_history` is true, and the model context is rebuilt from that transcript
+(last 16 messages) on every turn, so a server restart does not silently start an
+unrelated model conversation behind a visible history. The stored transcript and
+the model context are deliberately separate: the transcript keeps up to 400
+messages per conversation and 200 conversations, pruned oldest-first, with 64KB
+per message. A stopped or failed turn stores the partial answer it produced,
+marked interrupted.
+
+Access scope: Vela is a single-user personal server, so every request carrying
+the hub bearer owns every conversation; there is no per-user partition. An
+unknown id is 404, never another conversation. When `chat_history` is false no
+durable record is written, a `conversationId` identifies only that request, and
+turning the setting off deletes every stored conversation immediately.
 
 `GET /api/ai/status` â€” never errors, even with Ollama down:
 ```json
@@ -610,7 +623,27 @@ Responds with `text/event-stream`, one JSON object per `data:` frame:
 
 Keepalive comment lines (`: keepalive`) are sent every 15s; the model request is
 aborted when the client disconnects. With Ollama down, the stream still opens
-and delivers a graceful `error` frame.
+and delivers a graceful `error` frame. The first frame also carries `title` when
+the stored conversation was titled from this question. A `conversationId` that
+does not exist is refused with an `error` frame rather than being replaced by a
+new one.
+
+### Conversation history
+
+All of these require the hub bearer and return 409 when `chat_history` is false.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/chat/conversations?query=&archived=&limit=` | `{"conversations": [...], "enabled": true}`; newest first, bounded, searching titles and message bodies. Returns `{"conversations": [], "enabled": false}` instead of 409 when history is off |
+| `POST /api/chat/conversations` | 201 with a new empty conversation |
+| `GET /api/chat/conversations/{id}` | Conversation with its `draft` and full `messages` |
+| `PATCH /api/chat/conversations/{id}` | `{title?, archived?, draft?}`; a draft change does not reorder history |
+| `DELETE /api/chat/conversations/{id}` | 204, permanent. Archiving is a separate reversible operation |
+| `POST /api/chat/conversations/import` | One-time import of a browser-held transcript; a server-side marker makes repeats no-ops, so a second tab or a retry cannot duplicate it |
+
+A conversation summary is `{id, title, createdAt, updatedAt, archived,
+messageCount, preview}`. Titles are derived from the first question and can be
+renamed; later questions never rewrite a chosen title.
 
 ### Backups
 
@@ -662,6 +695,7 @@ vela/
   settings.py        # settings.json store with secret redaction
   notify.py          # ntfy publish client + 15-min digest/status-alert scheduler
   assistant.py       # Ollama tool-calling assistant (hub-scoped tools, SSE emits)
+  conversations.py   # Durable Ask conversations (chat.sqlite), retention and bounds
   backups.py         # timestamped backups, retention, isolated restore drill
   pwa.py             # on-the-fly manifest.webmanifest + sw.js generation for web apps
   webapps.py         # serving installed web apps under /apps/{id}/

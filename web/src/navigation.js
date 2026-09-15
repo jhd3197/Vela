@@ -20,7 +20,15 @@ import Automations from './pages/Automations.jsx';
 // phone bar to five items. Every destination stays reachable in both.
 export const dashboardPages = [
   { to: '/', label: 'Home', end: true, icon: HouseSimple, rail: 'primary', component: Home },
-  { to: '/ask', label: 'Ask', icon: ChatCircleText, rail: 'primary', component: Ask },
+  {
+    to: '/ask',
+    label: 'Ask',
+    icon: ChatCircleText,
+    rail: 'primary',
+    // A selected conversation is part of the route, so reloads and links restore it.
+    childPaths: ['/ask/:conversationId'],
+    component: Ask,
+  },
   { to: '/apps', label: 'Apps', icon: SquaresFour, rail: 'tools', railOrder: 3, component: Apps },
   {
     to: '/library',

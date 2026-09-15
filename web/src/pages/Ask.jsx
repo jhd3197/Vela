@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowClockwise,
@@ -13,14 +13,27 @@ import {
   Plus,
   Pulse,
   Scroll,
+  SidebarSimple,
   Sparkle,
   SquaresFour,
   Warning,
   Wrench,
 } from '@phosphor-icons/react';
-import { getAiStatus, getSettings, sendToPhone, streamChat } from '../chatApi.js';
+import {
+  createConversation,
+  deleteConversation,
+  getAiStatus,
+  getSettings,
+  importLegacyChat,
+  listConversations,
+  readConversation,
+  sendToPhone,
+  streamChat,
+  updateConversation,
+} from '../chatApi.js';
 import AskContext from '../components/AskContext.jsx';
 import ChatComposer from '../components/ChatComposer.jsx';
+import ConversationPanel from '../components/ConversationPanel.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
@@ -32,16 +45,15 @@ function ChatMarkdown({ children }) {
   );
 }
 
-// Ask: streaming local chat (POST /api/chat, SSE), rendered as a transcript
-// of what actually happened — the question, each tool the assistant reached
-// for with its live status and duration, then the answer. Extras: starter
-// prompts, per-message "Send to phone", new conversation, ?q= prefill, and
-// local chat retention honoring settings.chat_history.
-const CHAT_KEY = 'vela-chat';
-const MAX_HISTORY = 20;
+// Ask: streaming local chat (POST /api/chat, SSE) inside the shared workspace.
+// Conversations are stored on the server when chat history is enabled; the
+// browser keeps only presentation state. The legacy browser-held transcript is
+// imported once, guarded by a server-side marker.
+const LEGACY_KEY = 'vela-chat';
+const PANEL_KEY = 'vela.ask.panel.v1';
+const DRAFT_DEBOUNCE_MS = 700;
+const NARROW = '(max-width: 1100px)';
 
-// The tools the server exposes, with plain-language labels for the activity
-// list.
 const TOOLS = [
   { name: 'list_apps', label: 'Listing apps', icon: SquaresFour },
   { name: 'app_status', label: 'Checking app status', icon: Pulse },
@@ -59,28 +71,32 @@ function toolMeta(name) {
   return TOOLS.find((t) => t.name === name) ?? { name, label: 'Working', icon: Wrench };
 }
 
-function loadChat() {
+function readStored(key, fallback) {
   try {
-    const raw = JSON.parse(localStorage.getItem(CHAT_KEY) || '[]');
-    if (Array.isArray(raw)) {
-      return raw
-        .filter(
-          (m) =>
-            m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
-        )
-        .slice(-MAX_HISTORY);
-    }
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw;
   } catch {
-    // Corrupted or unavailable storage; start fresh.
+    return fallback;
   }
-  return [];
 }
 
-function clearChat() {
+function writeStored(key, value) {
   try {
-    localStorage.removeItem(CHAT_KEY);
+    localStorage.setItem(key, value);
   } catch {
-    // Storage unavailable; nothing to wipe.
+    // Storage unavailable; the in-memory value still applies for this session.
+  }
+}
+
+function legacyTranscript() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+    if (!Array.isArray(raw)) return null;
+    return raw.filter(
+      (m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -173,7 +189,7 @@ function ToolCall({ activity }) {
   const meta = toolMeta(activity.tool);
   const IconCmp = meta.icon;
   // Sub-100ms calls report "Done": a rounded "0.0s" reads as a broken timer.
-  const elapsed = activity.ended ? activity.ended - activity.started : null;
+  const elapsed = activity.ms ?? (activity.ended ? activity.ended - activity.started : null);
   const seconds = elapsed !== null && elapsed >= 100 ? `${(elapsed / 1000).toFixed(1)}s` : null;
   return (
     <li className="tool-call" data-state={activity.state}>
@@ -209,25 +225,77 @@ function ToolCall({ activity }) {
 }
 
 export default function Ask() {
+  const { conversationId } = useParams();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState(null);
-  const historyEnabled = useRef(true);
+  const historyEnabled = settings ? settings.chat_history !== false : true;
+  const settingsReady = Boolean(settings);
+  const historyRef = useRef(true);
+  historyRef.current = historyEnabled;
   const [ai, setAi] = useState(null);
   const [aiFailed, setAiFailed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [params, setParams] = useSearchParams();
+
   const [messages, setMessages] = useState([]);
+  const [title, setTitle] = useState('New conversation');
+  const [loadError, setLoadError] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [stream, setStream] = useState('');
   const [error, setError] = useState(null);
   const [activities, setActivities] = useState([]);
   const [atBottom, setAtBottom] = useState(true);
+
+  const [conversations, setConversations] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState('');
+  const [query, setQuery] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  // The panel is a column on wide screens and an overlay below 1100px, so it
+  // starts closed there rather than covering the conversation.
+  const [panelOpen, setPanelOpen] = useState(
+    () => readStored(PANEL_KEY, 'open') !== 'closed' && !matchMedia(NARROW).matches,
+  );
+
   const logRef = useRef(null);
   const followRef = useRef(true);
   const controller = useRef(null);
-  const conversation = useRef(undefined);
-  const loaded = useRef(false);
   const prefilled = useRef(false);
+  const migrated = useRef(false);
+  const draftTimer = useRef(null);
+  const draftFor = useRef(null);
+  // The route change that happens when the first question creates a
+  // conversation is this view's own; it must not cancel that same request or
+  // reload the transcript underneath it.
+  const selfNavigated = useRef(null);
+  // Which conversation the view is showing right now. A request that finishes
+  // after the reader moved on must not write into whatever is on screen.
+  const activeId = useRef(conversationId);
+  // Which conversation the transcript effect last handled, so a settings change
+  // never looks like a route change and discards what is being typed.
+  const loadedFor = useRef(conversationId);
+
+  const refreshList = useCallback(
+    async (signal) => {
+      if (!historyEnabled) {
+        setConversations([]);
+        setListLoading(false);
+        return;
+      }
+      try {
+        const data = await listConversations({ query, archived: showArchived, signal });
+        setConversations(data.conversations || []);
+        setListError('');
+      } catch (failure) {
+        if (failure?.name !== 'AbortError')
+          setListError(failure instanceof Error ? failure.message : 'Could not load history.');
+      } finally {
+        setListLoading(false);
+      }
+    },
+    [historyEnabled, query, showArchived],
+  );
 
   async function reconnect() {
     setReconnecting(true);
@@ -241,16 +309,16 @@ export default function Ask() {
     }
   }
 
-  function jumpToLatest() {
+  const jumpToLatest = useCallback(() => {
     followRef.current = true;
     setAtBottom(true);
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
-  }
+  }, []);
 
   useEffect(() => {
     if (followRef.current) jumpToLatest();
-  }, [messages, stream, activities, busy, error]);
+  }, [messages, stream, activities, busy, error, jumpToLatest]);
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {
@@ -259,7 +327,7 @@ export default function Ask() {
     observer.observe(logRef.current);
     observer.observe(logRef.current.firstElementChild);
     return () => observer.disconnect();
-  }, []);
+  }, [jumpToLatest]);
 
   useEffect(() => {
     let live = true;
@@ -277,29 +345,113 @@ export default function Ask() {
   useEffect(() => () => controller.current?.abort(), []);
 
   useEffect(() => {
-    const update = (event) => {
-      if ('chat_history' in event.detail)
-        historyEnabled.current = event.detail.chat_history !== false;
-      setSettings((current) => ({ ...current, ...event.detail }));
-    };
+    const update = (event) => setSettings((current) => ({ ...current, ...event.detail }));
     window.addEventListener('vela:chat-settings', update);
     return () => window.removeEventListener('vela:chat-settings', update);
   }, []);
 
-  // Chat retention follows settings.chat_history: turning it off wipes the
-  // stored transcript immediately; when on, the last turns are restored once.
+  // One-time import of the transcript the browser used to hold. The server
+  // records the marker, so a second tab or a retry cannot duplicate it, and
+  // nothing is imported while retention is off.
   useEffect(() => {
-    if (!settings) return;
-    historyEnabled.current = settings.chat_history !== false;
-    if (settings.chat_history === false) clearChat();
-    if (!loaded.current) {
-      loaded.current = true;
-      if (settings.chat_history !== false) setMessages(loadChat());
-    }
-  }, [settings]);
+    if (!settings || !historyEnabled || migrated.current) return;
+    migrated.current = true;
+    const legacy = legacyTranscript();
+    if (!legacy) return;
+    importLegacyChat(legacy.slice(-100))
+      .then((result) => {
+        try {
+          localStorage.removeItem(LEGACY_KEY);
+        } catch {
+          /* Storage unavailable; the server marker still prevents a repeat. */
+        }
+        if (result?.imported) refreshList();
+      })
+      .catch(() => {
+        migrated.current = false;
+      });
+  }, [settings, historyEnabled, refreshList]);
 
-  // A pre-filled question can arrive as /ask?q=… — prefill the composer
-  // rather than sending automatically: the user controls what is sent.
+  // Retention turned off: stop showing a history that is no longer stored.
+  useEffect(() => {
+    if (!settings || historyEnabled) return;
+    setConversations([]);
+    setListLoading(false);
+    try {
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      /* Storage unavailable. */
+    }
+  }, [settings, historyEnabled]);
+
+  useEffect(() => {
+    if (!settings) return undefined;
+    const ac = new AbortController();
+    refreshList(ac.signal);
+    return () => ac.abort();
+  }, [settings, refreshList]);
+
+  // Selecting another conversation cancels the request in flight rather than
+  // letting an invisible one keep writing. The partial answer is kept with the
+  // conversation it belonged to.
+  useEffect(() => {
+    activeId.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (selfNavigated.current && selfNavigated.current === conversationId) {
+      selfNavigated.current = null;
+      loadedFor.current = conversationId;
+      return undefined;
+    }
+    const changed = loadedFor.current !== conversationId;
+    loadedFor.current = conversationId;
+    if (changed) controller.current?.abort();
+    setStream('');
+    setActivities([]);
+    setError(null);
+    setLoadError('');
+    if (!conversationId) {
+      setMessages([]);
+      setTitle('New conversation');
+      // Only a real move to another conversation discards the draft.
+      if (changed) setInput('');
+      return undefined;
+    }
+    if (!settingsReady) return undefined;
+    if (!historyRef.current) {
+      // Retention is off, so no stored conversation exists behind this route.
+      navigate('/ask', { replace: true });
+      return undefined;
+    }
+    const ac = new AbortController();
+    readConversation(conversationId, { signal: ac.signal })
+      .then((data) => {
+        setMessages(data.messages || []);
+        setTitle(data.title);
+        draftFor.current = conversationId;
+        setInput(data.draft || '');
+        jumpToLatest();
+      })
+      .catch((failure) => {
+        if (failure?.name === 'AbortError') return;
+        setMessages([]);
+        setLoadError(
+          failure?.status === 404 || /not found/i.test(failure?.message || '')
+            ? 'That conversation is no longer available.'
+            : failure.message,
+        );
+      });
+    return () => ac.abort();
+  }, [conversationId, settingsReady, jumpToLatest, navigate]);
+
+  // Turning retention off removes the stored conversation behind this route.
+  useEffect(() => {
+    if (settings && !historyEnabled && conversationId) navigate('/ask', { replace: true });
+  }, [settings, historyEnabled, conversationId, navigate]);
+
+  // A pre-filled question can arrive as /ask?q=… — prefill the composer rather
+  // than sending automatically: the user controls what is sent.
   useEffect(() => {
     if (prefilled.current) return;
     const q = params.get('q');
@@ -308,6 +460,39 @@ export default function Ask() {
     setParams({}, { replace: true });
     setInput(q.slice(0, 4000));
   }, [params, setParams]);
+
+  useEffect(() => writeStored(PANEL_KEY, panelOpen ? 'open' : 'closed'), [panelOpen]);
+
+  // Narrowing the window must not leave an overlay covering the transcript.
+  useEffect(() => {
+    const narrow = matchMedia(NARROW);
+    const update = () => narrow.matches && setPanelOpen(false);
+    narrow.addEventListener('change', update);
+    return () => narrow.removeEventListener('change', update);
+  }, []);
+
+  const saveDraft = useCallback(
+    (value) => {
+      if (!historyEnabled || !conversationId) return;
+      clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(() => {
+        updateConversation(conversationId, { draft: value.slice(0, 4000) }).catch(() => {});
+      }, DRAFT_DEBOUNCE_MS);
+    },
+    [conversationId, historyEnabled],
+  );
+
+  const changeInput = useCallback(
+    (value) => {
+      const next = typeof value === 'function' ? value(input) : value;
+      setInput(next);
+      saveDraft(next);
+    },
+    [input, saveDraft],
+  );
+
+  // Flush a pending draft before this view stops owning it.
+  useEffect(() => () => clearTimeout(draftTimer.current), []);
 
   async function ask(text, retryIndex) {
     text = text.trim();
@@ -318,6 +503,29 @@ export default function Ask() {
     setStream('');
     setError(null);
     setActivities([]);
+
+    let target = conversationId;
+    if (historyEnabled && !target) {
+      try {
+        target = (await createConversation()).id;
+      } catch (failure) {
+        setBusy(false);
+        setError(failure instanceof Error ? failure.message : 'Could not start a conversation.');
+        return;
+      }
+      selfNavigated.current = target;
+      activeId.current = target;
+      navigate(`/ask/${target}`, { replace: true });
+    }
+    // Bind this request to one conversation; a later switch aborts it, and
+    // nothing it produces may be applied to a different one.
+    const boundTo = target;
+    const stillShowing = () => (activeId.current ?? null) === (boundTo ?? null);
+    if (historyEnabled && target) {
+      clearTimeout(draftTimer.current);
+      updateConversation(target, { draft: '' }).catch(() => {});
+    }
+
     const next =
       retryIndex === undefined
         ? [...messages, { role: 'user', content: text }]
@@ -329,24 +537,18 @@ export default function Ask() {
     let complete = false;
     let streamError = '';
     let turnTools = [];
-    function save(updated) {
-      setMessages(updated);
-      if (historyEnabled.current) {
-        try {
-          localStorage.setItem(CHAT_KEY, JSON.stringify(updated.slice(-MAX_HISTORY)));
-        } catch {
-          /* Storage unavailable. */
-        }
-      }
-    }
     try {
       await streamChat({
         message: text,
-        conversationId: conversation.current,
+        conversationId: boundTo ?? null,
         signal: ac.signal,
         onEvent: (event) => {
+          // A frame that names a different conversation can never be applied
+          // to the one on screen.
+          if (!stillShowing()) return;
+          if (event.conversationId && boundTo && event.conversationId !== boundTo) return;
           if (event.error) streamError = event.error;
-          if (event.conversationId) conversation.current = event.conversationId;
+          if (event.title) setTitle(event.title);
           if (typeof event.text === 'string') {
             // Tolerate both cumulative snapshots and per-token deltas.
             final = final && event.text.startsWith(final) ? event.text : final + event.text;
@@ -373,66 +575,130 @@ export default function Ask() {
       if (streamError) throw new Error(streamError);
       if (!complete)
         throw new Error('Connection ended before the answer finished. Please try again.');
-      const updated = [...next, { role: 'assistant', content: final, tools: turnTools }];
-      save(updated);
+      if (stillShowing())
+        setMessages([...next, { role: 'assistant', content: final, tools: turnTools }]);
     } catch (e) {
       const settled = turnTools.map((activity) =>
         activity.state === 'running'
           ? { ...activity, state: 'error', ended: Date.now() }
           : activity,
       );
-      save([...next, { role: 'assistant', content: final, tools: settled, interrupted: true }]);
-      setError(
-        ac.signal.aborted ? 'Response stopped.' : e instanceof Error ? e.message : 'Chat failed',
-      );
+      if (stillShowing()) {
+        setMessages([
+          ...next,
+          { role: 'assistant', content: final, tools: settled, interrupted: true },
+        ]);
+        setError(
+          ac.signal.aborted ? 'Response stopped.' : e instanceof Error ? e.message : 'Chat failed',
+        );
+      }
     } finally {
       controller.current = null;
       setBusy(false);
       setStream('');
       setActivities([]);
+      refreshList();
     }
   }
 
-  function reset() {
-    conversation.current = undefined;
-    setMessages([]);
-    setActivities([]);
-    setError(null);
-    setInput('');
-    jumpToLatest();
-    clearChat();
+  const startNew = () => {
+    controller.current?.abort();
+    setPanelOpenForPhone(false);
+    navigate('/ask');
+  };
+
+  const selectConversation = (conversation) => {
+    setPanelOpenForPhone(false);
+    navigate(`/ask/${conversation.id}`);
+  };
+
+  // On narrow windows the panel overlays the transcript, so choosing something
+  // has to close it.
+  function setPanelOpenForPhone(open) {
+    if (!open && matchMedia(NARROW).matches) setPanelOpen(false);
   }
 
+  const renameConversation = async (conversation, newTitle) => {
+    const updated = await updateConversation(conversation.id, { title: newTitle });
+    if (conversation.id === conversationId) setTitle(updated.title);
+    refreshList();
+  };
+
+  const archiveConversation = async (conversation) => {
+    await updateConversation(conversation.id, { archived: !conversation.archived });
+    refreshList();
+  };
+
+  const removeConversation = async (conversation) => {
+    await deleteConversation(conversation.id);
+    if (conversation.id === conversationId) navigate('/ask', { replace: true });
+    refreshList();
+  };
+
   const aiOffline = aiFailed || (ai && !ai.reachable);
-  const model = ai?.models?.[0];
+  const model = ai?.chat_model || ai?.models?.[0];
   const lastQuestionIndex = messages.findLastIndex((message) => message.role === 'user');
   const canSend = Boolean(settings && ai?.reachable);
 
   return (
-    <WorkspacePage search={false} scroll={false}>
+    <WorkspacePage
+      scroll={false}
+      compactSearch
+      className="ask-main"
+      title={title}
+      subtitle={
+        ai?.reachable
+          ? `${model || 'Local model'} · on this machine`
+          : aiOffline
+            ? 'Assistant unavailable'
+            : 'Connecting to assistant…'
+      }
+      lead={
+        <button
+          type="button"
+          className="btn btn-icon ask-panel-toggle"
+          aria-label={panelOpen ? 'Hide conversations' : 'Show conversations'}
+          aria-expanded={panelOpen}
+          onClick={() => setPanelOpen((open) => !open)}
+        >
+          <SidebarSimple size={17} aria-hidden="true" />
+        </button>
+      }
+      actions={
+        <button
+          type="button"
+          className="btn btn-small btn-compact"
+          aria-label="New conversation"
+          onClick={startNew}
+        >
+          <Plus size={15} aria-hidden="true" />
+          <span className="btn-label">New</span>
+        </button>
+      }
+      panel={
+        <ConversationPanel
+          open={panelOpen}
+          conversations={conversations}
+          activeId={conversationId}
+          loading={listLoading}
+          error={listError}
+          historyEnabled={historyEnabled}
+          query={query}
+          onQuery={setQuery}
+          showArchived={showArchived}
+          onShowArchived={setShowArchived}
+          onSelect={selectConversation}
+          onNew={startNew}
+          onRename={renameConversation}
+          onArchive={archiveConversation}
+          onDelete={removeConversation}
+          onCollapse={() => setPanelOpen(false)}
+          model={model}
+          reachable={Boolean(ai?.reachable)}
+        />
+      }
+    >
       <div className="ask-workspace">
-        <header className="page-head-row ask-header">
-          <div>
-            <h1 className="page-title">Ask</h1>
-            <p className="ask-status">
-              <span
-                className={`dot${ai?.reachable ? ' dot-ok' : aiOffline ? ' dot-bad' : ''}`}
-                aria-hidden
-              />
-              <span>
-                {ai?.reachable
-                  ? 'Connected to your server'
-                  : aiOffline
-                    ? 'Assistant unavailable'
-                    : 'Connecting to assistant…'}
-              </span>
-            </p>
-          </div>
-          <button className="btn" onClick={reset} disabled={busy}>
-            <Plus size={16} aria-hidden /> New conversation
-          </button>
-        </header>
-
         {aiOffline && (
           <div className="banner banner-error ask-banner" role="alert">
             <div>
@@ -444,6 +710,17 @@ export default function Ask() {
             </div>
             <button className="btn" onClick={reconnect} disabled={reconnecting}>
               {reconnecting ? 'Checking…' : 'Reconnect'}
+            </button>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="banner banner-error ask-banner" role="alert">
+            <div>
+              <strong>{loadError}</strong>
+            </div>
+            <button className="btn" onClick={startNew}>
+              Start a new conversation
             </button>
           </div>
         )}
@@ -465,7 +742,7 @@ export default function Ask() {
             }}
           >
             <div className={`chat-transcript${!messages.length ? ' chat-transcript-empty' : ''}`}>
-              {!messages.length && !busy && (
+              {!messages.length && !busy && !loadError && (
                 <div className="chat-intro">
                   <div className="chat-intro-mark" aria-hidden>
                     <Sparkle size={28} />
@@ -478,7 +755,7 @@ export default function Ask() {
                   </p>
                   <div className="chat-starters">
                     {STARTERS.map(([text, IconCmp]) => (
-                      <button type="button" key={text} onClick={() => setInput(text)}>
+                      <button type="button" key={text} onClick={() => changeInput(text)}>
                         <IconCmp size={15} aria-hidden />
                         <span>{text}</span>
                       </button>
@@ -488,7 +765,7 @@ export default function Ask() {
               )}
 
               {messages.map((m, i) => (
-                <div className="chat-turn" key={i}>
+                <div className="chat-turn" key={m.id || i}>
                   {m.role === 'user' ? (
                     <div className="chat-user">
                       <div className="chat-bubble">{m.content}</div>
@@ -574,7 +851,7 @@ export default function Ask() {
         </div>
         <ChatComposer
           input={input}
-          setInput={setInput}
+          setInput={changeInput}
           busy={busy}
           disabled={!canSend}
           onSend={ask}

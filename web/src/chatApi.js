@@ -49,6 +49,45 @@ export async function sendToPhone({ title, message }) {
   return res.status === 204 ? null : res.json().catch(() => null);
 }
 
+async function json(path, options = {}) {
+  const res = await hubFetch(path, {
+    headers: {
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...options,
+  });
+  if (!res.ok) throw await readError(res);
+  return res.status === 204 ? null : res.json();
+}
+
+// Durable conversations. Every one of these refuses with 409 when chat history
+// is turned off in Settings, so callers must handle a disabled history.
+export function listConversations({ query = '', archived = false, signal } = {}) {
+  const params = new URLSearchParams();
+  if (query) params.set('query', query);
+  if (archived) params.set('archived', 'true');
+  const suffix = params.toString() ? `?${params}` : '';
+  return json(`/api/chat/conversations${suffix}`, { signal });
+}
+
+export const createConversation = () => json('/api/chat/conversations', { method: 'POST' });
+
+export const readConversation = (id, { signal } = {}) =>
+  json(`/api/chat/conversations/${encodeURIComponent(id)}`, { signal });
+
+export const updateConversation = (id, patch) =>
+  json(`/api/chat/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+
+export const deleteConversation = (id) =>
+  json(`/api/chat/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export const importLegacyChat = (messages) =>
+  json('/api/chat/conversations/import', { method: 'POST', body: JSON.stringify({ messages }) });
+
 /**
  * POST /api/chat and consume the event stream.
  * Calls onEvent(parsedJson) for each `data:` frame; resolves when the stream

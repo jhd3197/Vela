@@ -89,7 +89,7 @@ function searchAppData(q, limit = 5) {
 
 // Global search: ⌘K palette over apps, settings sections, and mini-app data,
 // all client-side. It lives in the workspace header, not in a separate bar.
-export default function GlobalSearch() {
+export default function GlobalSearch({ compact = false }) {
   const { apps } = useApps();
   const navigate = useNavigate();
   const location = useLocation();
@@ -99,22 +99,34 @@ export default function GlobalSearch() {
     sessionStorage.setItem('vela.launcher.query', query);
   }, [query]);
   const [open, setOpen] = useState(false);
+  // A compact header (Ask, app workspaces) keeps the same palette behind an
+  // icon, so the shortcut and its results never disappear from a screen.
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef(null);
   const boxRef = useRef(null);
+  const triggerRef = useRef(null);
 
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        inputRef.current?.focus();
+        setExpanded(true);
+        requestAnimationFrame(() => inputRef.current?.focus());
       }
       if (e.key === 'Escape') {
         setOpen(false);
+        if (expanded) {
+          setExpanded(false);
+          triggerRef.current?.focus();
+        }
         inputRef.current?.blur();
       }
     };
     const onClickAway = (e) => {
-      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+      if (boxRef.current && !boxRef.current.contains(e.target) && e.target !== triggerRef.current) {
+        setOpen(false);
+        setExpanded(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('mousedown', onClickAway);
@@ -122,7 +134,7 @@ export default function GlobalSearch() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onClickAway);
     };
-  }, []);
+  }, [expanded]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -141,6 +153,7 @@ export default function GlobalSearch() {
 
   const go = (to) => {
     setOpen(false);
+    setExpanded(false);
     if (!to.startsWith('/app/')) setQuery('');
     if (to.startsWith('/settings')) {
       openSettings(to.split('#')[1] || 'general');
@@ -158,7 +171,7 @@ export default function GlobalSearch() {
   const hasResults =
     results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
 
-  return (
+  const box = (
     <div className="searchbox" ref={boxRef}>
       <MagnifyingGlass className="searchbox-icon" size={15} />
       <input
@@ -224,6 +237,26 @@ export default function GlobalSearch() {
           )}
         </div>
       )}
+    </div>
+  );
+
+  if (!compact) return box;
+  return (
+    <div className="searchbox-compact">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="btn btn-icon"
+        aria-label="Search apps, notes and settings"
+        aria-expanded={expanded}
+        onClick={() => {
+          setExpanded((value) => !value);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }}
+      >
+        <MagnifyingGlass size={16} aria-hidden="true" />
+      </button>
+      {expanded && <div className="searchbox-float">{box}</div>}
     </div>
   );
 }

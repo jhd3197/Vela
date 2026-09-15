@@ -28,6 +28,7 @@ export default function WorkspaceHeader({
   subtitle,
   actions,
   search = true,
+  compactSearch = false,
   onOpenNav,
 }) {
   return (
@@ -48,9 +49,10 @@ export default function WorkspaceHeader({
           {subtitle && <span className="workspace-subtitle">{subtitle}</span>}
         </div>
       )}
-      {search && <GlobalSearch />}
+      {search && !compactSearch && <GlobalSearch />}
       <div className="workspace-header-side">
         {actions}
+        {search && compactSearch && <GlobalSearch compact />}
         <ServerBadge />
         <NotificationBell />
       </div>

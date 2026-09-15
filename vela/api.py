@@ -7,12 +7,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from . import __version__
 from .assistant import Assistant, AssistantError
+from .conversations import ConversationStore
 from .backups import BackupError, BackupStore
 from .config import Config, load_config
 from .manifest import SUPPORTED_PLATFORMS
@@ -53,6 +54,18 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     conversationId: str | None = None
+
+
+class ConversationPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(default=None, max_length=200)
+    archived: bool | None = None
+    draft: str | None = Field(default=None, max_length=4000)
+
+
+class LegacyImport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    messages: list[ChatMessage] = Field(default_factory=list, max_length=500)
 
 
 class StorageWrite(BaseModel):
@@ -149,7 +162,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     settings = SettingsStore(config.settings_file)
     notifier = Notifier(settings)
     scheduler = NotifyScheduler(notifier, registry, config)
-    assistant = Assistant(settings, registry, state, config)
+    conversations = ConversationStore(config.data_dir / "chat.sqlite")
+    assistant = Assistant(settings, registry, state, config, conversations)
     backups = BackupStore(config)
     auth = Auth(config)
     storage = AppStorage(config.data_dir / "app-data.sqlite")
@@ -450,7 +464,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.patch("/api/settings")
     def patch_settings(payload: dict[str, Any] = Body(...)) -> dict:
-        settings.patch({key: value for key, value in payload.items() if key in _SETTINGS_KEYS})
+        update = {key: value for key, value in payload.items() if key in _SETTINGS_KEYS}
+        settings.patch(update)
+        # Turning retention off is a deletion, not just a preference change.
+        if update.get("chat_history") is False:
+            conversations.purge()
         return {"ok": True}
 
     @app.post("/api/notify/test")
@@ -485,6 +503,53 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.get("/api/ai/status")
     async def ai_status() -> dict:
         return await assistant.status()
+
+    def _history_enabled() -> None:
+        if not settings.get("chat_history"):
+            raise HTTPException(
+                status_code=409,
+                detail="Chat history is turned off in Settings, so conversations are not saved.",
+            )
+
+    @app.get("/api/chat/conversations")
+    def list_conversations(query: str = "", archived: bool = False, limit: int = 50) -> dict:
+        if not settings.get("chat_history"):
+            return {"conversations": [], "enabled": False}
+        return {
+            "conversations": conversations.browse(query=query, archived=archived, limit=limit),
+            "enabled": True,
+        }
+
+    @app.post("/api/chat/conversations", status_code=201)
+    def create_conversation() -> dict:
+        _history_enabled()
+        return conversations.create()
+
+    @app.post("/api/chat/conversations/import")
+    def import_conversation(payload: LegacyImport) -> dict:
+        _history_enabled()
+        return conversations.import_legacy([m.model_dump() for m in payload.messages])
+
+    @app.get("/api/chat/conversations/{conversation_id}")
+    def read_conversation(conversation_id: str) -> dict:
+        _history_enabled()
+        return conversations.get(conversation_id)
+
+    @app.patch("/api/chat/conversations/{conversation_id}")
+    def patch_conversation(conversation_id: str, payload: ConversationPatch) -> dict:
+        _history_enabled()
+        return conversations.update(
+            conversation_id,
+            title=payload.title,
+            archived=payload.archived,
+            draft=payload.draft,
+        )
+
+    @app.delete("/api/chat/conversations/{conversation_id}", status_code=204)
+    def delete_conversation(conversation_id: str) -> Response:
+        _history_enabled()
+        conversations.delete(conversation_id)
+        return Response(status_code=204)
 
     @app.post("/api/chat")
     async def chat(payload: ChatRequest, request: Request) -> StreamingResponse:

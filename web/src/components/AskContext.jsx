@@ -1,29 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CaretDown, Eye } from '@phosphor-icons/react';
-import { api } from '../api.js';
+import { useApps, useEngine } from '../store.jsx';
 
 // "What the assistant can see" — context transparency for the Ask page.
 // Lists exactly the hub-level records the server can fold into a chat
 // request. Collapsed by default with a one-line summary.
 export default function AskContext() {
   const [open, setOpen] = useState(false);
-  const [apps, setApps] = useState(null);
-  const [engine, setEngine] = useState(null);
-
-  useEffect(() => {
-    let live = true;
-    api
-      .getApps()
-      .then((d) => live && setApps(d?.apps ?? []))
-      .catch(() => live && setApps([]));
-    api
-      .getEngine()
-      .then((d) => live && setEngine(d))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, []);
+  // The shared providers already poll these; do not open a second stream.
+  const { apps } = useApps();
+  const { engine } = useEngine();
 
   const installed = (apps ?? []).filter((a) => a.installed);
   const running = installed.filter((a) => a.running);

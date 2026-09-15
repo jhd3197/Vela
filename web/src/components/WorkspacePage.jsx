@@ -14,6 +14,7 @@ export default function WorkspacePage({
   lead,
   actions,
   search = true,
+  compactSearch = false,
   panel,
   scroll = true,
   className = '',
@@ -46,6 +47,7 @@ export default function WorkspacePage({
           subtitle={subtitle}
           actions={actions}
           search={search}
+          compactSearch={compactSearch}
           onOpenNav={openNav}
         />
         <div
