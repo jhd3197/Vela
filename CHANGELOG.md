@@ -14,6 +14,14 @@ No additional release notes were provided.
 
 ### Added
 
+- Connect existing HTTPS web services from Library with a name, address and
+  icon color. Open them inside Vela with reload, edit and browser fallback
+  controls. Connections use a separate hostname and keep the service's own
+  login and data; removing a connection does not stop or uninstall the service.
+- A welcome popup guides iPhone setup, with a QR code for servers that already
+  have HTTPS phone access, Safari guidance and Home Screen instructions. Reopen
+  it from Settings. Local-only servers explain the required network setup.
+  Contributors should run `npm --prefix web ci` for the QR-code dependency.
 - Windows installer with the Vela sail icon, Start menu integration and optional
   startup at sign-in. Windows portable downloads remain available.
 - Windows tray controls for server status, opening the dashboard, starting and
@@ -21,6 +29,12 @@ No additional release notes were provided.
 
 ### Changed
 
+- Ask now keeps its multiline composer at the bottom, with a separately scrolling
+  conversation, formatted replies, copy controls, expandable checks, and a jump
+  to the latest response. Type `@` to find an installed app by name or ID and
+  mention it in a question. Stopped or interrupted answers remain visible and
+  can be retried. Contributors should run `npm --prefix web ci` for the new
+  Markdown dependencies.
 - Contributors can run `npm --prefix web run check` for lint, formatting, tests
   and the dashboard build; CI uses the same command. The dashboard now shares
   engine status across pages and reuses dialogs/drawers with keyboard focus
@@ -34,6 +48,13 @@ No additional release notes were provided.
 - Automatic releases now require the tested Windows installer alongside all
   three portable downloads and checksums. Windows upgrades and uninstall keep
   existing apps and data; installers and executables carry Vela branding.
+
+### Fixed
+
+- The dashboard Ask page can talk to the local model again. Sending a message
+  failed immediately with "Request failed (422)" because the dashboard posted a
+  request shape the server rejected. Failed requests now also show the server's
+  explanation instead of only a status code.
 
 ## 0.1.0 - 2026-09-14
 

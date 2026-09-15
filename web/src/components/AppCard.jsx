@@ -47,7 +47,7 @@ export default function AppCard({ app, busy, onAction }) {
       <p className="home-card-desc">{app.description}</p>
       <div className="home-card-foot">
         <span className="home-card-meta">
-          v{app.version}
+          {app.kind === 'connected-web' ? 'Web app' : `v${app.version}`}
           {app.category ? ` · ${app.category}` : ''}
         </span>
         {app.installed && (

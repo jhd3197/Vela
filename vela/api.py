@@ -31,6 +31,7 @@ from .catalog import Catalog
 from .releases import Releases
 from .actions import Actions
 from .package_files import MAX_BYTES
+from .connected_apps import ConnectedApps
 
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config"}
@@ -67,6 +68,17 @@ class LoginRequest(BaseModel):
 class ConnectionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     endpoint: str = Field(min_length=1, max_length=256)
+
+
+class ConnectedAppRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    name: str = Field(min_length=1, max_length=80)
+    url: str = Field(min_length=1, max_length=2048)
+    color: str = Field(default='#9184d9', pattern=r'^#[0-9a-fA-F]{6}$')
+
+
+class ConnectedAppUpdate(ConnectedAppRequest):
+    revision: int = Field(ge=1)
 
 
 class OperationRequest(BaseModel):
@@ -134,6 +146,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     backups = BackupStore(config)
     auth = Auth(config)
     storage = AppStorage(config.data_dir / "app-data.sqlite")
+    connected_apps = ConnectedApps(storage)
     app_services = AppServices(registry, auth, storage)
     connections = Connections(registry, storage, transport=connection_transport)
     lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage)
@@ -322,7 +335,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.get("/api/engine")
     def engine() -> dict:
-        apps = registry.list_apps()
+        apps = registry.list_apps() + connected_apps.list_apps()
         return {
             "status": "running",
             "engine": "local",
@@ -335,10 +348,23 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.get("/api/apps")
     def list_apps() -> dict:
-        return {"apps": registry.list_apps()}
+        return {"apps": registry.list_apps() + connected_apps.list_apps()}
+
+    @app.post('/api/web-apps', status_code=201)
+    def add_web_app(payload: ConnectedAppRequest, request: Request):
+        return connected_apps.save(**payload.model_dump(), hub_origin=config.public_origin or str(request.base_url))
+
+    @app.put('/api/web-apps/{app_id}')
+    def edit_web_app(app_id: str, payload: ConnectedAppUpdate, request: Request):
+        return connected_apps.save(**payload.model_dump(), app_id=app_id, hub_origin=config.public_origin or str(request.base_url))
+
+    @app.delete('/api/web-apps/{app_id}')
+    def remove_web_app(app_id: str, payload: RevisionRequest):
+        return connected_apps.remove(app_id, payload.revision)
 
     @app.get("/api/apps/{app_id}")
     def get_app(app_id: str) -> dict:
+        if connected_apps.owns(app_id): return connected_apps.get(app_id)
         description = registry.describe(app_id)
         if description is None:
             raise HTTPException(status_code=404, detail=f"unknown app: {app_id}")
@@ -372,6 +398,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.get("/api/apps/{app_id}/status")
     def app_status(app_id: str) -> dict:
+        if connected_apps.owns(app_id): return connected_apps.get(app_id)
         return lifecycle.app_status(app_id)
 
     @app.on_event("startup")

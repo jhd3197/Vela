@@ -60,9 +60,14 @@ Phone, tablet and other computer browsers connect to the same Vela Server.
 They do not each need their own server installation. The server computer must
 stay on and reachable while you use its apps.
 
-This preview opens locally by default. Network access currently needs a server
-password and a trusted HTTPS certificate; there is no automatic network setup
-wizard yet. In a terminal in the installed or extracted folder, run `Vela.exe --set-password` on Windows
+The dashboard shows a welcome popup on the first visit in each browser. Choose
+**Set up my iPhone** to connect your phone, or **Stay on this computer** to
+continue. Reopen the guide from **Settings → Set up my iPhone** at any time.
+
+This preview opens locally by default. Network access needs a server
+password and a trusted HTTPS certificate. The welcome guide explains these
+requirements; it does not configure network access automatically.
+Quit the running server first. In a terminal in the installed or extracted folder, run `Vela.exe --set-password` on Windows
 (or `./Vela --set-password` on macOS/Linux), then start with your certificate:
 
 ```powershell
@@ -74,6 +79,29 @@ certificate must be trusted there. Vela does not configure DNS, certificates or
 firewall access automatically. Once connected, you can save the dashboard to
 your home screen. Saving it does not install another server or make app data
 available while the server is offline.
+
+### Save Vela on your iPhone
+
+1. Open your configured HTTPS Vela address on the server computer and sign in.
+2. Choose **Set up my iPhone** in the welcome popup or Settings. Scan its QR
+   code with the iPhone Camera app and tap the link. Use the same Wi-Fi or a
+   network that can reach your server.
+3. The setup page detects Safari and shows the Home Screen steps. If it detects
+   another browser, copy the link into Safari. If detection is wrong, choose
+   **I'm already in Safari** to see the steps.
+4. In Safari, open **Share** (possibly inside **More (…)**), then **Add to Home
+   Screen**. If needed, find it in **Edit Actions**. Leave **Open as Web App** on
+   when offered, then tap **Add**.
+5. Open the Vela icon on your Home Screen and sign in if asked.
+
+The QR contains only the setup address, not your password or session. The
+instructions can open before sign-in; your apps still require authentication.
+The wizard offers a QR only for a server with phone access enabled, since a
+`localhost` address on your computer would point to the phone itself when scanned.
+See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/iphea86e5236/ios)
+for Safari's current menu options.
+
+## Other launch options
 
 For a console or headless launch, use `--no-tray --no-open-browser` from a terminal.
 See `Vela.exe --help` (or `./Vela --help`) for other options. Custom `VELA_DATA_DIR`

@@ -10,10 +10,14 @@ import AppConnection from '../components/AppConnection.jsx';
 import AppActions from '../components/AppActions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { createBridge } from '../bridge/host.js';
+import ConnectedAppView from '../components/ConnectedAppView.jsx';
 
 export default function AppView() {
   const { id } = useParams();
   const [attempt, setAttempt] = useState(0);
+  const { apps } = useApps();
+  const app = apps?.find((item) => item.id === id);
+  if (app?.kind === 'connected-web') return <ConnectedAppView key={id} app={app} />;
   return (
     <Workspace key={`${id}:${attempt}`} id={id} retry={() => setAttempt((value) => value + 1)} />
   );

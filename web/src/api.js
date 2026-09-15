@@ -77,6 +77,24 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  addWebApp: (value) =>
+    request('/api/web-apps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  updateWebApp: (id, value) =>
+    request(`/api/web-apps/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  removeWebApp: (id, revision) =>
+    request(`/api/web-apps/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision }),
+    }),
   appActions: (id) => request(`/api/apps/${encodeURIComponent(id)}/actions`),
   actionHistory: (id) => request(`/api/apps/${encodeURIComponent(id)}/actions/history`),
   grantAction: (id, app, action, allow, sourceContract, targetContract) =>

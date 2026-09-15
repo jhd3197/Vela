@@ -1,0 +1,236 @@
+.welcome-dialog {
+  width: min(680px, calc(100vw - 32px));
+  padding: 0;
+  box-shadow: var(--shadow-pop);
+}
+
+.welcome-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.welcome-close {
+  min-width: 44px;
+  min-height: 44px;
+}
+.welcome-body {
+  padding: 28px 36px;
+}
+.welcome-eyebrow {
+  margin: 0 0 12px;
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.welcome-body h2,
+.phone-setup-card h1 {
+  margin: 0 0 14px;
+  font-size: clamp(27px, 4vw, 36px);
+  line-height: 1.15;
+  letter-spacing: -1.2px;
+}
+.welcome-description {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.65;
+  max-width: 48ch;
+}
+.welcome-devices {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 38px 0 8px;
+  color: var(--accent-strong);
+  gap: 24px;
+  > div {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+  > div span {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+}
+.welcome-device-line {
+  width: 70px;
+  border-top: 1px dashed var(--accent-line);
+}
+.welcome-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 20px 36px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-inset);
+  .btn {
+    min-height: 44px;
+  }
+  > p {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+}
+.welcome-handoff {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 28px;
+}
+.welcome-qr {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.welcome-handoff h3,
+.welcome-network h3,
+.phone-instructions h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+.welcome-handoff p,
+.welcome-network p,
+.welcome-network li,
+.phone-instructions p {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.welcome-handoff p {
+  margin: 0 0 12px;
+}
+.welcome-network {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  ol {
+    margin: 16px 0 20px;
+    padding-left: 20px;
+  }
+  li + li {
+    margin-top: 8px;
+  }
+}
+.phone-link-label {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.phone-link {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--bg-inset);
+  font: 12px var(--mono);
+}
+.phone-note {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+.phone-instructions {
+  margin-top: 24px;
+}
+.phone-steps {
+  gap: 22px;
+  strong {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+  }
+  p {
+    margin: 6px 0 0;
+  }
+}
+.welcome-success {
+  color: var(--green);
+  margin-top: 24px;
+}
+.phone-setup-page {
+  min-height: 100dvh;
+  overflow: auto;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+.phone-setup-card {
+  width: min(520px, 100%);
+  margin: 4vh auto;
+  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  .welcome-brand {
+    margin-bottom: 36px;
+  }
+  .a2hs {
+    margin: 28px 0;
+  }
+  > .btn {
+    min-height: 44px;
+  }
+}
+.phone-setup-settings {
+  padding: 0 20px 20px;
+}
+
+@media (max-width: 580px) {
+  .welcome-top {
+    padding: 12px 16px 0;
+  }
+  .welcome-body {
+    padding: 22px;
+  }
+  .welcome-footer {
+    padding: 18px 22px;
+    justify-content: stretch;
+  }
+  .welcome-footer .btn {
+    flex: 1;
+  }
+  .welcome-footer > p {
+    text-align: center;
+  }
+  .welcome-handoff {
+    grid-template-columns: 1fr;
+  }
+  .welcome-qr {
+    width: 200px;
+    margin: 0 auto;
+  }
+  .phone-setup-card {
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .welcome-devices {
+    gap: 16px;
+  }
+  .welcome-device-line {
+    width: 40px;
+  }
+}

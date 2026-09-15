@@ -8,11 +8,80 @@ import { useAppStatus, useApps } from '../store.jsx';
 import AppIcon from './AppIcon.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import AddToHomeScreen from './AddToHomeScreen.jsx';
+import ConnectedAppForm from './ConnectedAppForm.jsx';
 
 // App detail drawer: description, author, version, category, live status
 // (3s poll), log tail for process apps, Add-to-Home-Screen for web apps.
 // Open navigates to the embedded view — never to a port.
-export default function AppDetailDrawer({ app, busy, onAction, onClose }) {
+export default function AppDetailDrawer(props) {
+  if (props.app?.kind === 'connected-web')
+    return <ConnectedAppDetail key={props.app.id} {...props} />;
+  return <PackageAppDetail {...props} />;
+}
+
+function ConnectedAppDetail({ app, onClose }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [editing, setEditing] = useState(false);
+  return (
+    <Drawer open onClose={onClose} aria-label={`${app.name} details`}>
+      <div className="drawer-header">
+        <div className="drawer-title-row">
+          <AppIcon app={app} size={52} />
+          <div>
+            <h2 className="drawer-name">{app.name}</h2>
+            <p className="drawer-meta">Connected web app</p>
+          </div>
+        </div>
+        <button className="drawer-close" onClick={onClose} aria-label="Close details">
+          <X size={20} />
+        </button>
+      </div>
+      <div className="drawer-body">
+        <section className="drawer-section">
+          <p className="drawer-description">{app.description}</p>
+          <dl className="drawer-facts">
+            <dt>Address</dt>
+            <dd className="connected-app-address">{app.url}</dd>
+            <dt>Access</dt>
+            <dd>Own website and sign-in. No Vela app data access.</dd>
+            <dt>Availability</dt>
+            <dd>Managed by the service. Vela does not monitor or start it.</dd>
+          </dl>
+        </section>
+      </div>
+      <div className="drawer-footer">
+        <div className="actions">
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              onClose();
+              navigate(`/app/${app.id}`, {
+                state: { returnTo: location.pathname + location.search },
+              });
+            }}
+          >
+            Open
+          </button>
+          <button className="btn" onClick={() => setEditing(true)}>
+            Edit connection
+          </button>
+        </div>
+      </div>
+      {editing && (
+        <ConnectedAppForm
+          app={app}
+          onClose={() => {
+            setEditing(false);
+            onClose();
+          }}
+        />
+      )}
+    </Drawer>
+  );
+}
+
+function PackageAppDetail({ app, busy, onAction, onClose }) {
   const navigate = useNavigate();
   const { refreshApps } = useApps();
   const [upgradeError, setUpgradeError] = useState('');

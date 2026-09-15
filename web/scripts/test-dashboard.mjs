@@ -47,6 +47,8 @@ try {
     channel: process.env.VELA_BROWSER_CHANNEL || 'chrome',
   });
   const page = await browser.newPage();
+  // Onboarding has a dedicated suite; this suite checks the dashboard beneath it.
+  await page.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const shots = path.join(root, 'docs/screenshots/shared-foundations');

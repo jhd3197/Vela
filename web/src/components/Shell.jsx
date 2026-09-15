@@ -6,6 +6,7 @@ import { formatBytes } from '../api.js';
 import { useApps, useEngine } from '../store.jsx';
 import TopBar from './TopBar.jsx';
 import Toasts from './Toasts.jsx';
+import WelcomeSetup from './WelcomeSetup.jsx';
 
 // Hub shell: glassy sidebar (brand, nav, storage meter) on desktop, a bottom
 // tab bar on mobile, and the shared top bar with search on every page.
@@ -30,7 +31,7 @@ export default function Shell({ children }) {
   }, [location.key, location.pathname, location.state?.restoreLauncher, hasApps, hasChildren]);
 
   return (
-    <div className="layout">
+    <div className={`layout${location.pathname === '/ask' ? ' layout-ask' : ''}`}>
       <div className="ambient-glow" aria-hidden="true" />
 
       <aside className="sidebar">
@@ -80,7 +81,7 @@ export default function Shell({ children }) {
 
       <div className="main-col">
         <TopBar />
-        <main className="page" ref={pageRef}>
+        <main className={`page${location.pathname === '/ask' ? ' page-ask' : ''}`} ref={pageRef}>
           {error && (
             <div className="banner banner-error" role="alert">
               <div>
@@ -112,6 +113,7 @@ export default function Shell({ children }) {
       </nav>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
+      {!hasChildren && <WelcomeSetup key={location.key} />}
     </div>
   );
 }

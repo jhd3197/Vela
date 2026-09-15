@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { isIOS, isStandalone, promptInstall, useInstallPrompt } from '../pwa.js';
+import IOSInstallSteps from './IOSInstallSteps.jsx';
 
 // "Add to Home Screen" section. Used for web apps in the detail drawer and
 // (with forHub) for the hub itself. iOS has no install-prompt API on any
@@ -27,28 +28,7 @@ export default function AddToHomeScreen({ appName, forHub = false }) {
     return (
       <section className="drawer-section a2hs">
         <h3 className="drawer-section-title">Add to Home Screen</h3>
-        <ol className="a2hs-steps">
-          <li>
-            <span className="a2hs-step-num">1</span>
-            <span>
-              Tap the <strong>Share</strong> button in Safari&apos;s toolbar (the square with an
-              arrow pointing up).
-            </span>
-          </li>
-          <li>
-            <span className="a2hs-step-num">2</span>
-            <span>
-              Scroll down and tap <strong>Add to Home Screen</strong>.
-            </span>
-          </li>
-          <li>
-            <span className="a2hs-step-num">3</span>
-            <span>
-              Tap <strong>Add</strong> in the top corner. {forHub ? 'The hub' : 'The app'} will
-              launch full-screen from your home screen.
-            </span>
-          </li>
-        </ol>
+        <IOSInstallSteps />
         {!forHub && (
           <p className="a2hs-note">The same steps install the Vela hub itself from this page.</p>
         )}

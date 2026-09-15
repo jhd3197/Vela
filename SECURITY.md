@@ -24,6 +24,16 @@ sandboxed and receive scoped operations; installing an app does not grant it
 access to other apps' data. Legacy v1 apps and native processes run with the
 server user's trust and privileges. They are not operating-system sandboxes.
 
+Connected web apps use a separate boundary: the browser loads an existing HTTPS
+service on a different hostname, preserving that service's own authentication and
+storage. A script-free wrapper restricts frame navigation to the configured
+origin. The service receives no Vela bridge or bearer token. A different hostname
+is required because cookies are shared between ports on the same hostname.
+The service retains its own network access and security policies; connecting it
+does not make it a manifest-v2 sandboxed package. The hub does not proxy arbitrary
+URLs or bypass upstream embedding restrictions. Use browser fallback for services
+whose authentication or frame policies prevent embedding.
+
 Review app permissions and release sources before installing. See the
 [server guide](docs/SERVER.md) and [app contract](docs/CONTRACT.md) for the
 implemented access, storage and release boundaries.

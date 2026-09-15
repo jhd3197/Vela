@@ -7,12 +7,14 @@ import { useApps } from '../store.jsx';
 import AppRow from '../components/AppRow.jsx';
 import AppDetailDrawer from '../components/AppDetailDrawer.jsx';
 import ReleaseImport from '../components/ReleaseImport.jsx';
+import ConnectedAppForm from '../components/ConnectedAppForm.jsx';
 
 export default function Library() {
   const { apps, busyIds, runAction } = useApps();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [selected, setSelected] = useState(null);
+  const [addingWebApp, setAddingWebApp] = useState(false);
 
   const categories = useMemo(() => {
     const set = new Set((apps || []).map((a) => a.category).filter(Boolean));
@@ -38,10 +40,16 @@ export default function Library() {
     <div className="page-inner">
       <PageHeader
         title="Library"
-        description="Every app available to this hub. Install once, run inside Vela."
+        description="Install apps or connect an existing web service."
+        actions={
+          <button className="btn btn-primary" onClick={() => setAddingWebApp(true)}>
+            Add web app
+          </button>
+        }
       />
 
       <ReleaseImport />
+      {addingWebApp && <ConnectedAppForm onClose={() => setAddingWebApp(false)} />}
       <div className="library-controls">
         <div className="searchbox searchbox-inline">
           <MagnifyingGlass className="searchbox-icon" size={15} />

@@ -14,6 +14,7 @@ import { registerServiceWorker } from './pwa.js';
 import Shell from './components/Shell.jsx';
 import ThemeSync from './components/ThemeSync.jsx';
 import Home from './pages/Home.jsx';
+import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { initTheme } from './theme.js';
@@ -24,27 +25,30 @@ initTheme();
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route
-      element={
-        <AuthGate>
-          <EngineProvider>
-            <AppsProvider>
-              <ThemeSync />
-              <Outlet />
-            </AppsProvider>
-          </EngineProvider>
-        </AuthGate>
-      }
-    >
-      <Route element={<Shell />}>
-        {dashboardPages.map(({ to, component: Page }) => (
-          <Route key={to} path={to} element={<Page />} />
-        ))}
+    <>
+      <Route path="/setup" element={<PhoneSetup />} />
+      <Route
+        element={
+          <AuthGate>
+            <EngineProvider>
+              <AppsProvider>
+                <ThemeSync />
+                <Outlet />
+              </AppsProvider>
+            </EngineProvider>
+          </AuthGate>
+        }
+      >
+        <Route element={<Shell />}>
+          {dashboardPages.map(({ to, component: Page }) => (
+            <Route key={to} path={to} element={<Page />} />
+          ))}
+        </Route>
+        {/* The manifest chooses the app view's host navigation. */}
+        <Route path="/app/:id" element={<AppView />} />
+        <Route path="*" element={<Home />} />
       </Route>
-      {/* The manifest chooses the app view's host navigation. */}
-      <Route path="/app/:id" element={<AppView />} />
-      <Route path="*" element={<Home />} />
-    </Route>,
+    </>,
   ),
 );
 

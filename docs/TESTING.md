@@ -38,8 +38,11 @@ node web/scripts/test-app-contract.mjs
 node web/scripts/test-releases.mjs
 node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
+node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-chat.mjs
+node web/scripts/test-phone-setup.mjs
 ```
 
 Run browser suites sequentially because some use the same fixture server port.
@@ -50,9 +53,23 @@ shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
 The dashboard suite checks all seven routes at desktop and phone widths in both
 themes, and saves screenshots under `docs/screenshots/shared-foundations/`.
+The chat suite serves the built dashboard with disposable app records and a
+controlled response stream. It checks the bottom composer, app mentions,
+keyboard input, formatted responses, stop/retry, scrolling, chat retention and
+offline recovery, and saves screenshots under `docs/screenshots/chat/`.
+The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
+local-only access guidance, HTTPS QR handoff, Safari/other-browser instructions,
+clipboard and storage fallback, installed mode and narrow layouts. It uses the
+built UI with disposable API responses and writes screenshots under
+`docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
+Home Screen installation on a physical iPhone before claiming device acceptance.
 
 The connection suite covers HTTPS, migration and an Ollama connection.
 It also requires OpenSSL.
+The connected-web-app suite also requires OpenSSL and uses a disposable HTTPS
+service. It checks add/edit/remove, persistence, its own login and browser storage,
+host isolation, cross-origin redirect blocking, frame-policy fallback and
+desktop/phone layouts. It never connects to a user's installed services.
 Browser scripts launch temporary fixture servers and save screenshots under
 ignored `docs/screenshots/` paths. `VELA_TEST_PYTHON` overrides the default
 `.venv` Python; `VELA_BROWSER_CHANNEL` can select an installed Chrome browser.

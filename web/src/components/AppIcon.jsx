@@ -1,6 +1,7 @@
 import { appColor } from '../api.js';
 import {
   ForkKnife,
+  Globe,
   HardDrives,
   Heartbeat,
   NotePencil,
@@ -30,6 +31,7 @@ const CATEGORY_GLYPHS = {
   lifestyle: ForkKnife,
   finance: Wallet,
   utilities: HardDrives,
+  connected: Globe,
 };
 
 export default function AppIcon({ app, size = 44, plain }) {
