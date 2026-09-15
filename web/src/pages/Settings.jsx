@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowsClockwise,
+  CaretLeft,
+  CaretRight,
+  Lock,
   Bell,
   ChartBar,
   PaperPlaneTilt,
@@ -24,6 +27,12 @@ import { useApps, useEngine } from '../store.jsx';
 import { getTheme, setTheme } from '../theme.js';
 import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
+import SecuritySection from '../components/security/SecuritySection.jsx';
+import useMediaQuery from '../hooks/useMediaQuery.js';
+
+// The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
+// stops being a popup and becomes a screen inside the app.
+const COMPACT = '(max-width: 860px)';
 
 // Settings backed by the hub's settings API: theme, chat retention, ntfy
 // notifications, local AI model, and backups. Read-only fact grids report
@@ -535,6 +544,13 @@ const SECTIONS = [
     keywords: 'theme light dark',
   },
   {
+    id: 'security',
+    label: 'Security',
+    icon: Lock,
+    description: 'Lock this session when you put your phone down.',
+    keywords: 'lock pin pattern unlock password sign out inactivity passcode',
+  },
+  {
     id: 'chat',
     label: 'Chat & privacy',
     icon: ChatCircleText,
@@ -586,14 +602,25 @@ function resolveSection(id) {
   return SECTIONS.some((s) => s.id === wanted) ? wanted : 'general';
 }
 
-export default function Settings({ initialSection = 'appearance', onClose }) {
+export default function Settings({ initialSection = 'appearance', explicit = false, onClose }) {
   const { platform, pushToast } = useApps();
   const { engine } = useEngine();
   const developer = useDeveloperTools();
+  const compact = useMediaQuery(COMPACT);
   const [active, setActive] = useState(() => resolveSection(initialSection));
+  // Compact screens open on the category list unless the caller, a bookmark or
+  // a search result asked for one section. Wide screens keep the two-pane popup
+  // and ignore this entirely, so one rotation never loses a draft.
+  const [listed, setListed] = useState(() => !explicit);
   const [query, setQuery] = useState('');
+  // A section can own a deeper screen (app-lock setup). It hands back the way
+  // out so Back, Escape and the phone's own back gesture all agree.
+  const [subScreen, setSubScreen] = useState(null);
+  const backRef = useRef(null);
   const closeRef = useRef(null);
   const contentRef = useRef(null);
+  const headingRef = useRef(null);
+  const navRef = useRef(null);
   const lockedRef = useRef(null);
   const [health, setHealth] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -604,6 +631,12 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
   const [pendingSections, setPendingSections] = useState({});
   const onPendingChange = useCallback((section, pending) => {
     setPendingSections((previous) => ({ ...previous, [section]: pending }));
+  }, []);
+  // A section reports the way out of its own deeper screen, or null when it
+  // has none. Back and Escape use it before stepping up to the category list.
+  const onSubScreen = useCallback((back) => {
+    backRef.current = back;
+    setSubScreen(Boolean(back));
   }, []);
   const pending = saving || Object.values(pendingSections).some(Boolean);
   const locked = active === 'developer' && !developer;
@@ -624,7 +657,22 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
 
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
-  }, [active]);
+  }, [active, listed]);
+
+  // Moving between phone screens carries focus with the reader: into the
+  // section's heading on the way in, back onto the row they chose on the way
+  // out. Opening the popup itself is left to the dialog's initial focus.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!compact) return;
+    if (!opened.current) {
+      opened.current = true;
+      return;
+    }
+    if (listed)
+      navRef.current?.querySelector(`[data-section="${active}"]`)?.focus({ preventScroll: true });
+    else headingRef.current?.focus({ preventScroll: true });
+  }, [compact, listed, active]);
 
   // Losing the tools — here or in another tab — leaves the explanation in
   // focus instead of an empty panel. The section, and the way back, stay put.
@@ -701,23 +749,60 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
   };
 
   const section = SECTIONS.find((s) => s.id === active);
-  const listed = SECTIONS.filter((s) => !s.developer || developer);
-  const matches = listed.filter((s) =>
+  const visible = SECTIONS.filter((s) => !s.developer || developer);
+  const matches = visible.filter((s) =>
     `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
+  // One list screen on a phone, one section at a time beneath it.
+  const onList = compact && listed;
+
+  // Back, Escape and the phone's own back gesture all walk the same visible
+  // hierarchy: setup step, then section, then the list, then the workspace.
+  // The dialog owns dismissal, so there is no second history handler here.
+  const dismiss = () => {
+    if (backRef.current) {
+      backRef.current();
+      return;
+    }
+    if (compact && !listed) {
+      setListed(true);
+      return;
+    }
+    onClose();
+  };
+  const openSection = (id) => {
+    setActive(id);
+    setListed(false);
+  };
 
   return (
     <Dialog
       open
       pending={pending}
-      onClose={onClose}
-      closeOnBackdrop
-      className="modal-dialog settings-dialog"
+      onClose={dismiss}
+      closeOnBackdrop={!compact}
+      className={`modal-dialog settings-dialog${compact ? ' settings-screen' : ''}${
+        onList ? ' is-list' : ''
+      }`}
       initialFocusRef={closeRef}
       aria-labelledby="settings-title"
     >
       <aside className="settings-sidebar">
-        <h1 id="settings-title">Settings</h1>
+        <div className="settings-list-head">
+          <h1 id="settings-title">Settings</h1>
+          {compact && (
+            <button
+              ref={onList ? closeRef : null}
+              type="button"
+              className="icon-btn"
+              aria-label="Close settings"
+              disabled={pending}
+              onClick={onClose}
+            >
+              <X size={19} />
+            </button>
+          )}
+        </div>
         <div className="settings-search">
           <MagnifyingGlass size={15} aria-hidden="true" />
           <input
@@ -728,17 +813,22 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <nav aria-label="Settings categories">
-          {matches.map(({ id, label, icon: Icon }) => (
+        <nav aria-label="Settings categories" ref={navRef}>
+          {matches.map(({ id, label, icon: Icon, description }) => (
             <button
               key={id}
               type="button"
-              className={`settings-nav-item${active === id ? ' is-active' : ''}`}
-              aria-current={active === id ? 'true' : undefined}
-              onClick={() => setActive(id)}
+              data-section={id}
+              className={`settings-nav-item${active === id && !compact ? ' is-active' : ''}`}
+              aria-current={active === id && !compact ? 'true' : undefined}
+              onClick={() => openSection(id)}
             >
-              <Icon size={17} />
-              <span>{label}</span>
+              <Icon size={compact ? 20 : 17} />
+              <span className="settings-nav-label">
+                {label}
+                {compact && <small>{description}</small>}
+              </span>
+              {compact && <CaretRight size={16} aria-hidden="true" className="settings-nav-go" />}
             </button>
           ))}
           {matches.length === 0 && (
@@ -756,12 +846,25 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
       </aside>
       <div className="settings-main">
         <header className="settings-header">
+          {compact && (
+            <button
+              type="button"
+              className="icon-btn settings-back"
+              aria-label={subScreen ? 'Back to Security' : 'Back to Settings'}
+              disabled={pending}
+              onClick={dismiss}
+            >
+              <CaretLeft size={20} />
+            </button>
+          )}
           <div>
-            <h2>{section.label}</h2>
+            <h2 tabIndex={-1} ref={headingRef}>
+              {section.label}
+            </h2>
             <p>{section.description}</p>
           </div>
           <button
-            ref={closeRef}
+            ref={onList ? null : closeRef}
             type="button"
             className="icon-btn"
             aria-label="Close settings"
@@ -874,6 +977,10 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
               ))}
             </div>
           </section>
+          <div id="settings-security" hidden={active !== 'security'}>
+            <SecuritySection onPendingChange={onPendingChange} onSubScreen={onSubScreen} />
+          </div>
+
           <section className="panel" id="settings-chat" hidden={active !== 'chat'}>
             <div className="settings-row">
               <div>
@@ -999,20 +1106,26 @@ export default function Settings({ initialSection = 'appearance', onClose }) {
             )}
           </section>
         </div>
-        <footer className="settings-footer">
-          {saveError ? (
-            <span className="inline-error" role="alert">
-              {saveError}
-            </span>
-          ) : (
-            <span role="status">
-              {pending ? 'Working…' : 'Theme and chat preferences save automatically.'}
-            </span>
-          )}
-          <Button disabled={pending} onClick={onClose}>
-            Done
-          </Button>
-        </footer>
+        {(!compact || pending || saveError) && (
+          <footer className="settings-footer">
+            {saveError ? (
+              <span className="inline-error" role="alert">
+                {saveError}
+              </span>
+            ) : (
+              <span role="status">
+                {pending ? 'Working…' : 'Theme and chat preferences save automatically.'}
+              </span>
+            )}
+            {/* A phone already has Back and Close in its header; a permanent
+              Done footer would only take space from the form. */}
+            {!compact && (
+              <Button disabled={pending} onClick={onClose}>
+                Done
+              </Button>
+            )}
+          </footer>
+        )}
       </div>
     </Dialog>
   );

@@ -62,6 +62,9 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
+    // 423 is the engine saying this session is locked. Every consumer learns
+    // it from one event rather than each one re-checking for itself.
+    if (res.status === 423) dispatchEvent(new Event('vela:locked'));
     let detail = `Request failed (${res.status})`;
     try {
       const body = await res.json();
@@ -168,6 +171,39 @@ export const api = {
   launch: (id) => request(`/api/apps/${encodeURIComponent(id)}/launch`, { method: 'POST' }),
   stop: (id) => request(`/api/apps/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
   iconUrl: (id) => `/api/apps/${encodeURIComponent(id)}/icon`,
+
+  // App lock. The secret is sent once per attempt and never stored anywhere in
+  // the browser; the engine owns enrollment, lock state and throttling.
+  getSecurity: (options) => request('/api/security', options),
+  enrollSecurity: (value) =>
+    request('/api/security/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  setSecurityTimeout: (value) =>
+    request('/api/security', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  disableSecurity: (password) =>
+    request('/api/security', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }),
+  lockNow: () => request('/api/security/lock', { method: 'POST' }),
+  unlock: (value) =>
+    request('/api/security/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  // The only request that defers the inactivity lock. Polling deliberately
+  // does not, so a phone left on a table still locks on time.
+  reportActivity: () =>
+    request('/api/security/activity', { method: 'POST', headers: { 'X-Vela-Activity': '1' } }),
 
   getSettings: () => request('/api/settings'),
   updateSettings: (patch) =>

@@ -33,6 +33,7 @@
 @use 'components/welcome';
 @use 'components/connected-apps';
 @use 'components/settings';
+@use 'components/security';
 @use 'components/bots';
 // Last: shared touch, scroll and viewport policies override the modules above.
 @use 'layout/mobile';

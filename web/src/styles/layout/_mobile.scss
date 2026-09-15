@@ -144,3 +144,21 @@ dialog.drawer-overlay {
     transition: none;
   }
 }
+
+/* A full-screen surface is not a popup: it owns the whole visible rectangle
+   rather than being centred inside it, so the keyboard shrinks the scrolling
+   body instead of pushing the header off the top of the screen. */
+.modal-dialog.settings-screen,
+.modal-dialog.lock-dialog {
+  max-height: none;
+  height: var(--vela-visible-height, 100dvh);
+  margin-top: var(--vela-visible-top, 0px);
+  overflow: hidden;
+  transform: none;
+}
+
+.settings-screen .settings-content,
+.settings-screen .settings-sidebar nav,
+.lock-dialog .lock-screen {
+  overscroll-behavior-y: contain;
+}
