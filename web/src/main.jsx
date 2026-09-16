@@ -1,4 +1,4 @@
-import { dashboardPages } from './navigation.js';
+import { routablePages } from './navigation.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
@@ -15,7 +15,7 @@ import Shell from './components/Shell.jsx';
 import ThemeSync from './components/ThemeSync.jsx';
 import SettingsProvider from './components/SettingsProvider.jsx';
 import SecurityProvider from './components/SecurityProvider.jsx';
-import Home from './pages/Home.jsx';
+import Desk from './pages/Desk.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
@@ -49,13 +49,13 @@ const router = createBrowserRouter(
         }
       >
         <Route element={<Shell />}>
-          {dashboardPages.flatMap(({ to, childPaths = [], component: Page }) =>
+          {routablePages.flatMap(({ to, childPaths = [], component: Page }) =>
             [to, ...childPaths].map((path) => <Route key={path} path={path} element={<Page />} />),
           )}
         </Route>
         {/* The manifest chooses the app view's host navigation. */}
         <Route path="/app/:id" element={<AppView />} />
-        <Route path="*" element={<Home />} />
+        <Route path="*" element={<Desk />} />
       </Route>
     </>,
   ),

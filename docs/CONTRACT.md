@@ -782,14 +782,27 @@ workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
 purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
 restrained 14px card corners), in light and dark.
 
-- **Rail** (desktop, 62px): the Vela mark, then Desk and Ask, then a shortcut
-  for every installed app in a stable name order, a separator, Library and a
-  **More** menu naming Automations and Manage apps (and System while developer
-  tools are on), then Settings and — for a remote session — Sign out. The open
+- **Rail** (desktop, 62px): the Vela mark, then Desk, Ask and **All apps**,
+  then the installed apps in two groups — an **OPEN** group of the apps the
+  engine reports running, labelled and edge-marked, above every other installed
+  app — each group in a stable name order, a separator, Library and a **More**
+  menu naming Automations and Manage apps (and System while developer tools are
+  on), then Settings and — for a remote session — Sign out. The OPEN label is
+  absent, not empty, when nothing is running. An app carries an attention dot
+  only when one of its own published widget summaries says `attention`. The open
   destination gets both a raised surface and an edge marker plus `aria-current`;
   every icon is named on hover and keyboard focus. The secondary menu closes on
-  Escape or an outside click and returns focus to its opener. The shortcut
-  region scrolls so the utility controls stay reachable in a short window.
+  Escape or an outside click and returns focus to its opener. Both shortcut
+  groups share one scrolling region so the utility controls stay reachable in a
+  short window.
+- **All apps**: a rail control rather than a destination — it has no route and
+  opens a drawer over whatever page is showing. It holds a search field, a
+  **Running now** row (each app with one line from its own summary caption, or
+  “Running”), the installed apps as a grid with each app's version, and one
+  “Add an app” tile leading to the Library. Choosing an app opens it and
+  closes the drawer; Escape closes it and returns focus to the rail control.
+  Manage apps keeps a different glyph so the rail never shows the same icon
+  twice.
 - **Phone**: there is no bottom bar and no hamburger. Every page keeps the
   rail on screen at every width — beside its content, never over it — so a
   destination or a ready app opens with one tap. A page's own panel slides in

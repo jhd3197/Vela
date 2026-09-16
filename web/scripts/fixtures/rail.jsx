@@ -7,7 +7,7 @@ import {
   Route,
   createRoutesFromElements,
 } from 'react-router-dom';
-import { dashboardPages } from '../../src/navigation.js';
+import { routablePages } from '../../src/navigation.js';
 import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
@@ -58,6 +58,10 @@ const SETS = {
     },
   ],
 };
+
+// The same installation with nothing running, so the OPEN group can be checked
+// for absence as well as presence.
+SETS.idle = SETS.many.map((app) => ({ ...app, running: false }));
 
 const set = new URLSearchParams(location.search).get('apps') || 'many';
 const apps = (SETS[set] || SETS.many).map((app) => ({
@@ -117,7 +121,7 @@ const router = createMemoryRouter(
       }
     >
       <Route element={<Shell />}>
-        {dashboardPages.map(({ to, label }) => (
+        {routablePages.map(({ to, label }) => (
           <Route key={to} path={to} element={<Page label={label} />} />
         ))}
       </Route>

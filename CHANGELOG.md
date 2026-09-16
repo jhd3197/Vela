@@ -25,6 +25,12 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **The rail shows what is open, and All apps holds the rest.** Apps the server
+  is running now sit together at the top of the rail under an OPEN label, above
+  your other apps. A new **All apps** control opens every installed app over
+  whatever page you are on, with a search field, what is running first and each
+  app's version, and one way to add another. Manage apps has a different icon so
+  the rail never shows the same one twice.
 - **Vela opens on a desk.** The home screen is now a board of widgets over a
   wallpaper instead of a plain app launcher: your apps, the time, what is
   running and your latest Ask conversation, with the rail beside it. Widgets

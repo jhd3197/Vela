@@ -2,6 +2,7 @@ import {
   ChatCircleText,
   GearSix,
   HardDrives,
+  AppWindow,
   HouseSimple,
   Lightning,
   SquaresFour,
@@ -30,6 +31,17 @@ export const dashboardPages = [
     childPaths: ['/ask/:conversationId'],
     component: Ask,
   },
+  // Not a destination: every installed app in one place, over whatever page is
+  // open. It has no route and no component, so nothing links to it and the
+  // rail renders it as a button rather than a NavLink.
+  {
+    id: 'all-apps',
+    label: 'All apps',
+    icon: SquaresFour,
+    rail: 'primary',
+    railOrder: 3,
+    drawer: true,
+  },
   {
     to: '/library',
     label: 'Library',
@@ -53,7 +65,7 @@ export const dashboardPages = [
   {
     to: '/apps',
     label: 'Manage apps',
-    icon: SquaresFour,
+    icon: AppWindow,
     rail: 'more',
     railOrder: 2,
     component: Apps,
@@ -69,6 +81,10 @@ export const dashboardPages = [
   },
   { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Desk, popup: true },
 ];
+
+// A rail entry that opens a drawer is not a destination: it has no path and no
+// component, so it never becomes a route.
+export const routablePages = dashboardPages.filter((page) => page.to && page.component);
 
 export const visiblePages = (developer) =>
   dashboardPages.filter((page) => !page.developer || developer);

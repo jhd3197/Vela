@@ -7,6 +7,7 @@ import { useDeveloperTools } from '../developer.js';
 import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
+import AllAppsDrawer from './AllAppsDrawer.jsx';
 
 // Installed apps keep a stable, status-independent order so a shortcut never
 // moves while the user is reaching for it.
@@ -17,13 +18,27 @@ export function railApps(apps) {
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
-function RailLink({ to, end, label, badge, onNavigate, children }) {
+// Running apps are lifted into their own group at the top, because "what is
+// open right now" is a different question from "what do I have". Both halves
+// keep the same name order, so an app moving between them is the only movement
+// and it only happens when the app itself starts or stops.
+export function railGroups(apps) {
+  const installed = railApps(apps);
+  return {
+    open: installed.filter((app) => app.running),
+    installed: installed.filter((app) => !app.running),
+  };
+}
+
+function RailLink({ to, end, label, badge, className = '', attention, onNavigate, children }) {
   return (
     <NavLink
       to={to}
       end={end}
       onClick={onNavigate}
-      className={({ isActive }) => `rail-item${isActive ? ' rail-item-active' : ''}`}
+      className={({ isActive }) =>
+        `rail-item${isActive ? ' rail-item-active' : ''}${className ? ` ${className}` : ''}`
+      }
     >
       {children}
       <span className="rail-tip">{label}</span>
@@ -32,6 +47,7 @@ function RailLink({ to, end, label, badge, onNavigate, children }) {
           {badge}
         </span>
       ) : null}
+      {attention ? <span className="rail-dot" aria-hidden="true" /> : null}
     </NavLink>
   );
 }
@@ -101,37 +117,101 @@ function MoreMenu({ pages, onNavigate }) {
   );
 }
 
-// The Vela rail: global destinations, real installed-app shortcuts and the
-// account controls. It is rendered once beside the workspace, and again inside
-// the phone drawer, which passes `onNavigate` so choosing a destination closes
-// it. Home keeps this rail on screen at every width.
-export default function AppRail({ onNavigate }) {
+// The Vela rail: global destinations, the apps that are open right now, every
+// other installed app, and the account controls. It is rendered once beside the
+// workspace, and again inside the phone drawer, which passes `onNavigate` so
+// choosing a destination closes it. The desk keeps this rail on screen at every
+// width.
+export default function AppRail({ onNavigate, summaries }) {
   const { apps } = useApps();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
   const developer = useDeveloperTools();
-  const installed = useMemo(() => railApps(apps), [apps]);
+  const { open, installed } = useMemo(() => railGroups(apps), [apps]);
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
+  const [allApps, setAllApps] = useState(false);
+  const allAppsButton = useRef(null);
+
+  // An app asks for attention only by saying so in a summary it published
+  // itself. The rail never decides on an app's behalf that something is wrong.
+  const needsAttention = useMemo(() => {
+    const ids = new Set();
+    for (const entry of summaries || []) {
+      if (entry?.summary?.attention) ids.add(entry.appId);
+    }
+    return ids;
+  }, [summaries]);
 
   return (
     <nav className="rail" aria-label="Vela">
       <img className="rail-mark" src="/vela-mark.png" alt="" aria-hidden="true" />
 
       <div className="rail-group">
-        {railGroup('primary', developer).map(({ to, end, label, icon: Icon }) => (
-          <RailLink key={to} to={to} end={end} label={label} onNavigate={onNavigate}>
-            <Icon size={20} weight="fill" aria-hidden="true" />
-          </RailLink>
-        ))}
+        {railGroup('primary', developer).map((page) => {
+          const { to, end, label, icon: Icon, drawer } = page;
+          if (drawer) {
+            return (
+              <button
+                key={page.id}
+                ref={allAppsButton}
+                type="button"
+                className="rail-item"
+                aria-haspopup="dialog"
+                aria-expanded={allApps}
+                onClick={() => setAllApps(true)}
+              >
+                <Icon size={20} weight="fill" aria-hidden="true" />
+                <span className="rail-tip">{label}</span>
+              </button>
+            );
+          }
+          return (
+            <RailLink key={to} to={to} end={end} label={label} onNavigate={onNavigate}>
+              <Icon size={20} weight="fill" aria-hidden="true" />
+            </RailLink>
+          );
+        })}
       </div>
 
-      {installed.length > 0 && (
-        <div className="rail-apps" aria-label="Installed apps" role="group">
-          {installed.map((app) => (
-            <RailLink key={app.id} to={`/app/${app.id}`} label={app.name} onNavigate={onNavigate}>
-              <AppIcon app={app} size={38} />
-            </RailLink>
-          ))}
+      {(open.length > 0 || installed.length > 0) && (
+        // One scroll owner for both groups: in a short window the shortcuts
+        // give up room together so the utility controls below stay reachable.
+        <div className="rail-apps">
+          {open.length > 0 && (
+            <div className="rail-apps-group rail-apps-open" aria-label="Open apps" role="group">
+              <span className="rail-section-label" aria-hidden="true">
+                OPEN
+              </span>
+              {open.map((app) => (
+                <RailLink
+                  key={app.id}
+                  to={`/app/${app.id}`}
+                  label={app.name}
+                  className="rail-item-open"
+                  attention={needsAttention.has(app.id)}
+                  onNavigate={onNavigate}
+                >
+                  <AppIcon app={app} size={38} />
+                </RailLink>
+              ))}
+            </div>
+          )}
+
+          {installed.length > 0 && (
+            <div className="rail-apps-group" aria-label="Installed apps" role="group">
+              {installed.map((app) => (
+                <RailLink
+                  key={app.id}
+                  to={`/app/${app.id}`}
+                  label={app.name}
+                  attention={needsAttention.has(app.id)}
+                  onNavigate={onNavigate}
+                >
+                  <AppIcon app={app} size={38} />
+                </RailLink>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -182,6 +262,19 @@ export default function AppRail({ onNavigate }) {
           </button>
         )}
       </div>
+
+      {allApps && (
+        <AllAppsDrawer
+          summaries={summaries}
+          onClose={() => {
+            setAllApps(false);
+            // The drawer returns focus to whatever opened it; in the phone
+            // drawer that opener can be unmounted by `onNavigate`, so the
+            // rail's own button is the fallback.
+            allAppsButton.current?.focus({ preventScroll: true });
+          }}
+        />
+      )}
     </nav>
   );
 }

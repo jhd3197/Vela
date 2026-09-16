@@ -7,7 +7,7 @@ import {
   Route,
   createRoutesFromElements,
 } from 'react-router-dom';
-import { dashboardPages } from '../../src/navigation.js';
+import { routablePages } from '../../src/navigation.js';
 import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
@@ -253,7 +253,7 @@ const router = createMemoryRouter(
       }
     >
       <Route element={<Shell />}>
-        {dashboardPages.map(({ to, label }) => (
+        {routablePages.map(({ to, label }) => (
           <Route key={to} path={to} element={<Page label={label} />} />
         ))}
         <Route path="/conversation" element={<Conversation />} />
