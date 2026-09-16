@@ -8,6 +8,13 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Arrange your desk.** Add widgets from a grouped list, move and resize them
+  by dragging or with the arrow keys, duplicate or remove them from each
+  widget's own menu, and undo or redo while you work. **Done** saves the board
+  to your server, so it is the same after a restart and in another browser;
+  **Cancel** puts it back, and leaving with unsaved changes asks first. The
+  desktop and phone boards are saved separately and never rearrange each other.
+  On a phone, press and hold a widget to start arranging.
 - **Desk widgets for your server.** The desk can now show **System** (uptime,
   CPU over the last few minutes and memory use), **Volume** (how full a folder
   you choose is, and how much is free), **Flows** (automation runs today,

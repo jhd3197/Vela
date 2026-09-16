@@ -147,6 +147,7 @@ body[data-desk] .rail-divider {
   margin-left: auto;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -602,7 +603,143 @@ body[data-desk] .rail-divider {
     flex: 1 1 100%;
   }
 
+  /* Arrange mode puts five controls in this row. On a phone they take the
+     whole width and wrap rather than pushing the board sideways. */
+  .desk-top-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .desk-top-actions .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
   .desk-clock-time {
     font-size: 38px;
   }
+}
+
+/* ---------- arrange mode ---------- */
+
+/* Arranging is a pointer gesture, so the board must not scroll under the
+   finger that is dragging a widget. */
+.desk-arranging .desk-grid {
+  touch-action: none;
+}
+
+.desk-arranging .desk-frame-body {
+  pointer-events: none;
+}
+
+.desk-frame:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.desk-top-actions .btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.desk-top-actions .btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.desk-top-actions .btn:disabled {
+  opacity: 0.5;
+}
+
+.desk-top-actions .btn-primary {
+  border-color: transparent;
+  background: var(--accent);
+}
+
+/* ---------- the widget library ---------- */
+
+.desk-library-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 24px 0;
+  padding: 0 12px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+  color: var(--text-faint);
+}
+
+.desk-library-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+
+.desk-library-group + .desk-library-group {
+  margin-top: 20px;
+}
+
+.desk-library-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.desk-library-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--bg-field);
+  cursor: pointer;
+}
+
+.desk-library-card:hover {
+  background: var(--accent-soft);
+}
+
+.desk-library-thumb {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.desk-library-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desk-library-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.desk-library-desc {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.desk-library-size {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
 }

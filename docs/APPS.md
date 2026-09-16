@@ -27,6 +27,33 @@ corner. Either way, if an app has unsaved work, leaving it asks before anything
 is lost. **App settings**, in that bar or in the app's Vela menu, holds the
 app's permissions, its connection, updates and removal.
 
+## Arrange your desk
+
+Choose **Add widget** above the board to see everything Vela can show you.
+Widgets are grouped by who owns them — Vela's own first, then one group per app
+that provides any — and the list only ever offers something Vela can really
+answer for. Picking one puts it in the first free space and switches the board
+into arranging.
+
+While you are arranging, drag a widget by its top bar to move it, or its
+bottom-right corner to resize it. Everything else moves out of the way, and
+widgets float up into any gap above them. Without a mouse, tab to a widget and
+use the arrow keys to move it, Shift and the arrow keys to resize it, and Delete
+to take it off. **Undo** and **Redo**, or Ctrl+Z and Ctrl+Shift+Z, step back and
+forward through what you have done.
+
+The widget's own menu, in its top bar, holds **Duplicate** and **Remove**, and
+the options for the widgets that have any — a Volume widget asks which of your
+volumes it should show.
+
+**Done** saves the board; **Cancel** puts it back the way it was. Leaving the
+desk with changes you have not saved asks first. If the same desk was changed in
+another window, Vela reloads what is really stored and tells you rather than
+overwriting it.
+
+On a phone, press and hold a widget to start arranging. The phone board is a
+separate board: arranging one never rearranges the other.
+
 ## On a phone
 
 Vela is meant to be used from a phone as well as a computer. Tapping a field

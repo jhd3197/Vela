@@ -55,6 +55,7 @@ node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-desk.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs
 node web/scripts/test-chat.mjs
@@ -77,10 +78,19 @@ hamburger and without covering its content, and an app workspace keeping one
 rail beside itself at 390 and 320 pixels. Screenshots go to
 `docs/screenshots/rail/`.
 The dashboard suite checks the default destinations at desktop and phone widths
-in both themes, Home's navigation across reload, Back, rotation and scrolling,
-the supported add-app sources, and the `/environments` deep link explaining
-itself and offering an explicit enable action while developer tools are off. It
-saves screenshots under `docs/screenshots/shared-foundations/`.
+in both themes, the desk's navigation across reload, Back, rotation and
+scrolling, the seeded board over its wallpaper at six widths, the supported
+add-app sources, Settings › Desk refusing a folder that does not exist, and the
+`/environments` deep link explaining itself and offering an explicit enable
+action while developer tools are off. It saves screenshots under
+`docs/screenshots/shared-foundations/`.
+The desk suite drives the board against a disposable engine: adding a widget
+from the library, moving and resizing it with the keyboard and with a pointer,
+undo and redo, saving and finding the same arrangement after a reload, Cancel
+putting an edit back, the prompt when leaving with unsaved changes, removing a
+widget, the phone board staying its own board, long-press reaching Arrange mode,
+and no sideways overflow while arranging at 320 and 390 pixels. It switches the
+settle transition off so geometry is never measured mid-animation.
 The settings suite checks the wide popup and the phone screens: category
 navigation, the edge-to-edge list, one section at a time with Back, Escape
 stepping through the same screens, retained page and form drafts,

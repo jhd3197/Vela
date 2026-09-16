@@ -18,6 +18,7 @@ from .conversations import ConversationStore
 from .rooms import Rooms
 from .backups import BackupError, BackupStore
 from .config import Config, load_config
+from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
@@ -255,6 +256,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     notifier = Notifier(settings)
     scheduler = NotifyScheduler(notifier, registry, config)
     system_metrics = SystemMetrics(config, settings)
+    desk = DeskStore(config.data_dir / "desk.json")
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -612,6 +614,43 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.get("/api/system/metrics")
     def system_metrics_snapshot() -> dict:
         return system_metrics.snapshot()
+
+    def _known_widget_types() -> set[str]:
+        """Core types plus one per widget each installed app declares.
+
+        A board may only name a type that exists right now, so uninstalling an
+        app takes its widgets off the desk instead of leaving a frame that can
+        never render."""
+        known = set(CORE_WIDGET_TYPES)
+        for summary in registry.list_apps():
+            if not summary.get("installed"):
+                continue
+            for declared in summary.get("widgets") or []:
+                widget_id = declared.get("id") if isinstance(declared, dict) else None
+                if isinstance(widget_id, str) and widget_id:
+                    known.add(f"{summary['id']}:{widget_id}")
+        return known
+
+    @app.get("/api/desk")
+    def get_desk() -> dict:
+        return desk.load(_known_widget_types())
+
+    @app.put("/api/desk")
+    def put_desk(payload: dict[str, Any] = Body(...)) -> dict:
+        try:
+            return desk.save(
+                payload.get("boards"), payload.get("revision"), _known_widget_types()
+            )
+        except ValueError as exc:
+            # Someone else saved first. The dashboard reloads and says so
+            # rather than overwriting an arrangement it never saw.
+            raise HTTPException(
+                status_code=409,
+                detail="The desk changed somewhere else.",
+                headers={"X-Vela-Desk-Revision": str(exc.args[0])},
+            )
+        except DeskError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
     @app.get("/api/settings")
     def get_settings() -> dict:
