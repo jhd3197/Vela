@@ -6,6 +6,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from .config import write_json_atomic
+
 DEFAULT_SETTINGS: dict[str, Any] = {
     "theme": "dark",
     "chat_model": None,
@@ -84,10 +86,9 @@ class SettingsStore:
         return data if isinstance(data, dict) else {}
 
     def _save(self, data: dict[str, Any]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.replace(self._path)
+        # Keeps the previous good file as settings.json.bak, which is what the
+        # doctor's `settings` repair puts back.
+        write_json_atomic(self._path, data)
 
     def get(self, key: str, default: Any = None) -> Any:
         data = self._load()

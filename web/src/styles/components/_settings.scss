@@ -570,3 +570,55 @@ button.notif-foot {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- Health (Settings › Health) ---------- */
+
+.health-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.health-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.health-row + .health-row {
+  border-top: 1px solid var(--border);
+}
+
+.health-row .status-dot {
+  margin-top: 5px;
+}
+
+.health-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.health-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.health-detail {
+  font-size: 12px;
+  color: var(--text-dim);
+  /* A check explains itself in a sentence; it wraps rather than being cut. */
+  overflow-wrap: anywhere;
+}
+
+.health-row-fail {
+  background: var(--red-soft);
+}

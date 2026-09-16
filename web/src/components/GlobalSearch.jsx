@@ -15,6 +15,11 @@ const SETTINGS_ENTRIES = [
   { label: 'Appearance & theme', to: '/settings#appearance', keywords: 'light dark' },
   { label: 'Local AI', to: '/settings#ai', keywords: 'ollama model' },
   { label: 'Notifications', to: '/settings#notifications', keywords: 'ntfy push alerts' },
+  {
+    label: 'Health',
+    to: '/settings#health',
+    keywords: 'doctor checks repair diagnose disk certificate runtime',
+  },
   { label: 'Backups & storage', to: '/settings#backups', keywords: 'restore snapshot disk space' },
   { label: 'Chat & privacy', to: '/settings#chat', keywords: 'history retention' },
   {

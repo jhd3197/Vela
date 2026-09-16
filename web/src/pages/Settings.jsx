@@ -13,6 +13,7 @@ import {
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
+  Stethoscope,
   SquaresFour,
   Trash,
   Palette,
@@ -30,6 +31,7 @@ import { getTheme, setTheme } from '../theme.js';
 import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
 import SecuritySection from '../components/security/SecuritySection.jsx';
+import HealthSection from '../components/HealthSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
@@ -688,6 +690,13 @@ const SECTIONS = [
     keywords: 'ntfy push topic alerts',
   },
   {
+    id: 'health',
+    label: 'Health',
+    icon: Stethoscope,
+    description: 'Check that this server has what it needs, and repair what Vela can.',
+    keywords: 'doctor checks repair diagnose disk space certificate runtime stale orphan',
+  },
+  {
     id: 'backups',
     label: 'Backups & storage',
     icon: ShieldCheck,
@@ -1147,6 +1156,10 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 onPendingChange={onPendingChange}
               />
             </fieldset>
+          </div>
+
+          <div hidden={active !== 'health'}>
+            <HealthSection onPendingChange={onPendingChange} />
           </div>
 
           <div hidden={active !== 'backups'}>

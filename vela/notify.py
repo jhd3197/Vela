@@ -14,6 +14,9 @@ from .settings import SettingsStore
 
 SCHEDULE_INTERVAL_SECONDS = 15 * 60
 DIGEST_HOUR = 9
+# The health checks run once shortly after startup, then daily.
+DOCTOR_STARTUP_DELAY_SECONDS = 60
+DOCTOR_INTERVAL_SECONDS = 24 * 60 * 60
 EVENT_BUFFER_SIZE = 50
 
 
@@ -163,26 +166,84 @@ class NotifyScheduler:
         registry: Registry,
         config: Config,
         interval: int = SCHEDULE_INTERVAL_SECONDS,
+        doctor=None,
+        doctor_delay: int = DOCTOR_STARTUP_DELAY_SECONDS,
+        doctor_interval: int = DOCTOR_INTERVAL_SECONDS,
     ):
         self._notifier = notifier
         self._registry = registry
         self._config = config
         self._interval = interval
         self._task: asyncio.Task | None = None
+        self._doctor = doctor
+        self._doctor_delay = doctor_delay
+        self._doctor_interval = doctor_interval
+        self._doctor_task: asyncio.Task | None = None
+        # Check keys already announced. A failure is worth one notification,
+        # not one every day until someone fixes it; clearing the check arms it
+        # again.
+        self._announced: set[str] = set()
         self._last_digest_day = ""
         self._known_running: set[str] | None = None
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
+        if self._doctor is not None:
+            self._doctor_task = asyncio.create_task(self._doctor_loop())
 
     async def stop(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
+        for name in ("_task", "_doctor_task"):
+            task = getattr(self, name)
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                setattr(self, name, None)
+
+    def attach_doctor(self, doctor) -> None:
+        """Give the scheduler the doctor to sweep with, before `start()`."""
+        self._doctor = doctor
+
+    async def _doctor_loop(self) -> None:
+        # Wait before the first sweep: startup is the busiest moment on this
+        # computer, and a check run then would measure the startup, not the
+        # steady state.
+        await asyncio.sleep(self._doctor_delay)
+        while True:
             try:
-                await self._task
-            except asyncio.CancelledError:
+                await self.run_doctor()
+            except Exception:
+                # A failed sweep is not worth ending the daily schedule over.
                 pass
-            self._task = None
+            await asyncio.sleep(self._doctor_interval)
+
+    async def run_doctor(self) -> dict[str, Any]:
+        """One sweep, announcing failures that were not already announced."""
+        result = await asyncio.to_thread(self._doctor.collect)
+        failing = {check["key"] for check in result["checks"] if check["status"] == "fail"}
+        # A check that passes again may announce itself if it fails later.
+        self._announced &= failing
+        fresh = [
+            check
+            for check in result["checks"]
+            if check["status"] == "fail" and check["key"] not in self._announced
+        ]
+        if fresh:
+            self._announced |= {check["key"] for check in fresh}
+            cfg = self._notifier.config()
+            if cfg["server"] and cfg["topic"]:
+                first = fresh[0]
+                more = len(fresh) - 1
+                await self._notifier.publish(
+                    "Vela needs attention",
+                    first["detail"] + (f"\n…and {more} more." if more else ""),
+                    tags=["warning"],
+                    priority=4,
+                    kind="health",
+                )
+        return result
 
     async def _loop(self) -> None:
         while True:

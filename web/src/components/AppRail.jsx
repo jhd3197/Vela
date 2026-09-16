@@ -106,6 +106,11 @@ export default function AppRail({ onNavigate }) {
   const loadSummaries = useCallback((options) => api.appWidgets(options), []);
   const { data } = useResource(loadSummaries, { intervalMs: 60000 });
   const summaries = data?.widgets;
+  // Settings holds Health, so a failed check is what puts a dot on Settings.
+  // Reading the last sweep never starts one.
+  const loadHealth = useCallback((options) => api.getDoctor(options), []);
+  const { data: health } = useResource(loadHealth, { intervalMs: 120000 });
+  const healthFailing = (health?.checks || []).some((check) => check.status === 'fail');
   const needsAttention = useMemo(() => {
     const ids = new Set();
     for (const entry of summaries || []) {
@@ -264,13 +269,20 @@ export default function AppRail({ onNavigate }) {
             type="button"
             className="rail-item"
             aria-haspopup="dialog"
+            aria-describedby={healthFailing ? 'rail-health-attention' : undefined}
             onClick={() => {
               onNavigate?.();
               openSettings();
             }}
           >
             <Icon size={19} aria-hidden="true" />
+            {healthFailing ? <span className="rail-dot" aria-hidden="true" /> : null}
             <span className="rail-tip">{label}</span>
+            {healthFailing ? (
+              <span id="rail-health-attention" hidden>
+                Something needs your attention in Health
+              </span>
+            ) : null}
           </button>
         ))}
         {remote && (

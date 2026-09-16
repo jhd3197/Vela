@@ -6,6 +6,7 @@ import ipaddress
 import os
 import sys
 import webbrowser
+from pathlib import Path
 from urllib.parse import urlsplit
 import uvicorn
 from .config import load_config
@@ -68,6 +69,12 @@ def main() -> None:
         os.environ["VELA_REMOTE_ACCESS"] = "1"
         os.environ["VELA_PUBLIC_ORIGIN"] = args.origin
     elif bool(args.cert) != bool(args.key): parser.error("Supply both --cert and --key")
+    # The health checks run inside the server, so they need to be told where it
+    # was asked to listen and which certificate it was given.
+    os.environ["VELA_HOST"] = args.host
+    os.environ["VELA_PORT"] = str(args.port)
+    if args.cert:
+        os.environ["VELA_CERT_FILE"] = str(Path(args.cert).resolve())
     open_browser = args.open_browser if args.open_browser is not None else bool(getattr(sys, 'frozen', False)) and not remote
     hostname = f'[{args.host}]' if ':' in args.host else args.host
     dashboard_url = args.origin if remote else f"{'https' if args.cert else 'http'}://{hostname}:{args.port}"

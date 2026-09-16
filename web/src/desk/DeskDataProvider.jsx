@@ -19,6 +19,9 @@ const FLOWS_MS = 30000;
 const BACKUPS_MS = 60000;
 // App summaries change when an app publishes one, which is a human-scale event.
 const WIDGETS_MS = 20000;
+// The health result only changes when a sweep runs — daily, or because someone
+// pressed Run now — so the desk reads it rarely and never starts one itself.
+const HEALTH_MS = 120000;
 
 const idle = { data: null, error: null, loaded: false };
 
@@ -42,15 +45,17 @@ const loadMetrics = () => api.systemMetrics();
 const loadFlows = () => automationsApi.status();
 const loadBackups = () => api.getBackups();
 const loadAppWidgets = () => api.appWidgets();
+const loadHealth = () => api.getDoctor();
 
 export function DeskDataProvider({ children }) {
   const metrics = useSource(loadMetrics, METRICS_MS);
   const flows = useSource(loadFlows, FLOWS_MS);
   const backups = useSource(loadBackups, BACKUPS_MS);
   const appWidgets = useSource(loadAppWidgets, WIDGETS_MS);
+  const health = useSource(loadHealth, HEALTH_MS);
   const value = useMemo(
-    () => ({ metrics, flows, backups, appWidgets }),
-    [metrics, flows, backups, appWidgets],
+    () => ({ metrics, flows, backups, appWidgets, health }),
+    [metrics, flows, backups, appWidgets, health],
   );
   return <DeskDataContext.Provider value={value}>{children}</DeskDataContext.Provider>;
 }

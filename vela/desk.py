@@ -20,6 +20,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .config import write_json_atomic
+
 BOARD_VERSION = 1
 #: Columns per board, and the only board names there are.
 BOARD_COLS = {"desktop": 6, "phone": 2}
@@ -39,6 +41,7 @@ CORE_WIDGET_TYPES = (
     "volume",
     "flows",
     "backups",
+    "health",
 )
 
 
@@ -204,12 +207,9 @@ class DeskStore:
         return data if isinstance(data, dict) else {}
 
     def _write(self, data: dict[str, Any]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        # Replace is atomic on both platforms Vela ships for, so a crash
-        # mid-write leaves the previous board rather than half of the new one.
-        tmp.replace(self._path)
+        # Atomic, and keeps the previous board as desk.json.bak so an
+        # unreadable file is something the doctor can put back.
+        write_json_atomic(self._path, data)
 
     def load(self, known_types: set[str]) -> dict[str, Any]:
         """The stored boards, repaired, seeding the defaults when absent."""

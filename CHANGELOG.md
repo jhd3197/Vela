@@ -8,6 +8,10 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Settings, desk and app-state files keep a spare copy.** Each time Vela
+  writes one it keeps the previous good version beside it, so a file that will
+  no longer read can be put back from Settings → Health instead of falling
+  back to defaults.
 - **The server log is readable again.** Vela no longer records a line for every
   request the dashboard makes, so its log holds what Vela did rather than
   thousands of routine polls. Both ways of starting Vela — the tray on Windows
@@ -55,6 +59,21 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Vela checks its own health.** **Settings → Health** runs thirteen checks
+  over this computer — room left where your data is kept, whether Vela is
+  answering on its address, a certificate about to expire, an app it wrongly
+  believes is running, an installed folder that lost its app description, the
+  runtimes automations need, how long since the last backup, and settings files
+  that will no longer read — and says what each one found in plain words.
+  Checks that do not apply to your setup are skipped rather than shown as
+  problems. Three findings offer a **Repair**: clearing a stale app record,
+  removing an empty installed folder after backing Vela up first, and putting
+  back the last readable copy of a settings, desk or app-state file. Vela
+  sweeps daily and shortly after it starts; a check that fails appears in
+  **Needs you**, puts a dot on Settings, and sends one notification — not one a
+  day. A **Health** widget shows the same summary on your desk. Nothing is sent
+  anywhere: every check reads this computer.
+
 - **Read the server's logs from the dashboard.** **System → Logs** shows the
   logs Vela writes on this computer — its own server log, a record of the
   actions taken on the server, and one log per app that runs as its own

@@ -19,6 +19,7 @@ from .rooms import Rooms
 from .backups import BackupError, BackupStore
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
+from .doctor import Doctor, summarise
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
@@ -287,6 +288,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     widgets = Widgets(storage, registry, actions)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
+    doctor = Doctor(config, state=state, registry=registry, settings=settings,
+                    backups=backups, assistant=assistant, catalog=catalog)
+    # The scheduler runs the sweep daily and once after startup, and announces
+    # a check that newly fails.
+    scheduler.attach_doctor(doctor)
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
@@ -1064,6 +1070,24 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # Logs. The hub session is the gate (the auth middleware rejects anything
     # else on /api/*); "Show developer tools" decides what this browser shows,
     # never what a request may do, so it is not re-checked here.
+    # Health checks. The last sweep is served as-is so opening Settings does
+    # not start thirteen checks; Run now is the deliberate action.
+    @app.get("/api/doctor")
+    def doctor_status() -> dict:
+        return doctor.last() or {"checks": [], "ranAt": None, "summary": summarise([])}
+
+    @app.post("/api/doctor/run")
+    async def doctor_run() -> dict:
+        return await asyncio.to_thread(doctor.collect)
+
+    @app.post("/api/doctor/{key}/repair")
+    async def doctor_repair(key: str, request: Request) -> dict:
+        result = await asyncio.to_thread(doctor.repair, key, actor=request_actor(auth, request))
+        if result.get("check") is None:
+            # No such check, or nothing registered to repair it.
+            raise HTTPException(status_code=422, detail=result.get("detail", "That repair is not available."))
+        return result
+
     @app.get("/api/logs")
     def list_logs() -> dict:
         return {"logs": logs.files()}

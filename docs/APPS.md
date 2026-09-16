@@ -173,6 +173,41 @@ permissions, starts or stops anything, or affects what Vela allows. It is
 remembered in this browser alone, so your phone does not inherit the choice you
 made on a desktop.
 
+## Check Vela's health
+
+**Settings → Health** runs a set of checks over this computer and says, in
+plain words, what each one found. It is for everyone — you do not need
+developer tools on.
+
+Press **Run now** and Vela looks at the things that quietly go wrong on a
+server: whether there is room left where your data is kept, whether it is
+answering on its address, whether a certificate is about to expire, whether it
+still believes an app is running that has actually stopped, whether an
+installed folder has lost its app description, whether the runtimes automations
+need are present, and how long ago it last backed itself up. Checks that do not
+apply to your setup — no HTTPS, no catalog, no chat model — are skipped and
+counted at the bottom rather than shown as problems.
+
+Some findings come with a **Repair** button. Vela only offers it where it can
+act safely on its own:
+
+- **App state** — clears the record of an app it wrongly lists as running. It
+  does not start or stop anything.
+- **Installed folders** — backs Vela up first, then removes a folder that has
+  no app in it.
+- **Saved settings** — puts back the last copy of a settings, desk or app-state
+  file that will no longer read, keeping the unreadable one beside it as
+  `.broken` in case you want to look at it.
+
+Nothing is sent anywhere. Every check looks at this computer, and Vela runs
+them once a day and about a minute after it starts, so a problem finds you
+rather than waiting to be looked for. When a check fails, it appears in
+**Needs you** on your desk, puts a dot on Settings in the rail, and — if you
+have set up notifications — sends one notification. One, not one a day: it
+tells you again only if the problem clears and comes back.
+
+Add the **Health** widget to your desk for the same summary at a glance.
+
 ## See what the server is doing
 
 **System → Logs** shows the logs Vela writes on this computer, so you do not

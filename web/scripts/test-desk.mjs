@@ -210,6 +210,38 @@ try {
   await page.locator('.desk-grid').waitFor();
   assert.ok(!(await labels(page)).includes('System'), await labels(page));
 
+  // --- the health widget --------------------------------------------------
+  // It reports the engine's last sweep and never starts one by being looked
+  // at; running the checks is something the person asks for.
+  await page.goto(base + '/');
+  await add.click();
+  await library.waitFor();
+  await library.getByRole('searchbox', { name: 'Find a widget' }).fill('health');
+  await library.getByRole('button', { name: /^Health/ }).click();
+  await library.waitFor({ state: 'detached' });
+  await done.click();
+  await arrange.waitFor();
+  const health = page.getByRole('region', { name: 'Health', exact: true });
+  await health.getByText('Vela has not checked itself yet.').waitFor();
+
+  await health.getByRole('button', { name: 'Run checks' }).click();
+  // A real engine answers here, so the widget shows whatever this disposable
+  // server actually reports rather than a canned result.
+  await health.locator('.desk-stat-value').waitFor();
+  const verdict = await health.locator('.desk-stat-value').innerText();
+  assert.ok(
+    /All good|to look at/.test(verdict),
+    `the health widget must report the sweep: ${verdict}`,
+  );
+  // Whatever it found, it offers the way to the section that can act on it.
+  await health.getByRole('link', { name: /Health|Fix it/ }).waitFor();
+
+  await arrange.click();
+  await page.getByRole('button', { name: 'Menu for Health', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+  await done.click();
+  await arrange.waitFor();
+
   // --- the phone board is its own board -----------------------------------
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base + '/');
@@ -522,7 +554,8 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; keyboard ' +
+    'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; the health ' +
+      'widget reports the last sweep and runs one on request; keyboard ' +
       'arrangement is announced; Cancel restores; leaving with unsaved changes asks; removing ' +
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
       'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +

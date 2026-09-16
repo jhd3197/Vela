@@ -19,7 +19,8 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
-connections, app actions, releases, launcher behavior and automations. Node checks
+connections, app actions, releases, launcher behavior, automations, the log
+store and the health checks. Node checks
 cover the host bridge, service-worker boundaries, shared request behavior
 (polling, overlapping refreshes, errors, and cleanup) and the automation worker's
 protocol. No sibling checkout is needed.
@@ -110,6 +111,7 @@ from the library, moving and resizing it with the keyboard and with a pointer,
 undo and redo, saving and finding the same arrangement after a reload, Cancel
 putting an edit back, the prompt when leaving with unsaved changes, removing a
 widget, the phone board staying its own board, long-press reaching Arrange mode,
+the health widget reporting the last sweep and running one when asked,
 and no sideways overflow while arranging at 320 and 390 pixels. It switches the
 settle transition off so geometry is never measured mid-animation.
 The settings suite checks the wide popup and the phone screens: category
@@ -119,7 +121,10 @@ preference saving and rollback, keyboard focus and deep links, with disposable
 API responses. The two compositions are checked at 320, 390, 430, 768, 860, 861
 and 1440 pixels, in a short landscape window, at 200% zoom, with reduced motion
 and with a stand-in open keyboard, keeping one unsent form draft through all of
-them and across the crossover between them. It also covers the developer-tools preference:
+them and across the crossover between them. It also checks Settings › Health: opening the section runs nothing, Run now
+lists the failing check first with a skipped one only counted, and Repair fixes
+the row it was pressed on without a second sweep. It also covers the
+developer-tools preference:
 off by default, switching without reloading or losing an unsent message,
 persisting across a reload, following another tab on the same origin, explaining
 itself when a bookmark lands on a hidden section, and falling back to the

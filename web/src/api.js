@@ -234,6 +234,13 @@ export const api = {
       body: file,
     }),
   deleteWallpaper: () => request('/api/wallpaper', { method: 'DELETE' }),
+  // Health checks. Reading is cheap and never starts a sweep; `runDoctor` is
+  // the deliberate action behind "Run now".
+  getDoctor: (options) => request('/api/doctor', options),
+  runDoctor: () => request('/api/doctor/run', { method: 'POST' }),
+  repairDoctor: (key) =>
+    request(`/api/doctor/${encodeURIComponent(key)}/repair`, { method: 'POST' }),
+
   // Logs. `pattern` switches the read into a search; a `/…/` pattern is a
   // regular expression, anything else a case-insensitive substring.
   getLogs: (options) => request('/api/logs', options),

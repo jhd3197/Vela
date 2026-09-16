@@ -459,6 +459,37 @@ managed by the operator; no automatic release-history pruning is implemented.
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
 
+### Health API details
+
+Hub session only. Reading never starts a sweep, so opening a page costs
+nothing; `POST /api/doctor/run` is the deliberate action.
+
+- `GET /api/doctor` — the last sweep:
+  `{ checks: [...], ranAt, summary }`. Before the first sweep in this process,
+  `checks` is empty and `ranAt` is `null`.
+- `POST /api/doctor/run` — runs every check and returns the same shape. Checks
+  run together with a per-check timeout (5 s) inside one wall-clock budget
+  (15 s); a check that raises or overruns becomes one `warn` rather than
+  ending the sweep.
+- `POST /api/doctor/{key}/repair` — `{ ok, detail, check }`, where `check` is
+  that check re-run afterwards, so a caller updates one row without a second
+  sweep. Recorded in `audit.log`. An unknown or unrepairable key is `422`.
+
+A check is `{ key, title, status, detail, repairable, ranAt }` with `status`
+one of `ok`, `warn`, `fail` or `skipped`. `skipped` means the check does not
+apply to this server (no HTTPS, no catalog, no chat model) and is excluded
+from the summary's counts. `repairable` is true only where a repair exists
+*and* there is something to repair. Failing checks sort first.
+
+The thirteen checks are `data-dir`, `port`, `certificate`, `stale-apps`,
+`orphans`, `worker`, `node`, `psutil`, `catalog`, `ollama`, `backups`,
+`settings` and `update`. `stale-apps`, `orphans` and `settings` have repairs;
+`orphans` creates a backup before it removes anything, and removes nothing if
+that backup fails. The scheduler sweeps about a minute after startup and then
+daily, publishing one notification (`kind: 'health'`) per newly failing check
+and re-arming only after that check passes again. Nothing leaves the computer:
+every check reads local state.
+
 ### Logs API details
 
 All four routes need the hub session and refuse anything that is not a plain

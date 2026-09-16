@@ -22,10 +22,72 @@ try {
   await context.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
   let settings = { theme: 'light', chat_history: true, ntfy_config: {} };
   let failSave = false;
+  // Health: nothing until Run now is pressed, then one broken check that the
+  // repair fixes — the two states the section has to get right.
+  const brokenCheck = {
+    key: 'stale-apps',
+    title: 'App state',
+    status: 'fail',
+    detail: 'Vela still lists Notes as running, but the process is gone.',
+    repairable: true,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  const fixedCheck = {
+    ...brokenCheck,
+    status: 'ok',
+    detail: 'Every app Vela lists as running really is.',
+    repairable: false,
+  };
+  const passingCheck = {
+    key: 'data-dir',
+    title: 'Room to work',
+    status: 'ok',
+    detail: '120 GB free where Vela keeps your data.',
+    repairable: false,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  const skippedCheck = {
+    key: 'certificate',
+    title: 'Certificate',
+    status: 'skipped',
+    detail: 'Vela is not using HTTPS on this computer.',
+    repairable: false,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  let doctorRan = false;
+  let doctorRepaired = false;
+  let doctorRuns = 0;
+  const doctorBody = () => {
+    if (!doctorRan)
+      return { checks: [], ranAt: null, summary: { text: 'Vela has not checked itself yet.' } };
+    const checks = [doctorRepaired ? fixedCheck : brokenCheck, passingCheck, skippedCheck];
+    const attention = checks.filter((c) => c.status === 'fail' || c.status === 'warn').length;
+    return {
+      checks,
+      ranAt: '2026-09-16T09:00:00',
+      summary: {
+        attention,
+        considered: 2,
+        text: attention ? `${attention} of 2 checks need attention.` : 'All 2 checks passed.',
+      },
+    };
+  };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname !== 'vela.test') return route.abort();
     if (url.pathname.startsWith('/api/')) {
+      if (url.pathname === '/api/doctor') return route.fulfill({ json: doctorBody() });
+      if (url.pathname === '/api/doctor/run') {
+        doctorRan = true;
+        doctorRuns += 1;
+        return route.fulfill({ json: doctorBody() });
+      }
+      if (url.pathname === '/api/doctor/stale-apps/repair') {
+        doctorRepaired = true;
+        return route.fulfill({
+          json: { ok: true, detail: 'Cleared the stale record for Notes.', check: fixedCheck },
+        });
+      }
       if (url.pathname === '/api/settings') {
         if (route.request().method() === 'PATCH') {
           if (failSave)
@@ -433,6 +495,42 @@ try {
   );
   await still.close();
 
+  // Health: opening the section must not start a sweep — thirteen checks
+  // should not run because a popup opened. Run now is the deliberate action.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#health');
+  // The section heading, not the popup's own header for the category.
+  await dialog.locator('#settings-health').getByRole('heading', { name: 'Health' }).waitFor();
+  await dialog.getByText('Vela has not checked itself yet.').waitFor();
+  assert.equal(doctorRuns, 0, 'opening Health must not run the checks');
+  assert.equal(await dialog.locator('.health-row').count(), 0);
+
+  await dialog.getByRole('button', { name: 'Run now' }).click();
+  await dialog.locator('.health-row').first().waitFor();
+  assert.equal(doctorRuns, 1);
+  // The failing check leads, a skipped one is summarised rather than listed.
+  assert.deepEqual(await dialog.locator('.health-title').allInnerTexts(), [
+    'App state',
+    'Room to work',
+  ]);
+  assert.equal(await dialog.locator('.health-row-fail').count(), 1);
+  await dialog.getByText('1 of 2 checks need attention.').waitFor();
+  await dialog.getByText('1 check did not apply to this server and was skipped.').waitFor();
+  await page.screenshot({ path: path.join(shots, 'settings-health.png') });
+
+  // Repair fixes the row it was pressed on, without a second sweep.
+  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 1);
+  await dialog.getByRole('button', { name: 'Repair' }).click();
+  await dialog.getByText('Every app Vela lists as running really is.').waitFor();
+  assert.equal(await dialog.locator('.health-row-fail').count(), 0);
+  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 0);
+  assert.equal(doctorRuns, 1, 'a repair must not trigger a whole sweep');
+
+  // Back to the desk, so the next deep link is a real navigation rather than a
+  // hash change on the document already open.
+  await page.goto('https://vela.test/');
+
   // A section asked for by name still opens directly, and the wide window
   // keeps the two-pane popup with its Done footer.
   await page.setViewportSize({ width: 390, height: 700 });
@@ -445,7 +543,7 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
+    'PASS: settings popup, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();
