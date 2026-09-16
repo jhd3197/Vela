@@ -12,7 +12,7 @@ from .widgets import validate_declarations as validate_widget_declarations
 SUPPORTED_PLATFORMS = ("posix", "windows", "android")
 PLATFORM_KEYS = SUPPORTED_PLATFORMS + ("web",)
 
-DEFAULT_APP_COLOR = "#9184d9"
+DEFAULT_APP_COLOR = "#7b4dff"
 
 _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")

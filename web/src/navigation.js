@@ -43,7 +43,7 @@ export const dashboardPages = [
     icon: ChatCircleText,
     core: true,
     id: 'ask',
-    color: '#796cbf',
+    color: '#7b4dff',
     // A selected conversation is part of the route, so reloads and links restore it.
     childPaths: ['/ask/:conversationId'],
     component: Ask,

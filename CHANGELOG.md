@@ -59,6 +59,15 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **A refreshed Vela mark and palette.** The sail is redrawn — flatter, with
+  more of the violet and cyan it always meant to have — and every place it
+  appears now comes from one source file, so the browser tab, the installed app
+  icon, the Windows tray and the documentation cannot drift apart again. The
+  accent throughout the dashboard moves to Vela Violet, the dark theme is built
+  on Deep Navy rather than a near-black grey, and running things are marked in
+  Bright Cyan. Every colour Vela writes text in was checked against the surface
+  behind it. If you installed Vela to your home screen or taskbar, the icon
+  updates the next time it refreshes.
 - **Eight painted wallpapers, and a new one each day if you like.** Personalise
   now offers Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila, Castillo and
   Canaima — places drawn for Vela rather than stock photography — each shown as
