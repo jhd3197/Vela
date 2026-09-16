@@ -48,12 +48,12 @@ These registrations live in the `connected_web_apps` table in `app-data.sqlite`.
 They are **not manifest v2 entries**: the portable schema and SDK remain unchanged.
 IDs use `web--<uuid hex>`, which cannot collide with a valid manifest's slug.
 
-| Endpoint | Authorization and behavior |
-| --- | --- |
-| `POST /api/web-apps` | Hub bearer; `{name, url, color?}` creates a registration (201) |
-| `PUT /api/web-apps/{id}` | Hub bearer; `{name, url, color?, revision}` updates the reviewed revision |
-| `DELETE /api/web-apps/{id}` | Hub bearer; `{revision}` removes only the registration |
-| `GET /api/apps`, `GET /api/apps/{id}`, `GET /api/apps/{id}/status` | Hub bearer; includes connected app summaries |
+| Endpoint                                                           | Authorization and behavior                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `POST /api/web-apps`                                               | Hub bearer; `{name, url, color?}` creates a registration (201)            |
+| `PUT /api/web-apps/{id}`                                           | Hub bearer; `{name, url, color?, revision}` updates the reviewed revision |
+| `DELETE /api/web-apps/{id}`                                        | Hub bearer; `{revision}` removes only the registration                    |
+| `GET /api/apps`, `GET /api/apps/{id}`, `GET /api/apps/{id}/status` | Hub bearer; includes connected app summaries                              |
 
 Stale update/removal revisions return 409; missing records return 404. Names are
 limited to 80 characters, addresses to 2048, icon colors to six-digit hex and
@@ -99,15 +99,15 @@ V2 declares `compatibility.bridge: 1`, `runtime.static.entry` and/or
 assets present. Container runtimes and arbitrary wrapper protocols are not
 supported. External and headless entries may declare an empty runtime object.
 
-| Field | Implemented values |
-| --- | --- |
-| `view.surface` | `embedded`, `external` (HTTPS `url` required), `none` |
-| `view.chrome` | Embedded only: `hub`, `compact` (default), `seamless` |
-| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation |
-| `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities` |
-| `data.schemaVersion` | Positive integer, required when requesting storage |
-| `data.quotaBytes` | 1 KiBâ€“10 MiB; default 1 MiB |
-| `widgets` | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
+| Field                   | Implemented values                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `view.surface`          | `embedded`, `external` (HTTPS `url` required), `none`                                          |
+| `view.chrome`           | Embedded only: `hub`, `compact` (default), `seamless`                                          |
+| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation   |
+| `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities`                       |
+| `data.schemaVersion`    | Positive integer, required when requesting storage                                             |
+| `data.quotaBytes`       | 1 KiBâ€“10 MiB; default 1 MiB                                                                  |
+| `widgets`               | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
 
 `hub` renders the normal navigation; `compact` renders an app bar; `seamless`
 renders no bars and retains a 44px-or-larger Vela menu outside the app. That
@@ -154,11 +154,11 @@ bootstrap, login/logout and public app icons. The hub can issue an app session w
 `POST /api/apps/{id}/session` for an installed v2 embedded app. The host keeps
 that one-hour bearer and uses it for these endpoints:
 
-| Endpoint | Result |
-| --- | --- |
-| `GET /api/app/storage` | `{value, revision, schemaVersion}`; missing document has `null` value and revision 0 |
-| `PUT /api/app/storage` | `{value, revision}` body; returns the saved document at revision + 1 |
-| `DELETE /api/app/session` | Revokes that bearer |
+| Endpoint                  | Result                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `GET /api/app/storage`    | `{value, revision, schemaVersion}`; missing document has `null` value and revision 0 |
+| `PUT /api/app/storage`    | `{value, revision}` body; returns the saved document at revision + 1                 |
+| `DELETE /api/app/session` | Revokes that bearer                                                                  |
 
 An app bearer cannot access hub settings, app catalogs, lifecycle operations,
 or another app's session. Extra write fields are rejected. Identity and grants
@@ -189,17 +189,17 @@ values, and gives differing records with the same ID new IDs. The engine retains
 the original import and its digest atomically with the write. Repeat imports of
 the same copy do not duplicate records. Browser data is never deleted.
 
-| Endpoint | Authorization and behavior |
-| --- | --- |
-| `POST /api/apps/{id}/migration/preview` | Hub; `{value, revision}`; reports current revision, additions and conflicts |
-| `POST /api/apps/{id}/migration` | Hub; same body, compare-and-swap commit with recovery copy |
-| `POST /api/apps/{id}/upgrade` | Hub; one-time bundled static v1 to v2 replacement; archives the previous package |
-| `GET /api/app/storage/snapshots` | App storage grant; own backup metadata |
-| `POST /api/app/storage/snapshots` | App storage grant; snapshot current saved document |
+| Endpoint                                       | Authorization and behavior                                                                      |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `POST /api/apps/{id}/migration/preview`        | Hub; `{value, revision}`; reports current revision, additions and conflicts                     |
+| `POST /api/apps/{id}/migration`                | Hub; same body, compare-and-swap commit with recovery copy                                      |
+| `POST /api/apps/{id}/upgrade`                  | Hub; one-time bundled static v1 to v2 replacement; archives the previous package                |
+| `GET /api/app/storage/snapshots`               | App storage grant; own backup metadata                                                          |
+| `POST /api/app/storage/snapshots`              | App storage grant; snapshot current saved document                                              |
 | `POST /api/app/storage/snapshots/{id}/restore` | App storage grant; `{revision}`; validates schema, snapshots current data, writes next revision |
-| `GET/PUT/DELETE /api/apps/{id}/connection` | Hub; inspect, test/bind `{endpoint}`, disconnect |
-| `GET /api/app/connection` | App connections grant; own binding status |
-| `POST /api/app/connection/invoke` | App connections grant; `{operation, payload}` within manifest allowlist |
+| `GET/PUT/DELETE /api/apps/{id}/connection`     | Hub; inspect, test/bind `{endpoint}`, disconnect                                                |
+| `GET /api/app/connection`                      | App connections grant; own binding status                                                       |
+| `POST /api/app/connection/invoke`              | App connections grant; `{operation, payload}` within manifest allowlist                         |
 
 App snapshots retain the latest 20 entries; migration originals are retained
 separately. Uninstall preserves app documents and snapshots but removes the
@@ -243,13 +243,13 @@ action ID and both manifest fingerprints. The grant request must include the
 fingerprints reviewed by the user, rejecting a changed review. Updates and
 reinstalls require a fresh grant; revocation takes effect before subsequent calls.
 
-| Endpoint | Authorization / behavior |
-| --- | --- |
-| `GET /api/apps/{id}/actions` | Hub; requests, availability, permission state and reviewed fingerprints |
-| `PUT /api/apps/{id}/actions/grant` | Hub; `{app, action, allow, sourceContract, targetContract}` |
-| `GET /api/apps/{id}/actions/history` | Hub; latest 50 incoming/outgoing execution metadata entries |
-| `GET /api/app/actions` | App session; own declared action requests |
-| `POST /api/app/actions/invoke` | App session; `{app, action, input, key}` with current explicit grant |
+| Endpoint                             | Authorization / behavior                                                |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `GET /api/apps/{id}/actions`         | Hub; requests, availability, permission state and reviewed fingerprints |
+| `PUT /api/apps/{id}/actions/grant`   | Hub; `{app, action, allow, sourceContract, targetContract}`             |
+| `GET /api/apps/{id}/actions/history` | Hub; latest 50 incoming/outgoing execution metadata entries             |
+| `GET /api/app/actions`               | App session; own declared action requests                               |
+| `POST /api/app/actions/invoke`       | App session; `{app, action, input, key}` with current explicit grant    |
 
 The SDK exposes `Vela.actions.list()` and
 `Vela.actions.invoke(app, action, input, key)`. Inputs are capped at 32 KiB;
@@ -301,10 +301,17 @@ The published summary is a flat JSON object of at most 4 KB. Every field is
 optional — `{}` is valid and means "nothing to report yet":
 
 ```json
-{ "value": "73", "unit": "changes", "delta": "+12", "caption": "queued since 02:14",
-  "progress": 32, "rows": [{ "label": "…", "detail": "…" }],
+{
+  "value": "73",
+  "unit": "changes",
+  "delta": "+12",
+  "caption": "queued since 02:14",
+  "progress": 32,
+  "rows": [{ "label": "…", "detail": "…" }],
   "actions": [{ "action": "sync", "label": "Sync now" }],
-  "attention": true, "expiresAt": "2026-09-16T02:14:00Z" }
+  "attention": true,
+  "expiresAt": "2026-09-16T02:14:00Z"
+}
 ```
 
 `value`, `unit`, `delta`, `caption` and every row and action label are text of at
@@ -314,11 +321,11 @@ own actions; `attention` is the boolean the rail's dot reads; `expiresAt` is an
 ISO 8601 timestamp after which the desk marks the summary stale. Nothing nests
 further and nothing is rendered as markup.
 
-| Endpoint | Authorization / behavior |
-| --- | --- |
+| Endpoint                          | Authorization / behavior                                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `PUT /api/app/widgets/{widgetId}` | App session with the `widgets` grant; 403 without it, 422 for an undeclared id or an invalid field, 413 over 4 KB |
-| `GET /api/apps/{id}/widgets` | Hub; every widget this app declares, each with its latest summary or `null` |
-| `GET /api/widgets` | Hub; the same for every installed app, plus `grantedActions` where a summary offers actions |
+| `GET /api/apps/{id}/widgets`      | Hub; every widget this app declares, each with its latest summary or `null`                                       |
+| `GET /api/widgets`                | Hub; the same for every installed app, plus `grantedActions` where a summary offers actions                       |
 
 The SDK exposes `Vela.widgets.publish(id, summary)`. Summaries are stored in
 `app-data.sqlite` keyed by app id, replaced rather than accumulated, and deleted
@@ -370,21 +377,21 @@ runs and events in `automations.sqlite`.
   a 64 KiB JSON body, refuses an identical replay, and changes nothing about
   Vela's bind, TLS or origin policy.
 
-| Endpoint | Authorization / behavior |
-| --- | --- |
-| `GET/POST /api/automations` | Hub; list with live state and statistics, or create |
-| `GET /api/automations/catalog` | Hub; vetted step definitions plus installed app actions |
-| `GET /api/automations/status` | Hub; runtime availability and the notification destination |
-| `GET/PUT/PATCH/DELETE /api/automations/{id}` | Hub; `PUT` takes the expected revision and returns 409 on conflict |
-| `POST /api/automations/{id}/activate|pause|archive|restore|duplicate` | Hub; activation requires an executable revision and current grants |
-| `GET /api/automations/{id}/export`, `POST /api/automations/import` | Hub; steps only — never permissions, schedules or secrets |
-| `PUT /api/automations/{id}/grants` | Hub; `{app, action, allow, requestContract, targetContract}`, rejecting a changed review |
-| `POST /api/automations/{id}/runs` | Hub; returns a run id immediately |
-| `POST /api/automations/{id}/webhook` | Hub; issues a new address and secret, shown once |
-| `GET /api/automations/runs`, `/runs/{runId}`, `/runs/{runId}/events` | Hub; durable history and ordered events |
-| `POST /api/automations/runs/{runId}/cancel` | Hub; stops future steps, never claims to undo finished ones |
-| `GET /api/automations/approvals`, `POST /api/automations/runs/{runId}/approvals/{gate}` | Hub; durable pending state and authenticated decisions |
-| `POST /api/automations/hooks/{tokenId}` | Per-workflow secret in `X-Vela-Automation-Secret`; starts that one workflow and nothing else |
+| Endpoint                                                                                | Authorization / behavior                                                                     |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET/POST /api/automations`                                                             | Hub; list with live state and statistics, or create                                          |
+| `GET /api/automations/catalog`                                                          | Hub; vetted step definitions plus installed app actions                                      |
+| `GET /api/automations/status`                                                           | Hub; runtime availability and the notification destination                                   |
+| `GET/PUT/PATCH/DELETE /api/automations/{id}`                                            | Hub; `PUT` takes the expected revision and returns 409 on conflict                           |
+| `POST /api/automations/{id}/activate                                                    | pause                                                                                        | archive | restore | duplicate` | Hub; activation requires an executable revision and current grants |
+| `GET /api/automations/{id}/export`, `POST /api/automations/import`                      | Hub; steps only — never permissions, schedules or secrets                                    |
+| `PUT /api/automations/{id}/grants`                                                      | Hub; `{app, action, allow, requestContract, targetContract}`, rejecting a changed review     |
+| `POST /api/automations/{id}/runs`                                                       | Hub; returns a run id immediately                                                            |
+| `POST /api/automations/{id}/webhook`                                                    | Hub; issues a new address and secret, shown once                                             |
+| `GET /api/automations/runs`, `/runs/{runId}`, `/runs/{runId}/events`                    | Hub; durable history and ordered events                                                      |
+| `POST /api/automations/runs/{runId}/cancel`                                             | Hub; stops future steps, never claims to undo finished ones                                  |
+| `GET /api/automations/approvals`, `POST /api/automations/runs/{runId}/approvals/{gate}` | Hub; durable pending state and authenticated decisions                                       |
+| `POST /api/automations/hooks/{tokenId}`                                                 | Per-workflow secret in `X-Vela-Automation-Secret`; starts that one workflow and nothing else |
 
 ### Release contract
 
@@ -407,15 +414,15 @@ There is no default catalog in a standalone hub. Health source is in the sibling
 the catalog path/HTTPS URL. HTTPS indexes require `VELA_CATALOG_SHA256` as the
 operator's trust pin. App author/publisher labels alone do not prove identity.
 
-| Endpoint | Hub-only operation |
-| --- | --- |
-| `GET /api/catalog` | Source, cached/error status and pinned releases |
-| `POST /api/catalog/refresh` | Keep last good index on failure |
-| `POST /api/releases/prepare` | `{folder}` or `{app_id}`; optional `{app_id, rollback: releaseId}` |
-| `POST /api/releases/upload` | Raw ZIP body, at most 32 MiB; returns staged review |
-| `POST /api/releases/{review}/commit` | Exact reviewed `{capabilities, operations}` approval |
-| `DELETE /api/releases/{review}` | Cancel and remove staged files |
-| `GET /api/apps/{id}/releases` | Release history and retained previous versions |
+| Endpoint                             | Hub-only operation                                                 |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `GET /api/catalog`                   | Source, cached/error status and pinned releases                    |
+| `POST /api/catalog/refresh`          | Keep last good index on failure                                    |
+| `POST /api/releases/prepare`         | `{folder}` or `{app_id}`; optional `{app_id, rollback: releaseId}` |
+| `POST /api/releases/upload`          | Raw ZIP body, at most 32 MiB; returns staged review                |
+| `POST /api/releases/{review}/commit` | Exact reviewed `{capabilities, operations}` approval               |
+| `DELETE /api/releases/{review}`      | Cancel and remove staged files                                     |
+| `GET /api/apps/{id}/releases`        | Release history and retained previous versions                     |
 
 Reviews last 20 minutes and pin staged bytes, installed bytes and data revision.
 Only increasing app versions are accepted as updates; earlier versions require
@@ -429,6 +436,7 @@ managed by the operator; no automatic release-history pruning is implemented.
 ### Engine API details
 
 `GET /api/engine` â€” the "Local Engine" status powering the System UI:
+
 ```json
 {
   "status": "running",
@@ -440,6 +448,7 @@ managed by the operator; no automatic release-history pruning is implemented.
   "data_dir": "/Users/juan/.vela"
 }
 ```
+
 `storage_bytes` = total size of the data dir (installed apps + logs + state).
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
@@ -479,14 +488,15 @@ Every app is a folder containing `app.json`:
   "category": "getting-started",
   "author": "Vela",
   "platforms": {
-    "posix":   { "run": "python3 -m http.server {port}", "port": 8801 },
+    "posix": { "run": "python3 -m http.server {port}", "port": 8801 },
     "windows": { "run": "python -m http.server {port}", "port": 8801 },
-    "web":     { "entry": "index.html" }
+    "web": { "entry": "index.html" }
   }
 }
 ```
 
 Rules:
+
 - `id`: lowercase slug, unique, matches the folder name.
 - `color`: optional hex accent for the app's icon tile in the hub UI; surfaced as
   `"color"` in app summaries. Defaults to the hub blurple (`#9184d9`) when absent.
@@ -528,7 +538,7 @@ Safari's "Add to Home Screen".
   - `/apps/{id}/icon-192.png` and `/apps/{id}/icon-512.png` â€” PNG icons for the web manifest.
 - **Lifecycle**: web apps spawn no process. `POST /launch` on a web app installs if needed and
   returns `{"id": ..., "running": true, "pid": null, "port": null, "url": "/apps/{id}/",
-  "runtime": "web", "runtimes": [...]}`. `POST /stop` is an explicit no-op returning
+"runtime": "web", "runtimes": [...]}`. `POST /stop` is an explicit no-op returning
   `{"running": false}` â€” the web app stays installed and served. For web apps,
   `status.running` mirrors `installed`, `url` is `/apps/{id}/`, and the active runtime
   surfaces as `runtime: "web"`.
@@ -549,6 +559,7 @@ hub operations; app tokens work only on `/api/app/*`.
 ### Platforms
 
 `GET /api/platforms`
+
 ```json
 {
   "current": "posix",
@@ -559,6 +570,7 @@ hub operations; app tokens work only on `/api/app/*`.
 ### Available apps (registry)
 
 `GET /api/apps` â€” lists apps bundled in `apps/` merged with install/run state.
+
 ```json
 {
   "apps": [
@@ -579,6 +591,7 @@ hub operations; app tokens work only on `/api/app/*`.
   ]
 }
 ```
+
 `supported` = the manifest has a non-null entry for the current platform OR has a `web` entry
 (web apps are supported everywhere). App summaries for installed web apps carry
 `"url": "/apps/{id}/"` and `running: true`. Summaries resolve installed-first: when an app is
@@ -600,11 +613,13 @@ concurrent launch of the same app returns 409 rather than spawning orphan proces
 `POST /api/apps/{id}/install` â€” copies the app from `apps/` into the data dir as a clean
 replace: any previous installed copy is removed first, then copied fresh (never merged).
 Idempotent.
+
 ```json
 { "id": "hello-vela", "installed": true }
 ```
 
 `DELETE /api/apps/{id}` â€” uninstall: stops it if running, removes installed copy.
+
 ```json
 { "id": "hello-vela", "installed": false }
 ```
@@ -612,20 +627,32 @@ Idempotent.
 `POST /api/apps/{id}/launch` â€” installs if needed, starts the process locally. The run
 command resolves from the INSTALLED copy's manifest, so launch works without the source
 folder under `apps/`.
+
 ```json
-{ "id": "system-info", "running": true, "pid": 12345, "port": 8802, "url": "/apps/system-info/", "runtime": "process", "runtimes": ["process"] }
+{
+  "id": "system-info",
+  "running": true,
+  "pid": 12345,
+  "port": 8802,
+  "url": "/apps/system-info/",
+  "runtime": "process",
+  "runtimes": ["process"]
+}
 ```
+
 `url` is null if the app has no port. 409 if already running. 400 if unsupported on the
 current platform (including the android stub). After launch, apps with a port get a TCP
 readiness probe (127.0.0.1:port, 0.1s interval, 5s max); on timeout the process is stopped,
 its state cleared, and launch fails with 502 "did not become ready".
 
 `POST /api/apps/{id}/stop`
+
 ```json
 { "id": "hello-vela", "running": false }
 ```
 
 `GET /api/apps/{id}/status`
+
 ```json
 {
   "id": "system-info",
@@ -647,6 +674,7 @@ its state cleared, and launch fails with 502 "did not become ready".
 
 `GET /api/settings` â€” hub settings. The ntfy password is write-only: the API
 reports `passConfigured` and never echoes the secret.
+
 ```json
 {
   "theme": "dark",
@@ -661,6 +689,7 @@ reports `passConfigured` and never echoes the secret.
   }
 }
 ```
+
 `chat_model: null` = use the backend default model. `chat_history` toggles
 server-side conversation history for the assistant.
 
@@ -679,6 +708,7 @@ rate limited (429), server unreachable, invalid receipt.
 
 `POST /api/notify/test` â€” optionally saves `{"ntfy_config": {...}}` from the
 body first, then sends a test notification.
+
 ```json
 { "ok": true, "id": "abc123", "accepted_at": "2025-01-01T12:00:00" }
 ```
@@ -688,12 +718,19 @@ default 3). Same response shape as test.
 
 `GET /api/notifications` â€” in-memory ring buffer of the last 50 notifications
 sent by this backend (newest first):
+
 ```json
-{ "notifications": [ { "timestamp": "...", "title": "Vela hub digest", "kind": "digest" } ] }
+{
+  "notifications": [
+    { "timestamp": "...", "title": "Vela hub digest", "kind": "digest" }
+  ]
+}
 ```
+
 `kind` is one of `publish`, `test`, `digest`, `status_alert`.
 
 A background scheduler ticks every 15 minutes while the app runs:
+
 - **digest** (if enabled): once per day after 09:00 local â€” running apps,
   installed count, data-dir disk usage.
 - **status_alerts** (if enabled): notifies when a previously-running app
@@ -723,22 +760,30 @@ durable record is written, a `conversationId` identifies only that request, and
 turning the setting off deletes every stored conversation immediately.
 
 `GET /api/ai/status` â€” never errors, even with Ollama down:
+
 ```json
-{ "reachable": false, "url": "http://localhost:11434", "chat_model": "qwen3:8b", "models": [], "hint": "..." }
+{
+  "reachable": false,
+  "url": "http://localhost:11434",
+  "chat_model": "qwen3:8b",
+  "models": [],
+  "hint": "..."
+}
 ```
+
 When reachable: `{"reachable": true, ..., "model_available": true, "models": [...]}`.
 
 `POST /api/chat` â€” body `{"messages": [{"role": "user", "content": "..."}],
 "conversationId": null}`; messages must end with a user message (400 otherwise).
 Responds with `text/event-stream`, one JSON object per `data:` frame:
 
-| event | shape |
-|---|---|
-| conversation id | `{"conversationId": "<uuid>"}` (first frame) |
-| streaming text | `{"text": "<answer so far>"}` |
-| tool activity | `{"activity": {"id": 1, "tool": "list_apps", "state": "running" \| "complete" \| "error"}}` |
-| final answer | `{"done": true, "text": "<full answer>"}` |
-| failure | `{"error": "<message>"}` |
+| event           | shape                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| conversation id | `{"conversationId": "<uuid>"}` (first frame)                                                |
+| streaming text  | `{"text": "<answer so far>"}`                                                               |
+| tool activity   | `{"activity": {"id": 1, "tool": "list_apps", "state": "running" \| "complete" \| "error"}}` |
+| final answer    | `{"done": true, "text": "<full answer>"}`                                                   |
+| failure         | `{"error": "<message>"}`                                                                    |
 
 Keepalive comment lines (`: keepalive`) are sent every 15s; the model request is
 aborted when the client disconnects. With Ollama down, the stream still opens
@@ -751,14 +796,14 @@ new one.
 
 All of these require the hub bearer and return 409 when `chat_history` is false.
 
-| Endpoint | Behavior |
-| --- | --- |
+| Endpoint                                              | Behavior                                                                                                                                                                                      |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/chat/conversations?query=&archived=&limit=` | `{"conversations": [...], "enabled": true}`; newest first, bounded, searching titles and message bodies. Returns `{"conversations": [], "enabled": false}` instead of 409 when history is off |
-| `POST /api/chat/conversations` | 201 with a new empty conversation |
-| `GET /api/chat/conversations/{id}` | Conversation with its `draft` and full `messages` |
-| `PATCH /api/chat/conversations/{id}` | `{title?, archived?, draft?}`; a draft change does not reorder history |
-| `DELETE /api/chat/conversations/{id}` | 204, permanent. Archiving is a separate reversible operation |
-| `POST /api/chat/conversations/import` | One-time import of a browser-held transcript; a server-side marker makes repeats no-ops, so a second tab or a retry cannot duplicate it |
+| `POST /api/chat/conversations`                        | 201 with a new empty conversation                                                                                                                                                             |
+| `GET /api/chat/conversations/{id}`                    | Conversation with its `draft` and full `messages`                                                                                                                                             |
+| `PATCH /api/chat/conversations/{id}`                  | `{title?, archived?, draft?}`; a draft change does not reorder history                                                                                                                        |
+| `DELETE /api/chat/conversations/{id}`                 | 204, permanent. Archiving is a separate reversible operation                                                                                                                                  |
+| `POST /api/chat/conversations/import`                 | One-time import of a browser-held transcript; a server-side marker makes repeats no-ops, so a second tab or a retry cannot duplicate it                                                       |
 
 A conversation summary is `{id, title, createdAt, updatedAt, archived,
 messageCount, preview}`. Titles are derived from the first question and can be
@@ -779,15 +824,17 @@ kept, older pruned on each create. This is a restore drill, not a live restore.
 `POST /api/backups/{name}/verify` â€” restore drill: the backup is copied into an
 isolated temp dir and validated there (every JSON file parses; every installed
 manifest loads); live files are never touched.
+
 ```json
 {
   "name": "20250101-120000",
   "ok": true,
   "verified_at": "...",
-  "files": [ { "file": "settings.json", "ok": true } ],
-  "manifests": [ { "id": "hello-vela", "ok": true } ]
+  "files": [{ "file": "settings.json", "ok": true }],
+  "manifests": [{ "id": "hello-vela", "ok": true }]
 }
 ```
+
 404 for unknown or malformed names.
 
 ## Static Hosting
@@ -839,18 +886,23 @@ workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
 purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
 restrained 14px card corners), in light and dark.
 
-- **Rail** (desktop, 62px): the Vela mark, then Desk, Ask and the **Launchpad**,
-  then the installed apps in two groups — an **OPEN** group of the apps the
-  engine reports running, labelled and edge-marked, above every other installed
-  app — each group in a stable name order, a separator, Library and a **More**
-  menu naming Automations (and System while developer tools are on), then
-  Settings and — for a remote session — Sign out. The OPEN label is absent, not
-  empty, when nothing is running. An app carries an attention dot only when one
-  of its own published widget summaries says `attention`. The open destination
-  gets both a raised surface and an edge marker plus `aria-current`; every icon
-  is named on hover and keyboard focus. The secondary menu closes on Escape or
-  an outside click and returns focus to its opener. Both shortcut groups share
-  one scrolling region so the utility controls stay reachable in a short window.
+- **Rail** (desktop, 62px): the Vela mark, then **Desk** and the **Launchpad**
+  fixed at the top, then the apps the user **pinned** (core tools and installed
+  apps alike, in the saved order), a separator, the apps that are **open but not
+  pinned** under an **OPEN** label, and Settings — plus, for a remote session,
+  Sign out — at the foot. The default pins are **Ask** and the **Library**.
+  There is no "More" menu and no "All apps" control; every other app lives in
+  the Launchpad. The OPEN label is absent, not empty, when nothing unpinned is
+  running, and a pinned app that is also running stays in the pinned group
+  rather than appearing twice. An app carries an attention dot only when one of
+  its own published widget summaries says `attention`. Pins are stored on the
+  server as `rail.pinned` (core ids or app ids; the dashboard drops any that no
+  longer resolve). Right-click, Shift+F10 or long-press a pinned item to unpin
+  it or move it up or down, or an open item to pin it; the same pin actions are
+  in the Launchpad and the app-window menu. The open destination gets a raised
+  surface, an edge marker and `aria-current`; every icon is named on hover and
+  keyboard focus, and the app region scrolls so the foot controls stay reachable
+  in a short window.
 - **Launchpad** (`/apps`): a full-screen app grid over the blurred wallpaper,
   the one place that answers "which apps do I have". It replaces the earlier
   All apps drawer and the Manage apps page. A centred hero search sits at the

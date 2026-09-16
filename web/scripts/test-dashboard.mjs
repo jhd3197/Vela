@@ -33,7 +33,7 @@ const pages = [
   ['/ask', 'Ask', 'rail'],
   ['/apps', 'Launchpad', 'rail'],
   ['/library', 'Library', 'rail'],
-  ['/automations', 'Automations', 'more'],
+  ['/automations', 'Automations', 'none'],
   ['/settings', 'Settings', 'popup'],
 ];
 try {
@@ -86,10 +86,11 @@ try {
           assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
           const nav = page.locator('.rail');
           await nav.waitFor();
-          // Desk, Ask, the Launchpad and the Library are shortcuts; the rest
-          // are named in the secondary menu. Settings closes the set.
-          assert.equal(await nav.locator('.rail-group a').count(), 4);
+          // Desk and the Launchpad are fixed at the top; Ask and the Library are
+          // the default pins. There is no secondary menu. Settings closes the set.
+          assert.equal(await nav.locator('.rail-group a').count(), 2);
           assert.equal(await nav.locator('.rail-foot button').count(), 1);
+          assert.equal(await nav.getByRole('button', { name: 'More', exact: true }).count(), 0);
           if (where === 'rail') {
             assert.equal(
               await nav
@@ -98,15 +99,9 @@ try {
               'page',
             );
           } else {
-            await nav.getByRole('button', { name: 'More', exact: true }).click();
-            const menu = nav.getByRole('menu', { name: 'More' });
-            // System stays out of the menu while Developer tools is off.
-            assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), ['Automations']);
-            assert.equal(
-              await menu.getByRole('menuitem', { name: label, exact: true }).getAttribute('class'),
-              'rail-menu-item is-active',
-            );
-            await page.keyboard.press('Escape');
+            // Automations is reachable from the Launchpad and search, not the
+            // rail, so no rail item is marked while it is open.
+            assert.equal(await nav.locator('a[aria-current="page"]').count(), 0);
           }
         }
         const overflow = await page.evaluate(() => {
@@ -335,13 +330,12 @@ try {
   await page.getByRole('button', { name: 'Enable developer tools' }).click();
   await page.getByRole('heading', { name: 'Local Engine' }).waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), 'on');
-  // System now joins the secondary menu, and the folder source reappears.
-  await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
-  assert.deepEqual(
-    await page.getByRole('menu', { name: 'More' }).getByRole('menuitem').allInnerTexts(),
-    ['Automations', 'System'],
+  // System becomes a searchable, pinnable core tool while developer tools are
+  // on, and the folder source reappears. There is no secondary rail menu.
+  assert.equal(
+    await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).count(),
+    0,
   );
-  await page.keyboard.press('Escape');
   await page.goto(base + '/library');
   await opener.click();
   await addDialog.waitFor();

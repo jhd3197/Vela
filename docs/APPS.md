@@ -11,15 +11,22 @@ The board is the same on a wide screen and a phone, laid out differently: six
 columns of widgets on a desktop, two in your hand. Each is remembered on its
 own, so arranging one never rearranges the other.
 
-A narrow rail runs down the left of the dashboard: Desk, Ask, the **Launchpad**,
-a shortcut for every installed app, then Library and a **More** menu holding
-Automations. Settings sits at the bottom. Hover or tab to an icon to see its
-name. The open destination is marked on the rail, so you always know where you
-are.
+A narrow rail runs down the left of the dashboard: **Desk** and the
+**Launchpad** at the top, then the apps you have **pinned** — Ask and the
+Library to begin with — a divider, and the apps that are **open** but not
+pinned. Settings sits at the bottom. Hover or tab to an icon to see its name.
+The open destination is marked on the rail, so you always know where you are.
 
-Apps that are running now sit together at the top of the shortcuts, under a
-small OPEN label, so what is already going is where you look first. When
-nothing is running the label is simply not there.
+Pin whatever you reach for: right-click an app on the rail or in the Launchpad,
+or press and hold it on a phone, and choose **Pin to rail** — then **Move up**
+or **Move down** to order your pins, or **Unpin** to remove one. Vela's own
+tools (Ask, Automations, the Library, Settings and, for developers, System) can
+be pinned just like any app. Everything else you have is one tap away in the
+Launchpad, so the rail stays short.
+
+Apps that are running but not pinned sit together under a small OPEN label, so
+what is already going is where you look first. When nothing unpinned is running
+the label is simply not there.
 
 The **Launchpad** is every app in one place, full-screen over your wallpaper.
 Open it from the rail or by pressing **Ctrl+Space** (**Cmd+Space** on a Mac).

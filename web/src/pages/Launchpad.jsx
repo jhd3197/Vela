@@ -5,6 +5,7 @@ import {
   GearSix,
   PlusCircle,
   PushPin,
+  PushPinSlash,
   SquaresFour,
   Stop,
   Trash,
@@ -52,7 +53,7 @@ function firstWidget(app) {
 // filters the grid live and Enter opens the first match; a tile opens on click
 // and offers its actions on right-click, Shift+F10 or a long press.
 export default function Launchpad() {
-  const { apps, openApp, runAction, pushToast } = useApps();
+  const { apps, openApp, runAction, pushToast, pinned, pinApp, unpinApp } = useApps();
   const developer = useDeveloperTools();
   const navigate = useNavigate();
   const { openSettings } = useSettingsPopup();
@@ -185,9 +186,16 @@ export default function Launchpad() {
     if (!menu) return [];
     const item = menu.item;
     const items = [{ label: 'Open', icon: SquaresFour, onSelect: () => openItem(item) }];
-    // Pinning the rail arrives with the core-apps stage; the entry is shown so
-    // the menu's shape is stable, and it is enabled once the server stores pins.
-    items.push({ label: 'Pin to rail', icon: PushPin, disabled: true });
+    // Both apps and core tools can be pinned to the rail.
+    if (pinned.includes(item.id)) {
+      items.push({
+        label: 'Unpin from rail',
+        icon: PushPinSlash,
+        onSelect: () => unpinApp(item.id),
+      });
+    } else {
+      items.push({ label: 'Pin to rail', icon: PushPin, onSelect: () => pinApp(item.id) });
+    }
     if (item.kind === 'app') {
       const app = item.app;
       if (firstWidget(app)) {
@@ -220,7 +228,7 @@ export default function Launchpad() {
       });
     }
     return items;
-  }, [menu, openItem, addWidgetToDesk, runAction]);
+  }, [menu, openItem, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
 
   const openMenuAt = useCallback((item, x, y, opener) => {
     menuOpener.current = opener || null;
@@ -304,6 +312,11 @@ export default function Launchpad() {
           <AppIcon app={item.kind === 'core' ? item.appLike : item.app} size={iconSize} />
           {dot ? <span className="launch-dot launch-dot-running" aria-hidden="true" /> : null}
           {flag ? <span className="launch-dot launch-dot-attention" aria-hidden="true" /> : null}
+          {item.kind === 'core' ? (
+            <span className="launch-vela" aria-hidden="true">
+              <img src="/vela-mark.png" alt="" />
+            </span>
+          ) : null}
         </span>
         <span className="launch-label">{item.name}</span>
       </button>

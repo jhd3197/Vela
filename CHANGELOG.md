@@ -6,6 +6,18 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Changed
+
+- **The rail is yours to arrange.** It now shows the apps you pin plus whatever
+  is open, instead of every app you have installed. Desk and the Launchpad stay
+  at the top; below them are your pinned apps — Ask and the Library to start —
+  then the apps that are open but not pinned, then Settings. Right-click an app
+  on the rail or in the Launchpad (or press and hold on a phone) to pin, unpin
+  or reorder it. Vela's own tools — Ask, Automations, the Library, Settings and
+  System — are core apps now: they show in the Launchpad under **Vela**, they
+  turn up in search, and they can be pinned like any app. The old **More** menu
+  is gone.
+
 ### Added
 
 - **A full-screen Launchpad.** Opening **Apps** now fills the screen with every

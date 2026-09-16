@@ -63,7 +63,7 @@ try {
   };
   assert.deepEqual(await sectionTiles('Open'), ['Alpha', 'Health']);
   assert.deepEqual(await sectionTiles('Apps'), ['Alpha', 'Beta', 'Health', 'Notes', 'Zeta']);
-  assert.deepEqual(await sectionTiles('Vela'), ['Ask', 'Automations', 'Library', 'Settings']);
+  assert.deepEqual(await sectionTiles('Vela'), ['Ask', 'Library', 'Automations', 'Settings']);
 
   // An app the user has not installed belongs in the Marketplace, never here.
   assert.equal(await page.getByText('Shoppe', { exact: true }).count(), 0);
@@ -128,13 +128,27 @@ try {
     'App settings',
     'Remove',
   ]);
-  // Pinning is not wired until the core-apps stage; it is shown but disabled.
-  assert.equal(await page.getByRole('menuitem', { name: 'Pin to rail' }).isDisabled(), true);
   await shot('launchpad-menu');
 
-  // A running process app offers Stop; a widget-less app has no Add widget.
+  // Pinning from the Launchpad adds the app to the rail's pinned group, and the
+  // menu then offers to unpin it.
+  await page.getByRole('menuitem', { name: 'Pin to rail' }).click();
+  await page.getByRole('menu').waitFor({ state: 'detached' });
+  await page.locator('.rail-apps-group[aria-label="Pinned apps"] a[href="/app/notes"]').waitFor();
+  await notes.click({ button: 'right' });
+  assert.ok(
+    (await page.getByRole('menu').getByRole('menuitem').allInnerTexts()).includes(
+      'Unpin from rail',
+    ),
+    'a pinned app can be unpinned from the Launchpad',
+  );
   await page.keyboard.press('Escape');
   await page.getByRole('menu').waitFor({ state: 'detached' });
+
+  // Vela's own tools carry the Vela mark; there is one per core tile.
+  assert.ok((await page.locator('.launch-vela').count()) >= 4, 'core tiles carry the Vela mark');
+
+  // A running process app offers Stop; a widget-less app has no Add widget.
   const alpha = page.locator('.launch-tile', { hasText: 'Alpha' }).first();
   await alpha.click({ button: 'right' });
   const alphaItems = await page.getByRole('menu').getByRole('menuitem').allInnerTexts();

@@ -130,6 +130,65 @@ export function AppsProvider({ children }) {
 
   const getAppById = useCallback((id) => (apps || []).find((a) => a.id === id) || null, [apps]);
 
+  // Which apps the user pinned to the rail, in their chosen order. Ids are core
+  // ids or installed-app ids; the rail drops any that no longer resolve. Kept
+  // here so the rail and the Launchpad share one source of truth and a pin made
+  // in one shows in the other at once.
+  const [pinned, setPinned] = useState([]);
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((data) => {
+        if (Array.isArray(data?.rail?.pinned)) setPinned(data.rail.pinned);
+      })
+      .catch(() => {});
+  }, []);
+
+  const persistPins = useCallback(
+    (next) => {
+      api
+        .updateSettings({ rail: { pinned: next } })
+        .catch((err) => pushToast(err.message || 'Could not save your pinned apps.'));
+    },
+    [pushToast],
+  );
+
+  const pinApp = useCallback(
+    (id) =>
+      setPinned((prev) => {
+        if (prev.includes(id)) return prev;
+        const next = [...prev, id];
+        persistPins(next);
+        return next;
+      }),
+    [persistPins],
+  );
+
+  const unpinApp = useCallback(
+    (id) =>
+      setPinned((prev) => {
+        if (!prev.includes(id)) return prev;
+        const next = prev.filter((entry) => entry !== id);
+        persistPins(next);
+        return next;
+      }),
+    [persistPins],
+  );
+
+  const movePin = useCallback(
+    (id, dir) =>
+      setPinned((prev) => {
+        const from = prev.indexOf(id);
+        const to = from + (dir === 'up' ? -1 : 1);
+        if (from < 0 || to < 0 || to >= prev.length) return prev;
+        const next = prev.slice();
+        [next[from], next[to]] = [next[to], next[from]];
+        persistPins(next);
+        return next;
+      }),
+    [persistPins],
+  );
+
   const value = {
     platform,
     apps,
@@ -144,6 +203,10 @@ export function AppsProvider({ children }) {
     runAction,
     getAppById,
     reviewRelease,
+    pinned,
+    pinApp,
+    unpinApp,
+    movePin,
   };
 
   return (

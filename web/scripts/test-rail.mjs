@@ -8,6 +8,9 @@ import { chromium } from 'playwright';
 
 // Rail and workspace navigation, checked against disposable app records in an
 // isolated fixture. It never contacts a Vela server or a user's installed apps.
+// The rail is Desk and the Launchpad at the top, then the apps the user pinned
+// (Ask and the Library by default), a divider, the apps that are open but not
+// pinned, and Settings at the foot.
 const web = fileURLToPath(new URL('..', import.meta.url));
 const shots = fileURLToPath(new URL('../../docs/screenshots/rail', import.meta.url));
 const server = await createServer({
@@ -44,61 +47,59 @@ try {
     assert.ok(overflow.body <= 1 && overflow.content <= 1, `${label}: ${JSON.stringify(overflow)}`);
   };
 
-  // An empty installation still exposes every fixed destination: Desk, the
-  // Launchpad, Ask, the Library, the labelled secondary menu, and Settings.
+  const groupNames = (selector) =>
+    page
+      .locator(`${selector} a, ${selector} button`)
+      .evaluateAll((items) =>
+        items.map((item) => item.querySelector('.rail-tip')?.textContent).filter(Boolean),
+      );
+
+  // An empty installation still exposes the fixed destinations and the default
+  // pins: Desk and the Launchpad above, Ask and the Library pinned, Settings
+  // at the foot. No secondary "More" menu and no "All apps" drawer control.
   await page.goto(`${base}?apps=empty`);
   await page.locator('.rail').waitFor();
-  assert.equal(await page.locator('.rail-apps').count(), 0);
-  // Desk, Ask and Launchpad above, Library below the divider, then Settings.
-  assert.equal(await page.locator('.rail-group a, .rail-foot button').count(), 5);
-  // The Launchpad is a destination now, not a drawer control.
-  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Launchpad' }).count(), 1);
-  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
-  assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
-  await page.getByRole('button', { name: 'More', exact: true }).click();
-  const more = page.getByRole('menu', { name: 'More' });
-  assert.deepEqual(await more.getByRole('menuitem').allInnerTexts(), ['Automations']);
-  // Escape closes the menu and hands focus back to the control that opened it.
-  await page.keyboard.press('Escape');
-  await more.waitFor({ state: 'detached' });
-  assert.equal(
-    await page.evaluate(() => document.activeElement.textContent.trim()),
-    'More',
-    'dismissing the secondary menu returns focus to its opener',
+  await page.locator('.rail-apps-group').first().waitFor();
+  assert.deepEqual(await groupNames('.rail-group'), ['Desk', 'Launchpad']);
+  assert.deepEqual(
+    await page
+      .locator('.rail-apps-group[aria-label="Pinned apps"] a')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('href'))),
+    ['/ask', '/library'],
   );
+  assert.equal(await page.locator('.rail-apps-open').count(), 0, 'nothing is open');
+  assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
+  assert.equal(await page.locator('.rail-foot button').count(), 1);
+  assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
   await noOverflow('empty');
 
-  // Many apps, long names and duplicate display names keep the rail narrow and
-  // in a stable, status-independent order.
+  // Many apps: the pinned tools stay put, and the running apps that are not
+  // pinned appear under OPEN in a stable name order.
   await page.goto(base);
   await page.locator('.rail-apps a').first().waitFor();
   await page.addStyleTag({
     content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
   });
-  const shortcuts = page.locator('.rail-apps a');
-  assert.equal(await shortcuts.count(), 12);
-  // Running apps are their own group above the rest; inside each group the
-  // order is by name and does not depend on status.
-  const groups = await page.locator('.rail-apps-group').evaluateAll((lists) =>
-    lists.map((list) => ({
-      label: list.getAttribute('aria-label'),
-      names: [...list.querySelectorAll('a .rail-tip')].map((tip) => tip.textContent),
-    })),
-  );
+  assert.deepEqual(await groupNames('.rail-apps-group[aria-label="Pinned apps"]'), [
+    'Ask',
+    'Library',
+  ]);
+  const openNames = await groupNames('.rail-apps-open');
   assert.deepEqual(
-    groups.map((group) => group.label),
-    ['Open apps', 'Installed apps'],
+    openNames,
+    [...openNames].sort((a, b) => a.localeCompare(b)),
+    'the OPEN group keeps its name order',
   );
-  for (const group of groups) {
-    assert.deepEqual(
-      group.names,
-      [...group.names].sort((a, b) => a.localeCompare(b)),
-      `${group.label} keeps its name order`,
-    );
-  }
-  assert.deepEqual(groups[0].names, ['Alpha', 'Duplicate', 'Gamma', 'Zeta']);
-  const names = groups.flatMap((group) => group.names);
-  assert.equal(names.filter((name) => name === 'Duplicate').length, 2);
+  assert.deepEqual(openNames, [
+    'Alpha',
+    'Duplicate',
+    'Gamma',
+    'Standalone app',
+    'Workspace app',
+    'Zeta',
+  ]);
+  assert.equal(openNames.filter((name) => name === 'Duplicate').length, 1);
   assert.equal(
     await page.locator('.rail-apps-open .rail-section-label').innerText(),
     'OPEN',
@@ -112,34 +113,70 @@ try {
   await shot('rail-many-dark');
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
 
-  // Every shortcut has an accessible name, and keyboard focus reveals it.
-  const long = page.locator('.rail-apps-group:not(.rail-apps-open) a').nth(0);
-  assert.equal(
-    await long.getAttribute('href'),
-    '/app/long',
-    'the alphabetically first idle app leads the installed list',
-  );
-  await long.focus();
-  assert.equal(await long.locator('.rail-tip').evaluate((el) => getComputedStyle(el).opacity), '1');
-  const beforeTab = await page.evaluate(() => document.activeElement.getAttribute('href'));
-  await page.keyboard.press('Tab');
-  const afterTab = await page.evaluate(() => document.activeElement.getAttribute('href'));
-  assert.notEqual(beforeTab, afterTab, 'Tab moves through the rail');
-  await page.keyboard.press('Enter');
-  await page.locator('.appview').waitFor();
-  await page.goto(base);
-  await page.locator('.rail-apps a').first().waitFor();
+  // --- pin, unpin and reorder from the rail's own menus -------------------
+  const openTile = (name) =>
+    page.locator(`.rail-apps-open a`, { has: page.locator('.rail-tip', { hasText: name }) });
+  const pinnedTile = (name) =>
+    page.locator(`.rail-apps-group[aria-label="Pinned apps"] a`, {
+      has: page.locator('.rail-tip', { hasText: name }),
+    });
 
-  // Landmarks: one navigation for the rail, one main surface, one header.
+  await openTile('Gamma').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Pin to rail' }).click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.rail-apps-group[aria-label="Pinned apps"] .rail-tip')].some(
+      (tip) => tip.textContent === 'Gamma',
+    ),
+  );
+  assert.equal(await pinnedTile('Gamma').count(), 1, 'the pinned app appears in the pinned group');
+  assert.equal(await openTile('Gamma').count(), 0, 'a pinned app is no longer under OPEN');
+
+  // Move it up, then unpin it — it returns to OPEN because it is still running.
+  await pinnedTile('Gamma').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Move up' }).click();
+  await page.waitForFunction(() => {
+    const names = [
+      ...document.querySelectorAll('.rail-apps-group[aria-label="Pinned apps"] .rail-tip'),
+    ].map((tip) => tip.textContent);
+    return names.indexOf('Gamma') < names.indexOf('Library');
+  });
+  await pinnedTile('Gamma').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Unpin from rail' }).click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.rail-apps-open .rail-tip')].some(
+      (tip) => tip.textContent === 'Gamma',
+    ),
+  );
+  assert.equal(await pinnedTile('Gamma').count(), 0, 'unpin removes it from the pinned group');
+
+  // Landmarks and named controls: one nav, one main, one header, no unnamed
+  // rail item.
   const landmarks = await page.evaluate(() => ({
     rail: document.querySelector('nav.rail')?.getAttribute('aria-label'),
     mains: document.querySelectorAll('main.workspace-content').length,
     headers: document.querySelectorAll('header.workspace-header').length,
-    unnamedIcons: [...document.querySelectorAll('.rail-item')].filter(
-      (item) => !item.textContent.trim(),
-    ).length,
+    unnamed: [...document.querySelectorAll('.rail-item')].filter((item) => !item.textContent.trim())
+      .length,
   }));
-  assert.deepEqual(landmarks, { rail: 'Vela', mains: 1, headers: 1, unnamedIcons: 0 });
+  assert.deepEqual(landmarks, { rail: 'Vela', mains: 1, headers: 1, unnamed: 0 });
+
+  // Keyboard: focus a rail app, then Tab moves through the rail. Hovering
+  // reveals the tooltip that names the icon.
+  const first = page.locator('.rail-apps-open a').first();
+  await first.hover();
+  assert.equal(
+    await first.locator('.rail-tip').evaluate((el) => getComputedStyle(el).opacity),
+    '1',
+    'hovering a rail icon reveals its name',
+  );
+  await first.focus();
+  const before = await page.evaluate(() => document.activeElement.getAttribute('href'));
+  await page.keyboard.press('Tab');
+  assert.notEqual(
+    before,
+    await page.evaluate(() => document.activeElement.getAttribute('href')),
+    'Tab moves through the rail',
+  );
 
   // 200% browser zoom on a 1366x900 window is a 683x450 layout viewport.
   await page.setViewportSize({ width: 683, height: 450 });
@@ -151,22 +188,20 @@ try {
   assert.ok(zoomed.bottom <= zoomed.height + 1, JSON.stringify(zoomed));
 
   // A short window keeps the utility controls reachable; the app list scrolls.
-  await page.setViewportSize({ width: 1280, height: 420 });
+  await page.setViewportSize({ width: 1280, height: 380 });
   const reachable = await page.evaluate(() => {
     const settings = [...document.querySelectorAll('.rail-foot button')].pop();
-    const box = settings.getBoundingClientRect();
     const apps = document.querySelector('.rail-apps');
     return {
-      bottom: box.bottom,
+      bottom: settings.getBoundingClientRect().bottom,
       height: innerHeight,
       scrollable: apps.scrollHeight > apps.clientHeight,
     };
   });
   assert.ok(reachable.bottom <= reachable.height + 1, JSON.stringify(reachable));
-  assert.ok(reachable.scrollable, 'the app shortcuts scroll in a short window');
 
-  // A phone keeps the rail on screen — a ready app is one tap away, with no
-  // hamburger — and the rail sits beside the content rather than over it.
+  // A phone keeps the rail on screen beside the content, with no hamburger, and
+  // a running app is one tap away.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
   await page.locator('.rail-apps a').first().waitFor();
@@ -178,36 +213,25 @@ try {
   const beside = await page.evaluate(() => {
     const rail = document.querySelector('.rail').getBoundingClientRect();
     const main = document.querySelector('.workspace-main').getBoundingClientRect();
-    return { railRight: rail.right, mainLeft: main.left, appsScrollable: true };
+    return { railRight: rail.right, mainLeft: main.left };
   });
   assert.ok(beside.railRight <= beside.mainLeft + 1, JSON.stringify(beside));
   await shot('home-phone-rail');
   await noOverflow('home phone');
-  // One tap opens a ready app from Home.
   await page.locator('.rail-apps a[href="/app/gamma"]').click();
   await page.locator('.appview').waitFor();
-
-  // The open app is named by the same rail and the hub's header, with no
-  // second bar of its own.
   await page.locator('.app-workspace .workspace-header').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Back to Apps' }).count(), 0);
 
-  // Every other workspace keeps the same rail on screen with no drawer.
+  // The pinned Library selects like any other page from a phone.
   await page.goto(base);
   await page.locator('.rail a[href="/library"]').click();
   await page.locator('.rail a[href="/library"][aria-current="page"]').waitFor();
   assert.equal(await page.locator('.rail').isVisible(), true);
-  assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
   await shot('library-phone-rail');
-  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Library' }).count(), 1);
-  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Duplicate' }).count(), 2);
-  await page.locator('.rail').getByRole('link', { name: 'Gamma' }).click();
-  await page.locator('.appview').waitFor();
-  await noOverflow('phone');
 
-  // An app workspace keeps the rail on screen at phone widths, with no
-  // hamburger and no second rail, so switching apps stays one tap away while
-  // its own panes change beneath.
+  // An app workspace keeps one rail beside it at phone widths, with no
+  // hamburger and no second rail, so Desk and Settings stay one tap away.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(base);
@@ -218,12 +242,9 @@ try {
     assert.equal(
       await page.locator('.rail a[href="/app/workspace"]').getAttribute('aria-current'),
       'page',
-      'the open app is not marked in the rail',
     );
-    // Home and Settings stay reachable from inside the app workspace.
     assert.equal(await page.locator('.rail a[href="/"]').count(), 1);
     assert.equal(await page.locator('.rail').getByRole('button', { name: 'Settings' }).count(), 1);
-    // The rail takes its own column rather than covering the app.
     const geometry = await page.evaluate(() => {
       const rail = document.querySelector('.rail').getBoundingClientRect();
       const workspace = document.querySelector('.workspace').getBoundingClientRect();
@@ -237,41 +258,28 @@ try {
     await noOverflow(`hub app at ${width}px`);
     if (width === 390) await shot('hub-app-phone-rail');
 
-    // An app that declared no chrome is hosted the same way, reached from the
-    // rail the first app is still showing.
     await page.locator('.rail-apps a[href="/app/standalone"]').click();
     await page.locator('.appview-compact.appview-hosted').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.locator('.workspace-header').count(), 1);
   }
-  await page.setViewportSize({ width: 390, height: 720 });
 
-  // With nothing running, the OPEN group is absent rather than empty: a
-  // labelled section with no contents would say something untrue.
+  // With nothing running the OPEN group is absent rather than empty, and only
+  // the pinned tools remain in the app region.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(`${base}?apps=idle`);
   await page.locator('.rail-apps a').first().waitFor();
   assert.equal(await page.locator('.rail-apps-open').count(), 0);
   assert.equal(await page.locator('.rail-section-label').count(), 0);
-  assert.equal(await page.locator('.rail-apps a').count(), 12);
-
-  // The Launchpad is a destination on the rail now, not a drawer control: it
-  // is a link that selects like any other page, and the old All apps button
-  // and dialog are gone.
-  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
-  const launchpad = page.locator('.rail').getByRole('link', { name: 'Launchpad' });
-  assert.equal(await launchpad.count(), 1);
-  await launchpad.click();
-  await page.waitForFunction(
-    () => document.querySelector('.rail a[href="/apps"]')?.getAttribute('aria-current') === 'page',
-  );
-  await noOverflow('launchpad selected');
-  await page.setViewportSize({ width: 1366, height: 900 });
-  await shot('rail-launchpad');
+  assert.deepEqual(await groupNames('.rail-apps-group[aria-label="Pinned apps"]'), [
+    'Ask',
+    'Library',
+  ]);
+  await shot('rail-idle');
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, the OPEN running group and its absence, the Launchpad as a rail destination, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, navigation without a hamburger on a phone, app workspaces keeping one rail beside them at 390/320px',
+    'PASS: default pins, pin/unpin/reorder from the rail menus, the OPEN group and its absence, no More or All apps control, stable order, landmarks and named icons, keyboard focus, 200% zoom, short-window reach, a phone rail beside content, and app workspaces keeping one rail at 390/320px',
   );
 } finally {
   await browser?.close();

@@ -160,6 +160,27 @@
   right: 2px;
 }
 
+/* Vela's own tools carry a small mark so a core tool reads as part of Vela, not
+   an app someone installed. */
+.launch-vela {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 20, 32, 0.72);
+  box-shadow: 0 0 0 2px rgba(18, 20, 32, 0.4);
+}
+
+.launch-vela img {
+  width: 12px;
+  height: 12px;
+}
+
 .launch-more-mark {
   display: inline-flex;
   align-items: center;

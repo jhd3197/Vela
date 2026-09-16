@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GearSix, Heartbeat, MagnifyingGlass, Note, Receipt, Sparkle } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
+import { coreApps } from '../navigation.js';
 import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
@@ -179,18 +180,23 @@ export default function GlobalSearch({
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return { apps: [], settings: [], data: [] };
+    if (!q) return { apps: [], core: [], settings: [], data: [] };
     const appHits = (apps || [])
       .filter(
         (a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q),
       )
       .slice(0, 5);
+    // Vela's own tools rank alongside apps: searching "auto" reaches
+    // Automations, "market" reaches the Library.
+    const coreHits = coreApps(developer)
+      .filter((entry) => entry.label.toLowerCase().includes(q))
+      .slice(0, 4);
     const settingHits = SETTINGS_ENTRIES.filter(
       (s) =>
         (s.developer ? developer : s.whileOff ? !developer : true) &&
         `${s.label} ${s.keywords || ''}`.toLowerCase().includes(q),
     ).slice(0, 3);
-    return { apps: appHits, settings: settingHits, data: searchAppData(q) };
+    return { apps: appHits, core: coreHits, settings: settingHits, data: searchAppData(q) };
   }, [query, apps, developer]);
 
   const go = (to) => {
@@ -211,7 +217,10 @@ export default function GlobalSearch({
   };
 
   const hasResults =
-    results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
+    results.apps.length > 0 ||
+    results.core.length > 0 ||
+    results.settings.length > 0 ||
+    results.data.length > 0;
 
   const box = (
     <div className={`searchbox${variant === 'hero' ? ' searchbox-hero' : ''}`} ref={boxRef}>
@@ -247,6 +256,16 @@ export default function GlobalSearch({
               <AppIcon app={app} size={26} />
               <span className="search-hit-name">{app.name}</span>
               <span className="search-hit-hint">{app.installed ? 'Open' : 'In Library'}</span>
+            </button>
+          ))}
+          {results.core.map((entry) => (
+            <button key={entry.id} className="search-hit" onClick={() => go(entry.to)}>
+              <AppIcon
+                app={{ id: entry.id, name: entry.label, glyph: entry.icon, color: entry.color }}
+                size={26}
+              />
+              <span className="search-hit-name">{entry.label}</span>
+              <span className="search-hit-hint">Vela</span>
             </button>
           ))}
           {results.data.map((hit, i) => (
