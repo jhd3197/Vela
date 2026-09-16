@@ -84,7 +84,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(loaded["revision"], 0)
         self.assertEqual(loaded["boards"], default_boards())
         self.assertEqual([w["type"] for w in loaded["boards"]["phone"]["widgets"]],
-                         ["clock", "apps", "ask"])
+                         ["clock", "needs-you", "apps", "ask"])
         # Reading does not write: the defaults are not frozen into a file the
         # user never asked for.
         self.assertFalse(self.path.exists())

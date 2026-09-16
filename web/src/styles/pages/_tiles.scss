@@ -1,24 +1,8 @@
-/* ---------- Home dashboard ---------- */
+/* ---------- App tiles ---------- */
 
-.home-hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.home-greeting {
-  margin: 0 0 4px;
-  font-size: 32px;
-  font-weight: 500;
-}
-
-.home-meta {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-faint);
-}
+/* The launcher's tiles and their loading placeholders. They began on the Home
+   page; the desk's `apps` widget and the Library share them now, so the rules
+   stay here rather than moving into either one. */
 
 .tiles-grid {
   display: grid;
@@ -104,16 +88,6 @@
 
 .tile-add-sub {
   font-size: 11px;
-}
-
-.home-section {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.home-section-head {
-  align-items: baseline;
 }
 
 /* Placeholders while the first app list arrives. They carry no text, and the

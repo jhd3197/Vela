@@ -59,10 +59,6 @@
     display: none;
   }
 
-  .home-greeting {
-    font-size: 26px;
-  }
-
   .tiles-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   }

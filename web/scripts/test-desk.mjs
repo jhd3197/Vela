@@ -196,7 +196,7 @@ try {
   await page.locator('.desk-grid').waitFor();
   assert.deepEqual(
     await labels(page),
-    ['Clock', 'Your apps', 'Ask'],
+    ['Clock', 'Needs you', 'Your apps', 'Ask'],
     'arranging the desktop board must not reflow the phone board',
   );
 
@@ -353,12 +353,153 @@ try {
   await page.locator('.desk-grid').waitFor();
   assert.ok(!(await labels(page)).includes('Sync'), await labels(page));
 
+  // --- the phone board and Personalise ------------------------------------
+  // The phone board is its own seeded board: the time, what needs you, the app
+  // grid and Ask.
+  for (const size of [
+    { width: 320, height: 720, phone: true },
+    { width: 390, height: 844, phone: true },
+    // 768 is still inside the 860px phone threshold; 900 is the first width
+    // that gets the desktop board, which is the point of having two.
+    { width: 768, height: 1024, phone: true },
+    { width: 900, height: 420, phone: false },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto(base + '/');
+    await page.locator('.desk-grid').waitFor();
+    const names = await labels(page);
+    assert.deepEqual(
+      names,
+      size.phone
+        ? ['Clock', 'Needs you', 'Your apps', 'Ask']
+        : ['Clock', 'Your apps', 'Running now', 'Ask'],
+      `the board at ${size.width}x${size.height}`,
+    );
+    // Nothing is flagged, so "Needs you" says so rather than listing anything.
+    if (size.phone) {
+      assert.match(
+        await page.getByRole('region', { name: 'Needs you', exact: true }).innerText(),
+        /Everything.s running/,
+      );
+    }
+    const overflow = await page.evaluate(() => {
+      const content = document.querySelector('.workspace-content');
+      return {
+        body: document.documentElement.scrollWidth - innerWidth,
+        content: content.scrollWidth - content.clientWidth,
+      };
+    });
+    assert.ok(
+      overflow.body <= 1 && overflow.content <= 1,
+      `phone board at ${size.width}: ${JSON.stringify(overflow)}`,
+    );
+  }
+
+  // Personalise: a real setting each time, focus returned on Escape.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  const personalise = page.getByRole('button', { name: 'Personalise', exact: true });
+  await personalise.click();
+  const sheet = page.getByRole('dialog', { name: 'Personalise', exact: true });
+  await sheet.waitFor();
+  const wallpaperOf = () =>
+    page.evaluate(
+      () => getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
+    );
+  assert.match(await wallpaperOf(), /wallpapers\/lake\.jpg/);
+  await sheet.getByRole('button', { name: /^Night/ }).click();
+  await page.waitForFunction(
+    () =>
+      !getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage.includes(
+        'lake.jpg',
+      ),
+  );
+  assert.match(await wallpaperOf(), /gradient/);
+
+  // The display toggles are real settings the server keeps, not previews.
+  const labelsToggle = sheet.getByLabel('Show app names');
+  await labelsToggle.uncheck();
+  assert.equal(await labelsToggle.isChecked(), false);
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await personalise.click();
+  await sheet.waitFor();
+  assert.equal(
+    await sheet.getByLabel('Show app names').isChecked(),
+    false,
+    'a display choice survives a reload',
+  );
+  await sheet.getByLabel('Show app names').check();
+  assert.equal(
+    await page.evaluate(() => document.body.dataset.deskDim),
+    'on',
+    'dimming is on until it is turned off',
+  );
+  await sheet.getByLabel('Dim the wallpaper').uncheck();
+  await page.waitForFunction(() => document.body.dataset.deskDim === 'off');
+  await sheet.getByLabel('Dim the wallpaper').check();
+
+  // The Ask toggle adds and removes that widget from this board, and it stays.
+  // This one edits the board rather than a preference, so it saves to the
+  // server before the switch settles; the widget going away is the signal.
+  await sheet.getByLabel('Ask on this board').click();
+  await page.getByRole('region', { name: 'Ask', exact: true }).waitFor({ state: 'detached' });
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  assert.equal(
+    await page.evaluate(() => document.activeElement.textContent.trim()),
+    'Personalise',
+    'closing Personalise returns focus to its opener',
+  );
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  assert.ok(!(await labels(page)).includes('Ask'), await labels(page));
+  await personalise.click();
+  await sheet.waitFor();
+  await sheet.getByLabel('Ask on this board').click();
+  await page.getByRole('region', { name: 'Ask', exact: true }).waitFor();
+  await sheet.getByRole('button', { name: /^Lake/ }).click();
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+
+  // It fits a phone, where long-pressing bare wallpaper is the way in.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  await page.evaluate(() => {
+    const host = document.querySelector('.desk-grid');
+    const box = host.getBoundingClientRect();
+    host.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: box.left + box.width / 2,
+        clientY: box.bottom - 4,
+      }),
+    );
+  });
+  await sheet.waitFor({ timeout: 4000 });
+  const sheetBox = await sheet.boundingBox();
+  assert.ok(
+    sheetBox.x >= -1 && sheetBox.x + sheetBox.width <= 391,
+    `Personalise at 390px: ${JSON.stringify(sheetBox)}`,
+  );
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  await page.setViewportSize({ width: 1366, height: 900 });
+
   assert.deepEqual(errors, []);
   console.log(
     'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; keyboard ' +
       'arrangement is announced; Cancel restores; leaving with unsaved changes asks; removing ' +
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
-      'an app declares, publishes and renders a widget, raises the rail dot, and loses both on uninstall',
+      'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +
+      'uninstall; the phone board is its own at 320/390/768 and the desktop board at 900; ' +
+      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press',
   );
 } finally {
   await browser?.close();

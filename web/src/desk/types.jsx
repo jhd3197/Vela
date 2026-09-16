@@ -12,9 +12,11 @@ import {
   Lightning,
   PlayCircle,
   SquaresFour,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import AppsWidget from './widgets/AppsWidget.jsx';
 import AskWidget from './widgets/AskWidget.jsx';
+import NeedsYouWidget from './widgets/NeedsYouWidget.jsx';
 import RunningWidget from './widgets/RunningWidget.jsx';
 import {
   BackupsWidget,
@@ -72,6 +74,18 @@ export const CORE_WIDGET_TYPES = [
     min: [2, 1],
     defaultCfg: {},
     render: AskWidget,
+  },
+  {
+    id: 'needs-you',
+    name: 'Needs you',
+    icon: WarningCircle,
+    cat: 'Vela',
+    desc: 'Apps that said something needs your attention',
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: {},
+    render: NeedsYouWidget,
   },
   {
     id: 'system',

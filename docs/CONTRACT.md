@@ -886,7 +886,31 @@ restrained 14px card corners), in light and dark.
   otherwise) and **Ask** (the newest conversation's title and last line, and a
   box that opens Ask with what was typed). There are two boards: six columns
   above 860px and two below, edited and stored separately, never reflowed into
-  each other. Each widget is a labelled region.
+  each other. Each widget is a labelled region. The seeded phone board is
+  **Clock**, **Needs you** (the apps whose own summaries say `attention`, with
+  “Everything’s running.” when none do), **Your apps** as a four-column icon
+  grid, and **Ask**.
+- **Arranging the desk**: **Add widget** opens a grouped, searchable list of
+  every placeable type — Vela's own first, then one group per app that provides
+  any. **Arrange desk** turns on dragging and resizing, undo and redo
+  (Ctrl+Z / Ctrl+Shift+Z), a per-widget menu with Duplicate, Remove and any
+  options that type has, and keyboard arrangement on a focused frame: arrows
+  move, Shift+arrows resize, Delete removes, each announced through an
+  `aria-live` region. **Done** saves, **Cancel** restores, and navigating away
+  with unsaved changes prompts. A long press enters Arrange mode on a phone.
+  Boards persist in `<data_dir>/desk.json` behind `GET/PUT /api/desk`; a `PUT`
+  built on an older `revision` answers 409 with the current one and the
+  dashboard reloads and says so, and an invalid board answers 422 without
+  storing anything. A board may only name a widget type that exists now, so
+  uninstalling an app removes its widgets rather than leaving dead frames.
+- **Personalise** (a desk control, and a long press on bare wallpaper on a
+  phone): the wallpaper — bundled `lake` (a photograph), `sage` and `night`
+  (gradients), or `custom` — plus **Dim the wallpaper**, **Show app names** and
+  **Ask on this board**, which adds or removes that board's Ask widget and saves
+  immediately. `GET/PUT/DELETE /api/wallpaper` stores one image in the data
+  directory: JPEG, PNG or WebP only, checked against its own header rather than
+  its declared type, at most 8 MB, replaced rather than accumulated, and
+  removing it returns the desk to `lake`.
 - **Desk widgets and their sources**: `clock` (the browser's clock),
   `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
   `system` and `volume` (`GET /api/system/metrics`), `flows`

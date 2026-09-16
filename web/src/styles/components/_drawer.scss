@@ -342,3 +342,101 @@
   white-space: nowrap;
   max-width: 100%;
 }
+
+/* ---------- Personalise ---------- */
+
+.personalise-section + .personalise-section {
+  margin-top: 22px;
+}
+
+.personalise-walls {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 10px;
+}
+
+.personalise-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.personalise-wall:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.personalise-wall-preview {
+  display: block;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset) center / cover no-repeat;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.personalise-wall[data-wallpaper='lake'] .personalise-wall-preview {
+  background-image: url('/wallpapers/lake.jpg');
+}
+
+.personalise-wall[data-wallpaper='sage'] .personalise-wall-preview {
+  background-image: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
+}
+
+.personalise-wall[data-wallpaper='night'] .personalise-wall-preview {
+  background-image: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
+}
+
+.personalise-wall[data-wallpaper='custom'] .personalise-wall-preview {
+  background-image: url('/api/wallpaper');
+}
+
+.personalise-wall.is-selected .personalise-wall-preview {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.personalise-wall-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.personalise-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.personalise-row:last-child {
+  border-bottom: none;
+}
+
+.personalise-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.personalise-row small {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.personalise-row input[type='checkbox'] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}

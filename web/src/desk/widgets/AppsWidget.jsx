@@ -29,11 +29,13 @@ export function TileSkeleton() {
   );
 }
 
-export default function AppsWidget({ cfg = {} }) {
+export default function AppsWidget({ cfg = {}, ctx }) {
   const { apps, openApp, openingId } = useApps();
   const loading = apps === null;
   const installed = (apps || []).filter((app) => app.installed);
-  const labels = cfg.labels !== false;
+  // A widget's own setting wins; otherwise the desk's "Show app names" does.
+  const labels = cfg.labels ?? ctx?.desk?.labels !== false;
+  const phone = Boolean(ctx?.phone);
 
   if (loading) {
     return (
@@ -60,7 +62,11 @@ export default function AppsWidget({ cfg = {} }) {
   }
 
   return (
-    <div className={`tiles-grid desk-tiles${labels ? '' : ' desk-tiles-bare'}`}>
+    <div
+      className={`tiles-grid desk-tiles${labels ? '' : ' desk-tiles-bare'}${
+        phone ? ' desk-tiles-icons' : ''
+      }`}
+    >
       {installed.map((app) => {
         const meta = appDetail(app);
         const busy = openingId === app.id;
@@ -73,7 +79,7 @@ export default function AppsWidget({ cfg = {} }) {
             aria-label={`Open ${app.name}`}
             onClick={() => openApp(app.id, { returnTo: '/' })}
           >
-            <AppIcon app={app} size={40} />
+            <AppIcon app={app} size={phone ? 52 : 40} />
             <span className="tile-card-text">
               <span className="tile-card-name">{app.name}</span>
               <span className="tile-card-meta">{busy ? `Opening ${app.name}…` : meta}</span>

@@ -63,6 +63,18 @@ overwriting it.
 On a phone, press and hold a widget to start arranging. The phone board is a
 separate board: arranging one never rearranges the other.
 
+## Make the desk yours
+
+**Personalise**, above the board, sets what the desk looks like. Pick one of the
+wallpapers Vela ships with, or **Use your own** — a JPEG, PNG or WebP up to 8 MB,
+which stays on your own computer and is never sent anywhere. **Dim the
+wallpaper** keeps widget text readable over a bright picture; turn it off if you
+would rather see the photograph. **Show app names** switches between named tiles
+and icons only, and **Ask on this board** adds or removes the Ask widget from
+whichever board you are looking at.
+
+On a phone, press and hold an empty part of the wallpaper to open Personalise.
+
 ## App widgets on the desk
 
 Some apps can show you a line about themselves on your desk. **Add widget**
@@ -128,7 +140,7 @@ made on a desktop.
 Run your web service first, using ServerKit, Docker or its own installer. In
 **Library → Add an app → Connect a website**, enter its name, HTTPS address
 and icon color. The
-connection appears in Library, Manage apps and Home. Open it to use the service inside
+connection appears in Library, Manage apps and on your desk. Open it to use the service inside
 Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
 bar above it, always outside the service's frame.
 

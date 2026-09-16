@@ -213,7 +213,7 @@ and browser version you used, with equal weight for both:
 | iPhone | Safari tab and Home Screen app |
 | Android | Chrome tab and installed app |
 
-On each, exercise: opening Home in a fresh browser state and reaching a ready
+On each, exercise: opening the desk in a fresh browser state and reaching a ready
 app in one tap with no menu step; keyboard open, close and dismissal; a long
 draft with caret movement, selection, copy and paste; rotation with the keyboard
 open; a browser toolbar appearing and disappearing; returning from another app;

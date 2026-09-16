@@ -34,6 +34,7 @@ CORE_WIDGET_TYPES = (
     "apps",
     "running",
     "ask",
+    "needs-you",
     "system",
     "volume",
     "flows",
@@ -67,8 +68,9 @@ def default_boards() -> dict[str, Any]:
             "cols": 2,
             "widgets": [
                 _widget("w1", "clock", 0, 0, 2, 1),
-                _widget("w2", "apps", 0, 1, 2, 3),
-                _widget("w3", "ask", 0, 4, 2, 2),
+                _widget("w2", "needs-you", 0, 1, 2, 1),
+                _widget("w3", "apps", 0, 2, 2, 3),
+                _widget("w4", "ask", 0, 5, 2, 1),
             ],
         },
     }

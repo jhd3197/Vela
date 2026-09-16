@@ -31,6 +31,32 @@ body[data-desk] {
   );
 }
 
+/* `lake` is a bundled photograph; `sage` and `night` are gradients, which cost
+   nothing to ship and stay sharp at any size. `custom` is the user's own image,
+   served from their data directory. */
+body[data-desk][data-desk-wallpaper='sage'] {
+  --desk-wallpaper: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
+}
+
+body[data-desk][data-desk-wallpaper='night'] {
+  --desk-wallpaper: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
+}
+
+body[data-desk][data-desk-wallpaper='custom'] {
+  --desk-wallpaper: url('/api/wallpaper');
+}
+
+/* Dimming is what keeps widget text readable over a bright picture, so turning
+   it off is a real choice rather than a preview. */
+body[data-desk][data-desk-dim='off'] {
+  --desk-overlay: linear-gradient(
+    100deg,
+    rgba(18, 20, 32, 0.24),
+    rgba(18, 20, 32, 0.04) 45%,
+    rgba(18, 20, 32, 0.16)
+  );
+}
+
 body[data-desk] .shell::before {
   content: '';
   position: fixed;
@@ -111,6 +137,10 @@ body[data-desk] .rail-divider {
 /* The search field is the 520px pill from the mockup, over the wallpaper. The
    right-hand side is where Add widget and Arrange desk land. */
 .desk-top {
+  position: relative;
+  /* The board below is a stacking context of its own, so the search results
+     need this row to sit above it or the first widget would swallow a click. */
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -617,6 +647,38 @@ body[data-desk] .rail-divider {
 
   .desk-clock-time {
     font-size: 38px;
+  }
+
+  /* The phone board's apps widget is an icon grid, four across, with the name
+     under each icon unless the user turned names off. */
+  .desk-tiles-icons {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 6px;
+  }
+
+  .desk-tiles-icons .tile-card,
+  .desk-tiles-icons .tile-add {
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    text-align: center;
+    background: none;
+    box-shadow: none;
+  }
+
+  .desk-tiles-icons .tile-card-meta,
+  .desk-tiles-icons .tile-add-sub {
+    display: none;
+  }
+
+  .desk-tiles-icons .tile-card-text,
+  .desk-tiles-icons .tile-add-name {
+    max-width: 100%;
+    font-size: 11px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 

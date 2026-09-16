@@ -35,8 +35,9 @@ export function defaultBoards() {
       cols: PHONE_COLS,
       widgets: [
         widget('w1', 'clock', 0, 0, 2, 1),
-        widget('w2', 'apps', 0, 1, 2, 3),
-        widget('w3', 'ask', 0, 4, 2, 2),
+        widget('w2', 'needs-you', 0, 1, 2, 1),
+        widget('w3', 'apps', 0, 2, 2, 3),
+        widget('w4', 'ask', 0, 5, 2, 1),
       ],
     },
   };

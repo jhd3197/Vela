@@ -221,7 +221,7 @@ try {
     await grid.waitFor();
     const phone = size.width <= 860;
     const names = phone
-      ? ['Clock', 'Your apps', 'Ask']
+      ? ['Clock', 'Needs you', 'Your apps', 'Ask']
       : ['Clock', 'Your apps', 'Running now', 'Ask'];
     for (const name of names) {
       await page.getByRole('region', { name, exact: true }).waitFor();

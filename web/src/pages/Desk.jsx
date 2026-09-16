@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
-import { ArrowCounterClockwise, ArrowClockwise, Crop, Plus } from '@phosphor-icons/react';
+import {
+  ArrowCounterClockwise,
+  ArrowClockwise,
+  Crop,
+  PaintBrush,
+  Plus,
+} from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { PHONE } from '../breakpoints.js';
@@ -12,12 +18,15 @@ import DeskGrid from '../desk/grid/DeskGrid.jsx';
 import { DeskDataProvider } from '../desk/DeskDataProvider.jsx';
 import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
+import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import useEditingSession from '../desk/editing/useEditingSession.js';
 import { useWidgetTypes } from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
 import { colsOf, MAX_WIDGETS_PER_BOARD, widgetsOf, withWidgets } from '../desk/boards.js';
 import { compact, findFreeSpot, nextWidgetId, pushDown } from '../desk/grid/layout.js';
+import { api } from '../api.js';
+import { useResource } from '../hooks/useResource.js';
 
 // How long a finger has to rest on a widget to start arranging, and how far it
 // may drift first. Both match the gesture the phone shell already uses: long
@@ -37,14 +46,38 @@ export default function Desk() {
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
   const { boards, revision, loaded, save } = useDeskBoards(knownTypes);
 
+  // The desk's own preferences. The sheet writes them through the settings API
+  // and hands back what it saved, so the wallpaper changes as soon as it is
+  // chosen rather than on the next load.
+  const loadSettings = useCallback((options) => api.getSettings(options), []);
+  const { data: settings } = useResource(loadSettings);
+  const [deskPrefs, setDeskPrefs] = useState(null);
+  const desk = useMemo(
+    () => deskPrefs || settings?.desk || { wallpaper: 'lake', dim: true, labels: true },
+    [deskPrefs, settings],
+  );
+
+  // The wallpaper and the two display toggles belong to the whole shell, so
+  // they ride on the same body element the desk flag does.
+  useEffect(() => {
+    document.body.dataset.deskWallpaper = desk.wallpaper || 'lake';
+    document.body.dataset.deskDim = desk.dim === false ? 'off' : 'on';
+    return () => {
+      delete document.body.dataset.deskWallpaper;
+      delete document.body.dataset.deskDim;
+    };
+  }, [desk.wallpaper, desk.dim]);
+
   const [edit, setEdit] = useState(false);
   const [selected, setSelected] = useState(null);
   const [library, setLibrary] = useState(false);
   const [options, setOptions] = useState(null);
+  const [personalise, setPersonalise] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const arrangeButton = useRef(null);
+  const personaliseButton = useRef(null);
   const addButton = useRef(null);
 
   // The wallpaper belongs to the whole shell, not to this page's scroll box:
@@ -72,6 +105,9 @@ export default function Desk() {
   useEffect(() => {
     if (!editRef.current) reset(boards);
   }, [boards, reset]);
+
+  // What every widget is told about the desk it is on.
+  const deskContext = useMemo(() => ({ desk, phone }), [desk, phone]);
 
   const shown = edit ? draft : boards;
   const cols = colsOf(shown, boardKey);
@@ -147,6 +183,27 @@ export default function Desk() {
     setEdit(true);
     setSelected(placed.i);
     setAnnouncement(`${type.name} added.`);
+  };
+
+  // The Ask toggle changes this board rather than a preference, so it saves
+  // immediately: Personalise is not an arrange session with a Done button.
+  const toggleAsk = async (on) => {
+    const current = widgetsOf(boards, boardKey);
+    const next = on
+      ? [
+          ...current,
+          {
+            i: nextWidgetId(current),
+            type: 'ask',
+            ...findFreeSpot(current, Math.min(2, cols), 1, cols),
+            w: Math.min(2, cols),
+            h: 1,
+            cfg: {},
+          },
+        ]
+      : current.filter((entry) => entry.type !== 'ask');
+    const result = await save(withWidgets(boards, boardKey, compact(next)));
+    if (!result.ok) pushToast(result.message || 'The desk changed elsewhere; reloaded.', 'error');
   };
 
   const onWidgetMenu = (action, widget) => {
@@ -236,17 +293,21 @@ export default function Desk() {
   const onPointerDown = (event) => {
     if (edit || event.pointerType === 'mouse') return;
     const frame = event.target.closest?.('.desk-frame');
-    if (!frame) return;
     const { clientX, clientY } = event;
+    // On a frame the gesture arranges; on bare wallpaper it personalises —
+    // the same press, on the thing it is about.
     press.current = {
       x: clientX,
       y: clientY,
-      id: frame.dataset.widget,
       timer: setTimeout(() => {
         press.current = null;
-        setEdit(true);
-        setSelected(frame.dataset.widget);
-        setAnnouncement('Arranging the desk.');
+        if (frame) {
+          setEdit(true);
+          setSelected(frame.dataset.widget);
+          setAnnouncement('Arranging the desk.');
+        } else {
+          setPersonalise(true);
+        }
       }, LONG_PRESS_MS),
     };
   };
@@ -316,6 +377,14 @@ export default function Desk() {
                     <Crop size={15} aria-hidden="true" />
                     Arrange desk
                   </Button>
+                  <Button
+                    ref={personaliseButton}
+                    aria-haspopup="dialog"
+                    onClick={() => setPersonalise(true)}
+                  >
+                    <PaintBrush size={15} aria-hidden="true" />
+                    Personalise
+                  </Button>
                 </>
               )}
             </div>
@@ -330,6 +399,7 @@ export default function Desk() {
             rowHeight={phone ? 120 : 150}
             gap={phone ? 12 : 16}
             edit={edit}
+            ctx={deskContext}
             selectedId={selected}
             onSelect={setSelected}
             onChange={(next) => setWidgets(next)}
@@ -348,6 +418,19 @@ export default function Desk() {
             cols={cols}
             onAdd={addWidget}
             onClose={() => setLibrary(false)}
+          />
+        )}
+
+        {personalise && (
+          <PersonaliseSheet
+            desk={desk}
+            askOn={widgets.some((entry) => entry.type === 'ask')}
+            onChange={setDeskPrefs}
+            onToggleAsk={toggleAsk}
+            onClose={() => {
+              setPersonalise(false);
+              personaliseButton.current?.focus({ preventScroll: true });
+            }}
           />
         )}
 

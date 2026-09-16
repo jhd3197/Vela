@@ -64,6 +64,7 @@ The dashboard lives in `web/src/`. Reuse these foundations when adding a feature
 | `pages/` | Page composition and feature-specific behavior |
 | `api.js`, `store.jsx`, `bridge/` | Authenticated host requests, shared app state, and the host/app boundary |
 | `automationsApi.js`, `components/automations/` | Automation requests and the embedded workflow editor |
+| `desk/` | The home board: grid geometry, the widget registry and types, the widget renderers, one data provider and the boards client |
 
 Run `npm --prefix web ci` after pulling dependency changes. Vite compiles SCSS
 during development and builds; server users need no Sass installation.
@@ -74,6 +75,18 @@ module and load new modules from `styles/main.scss`. Its current order preserves
 the existing cascade, including responsive overrides; do not alphabetize it.
 Prefer existing classes and tokens. Add Sass mixins when a repeated styling
 pattern needs one, and keep selector nesting shallow.
+
+### Add a desk widget
+
+Widget types live in `web/src/desk/types.jsx`, each with an id, a name, a
+category, a default size, a minimum size and a `render` component. Ship a type
+only once a real source for it exists; `vela/desk.py` keeps `CORE_WIDGET_TYPES`
+in step so a saved board can never name a type the server does not know. Widgets
+read from `desk/DeskDataProvider.jsx` rather than fetching for themselves, so a
+board with four system widgets still makes one request per source, and that
+provider pauses while the tab is hidden. Widgets an app provides are not added
+here: they arrive from the app's manifest and render through
+`desk/widgets/AppWidget.jsx`.
 
 ### Add a dashboard page
 

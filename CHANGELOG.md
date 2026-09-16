@@ -17,6 +17,13 @@ until the release workflow prepares a tested server version.
   one that has not arrived yet offers to open the app, and an app that says
   something needs you raises a dot on its rail icon. Uninstalling an app removes
   its summaries. Notes and Health are the first two apps to use this.
+- **Make the desk yours.** **Personalise**, above the board, sets the wallpaper
+  — one of three that ship with Vela, or your own JPEG, PNG or WebP up to 8 MB,
+  kept on your own computer — and whether the wallpaper is dimmed, whether app
+  names show under their icons, and whether Ask sits on the board you are
+  looking at. On a phone, press and hold an empty part of the wallpaper to open
+  it. The phone board now opens on the time, anything that needs you, your apps
+  as an icon grid, and Ask.
 - **Arrange your desk.** Add widgets from a grouped list, move and resize them
   by dragging or with the arrow keys, duplicate or remove them from each
   widget's own menu, and undo or redo while you work. **Done** saves the board
@@ -44,8 +51,9 @@ until the release workflow prepares a tested server version.
   wallpaper instead of a plain app launcher: your apps, the time, what is
   running and your latest Ask conversation, with the rail beside it. Widgets
   only show what Vela actually knows, so nothing on the board is a placeholder.
-  The desktop board is six columns wide and the phone board two, and each is
-  laid out on its own.
+  The desktop board is six columns wide and the phone board two, each laid out
+  and saved on its own, and both are kept on your server so they are the same
+  after a restart and in another browser.
 - **The app rail stays on screen on a phone.** Every dashboard page, including
   an open app, now keeps the rail of destinations and installed apps beside its
   content at phone widths, so switching apps or pages is one tap away. The

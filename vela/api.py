@@ -27,6 +27,7 @@ from .settings import SettingsStore
 from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
+from .wallpaper import MAX_WALLPAPER_BYTES, Wallpaper, WallpaperError
 from .widgets import Widgets
 from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
@@ -258,6 +259,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     scheduler = NotifyScheduler(notifier, registry, config)
     system_metrics = SystemMetrics(config, settings)
     desk = DeskStore(config.data_dir / "desk.json")
+    wallpaper = Wallpaper(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -645,6 +647,43 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 if isinstance(widget_id, str) and widget_id:
                     known.add(f"{summary['id']}:{widget_id}")
         return known
+
+    @app.get("/api/wallpaper")
+    def get_wallpaper():
+        path = wallpaper.path()
+        if path is None:
+            raise HTTPException(status_code=404, detail="No wallpaper is set")
+        # It changes only when the user replaces it, and the page asks for it
+        # again on every desk load, so it is worth caching in the browser.
+        return FileResponse(
+            path,
+            media_type=wallpaper.media_type(path),
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    @app.put("/api/wallpaper")
+    async def put_wallpaper(request: Request):
+        # Raw bytes with the type in the header, the same shape as the release
+        # upload, so the server needs no multipart parser for one picture.
+        try:
+            extension = wallpaper.extension_for(request.headers.get("content-type", ""))
+            content = bytearray()
+            async for chunk in request.stream():
+                content.extend(chunk)
+                if len(content) > MAX_WALLPAPER_BYTES:
+                    raise WallpaperError(413, "A wallpaper is at most 8 MB")
+            result = wallpaper.save(bytes(content), extension)
+        except WallpaperError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        settings.patch({"desk": {"wallpaper": "custom"}})
+        return result
+
+    @app.delete("/api/wallpaper")
+    def delete_wallpaper() -> dict:
+        result = wallpaper.remove()
+        if (settings.get("desk") or {}).get("wallpaper") == "custom":
+            settings.patch({"desk": {"wallpaper": "lake"}})
+        return result
 
     @app.get("/api/desk")
     def get_desk() -> dict:
