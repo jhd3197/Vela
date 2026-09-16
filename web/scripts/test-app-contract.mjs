@@ -214,15 +214,13 @@ try {
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
-    // Manage apps is named in the rail's secondary menu; on a phone that rail
-    // lives inside the navigation drawer.
-    // A hub app keeps the rail on screen at every width, so the same control
-    // opens Manage apps on a phone and on a desktop.
-    const openApps = async () => {
-      await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
-      await page.getByRole('menuitem', { name: 'Manage apps', exact: true }).click();
+    // The Launchpad is a rail destination now. A hub app keeps the rail on
+    // screen at every width, so leaving through the Launchpad link is a
+    // navigation the unsaved-work guard covers on a phone and a desktop alike.
+    const openLaunchpad = async () => {
+      await page.locator('.rail a[href="/apps"]').click();
     };
-    await openApps();
+    await openLaunchpad();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
@@ -238,12 +236,13 @@ try {
         'Guard this draft',
       );
     }
-    await openApps();
+    await openLaunchpad();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
-    await page.getByRole('tab', { name: 'Running', exact: true }).click();
-    await page.getByRole('button', { name: /Chat Fixture.*Running/ }).click();
-    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    // Reopen the running app from the Launchpad to check the back-button guard.
+    await page.locator('.launchpad').waitFor();
+    await page.locator('.launch-tile', { hasText: 'Chat Fixture' }).first().click();
+    await page.waitForURL(`${base}/app/chat-fixture`);
     await page
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
@@ -252,10 +251,7 @@ try {
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
-    assert.equal(
-      await page.getByRole('tab', { name: 'Running', exact: true }).getAttribute('aria-selected'),
-      'true',
-    );
+    await page.locator('.launchpad').waitFor();
     await page.goto(`${base}/app/failed-fixture`);
     await page.getByText('Couldn’t open the app', { exact: true }).waitFor({ timeout: 15000 });
     await page.screenshot({ path: path.join(shots, `failed-${viewport.width}.png`) });

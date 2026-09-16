@@ -6,7 +6,22 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
-## 0.1.10 - 2026-09-16
+### Added
+
+- **A full-screen Launchpad.** Opening **Apps** now fills the screen with every
+  app over your blurred wallpaper, not a side drawer. A search in the middle
+  filters as you type and Enter opens the first match; **Ctrl+Space**
+  (**Cmd+Space** on a Mac) opens or closes it from anywhere and Escape steps
+  back. Apps that are running come first, then everything installed, then
+  Vela's own tools, and a last tile leads to the Library. Right-click a tile —
+  or press and hold it on a phone — to open it, add its widget to your desk,
+  reach its settings, stop it or remove it.
+
+### Removed
+
+- **The All apps drawer is gone.** Its job — every app in one place — is the
+  Launchpad now, so there is one answer to "which apps do I have" instead of a
+  drawer, a Manage apps page and the Library all showing the same set.
 
 ### Added
 

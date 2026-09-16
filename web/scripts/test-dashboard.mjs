@@ -31,9 +31,9 @@ server.on('error', (error) => {
 const pages = [
   ['/', 'Desk', 'rail'],
   ['/ask', 'Ask', 'rail'],
+  ['/apps', 'Launchpad', 'rail'],
   ['/library', 'Library', 'rail'],
   ['/automations', 'Automations', 'more'],
-  ['/apps', 'Manage apps', 'more'],
   ['/settings', 'Settings', 'popup'],
 ];
 try {
@@ -86,9 +86,9 @@ try {
           assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
           const nav = page.locator('.rail');
           await nav.waitFor();
-          // Desk, Ask and Library are shortcuts; the rest are named in the
-          // secondary menu. Settings closes the set.
-          assert.equal(await nav.locator('.rail-group a').count(), 3);
+          // Desk, Ask, the Launchpad and the Library are shortcuts; the rest
+          // are named in the secondary menu. Settings closes the set.
+          assert.equal(await nav.locator('.rail-group a').count(), 4);
           assert.equal(await nav.locator('.rail-foot button').count(), 1);
           if (where === 'rail') {
             assert.equal(
@@ -101,10 +101,7 @@ try {
             await nav.getByRole('button', { name: 'More', exact: true }).click();
             const menu = nav.getByRole('menu', { name: 'More' });
             // System stays out of the menu while Developer tools is off.
-            assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), [
-              'Automations',
-              'Manage apps',
-            ]);
+            assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), ['Automations']);
             assert.equal(
               await menu.getByRole('menuitem', { name: label, exact: true }).getAttribute('class'),
               'rail-menu-item is-active',
@@ -342,7 +339,7 @@ try {
   await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
   assert.deepEqual(
     await page.getByRole('menu', { name: 'More' }).getByRole('menuitem').allInnerTexts(),
-    ['Automations', 'Manage apps', 'System'],
+    ['Automations', 'System'],
   );
   await page.keyboard.press('Escape');
   await page.goto(base + '/library');

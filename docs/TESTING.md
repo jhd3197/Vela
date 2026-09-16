@@ -53,6 +53,7 @@ node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
+node web/scripts/test-launchpad.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-desk.mjs
@@ -70,9 +71,18 @@ form semantics, field labels, stale responses, retries, and action submission.
 It also verifies one shared engine request across consumers and page changes,
 shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
+The Launchpad suite uses an isolated Vite fixture with disposable app records to
+check the full-screen app grid: the Open, Apps, Vela and Get more apps sections
+and their contents, an uninstalled app staying out of them, running and
+attention dots, the hero search filtering the grid live with Enter opening the
+first match and a "no match" state, the tile context menu opened by right-click
+and Shift+F10 with focus returned to the tile, Escape leaving, `Ctrl+Space`
+toggling the Launchpad from another route, and no horizontal overflow at 320,
+390, 768 and 1440 pixels. Screenshots go to `docs/screenshots/launchpad/`.
 The rail suite uses an isolated Vite fixture with disposable app records to check
 the narrow rail: an empty installation, many apps, long and duplicate names,
-stable ordering, keyboard focus and selection, the secondary menu's contents and
+stable ordering, keyboard focus and selection, the Launchpad as a rail
+destination, the secondary menu's contents and
 focus return, a short window, every page keeping the rail on a phone with no
 hamburger and without covering its content, and an app workspace keeping one
 rail beside itself at 390 and 320 pixels. Screenshots go to

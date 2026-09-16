@@ -2,7 +2,6 @@ import {
   ChatCircleText,
   GearSix,
   HardDrives,
-  AppWindow,
   HouseSimple,
   Lightning,
   SquaresFour,
@@ -11,6 +10,7 @@ import {
 import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
 import Apps from './pages/Apps.jsx';
+import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
 import Environments from './pages/Environments.jsx';
 import Automations from './pages/Automations.jsx';
@@ -31,16 +31,17 @@ export const dashboardPages = [
     childPaths: ['/ask/:conversationId'],
     component: Ask,
   },
-  // Not a destination: every installed app in one place, over whatever page is
-  // open. It has no route and no component, so nothing links to it and the
-  // rail renders it as a button rather than a NavLink.
+  // The Launchpad: a full-screen grid of every app over the blurred wallpaper.
+  // It replaces the All apps drawer and the old Manage apps page as the one
+  // place that answers "which apps do I have".
   {
-    id: 'all-apps',
-    label: 'All apps',
+    to: '/apps',
+    label: 'Launchpad',
     icon: SquaresFour,
     rail: 'primary',
-    railOrder: 3,
-    drawer: true,
+    railOrder: 2,
+    end: true,
+    component: Launchpad,
   },
   {
     to: '/library',
@@ -62,12 +63,13 @@ export const dashboardPages = [
     childPaths: ['/automations/:workflowId'],
     component: Automations,
   },
+  // Manage apps is retired as a destination: Stage 3 folds it into the
+  // Marketplace. Until then the page stays reachable at its own path so the
+  // old flows keep working and `/apps/manage` has somewhere to land.
   {
-    to: '/apps',
+    to: '/apps/manage',
     label: 'Manage apps',
-    icon: AppWindow,
-    rail: 'more',
-    railOrder: 2,
+    icon: SquaresFour,
     component: Apps,
   },
   {
@@ -93,3 +95,18 @@ export const railGroup = (group, developer = false) =>
   visiblePages(developer)
     .filter((page) => page.rail === group)
     .sort((a, b) => (a.railOrder ?? 0) - (b.railOrder ?? 0));
+
+// Vela's own tools, presented as apps in the Launchpad's "Vela" section. Stage
+// 2 of the OS-shell plan gives these real ids, colours and artwork and lets
+// them be pinned to the rail; for now they carry the fields the Launchpad
+// needs to draw and open them. System is a developer-only tool.
+const CORE_APPS = [
+  { id: 'ask', label: 'Ask', to: '/ask', icon: ChatCircleText },
+  { id: 'automations', label: 'Automations', to: '/automations', icon: Lightning },
+  { id: 'library', label: 'Library', to: '/library', icon: Storefront },
+  { id: 'settings', label: 'Settings', to: '/settings', icon: GearSix, popup: true },
+  { id: 'system', label: 'System', to: '/environments', icon: HardDrives, developer: true },
+];
+
+export const coreApps = (developer = false) =>
+  CORE_APPS.filter((entry) => !entry.developer || developer);

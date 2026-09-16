@@ -44,21 +44,20 @@ try {
     assert.ok(overflow.body <= 1 && overflow.content <= 1, `${label}: ${JSON.stringify(overflow)}`);
   };
 
-  // An empty installation still exposes every fixed destination: three
-  // shortcuts, the labelled secondary menu, and Settings.
+  // An empty installation still exposes every fixed destination: Desk, the
+  // Launchpad, Ask, the Library, the labelled secondary menu, and Settings.
   await page.goto(`${base}?apps=empty`);
   await page.locator('.rail').waitFor();
   assert.equal(await page.locator('.rail-apps').count(), 0);
-  assert.equal(await page.locator('.rail-group a, .rail-foot button').count(), 4);
-  // All apps is a rail control, not a destination, so it is a button.
-  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 1);
+  // Desk, Ask and Launchpad above, Library below the divider, then Settings.
+  assert.equal(await page.locator('.rail-group a, .rail-foot button').count(), 5);
+  // The Launchpad is a destination now, not a drawer control.
+  assert.equal(await page.locator('.rail').getByRole('link', { name: 'Launchpad' }).count(), 1);
+  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
   assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
   await page.getByRole('button', { name: 'More', exact: true }).click();
   const more = page.getByRole('menu', { name: 'More' });
-  assert.deepEqual(await more.getByRole('menuitem').allInnerTexts(), [
-    'Automations',
-    'Manage apps',
-  ]);
+  assert.deepEqual(await more.getByRole('menuitem').allInnerTexts(), ['Automations']);
   // Escape closes the menu and hands focus back to the control that opened it.
   await page.keyboard.press('Escape');
   await more.waitFor({ state: 'detached' });
@@ -256,68 +255,23 @@ try {
   assert.equal(await page.locator('.rail-section-label').count(), 0);
   assert.equal(await page.locator('.rail-apps a').count(), 12);
 
-  // All apps opens over whatever is on screen, filters, and gives focus back
-  // to the control that opened it.
-  const allApps = page.getByRole('button', { name: 'All apps', exact: true });
-  await allApps.click();
-  const drawer = page.getByRole('dialog', { name: 'All apps', exact: true });
-  await drawer.waitFor();
-  assert.equal(await drawer.getByRole('heading', { name: 'Running now' }).count(), 0);
-  assert.equal(await drawer.locator('.all-apps-tile').count(), 13, 'twelve apps and Add an app');
-  await drawer.getByRole('searchbox', { name: 'Find an app' }).fill('gam');
-  assert.equal(await drawer.locator('.all-apps-tile').count(), 2);
-  await drawer.getByRole('button', { name: 'Open Gamma', exact: true }).click();
-  await page.locator('.appview').waitFor();
-  await drawer.waitFor({ state: 'detached' });
-
-  await page.goto(base);
-  await page.locator('.rail-apps a').first().waitFor();
-  await allApps.click();
-  await drawer.waitFor();
-  // Running apps are called out first, with whatever they said about
-  // themselves, and nothing invented for the ones that said nothing.
-  await drawer.getByRole('heading', { name: 'Running now' }).waitFor();
-  assert.deepEqual(await drawer.locator('.all-apps-running .all-apps-name').allInnerTexts(), [
-    'Alpha',
-    'Duplicate',
-    'Gamma',
-    'Zeta',
-  ]);
-  assert.deepEqual(
-    [...new Set(await drawer.locator('.all-apps-running .all-apps-meta').allInnerTexts())],
-    ['Running'],
+  // The Launchpad is a destination on the rail now, not a drawer control: it
+  // is a link that selects like any other page, and the old All apps button
+  // and dialog are gone.
+  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
+  const launchpad = page.locator('.rail').getByRole('link', { name: 'Launchpad' });
+  assert.equal(await launchpad.count(), 1);
+  await launchpad.click();
+  await page.waitForFunction(
+    () => document.querySelector('.rail a[href="/apps"]')?.getAttribute('aria-current') === 'page',
   );
-  await page.keyboard.press('Escape');
-  await drawer.waitFor({ state: 'detached' });
-  assert.equal(
-    await page.evaluate(() => document.activeElement.textContent.trim()),
-    'All apps',
-    'closing All apps returns focus to its opener',
-  );
-  await noOverflow('all apps');
-
-  // The drawer fits a phone, and 200% zoom on the desktop window.
-  for (const size of [
-    { width: 390, height: 844 },
-    { width: 683, height: 450 },
-  ]) {
-    await page.setViewportSize(size);
-    await allApps.click();
-    await drawer.waitFor();
-    const box = await drawer.boundingBox();
-    assert.ok(
-      box.x >= -1 && box.x + box.width <= size.width + 1,
-      `All apps at ${size.width}px: ${JSON.stringify(box)}`,
-    );
-    await page.keyboard.press('Escape');
-    await drawer.waitFor({ state: 'detached' });
-  }
+  await noOverflow('launchpad selected');
   await page.setViewportSize({ width: 1366, height: 900 });
-  await shot('rail-all-apps');
+  await shot('rail-launchpad');
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: empty and many-app rails, the OPEN running group and its absence, the All apps drawer with search and focus return, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, navigation without a hamburger on a phone, app workspaces keeping one rail beside them at 390/320px',
+    'PASS: empty and many-app rails, the OPEN running group and its absence, the Launchpad as a rail destination, the secondary menu and its focus return, stable order, long/duplicate names, keyboard focus and selection, landmarks and named icons, 200% zoom, short-window reach, navigation without a hamburger on a phone, app workspaces keeping one rail beside them at 390/320px',
   );
 } finally {
   await browser?.close();

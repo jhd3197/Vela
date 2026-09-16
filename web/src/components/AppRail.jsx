@@ -9,7 +9,6 @@ import { useDeveloperTools } from '../developer.js';
 import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
-import AllAppsDrawer from './AllAppsDrawer.jsx';
 
 // Installed apps keep a stable, status-independent order so a shortcut never
 // moves while the user is reaching for it.
@@ -131,8 +130,6 @@ export default function AppRail({ onNavigate }) {
   const developer = useDeveloperTools();
   const { open, installed } = useMemo(() => railGroups(apps), [apps]);
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
-  const [allApps, setAllApps] = useState(false);
-  const allAppsButton = useRef(null);
 
   // The rail is on screen everywhere, so it reads the published summaries
   // itself rather than depending on the desk being open. A minute is often
@@ -157,23 +154,7 @@ export default function AppRail({ onNavigate }) {
 
       <div className="rail-group">
         {railGroup('primary', developer).map((page) => {
-          const { to, end, label, icon: Icon, drawer } = page;
-          if (drawer) {
-            return (
-              <button
-                key={page.id}
-                ref={allAppsButton}
-                type="button"
-                className="rail-item"
-                aria-haspopup="dialog"
-                aria-expanded={allApps}
-                onClick={() => setAllApps(true)}
-              >
-                <Icon size={20} weight="fill" aria-hidden="true" />
-                <span className="rail-tip">{label}</span>
-              </button>
-            );
-          }
+          const { to, end, label, icon: Icon } = page;
           return (
             <RailLink key={to} to={to} end={end} label={label} onNavigate={onNavigate}>
               <Icon size={20} weight="fill" aria-hidden="true" />
@@ -271,19 +252,6 @@ export default function AppRail({ onNavigate }) {
           </button>
         )}
       </div>
-
-      {allApps && (
-        <AllAppsDrawer
-          summaries={summaries}
-          onClose={() => {
-            setAllApps(false);
-            // The drawer returns focus to whatever opened it; in the phone
-            // drawer that opener can be unmounted by `onNavigate`, so the
-            // rail's own button is the fallback.
-            allAppsButton.current?.focus({ preventScroll: true });
-          }}
-        />
-      )}
     </nav>
   );
 }

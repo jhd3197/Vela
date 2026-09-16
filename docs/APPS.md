@@ -11,20 +11,24 @@ The board is the same on a wide screen and a phone, laid out differently: six
 columns of widgets on a desktop, two in your hand. Each is remembered on its
 own, so arranging one never rearranges the other.
 
-A narrow rail runs down the left of the dashboard: Desk, Ask, **All apps**, a
-shortcut for every installed app, then Library and a **More** menu holding
-Automations and Manage apps. Settings sits at the bottom. Hover or tab to an
-icon to see its name. The open destination is marked on the rail, so you always
-know where you are.
+A narrow rail runs down the left of the dashboard: Desk, Ask, the **Launchpad**,
+a shortcut for every installed app, then Library and a **More** menu holding
+Automations. Settings sits at the bottom. Hover or tab to an icon to see its
+name. The open destination is marked on the rail, so you always know where you
+are.
 
 Apps that are running now sit together at the top of the shortcuts, under a
 small OPEN label, so what is already going is where you look first. When
 nothing is running the label is simply not there.
 
-**All apps** opens a panel over whatever you are doing with everything you have
-installed: what is running, then the full set with each app's version, and one
-way to add another. Search it by name. Escape closes it and puts you back where
-you were.
+The **Launchpad** is every app in one place, full-screen over your wallpaper.
+Open it from the rail or by pressing **Ctrl+Space** (**Cmd+Space** on a Mac).
+Start typing to filter the grid and press Enter to open the first match; Escape
+closes it again. Apps
+that are running are grouped first, then everything you have installed, then
+Vela's own tools, and a last tile leads to the Library for more. Right-click a
+tile — or press and hold it on a phone — for Open, Add widget to desk, App
+settings, Stop and Remove.
 
 The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
