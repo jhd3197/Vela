@@ -37,6 +37,9 @@ No additional release notes were provided.
   quick menu — open its app, resize it, or remove it — without arranging the
   whole board. A fresh desk fills the screen with no bare gaps, and your apps
   show as a labelled icon grid with **Open all** leading to the Launchpad.
+  The desk and the Launchpad no longer draw a blurred bar across the top of
+  the wallpaper: the notification bell and the **⋯** menu float in their
+  usual top-right corner and the page runs the full height behind them.
 - **Apps open in a real window.** An app you open now has its own title bar: a
   back arrow to where you came from, its name and whether it is running, and a
   **⋯** menu to pin it to the rail, add its widget to your desk, reach its

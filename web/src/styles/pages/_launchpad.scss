@@ -217,14 +217,17 @@
 /* Phone: four columns of smaller icons, the search pinned above them, the
    sections reading as one scrolling list with Open first. */
 @media (max-width: 860px) {
+  /* The floating bell takes the top strip, so the search starts, and sticks,
+     just below it. */
   .launchpad-inner {
-    padding: 20px 16px calc(48px + env(safe-area-inset-bottom, 0px));
+    padding: calc(56px + env(safe-area-inset-top, 0px)) 16px
+      calc(48px + env(safe-area-inset-bottom, 0px));
     gap: 20px;
   }
 
   .launchpad-hero {
     position: sticky;
-    top: env(safe-area-inset-top, 0px);
+    top: calc(56px + env(safe-area-inset-top, 0px));
     z-index: 2;
   }
 

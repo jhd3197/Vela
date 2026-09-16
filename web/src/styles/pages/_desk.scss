@@ -128,10 +128,29 @@ body[data-desk] .ambient-glow {
   display: none;
 }
 
-body[data-desk] .workspace,
-body[data-desk] .workspace-header {
+body[data-desk] .workspace {
   background: transparent;
-  border-bottom-color: transparent;
+}
+
+/* Over the wallpaper there is no header bar at all: the notification bell and
+   the page's own actions float in their usual top-right spot with nothing
+   drawn behind them, and the content runs the full height underneath. The
+   empty part of the strip lets clicks through to whatever is below it. */
+body[data-desk] .workspace-main {
+  position: relative;
+}
+
+body[data-desk] .workspace-header {
+  position: absolute;
+  inset: 0 0 auto;
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 0;
+  pointer-events: none;
+}
+
+body[data-desk] .workspace-header > * {
+  pointer-events: auto;
 }
 
 /* The header sits directly on the wallpaper, so its controls take the same
@@ -172,8 +191,9 @@ body[data-desk] .rail-divider {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* The floating controls take the top strip, so the desk starts below them. */
 .desk-workspace .workspace-content {
-  padding: 20px 24px;
+  padding: calc(76px + env(safe-area-inset-top, 0px)) 24px 20px;
 }
 
 .desk {
@@ -697,7 +717,8 @@ body[data-desk] .rail-divider {
 
 @media (max-width: 860px) {
   .desk-workspace .workspace-content {
-    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    padding: calc(70px + env(safe-area-inset-top, 0px)) 14px
+      calc(14px + env(safe-area-inset-bottom));
   }
 
   .desk-top .searchbox {
