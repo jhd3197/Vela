@@ -682,3 +682,51 @@ button.notif-foot {
   overflow-x: auto;
   max-width: 100%;
 }
+
+/* The restart overlay: there is nothing to do but wait, so it covers the page
+   rather than pretending the dashboard behind it still works. */
+.update-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.update-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  max-width: 360px;
+  padding: 24px 26px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-pop);
+  box-shadow: var(--shadow-pop);
+}
+
+.update-overlay-card h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.update-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 200ms ease;
+}

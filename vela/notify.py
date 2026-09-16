@@ -196,6 +196,10 @@ class NotifyScheduler:
         # The version already announced. One notification per release, not one
         # a day until someone installs it.
         self._announced_version: str | None = None
+        self._update_job = None
+        self._update_registry = None
+        self._update_automations = None
+        self._update_doctor = None
         # Check keys already announced. A failure is worth one notification,
         # not one every day until someone fixes it; clearing the check arms it
         # again.
@@ -240,6 +244,48 @@ class NotifyScheduler:
                 pass
             await asyncio.sleep(UPDATE_INTERVAL_SECONDS)
 
+    def attach_update_job(self, job, registry=None, automations=None, doctor=None) -> None:
+        """What automatic mode needs to decide whether now is a safe moment."""
+        self._update_job = job
+        self._update_registry = registry
+        self._update_automations = automations
+        self._update_doctor = doctor
+
+    async def _maybe_auto_update(self, status) -> None:
+        """Install automatically, but only at the chosen hour and only if
+        nothing of the user's would be interrupted."""
+        from .updates import UpdateError, auto_mode_allowed
+
+        if self._update_job is None or not status.get("available"):
+            return
+        if status.get("mode") != "auto" or datetime.now().hour != status.get("hour"):
+            return
+        if self._update_job.busy():
+            return
+        apps = 0
+        if self._update_registry is not None:
+            apps = sum(1 for app in self._update_registry.list_apps() if app.get("running"))
+        automation_running = False
+        if self._update_automations is not None:
+            try:
+                automation_running = bool(self._update_automations.status().get("running"))
+            except Exception:
+                automation_running = True
+        failing = False
+        if self._update_doctor is not None:
+            last = self._update_doctor.last() or {}
+            failing = any(check["status"] == "fail" for check in last.get("checks", []))
+        allowed, reason = auto_mode_allowed(
+            apps_running=apps, automation_running=automation_running, doctor_failing=failing
+        )
+        if not allowed:
+            # Try again tomorrow; the notice stays up in the meantime.
+            return
+        try:
+            await asyncio.to_thread(self._update_job.apply)
+        except UpdateError:
+            pass
+
     async def run_update_check(self) -> dict[str, Any]:
         """One check, announcing a version that has not been announced yet.
 
@@ -265,6 +311,7 @@ class NotifyScheduler:
                 priority=3,
                 kind="update",
             )
+        await self._maybe_auto_update(status)
         return status
 
     def attach_backups(self, backups, settings) -> None:

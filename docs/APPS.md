@@ -194,6 +194,39 @@ Vela also notices how this copy was installed, because that decides how it
 updates: the Windows installer, the portable Windows folder, a macOS or Linux
 `.tar.gz`, a source checkout (`git pull`) or a container image (a new tag).
 
+## Update Vela
+
+When a newer release exists and Vela can install it for you, **Settings →
+Updates** offers **Update now**. What happens then, in order:
+
+1. Vela downloads the release built for how this copy was installed.
+2. It checks the download against the checksum published beside it, and stops
+   if they do not match.
+3. It backs itself up.
+4. It closes and reopens as the new version.
+
+It usually takes under a minute. The page shows what step it is on and
+reconnects by itself when Vela answers again — you do not need to reload it.
+Your apps and everything they saved are not touched at any point.
+
+**Choose what happens automatically.** *Tell me* is the default: Vela says
+there is an update and waits for you. *Install automatically* installs at the
+hour you choose — but only when nothing is running: no app open, no automation
+in progress, and no failing health check. If anything is busy, Vela leaves it
+and tries the next day.
+
+**If something goes wrong.** Vela keeps the version it replaced. Where it can
+go back — the portable folder, the macOS and Linux archives, and a Windows
+installation whose previous download it still has — **Go back to the previous
+version** appears in Settings → Updates. Your data is never part of an update,
+so going back does not lose anything you did in the meantime. If an update
+stops before it finishes, Vela says so the next time it starts, and you are
+still on the version you were on.
+
+Vela cannot install an update for a source checkout (use `git pull`) or a
+container (pull the new image tag). In those cases Settings links to the
+download instead of offering to install it.
+
 ## Back up and restore
 
 **Settings → Backups & storage** keeps recoverable copies of your server. A

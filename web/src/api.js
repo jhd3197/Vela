@@ -265,6 +265,20 @@ export const api = {
   // own behalf, and only while the preference is on.
   getUpdates: (options) => request('/api/updates', options),
   checkUpdates: () => request('/api/updates/check', { method: 'POST' }),
+  updateJob: (options) => request('/api/updates/job', options),
+  updateReport: (options) => request('/api/updates/report', options),
+  // Replacing Vela with another copy of Vela carries its own header, like
+  // every other action that cannot be undone with one click.
+  applyUpdate: () =>
+    request('/api/updates/apply', {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'update' },
+    }),
+  rollbackUpdate: () =>
+    request('/api/updates/rollback', {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'rollback' },
+    }),
 
   // Health checks. Reading is cheap and never starts a sweep; `runDoctor` is
   // the deliberate action behind "Run now".

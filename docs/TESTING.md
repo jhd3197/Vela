@@ -21,7 +21,10 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases, launcher behavior, automations, the log
 store, the health checks, the error record, the support bundle, backups
-with their schedule and restore, and the update check. Node checks
+with their schedule and restore, and the update check with its
+apply path — downloads, checksum refusal, the journal, rollback decisions,
+automatic-mode gating and the generated apply scripts. Nothing in the suite
+contacts GitHub or replaces anything on the machine running it. Node checks
 cover the host bridge, service-worker boundaries, shared request behavior
 (polling, overlapping refreshes, errors, and cleanup) and the automation worker's
 protocol. No sibling checkout is needed.
@@ -269,6 +272,17 @@ that complete setup has been accepted. Some suites use a mock upstream.
 python scripts/build-server.py
 python scripts/test-server-bundle.py
 ```
+
+`test-server-bundle.py` starts with two update checks that need no bundle and
+run in seconds: it executes the real swap script against throwaway directories
+on this OS, asserting the install directory is replaced and the previous one
+kept, and it runs the whole download/verify/back-up path against a local asset
+server over HTTP, asserting a mismatched `.sha256` is refused *before* anything
+is backed up. Neither touches a real install or a real release.
+
+`test-windows-distribution.py` additionally checks that the flags Vela's
+updater passes to the installer are the same ones that check installs with, so
+an update can never run an invocation nothing has verified.
 
 Install the maintainer build requirements first, as described in
 [the developer guide](DEVELOPMENT.md#build-a-server-download). The smoke test

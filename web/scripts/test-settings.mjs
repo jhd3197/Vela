@@ -83,6 +83,8 @@ try {
     hour: 3,
   };
   let updateChecks = 0;
+  let updateJob = { state: 'idle', percent: 0, message: '', rollback: false };
+  let applied = false;
 
   let doctorRan = false;
   let doctorRepaired = false;
@@ -107,6 +109,15 @@ try {
     if (url.hostname !== 'vela.test') return route.abort();
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/updates') return route.fulfill({ json: updateState });
+      if (url.pathname === '/api/updates/job') return route.fulfill({ json: updateJob });
+      if (url.pathname === '/api/updates/report') return route.fulfill({ json: {} });
+      if (url.pathname === '/api/updates/apply') {
+        if (route.request().headers()['x-vela-confirm'] !== 'update')
+          return route.fulfill({ status: 428, json: { detail: 'Confirm installing this update' } });
+        applied = true;
+        updateJob = { state: 'downloading', percent: 40, message: '', rollback: false };
+        return route.fulfill({ json: updateJob });
+      }
       if (url.pathname === '/api/updates/check') {
         updateChecks += 1;
         if (!updateState.check) return route.fulfill({ json: { ...updateState, skipped: 'off' } });
@@ -614,6 +625,39 @@ try {
   assert.equal(await dialog.locator('.update-notes img').count(), 0, 'images are stripped');
   assert.equal(await dialog.locator('.update-notes a').first().getAttribute('target'), '_blank');
   await page.screenshot({ path: path.join(shots, 'settings-updates.png') });
+
+  // Automatic installing is its own choice, and starts off.
+  const modeGroup = dialog.getByRole('group', { name: 'When an update is available' });
+  await modeGroup.waitFor();
+  assert.equal(
+    await modeGroup.getByRole('button', { name: 'Tell me' }).getAttribute('aria-pressed'),
+    'true',
+  );
+
+  // Installing is offered where Vela can actually do it, and says what will
+  // happen before it starts.
+  await dialog.getByRole('button', { name: 'Update now' }).click();
+  await page.getByRole('heading', { name: 'Install Vela 0.2.0?' }).waitFor();
+  await page.getByText('check it against its published checksum', { exact: false }).waitFor();
+  assert.equal(applied, false, 'the dialog must not install anything by opening');
+  await page.screenshot({ path: path.join(shots, 'settings-update-confirm.png') });
+
+  await page.getByRole('button', { name: 'Install it' }).click();
+  // The overlay takes over: there is nothing to do but wait.
+  await page.locator('.update-overlay').waitFor();
+  assert.equal(applied, true);
+  await page.getByText('Downloading…').waitFor();
+  assert.equal(
+    await page.locator('.update-progress [role], .update-progress').first().isVisible(),
+    true,
+  );
+  await page.screenshot({ path: path.join(shots, 'settings-update-progress.png') });
+
+  // Put the fixture back so the rest of the suite sees a settled section.
+  updateJob = { state: 'idle', percent: 0, message: '', rollback: false };
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#updates');
+  await dialog.locator('#settings-updates').waitFor();
 
   // Turning the check off disables the button that would make the request.
   await checkSwitch.click();

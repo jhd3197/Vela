@@ -493,6 +493,43 @@ scheduler checks two minutes after startup and then daily, publishing one
 same answer under `update` so the desk reads it with the health checks rather
 than making a second request.
 
+### Applying an update
+
+- `GET /api/updates/job` — `{ state, percent, message, version, rollback }`.
+  `state` is one of `idle`, `downloading`, `verifying`, `backing-up`,
+  `applying`, `restarting`, `done`, `error`. `rollback` says whether there is a
+  previous version to go back to.
+- `POST /api/updates/apply` — requires `X-Vela-Confirm: update`; `428`
+  without it. Refused with `409` when there is nothing newer, when one is
+  already running, or when this copy cannot install for itself.
+- `POST /api/updates/rollback` — requires `X-Vela-Confirm: rollback`.
+- `GET /api/updates/report` — what the previous update did, once:
+  `{ outcome: 'updated' | 'failed' | 'error', from, to, message }`, or `{}`.
+
+The order is the guarantee. Download, verify against the `.sha256` sidecar
+(whose filename must name this asset), back up, *then* replace. A failure at
+any step before the replace leaves the computer exactly as it was, and a
+checksum mismatch happens before the backup, not after it.
+
+Replacing is a detached script, because a process cannot overwrite the files it
+is running from. It waits for Vela's pid to exit, does the work, then starts
+Vela again with the arguments it had. On Windows an installer copy runs the new
+setup exe with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`
+and a log; a portable copy and a macOS/Linux tarball move the install directory
+to `<name>.previous` and move the staged one into its place, putting the old
+one back if that fails. `.previous` is what a rollback moves back; an installer
+rollback re-runs the previous release's setup, kept in `<data_dir>/updates/`
+for seven days.
+
+`<data_dir>/updates/update.log` is the journal. It is the only way the *next*
+process can know what the one before it was doing, so it is written at every
+step and read once on startup. Data is never part of an update: the data
+directory is not read, written or replaced by any of it.
+
+Automatic mode (`updates.mode = "auto"`) applies at `updates.hour` only when no
+app is running, no automation is in progress and the last health run had no
+failure. Otherwise it waits for the next day and the notice stays.
+
 ### Backups API details
 
 Hub session only.

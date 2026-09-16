@@ -4,6 +4,9 @@ import asyncio
 import json
 import tempfile
 import os
+import signal
+import threading
+import logging
 import traceback
 from pathlib import Path
 from typing import Any
@@ -23,7 +26,8 @@ from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
 from .support_bundle import SupportBundle
-from .updates import DEFAULT_UPDATES, MODES, UpdateChecker
+from .updates import (DEFAULT_UPDATES, MODES, UpdateChecker, UpdateError, UpdateJob,
+                      capability, rollback_available, startup_report)
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
@@ -38,7 +42,7 @@ from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
 from .app_services import AppServices
 from .lifecycle import Lifecycle, LifecycleError
-from .logging_setup import request_actor
+from .logging_setup import audit, request_actor
 from .logs import DEFAULT_LINES, LogError, LogStore
 from .connections import Connections
 from .catalog import Catalog
@@ -49,6 +53,8 @@ from .connected_apps import ConnectedApps
 from .phone_access import PhoneAccess
 from .automations import Automations, router as automations_router
 
+
+LOG = logging.getLogger(__name__)
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
                   "backups", "updates"}
@@ -308,6 +314,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     doctor = Doctor(config, state=state, registry=registry, settings=settings,
                     backups=backups, assistant=assistant, catalog=catalog, updates=updates)
     errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
+    update_job = UpdateJob(config, updates, backups=backups)
     support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
                             errors=errors, doctor=doctor, automations=automations)
     # The scheduler runs the sweep daily and once after startup, and announces
@@ -315,6 +322,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     scheduler.attach_doctor(doctor)
     scheduler.attach_backups(backups, settings)
     scheduler.attach_updates(updates)
+    scheduler.attach_update_job(update_job, registry=registry,
+                                automations=automations, doctor=doctor)
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
@@ -591,6 +600,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             raise HTTPException(status_code=404, detail=f"unknown app: {app_id}")
         return manifest
 
+    def _request_shutdown() -> None:
+        """Ask the server to exit so the apply script can replace its files.
+
+        The tray controller owns the real stop; without it (a console server)
+        signalling the process is the equivalent. Either way the script is
+        already running and waiting for this pid to go.
+        """
+        controller = getattr(app.state, "server_controller", None)
+        if controller is not None:
+            threading.Thread(target=controller.stop, daemon=True).start()
+            return
+        os.kill(os.getpid(), signal.SIGTERM)
+
     @app.get("/api/health")
     def health() -> dict:
         return {"status": "ok", "version": __version__}
@@ -667,6 +689,23 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def app_status(app_id: str) -> dict:
         if connected_apps.owns(app_id): return connected_apps.get(app_id)
         return lifecycle.app_status(app_id)
+
+    @app.on_event("startup")
+    async def report_update() -> None:
+        # The process that applied the update is gone; its journal is the only
+        # record of what it was doing.
+        report = startup_report(config, __version__)
+        if report is None:
+            return
+        app.state.update_report = report
+        if report["outcome"] == "updated":
+            audit("update", f"applied to={report['to']}")
+        else:
+            LOG.warning("the last update did not finish: %s", report)
+
+    @app.get("/api/updates/report")
+    def update_report() -> dict:
+        return getattr(app.state, "update_report", None) or {}
 
     @app.on_event("startup")
     async def start_scheduler() -> None:
@@ -1273,6 +1312,33 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.post("/api/updates/check")
     async def check_updates() -> dict:
         return await asyncio.to_thread(updates.check, force=True)
+
+    @app.get("/api/updates/job")
+    def update_job_state() -> dict:
+        return {
+            **update_job.state(),
+            "rollback": rollback_available(config, capability()),
+        }
+
+    @app.post("/api/updates/apply")
+    async def apply_update(request: Request) -> dict:
+        # Replacing Vela with another copy of Vela is not something a stray
+        # request may start.
+        if request.headers.get("x-vela-confirm") != "update":
+            raise HTTPException(status_code=428, detail="Confirm installing this update")
+        try:
+            return await asyncio.to_thread(update_job.apply, stop=_request_shutdown)
+        except UpdateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
+    @app.post("/api/updates/rollback")
+    async def rollback_update(request: Request) -> dict:
+        if request.headers.get("x-vela-confirm") != "rollback":
+            raise HTTPException(status_code=428, detail="Confirm going back")
+        try:
+            return await asyncio.to_thread(update_job.rollback, stop=_request_shutdown)
+        except UpdateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
     @app.get("/api/backups")
     def list_backups() -> dict:

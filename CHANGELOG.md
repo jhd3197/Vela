@@ -8,6 +8,11 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Existing 0.1.x servers need one manual update.** The updater ships *in*
+  this release, so a server running an earlier version cannot use it to get
+  here. Download this release the way you installed Vela originally — the
+  installer, the portable zip or the archive — and from then on Vela can update
+  itself.
 - **Settings, desk and app-state files keep a spare copy.** Each time Vela
   writes one it keeps the previous good version beside it, so a file that will
   no longer read can be put back from Settings → Health instead of falling
@@ -59,6 +64,18 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Vela installs its own updates.** When a newer release exists,
+  **Settings → Updates → Update now** downloads it, checks it against the
+  checksum published beside it, backs Vela up, and reopens as the new version —
+  usually in under a minute, with the page reconnecting on its own. Your apps
+  and everything they saved are never part of an update. You can also let it
+  install automatically at an hour you choose, which it does only when no app
+  is open, no automation is running and no health check is failing. Vela keeps
+  the version it replaced, so **Go back to the previous version** is there if
+  you need it, and if an update stops before it finishes Vela says so the next
+  time it starts and leaves you on the version you were on. Source checkouts
+  and containers are pointed at `git pull` and a new image tag instead.
+
 - **Vela tells you when there is a new version.** **Settings → Updates** shows
   what you are running, what the newest release is and what changed in it,
   rendered from the release notes. Once a day Vela asks GitHub which release is
