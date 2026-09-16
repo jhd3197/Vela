@@ -15,6 +15,7 @@ import WidgetOptions from '../desk/WidgetOptions.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import useEditingSession from '../desk/editing/useEditingSession.js';
 import { useWidgetTypes } from '../desk/registry.js';
+import AppWidget from '../desk/widgets/AppWidget.jsx';
 import { colsOf, MAX_WIDGETS_PER_BOARD, widgetsOf, withWidgets } from '../desk/boards.js';
 import { compact, findFreeSpot, nextWidgetId, pushDown } from '../desk/grid/layout.js';
 
@@ -32,7 +33,7 @@ export default function Desk() {
   const { apps, pushToast } = useApps();
   const phone = useMediaQuery(PHONE);
   const boardKey = phone ? 'phone' : 'desktop';
-  const types = useWidgetTypes(apps);
+  const types = useWidgetTypes(apps, AppWidget);
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
   const { boards, revision, loaded, save } = useDeskBoards(knownTypes);
 

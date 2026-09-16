@@ -224,6 +224,7 @@ export const api = {
   testNotify: () => request('/api/notify/test', { method: 'POST' }),
   getNotifications: (options) => request('/api/notifications', options),
   systemMetrics: (options) => request('/api/system/metrics', options),
+  appWidgets: (options) => request('/api/widgets', options),
   getBackups: (options) => request('/api/backups', options),
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>

@@ -103,10 +103,11 @@ supported. External and headless entries may declare an empty runtime object.
 | --- | --- |
 | `view.surface` | `embedded`, `external` (HTTPS `url` required), `none` |
 | `view.chrome` | Embedded only: `hub`, `compact` (default), `seamless` |
-| `capabilities.required` | `storage`, `connections`, `actions`; any unknown required grant blocks validation |
+| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation |
 | `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities` |
 | `data.schemaVersion` | Positive integer, required when requesting storage |
 | `data.quotaBytes` | 1 KiBâ€“10 MiB; default 1 MiB |
+| `widgets` | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
 
 `hub` renders the normal navigation; `compact` renders an app bar; `seamless`
 renders no bars and retains a 44px-or-larger Vela menu outside the app. That
@@ -273,6 +274,62 @@ each distinct bundle as an imported copy before the user applies it inside Meals
 This is a synchronous app-action broker. It runs no scripts, containers,
 arbitrary network calls or native code. See
 [the Meals and Notes guide](APPS.md#meals-and-notes).
+
+### App-provided desk widgets
+
+An app can offer the desk a small summary of itself. It never renders there:
+the app publishes JSON and the host draws it with its own components, always
+labelled with the app it came from. No app code runs on the desk.
+
+Declaration lives in the manifest, so the user sees it at install:
+
+```json
+"capabilities": { "optional": ["widgets"] },
+"widgets": [
+  { "id": "sync", "name": "Sync", "layout": "stat", "size": "m" },
+  { "id": "queued", "name": "Queued changes", "layout": "list", "size": "l" }
+]
+```
+
+`id` matches `^[a-z][a-z0-9-]{0,31}$` and is unique within the app; at most four
+widgets per app; `layout` is `stat`, `progress`, `list` or `actions`; `size` is
+`s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets` without the capability
+fails validation. The install review shows the capability as "Show summaries on
+your desk" and names the declared widgets.
+
+The published summary is a flat JSON object of at most 4 KB. Every field is
+optional — `{}` is valid and means "nothing to report yet":
+
+```json
+{ "value": "73", "unit": "changes", "delta": "+12", "caption": "queued since 02:14",
+  "progress": 32, "rows": [{ "label": "…", "detail": "…" }],
+  "actions": [{ "action": "sync", "label": "Sync now" }],
+  "attention": true, "expiresAt": "2026-09-16T02:14:00Z" }
+```
+
+`value`, `unit`, `delta`, `caption` and every row and action label are text of at
+most 200 characters; `progress` is 0–100; `rows` holds at most eight
+`{label, detail}` pairs; `actions` at most three, each naming one of the app's
+own actions; `attention` is the boolean the rail's dot reads; `expiresAt` is an
+ISO 8601 timestamp after which the desk marks the summary stale. Nothing nests
+further and nothing is rendered as markup.
+
+| Endpoint | Authorization / behavior |
+| --- | --- |
+| `PUT /api/app/widgets/{widgetId}` | App session with the `widgets` grant; 403 without it, 422 for an undeclared id or an invalid field, 413 over 4 KB |
+| `GET /api/apps/{id}/widgets` | Hub; every widget this app declares, each with its latest summary or `null` |
+| `GET /api/widgets` | Hub; the same for every installed app, plus `grantedActions` where a summary offers actions |
+
+The SDK exposes `Vela.widgets.publish(id, summary)`. Summaries are stored in
+`app-data.sqlite` keyed by app id, replaced rather than accumulated, and deleted
+when the app is uninstalled — unlike app data, which survives for a reinstall.
+The desk merges one widget type per declared widget, named `<appId>:<widgetId>`,
+renders it inside the app card chrome, shows "as of …" once a summary is past
+`expiresAt` or older than an hour, and "Open <app> to update" when there is no
+summary yet. An action is offered only when it appears in that app's granted
+actions; choosing it opens the app, because the engine has no host-initiated
+action path and the desk does not act for the user. Notes and Health are the
+first apps to use this.
 
 An automation is the second kind of caller. It holds no app session and cannot
 declare requests in a manifest, so it authorizes differently while sharing the

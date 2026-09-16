@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "id": "widget-fixture",
+  "name": "Widget Fixture",
+  "version": "0.1.0",
+  "description": "A hub-owned fixture that declares desk widgets and publishes a summary.",
+  "category": "Developer",
+  "author": "Vela",
+  "color": "#7c4dee",
+  "compatibility": {
+    "bridge": 1
+  },
+  "runtime": {
+    "static": {
+      "entry": "index.html"
+    }
+  },
+  "view": {
+    "surface": "embedded",
+    "chrome": "compact"
+  },
+  "capabilities": {
+    "required": [
+      "storage",
+      "widgets"
+    ]
+  },
+  "data": {
+    "schemaVersion": 1,
+    "quotaBytes": 1048576
+  },
+  "widgets": [
+    {
+      "id": "sync",
+      "name": "Sync",
+      "layout": "stat",
+      "size": "m"
+    },
+    {
+      "id": "queued",
+      "name": "Queued changes",
+      "layout": "list",
+      "size": "l"
+    }
+  ]
+}

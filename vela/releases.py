@@ -173,6 +173,9 @@ class Releases:
                         'previousVersion': installed.version if installed else None, 'digest': plan['digest'], 'source': source,
                         'capabilities': manifest.capabilities, 'newCapabilities': sorted(set(manifest.capabilities) - old_caps),
                         'operations': manifest.raw.get('connection', {}).get('operations', []),
+                        # Named, so the review can say which summaries this app
+                        # wants to put on the desk rather than only that it does.
+                        'widgets': manifest.widgets,
                         'revision': plan['revision'], 'schemaVersion': schema_version,
                         'dataChanges': value != (json.loads(document['value']) if document else None) or (document and document['schema_version'] != schema_version),
                         'rollback': bool(rollback), 'trustedLegacy': manifest.schema_version == 1, 'expiresIn': 1200}

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { DotsThreeOutline, SignOut } from '@phosphor-icons/react';
 import { railGroup } from '../navigation.js';
 import { useApps } from '../store.jsx';
+import { api } from '../api.js';
+import { useResource } from '../hooks/useResource.js';
 import { useDeveloperTools } from '../developer.js';
 import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
@@ -122,7 +124,7 @@ function MoreMenu({ pages, onNavigate }) {
 // workspace, and again inside the phone drawer, which passes `onNavigate` so
 // choosing a destination closes it. The desk keeps this rail on screen at every
 // width.
-export default function AppRail({ onNavigate, summaries }) {
+export default function AppRail({ onNavigate }) {
   const { apps } = useApps();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
@@ -131,6 +133,13 @@ export default function AppRail({ onNavigate, summaries }) {
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
   const [allApps, setAllApps] = useState(false);
   const allAppsButton = useRef(null);
+
+  // The rail is on screen everywhere, so it reads the published summaries
+  // itself rather than depending on the desk being open. A minute is often
+  // enough for a dot that means "when you get a moment".
+  const loadSummaries = useCallback((options) => api.appWidgets(options), []);
+  const { data } = useResource(loadSummaries, { intervalMs: 60000 });
+  const summaries = data?.widgets;
 
   // An app asks for attention only by saying so in a summary it published
   // itself. The rail never decides on an app's behalf that something is wrong.

@@ -68,6 +68,9 @@
     }),
     connections: Object.freeze({ status: () => invoke('connection.status'), invoke: (operation, payload = {}) => invoke('connection.invoke', { operation, payload }) }),
     actions: Object.freeze({ list: () => invoke('actions.list'), invoke: (app, action, input, key) => invoke('actions.invoke', { app, action, input, key }) }),
+    // Publish one of the widgets this app declared in its manifest. The host
+    // renders the summary itself, so this sends data and never markup.
+    widgets: Object.freeze({ publish: (id, summary = {}) => invoke('widgets.publish', { id, summary }) }),
     navigation: Object.freeze({ returnToApps: () => invoke('navigation.return'), close: () => invoke('navigation.close') }),
     setUnsavedChanges: (dirty) => invoke('navigation.dirty', { dirty: Boolean(dirty), canSave: Boolean(saveHandler) }),
     onSave(callback) { saveHandler = callback; },

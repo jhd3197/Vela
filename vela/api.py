@@ -27,6 +27,7 @@ from .settings import SettingsStore
 from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
+from .widgets import Widgets
 from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
 from .app_services import AppServices
@@ -278,6 +279,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services)
+    widgets = Widgets(storage, registry, actions)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
 
@@ -494,6 +496,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.post("/api/apps/{app_id}/upgrade")
     def upgrade_legacy(app_id: str):
         return lifecycle.upgrade_legacy(app_id)
+
+    @app.put("/api/app/widgets/{widget_id}")
+    def publish_widget(widget_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+        # App session only: an app publishes for itself and nothing else.
+        return widgets.publish(request.state.app_session, widget_id, payload.get("summary"))
+
+    @app.get("/api/apps/{app_id}/widgets")
+    def app_widgets(app_id: str) -> dict:
+        return widgets.for_app(app_id)
+
+    @app.get("/api/widgets")
+    def all_widgets() -> dict:
+        return widgets.all()
 
     @app.get("/api/apps/{app_id}/connection")
     def connection_status(app_id: str):

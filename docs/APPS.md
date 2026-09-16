@@ -63,6 +63,28 @@ overwriting it.
 On a phone, press and hold a widget to start arranging. The phone board is a
 separate board: arranging one never rearranges the other.
 
+## App widgets on the desk
+
+Some apps can show you a line about themselves on your desk. **Add widget**
+groups those under the app's name, beside Vela's own.
+
+An app never draws on your desk. It sends Vela a short summary — a number, a
+few rows, how far something has got — and Vela draws it, always with the app's
+name and icon on it. Nothing an app sends can run, and nothing can be longer
+than a few lines. If an app has not sent anything yet, the widget says so and
+offers to open it. If what it sent is more than an hour old, or the app said it
+would go out of date, Vela shows when it was from instead of pretending it is
+current.
+
+An app has to ask for this when you install it: the permission reads **Show
+summaries on your desk**, and names the widgets it wants to offer. Refuse it and
+the app works exactly as before, with nothing on your desk. Uninstalling an app
+takes its summaries with it.
+
+When an app says something needs you, a small dot appears on its rail icon.
+Only the app can set that — Vela never decides on an app's behalf that
+something is wrong.
+
 ## On a phone
 
 Vela is meant to be used from a phone as well as a computer. Tapping a field

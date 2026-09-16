@@ -2,6 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import Dialog from './ui/Dialog.jsx';
 import { api } from '../api.js';
 
+// What each permission means in the user's words. A capability the engine
+// grants but this list has not named yet falls back to its own id rather than
+// disappearing from the review.
+const CAPABILITY_TEXT = {
+  storage: 'Keep its own data on this computer',
+  connections: 'Use a connection you have set up',
+  actions: 'Ask other apps to do things you allow',
+  widgets: 'Show summaries on your desk',
+};
+
+export function describeCapabilities(capabilities, widgets) {
+  if (!capabilities?.length) return 'None';
+  return capabilities
+    .map((capability) => {
+      const text = CAPABILITY_TEXT[capability] || capability;
+      if (capability !== 'widgets' || !widgets?.length) return text;
+      return `${text} (${widgets.map((widget) => widget.name).join(', ')})`;
+    })
+    .join('; ');
+}
+
 export default function ReleaseReview({ source, onClose, onComplete }) {
   const cancelButton = useRef(null);
   const token = useRef(null);
@@ -71,11 +92,11 @@ export default function ReleaseReview({ source, onClose, onComplete }) {
               </>
             )}
             <dt>Permissions</dt>
-            <dd>{review.capabilities.join(', ') || 'None'}</dd>
+            <dd>{describeCapabilities(review.capabilities, review.widgets)}</dd>
             {review.newCapabilities.length > 0 && (
               <>
                 <dt>New permissions</dt>
-                <dd>{review.newCapabilities.join(', ')}</dd>
+                <dd>{describeCapabilities(review.newCapabilities, review.widgets)}</dd>
               </>
             )}
             {review.operations.length > 0 && (

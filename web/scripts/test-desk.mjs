@@ -53,7 +53,15 @@ try {
     channel: process.env.VELA_BROWSER_CHANNEL || 'chrome',
   });
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
-  await page.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
+  // Init scripts run in every frame, including the sandboxed app view, where
+  // localStorage is deliberately unreachable. Only the hub page needs the flag.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('vela.welcome.v1', 'done');
+    } catch {
+      // A sandboxed app frame has no same-origin storage, and needs none.
+    }
+  });
   // The board settles into its new geometry over 160ms. Measuring mid-flight
   // would make every assertion here a race, so the transition is switched off:
   // the settle animation has its own `prefers-reduced-motion` rule and is not
@@ -242,11 +250,115 @@ try {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   }
 
+  // --- a widget an app provides -------------------------------------------
+  // The fixture app declares two widgets and publishes a summary for each
+  // through the real bridge operation, so this covers the whole contract:
+  // manifest declaration, install review, publish, and host rendering.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(base + '/library');
+  const installed = await page.evaluate(
+    async (folder) => {
+      const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+      const { token } = await session.json();
+      const hub = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const review = await (
+        await fetch('/api/releases/prepare', {
+          method: 'POST',
+          headers: hub,
+          body: JSON.stringify({ folder }),
+        })
+      ).json();
+      if (!review.review) return { error: review.detail || 'prepare failed' };
+      const committed = await fetch(`/api/releases/${review.review}/commit`, {
+        method: 'POST',
+        headers: hub,
+        body: JSON.stringify({
+          capabilities: review.capabilities,
+          operations: review.operations,
+        }),
+      });
+      return {
+        capabilities: review.capabilities,
+        widgets: review.widgets,
+        ok: committed.ok,
+      };
+    },
+    path.join(root, 'tests/fixtures/widget-fixture'),
+  );
+  assert.ok(installed.ok, `installing the widget fixture: ${JSON.stringify(installed)}`);
+  // The review names the widgets the app wants to put on the desk.
+  assert.ok(installed.capabilities.includes('widgets'), JSON.stringify(installed));
+  assert.deepEqual(
+    installed.widgets.map((widget) => widget.id),
+    ['sync', 'queued'],
+  );
+
+  // Opening the app runs its publish through the bridge.
+  await page.goto(base + '/app/widget-fixture');
+  await page.locator('.appview').waitFor();
+  for (let i = 0; i < 100; i++) {
+    const published = await page.evaluate(async () => {
+      const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+      const { token } = await session.json();
+      const response = await fetch('/api/apps/widget-fixture/widgets', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.json();
+    });
+    if (published.widgets?.[0]?.summary) break;
+    if (i === 99) throw new Error('the fixture app never published a summary');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  // The desk offers one type per declared widget, grouped under the app.
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  await add.click();
+  await library.waitFor();
+  await library.getByRole('heading', { name: 'Widget Fixture', exact: true }).waitFor();
+  await library.getByRole('button', { name: /^Sync/ }).click();
+  await library.waitFor({ state: 'detached' });
+  const widget = page.getByRole('region', { name: 'Sync', exact: true });
+  await widget.waitFor();
+  // Rendered by the host, from the published summary, always naming the app.
+  const text = await widget.innerText();
+  assert.match(text, /Widget Fixture/);
+  assert.match(text, /73/);
+  assert.match(text, /queued since 02:14/);
+  await done.click();
+  await arrange.waitFor();
+
+  // The rail raises its dot for the app that asked for attention.
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+
+  // Uninstalling takes the summary and the widget with it, rather than leaving
+  // a frame that can never render again.
+  const removed = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const response = await fetch('/api/apps/widget-fixture', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const all = await (
+      await fetch('/api/widgets', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    return { ok: response.ok, widgets: all.widgets };
+  });
+  assert.ok(removed.ok);
+  assert.deepEqual(removed.widgets, []);
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  assert.ok(!(await labels(page)).includes('Sync'), await labels(page));
+
   assert.deepEqual(errors, []);
   console.log(
     'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; keyboard ' +
       'arrangement is announced; Cancel restores; leaving with unsaved changes asks; removing ' +
-      'persists; the phone board stays its own; long-press arranges; no overflow at 320/390',
+      'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
+      'an app declares, publishes and renders a widget, raises the rail dot, and loses both on uninstall',
   );
 } finally {
   await browser?.close();

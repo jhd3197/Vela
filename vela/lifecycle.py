@@ -86,6 +86,11 @@ class Lifecycle:
             with self.storage.connection() as db:
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='connections'").fetchone():
                     db.execute("DELETE FROM connections WHERE identity IN (SELECT identity FROM installations WHERE app_id=?)", (app_id,))
+                # App data survives uninstall so a reinstall can reattach it.
+                # A published desk summary must not: the desk would keep
+                # showing a line from an app that is no longer there.
+                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='widget_summaries'").fetchone():
+                    db.execute("DELETE FROM widget_summaries WHERE app_id=?", (app_id,))
             self.storage.deactivate(app_id)
             self.registry.uninstall(app_id)
             return {"id": app_id, "installed": False}

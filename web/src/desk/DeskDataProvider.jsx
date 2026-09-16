@@ -17,6 +17,8 @@ const DeskDataContext = createContext(null);
 const METRICS_MS = 10000;
 const FLOWS_MS = 30000;
 const BACKUPS_MS = 60000;
+// App summaries change when an app publishes one, which is a human-scale event.
+const WIDGETS_MS = 20000;
 
 const idle = { data: null, error: null, loaded: false };
 
@@ -39,12 +41,17 @@ function useSource(load, intervalMs) {
 const loadMetrics = () => api.systemMetrics();
 const loadFlows = () => automationsApi.status();
 const loadBackups = () => api.getBackups();
+const loadAppWidgets = () => api.appWidgets();
 
 export function DeskDataProvider({ children }) {
   const metrics = useSource(loadMetrics, METRICS_MS);
   const flows = useSource(loadFlows, FLOWS_MS);
   const backups = useSource(loadBackups, BACKUPS_MS);
-  const value = useMemo(() => ({ metrics, flows, backups }), [metrics, flows, backups]);
+  const appWidgets = useSource(loadAppWidgets, WIDGETS_MS);
+  const value = useMemo(
+    () => ({ metrics, flows, backups, appWidgets }),
+    [metrics, flows, backups, appWidgets],
+  );
   return <DeskDataContext.Provider value={value}>{children}</DeskDataContext.Provider>;
 }
 

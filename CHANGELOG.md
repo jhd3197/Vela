@@ -8,6 +8,15 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Apps can put a summary on your desk.** An app may declare up to four widgets
+  and publish a short summary for each — a number, a few rows, or how far
+  something has got. Vela draws them itself, always labelled with the app they
+  came from, and nothing the app sends can run. The permission is asked for at
+  install as "Show summaries on your desk" and names the widgets; refuse it and
+  the app works as before. A summary that is out of date says when it was from,
+  one that has not arrived yet offers to open the app, and an app that says
+  something needs you raises a dot on its rail icon. Uninstalling an app removes
+  its summaries. Notes and Health are the first two apps to use this.
 - **Arrange your desk.** Add widgets from a grouped list, move and resize them
   by dragging or with the arrow keys, duplicate or remove them from each
   widget's own menu, and undo or redo while you work. **Done** saves the board
