@@ -26,6 +26,7 @@ import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
+import { DEFAULT_WALLPAPER, useWallpaperFlags } from '../desk/wallpaper.js';
 import useEditingSession from '../desk/editing/useEditingSession.js';
 import { appIdOfType, APP_WIDGET_SIZES, useWidgetTypes } from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
@@ -68,20 +69,15 @@ export default function Desk() {
   const { data: settings } = useResource(loadSettings);
   const [deskPrefs, setDeskPrefs] = useState(null);
   const desk = useMemo(
-    () => deskPrefs || settings?.desk || { wallpaper: 'lake', dim: true, labels: true },
+    () => deskPrefs || settings?.desk || { wallpaper: DEFAULT_WALLPAPER, dim: true, labels: true },
     [deskPrefs, settings],
   );
 
-  // The wallpaper and the two display toggles belong to the whole shell, so
-  // they ride on the same body element the desk flag does.
-  useEffect(() => {
-    document.body.dataset.deskWallpaper = desk.wallpaper || 'lake';
-    document.body.dataset.deskDim = desk.dim === false ? 'off' : 'on';
-    return () => {
-      delete document.body.dataset.deskWallpaper;
-      delete document.body.dataset.deskDim;
-    };
-  }, [desk.wallpaper, desk.dim]);
+  // The wallpaper and the dim toggle belong to the whole shell, so they ride on
+  // the same body element the desk flag does. The Launchpad floats over the same
+  // picture and sets them the same way, which is why the rules live in
+  // `wallpaper.js` rather than in either page.
+  useWallpaperFlags(desk);
 
   const [edit, setEdit] = useState(false);
   const [selected, setSelected] = useState(null);

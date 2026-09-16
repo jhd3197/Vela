@@ -1189,13 +1189,19 @@ restrained 14px card corners), in light and dark.
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
 - **Personalise** (a desk control, and a long press on bare wallpaper on a
-  phone): the wallpaper — bundled `lake` (a photograph), `sage` and `night`
-  (gradients), or `custom` — plus **Dim the wallpaper**, **Show app names** and
+  phone): the wallpaper — the eight painted images `choroni` (the default),
+  `paramo`, `medanos`, `chiguire`, `pueblo`, `avila`, `castillo` and `canaima`,
+  the `sage` and `night` gradients, `daily` (a standing choice that resolves to
+  one of the painted set by the local day of the year and moves on at midnight),
+  or `custom` — plus **Dim the wallpaper**, **Show app names** and
   **Ask on this board**, which adds or removes that board's Ask widget and saves
   immediately. `GET/PUT/DELETE /api/wallpaper` stores one image in the data
   directory: JPEG, PNG or WebP only, checked against its own header rather than
   its declared type, at most 8 MB, replaced rather than accumulated, and
-  removing it returns the desk to `lake`.
+  removing it returns the desk to `choroni`. The drawn picture rides on
+  `data-desk-wallpaper` and the standing choice on `data-desk-choice`, which
+  differ only under `daily`; `data-desk-tone` carries a per-image `light`/`dark`
+  hint that nudges the overlay so widget text stays readable over either.
 - **Desk widgets and their sources**: `clock` (the browser's clock),
   `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
   `system` and `volume` (`GET /api/system/metrics`), `flows`

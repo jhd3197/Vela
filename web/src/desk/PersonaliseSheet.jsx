@@ -6,16 +6,20 @@
 import { useRef, useState } from 'react';
 import { Check, Trash, UploadSimple } from '@phosphor-icons/react';
 import { api } from '../api.js';
+import { BUNDLED_WALLPAPERS, DEFAULT_WALLPAPER, dailyWallpaper } from './wallpaper.js';
 import Drawer from '../components/ui/Drawer.jsx';
 import Button from '../components/ui/Button.jsx';
 
-// `lake` is a photograph that ships with the dashboard; the other two are
-// gradients drawn in CSS, so they cost nothing to bundle and stay sharp at any
-// size. `custom` is the image the user uploaded.
+// The eight painted places ship as images; `sage` and `night` are gradients
+// drawn in CSS, so they cost nothing to bundle and stay sharp at any size.
+// `daily` is not a picture but a standing choice: rotate through the painted
+// set, a new one at each local midnight. `custom` is the image the user
+// uploaded.
 export const WALLPAPERS = [
-  { id: 'lake', name: 'Lake' },
+  ...BUNDLED_WALLPAPERS.map(({ id, name }) => ({ id, name })),
   { id: 'sage', name: 'Sage' },
   { id: 'night', name: 'Night' },
+  { id: 'daily', name: 'Daily' },
 ];
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -69,7 +73,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setNote('');
     try {
       await api.deleteWallpaper();
-      onChange({ ...desk, wallpaper: 'lake' });
+      onChange({ ...desk, wallpaper: DEFAULT_WALLPAPER });
     } catch (error) {
       setNote(error.message || 'Could not remove it.');
     } finally {
@@ -78,6 +82,16 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
   };
 
   const choices = [...WALLPAPERS, { id: 'custom', name: 'Yours' }];
+
+  // The painted set and Daily preview as real thumbnails, which is why they
+  // carry an inline image rather than a rule each; the gradients and the
+  // uploaded image keep their CSS previews. Daily shows the picture it would
+  // draw today, so the choice is not a mystery until midnight.
+  const thumb = (id) => {
+    const painted = id === 'daily' ? dailyWallpaper() : id;
+    if (!BUNDLED_WALLPAPERS.some((wall) => wall.id === painted)) return undefined;
+    return { backgroundImage: `url('/wallpapers/thumbs/${painted}.jpg')` };
+  };
 
   return (
     <Drawer open onClose={onClose} aria-label="Personalise" panelClassName="personalise">
@@ -103,7 +117,11 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
                 aria-pressed={desk.wallpaper === choice.id}
                 onClick={() => patch({ wallpaper: choice.id })}
               >
-                <span className="personalise-wall-preview" aria-hidden="true" />
+                <span
+                  className="personalise-wall-preview"
+                  style={thumb(choice.id)}
+                  aria-hidden="true"
+                />
                 <span className="personalise-wall-name">
                   {choice.name}
                   {desk.wallpaper === choice.id && <Check size={14} weight="bold" />}
@@ -131,7 +149,10 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
             aria-label="Choose a wallpaper image"
             onChange={upload}
           />
-          <p className="panel-note">JPEG, PNG or WebP, up to 8 MB. It stays on this computer.</p>
+          <p className="panel-note">
+            Daily moves through the painted set, a new one each midnight. Your own image can be
+            JPEG, PNG or WebP, up to 8 MB. It stays on this computer.
+          </p>
         </section>
 
         <section className="personalise-section">

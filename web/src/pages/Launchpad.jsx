@@ -20,7 +20,7 @@ import useSwipe from '../hooks/useSwipe.js';
 import { PHONE } from '../breakpoints.js';
 import { coreApps } from '../navigation.js';
 import { launchpadReturnTo } from '../shortcuts.js';
-import { useWallpaperBody } from '../desk/wallpaper.js';
+import { DEFAULT_WALLPAPER, useWallpaperBody } from '../desk/wallpaper.js';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import GlobalSearch from '../components/GlobalSearch.jsx';
 import AppIcon from '../components/AppIcon.jsx';
@@ -37,7 +37,7 @@ import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 function useDeskPrefs() {
   const load = useCallback((options) => api.getSettings(options), []);
   const { data } = useResource(load);
-  return data?.desk || { wallpaper: 'lake', dim: true };
+  return data?.desk || { wallpaper: DEFAULT_WALLPAPER, dim: true };
 }
 
 // The full-screen app grid. Every installed app, Vela's own tools, and a way to

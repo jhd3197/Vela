@@ -4,7 +4,11 @@
    which is translucent. The body flag is set by Desk.jsx while the route is
    mounted and removed on the way out, so no other page inherits it. */
 body[data-desk] {
-  --desk-wallpaper: url('/wallpapers/lake.jpg');
+  --desk-wallpaper: url('/wallpapers/choroni.jpg');
+  /* A bright or dark picture needs a little more or a little less veil than the
+     mid-tone the overlay above is drawn for. The tone flag carries that nudge,
+     which keeps it independent of the theme and of dimming. */
+  --desk-tone-veil: transparent;
   /* The mockup overlay: darkest at the rail edge, lifting across the board so
      widget surfaces stay readable without flattening the image. */
   --desk-overlay: linear-gradient(
@@ -31,9 +35,53 @@ body[data-desk] {
   );
 }
 
-/* `lake` is a bundled photograph; `sage` and `night` are gradients, which cost
-   nothing to ship and stay sharp at any size. `custom` is the user's own image,
-   served from their data directory. */
+/* The painted set: eight places drawn for Vela, shipped as images. `sage` and
+   `night` are gradients, which cost nothing to ship and stay sharp at any size.
+   `custom` is the user's own image, served from their data directory. `daily`
+   never reaches here: it resolves to one of the painted ids in `wallpaper.js`
+   before the flag is set. */
+body[data-desk][data-desk-wallpaper='choroni'] {
+  --desk-wallpaper: url('/wallpapers/choroni.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='paramo'] {
+  --desk-wallpaper: url('/wallpapers/paramo.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='medanos'] {
+  --desk-wallpaper: url('/wallpapers/medanos.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='chiguire'] {
+  --desk-wallpaper: url('/wallpapers/chiguire.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='pueblo'] {
+  --desk-wallpaper: url('/wallpapers/pueblo.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='avila'] {
+  --desk-wallpaper: url('/wallpapers/avila.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='castillo'] {
+  --desk-wallpaper: url('/wallpapers/castillo.jpg');
+}
+
+body[data-desk][data-desk-wallpaper='canaima'] {
+  --desk-wallpaper: url('/wallpapers/canaima.jpg');
+}
+
+/* Bright pictures take a touch more veil, dark ones a touch less, so the same
+   widget text reads over Chigüire's midday sand and over the Ávila at dusk. */
+body[data-desk][data-desk-tone='light'] {
+  --desk-tone-veil: rgba(16, 18, 28, 0.16);
+}
+
+body[data-desk][data-desk-tone='dark'] {
+  --desk-tone-veil: rgba(255, 255, 255, 0.05);
+}
+
 body[data-desk][data-desk-wallpaper='sage'] {
   --desk-wallpaper: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
 }
@@ -49,6 +97,7 @@ body[data-desk][data-desk-wallpaper='custom'] {
 /* Dimming is what keeps widget text readable over a bright picture, so turning
    it off is a real choice rather than a preview. */
 body[data-desk][data-desk-dim='off'] {
+  --desk-tone-veil: transparent;
   --desk-overlay: linear-gradient(
     100deg,
     rgba(18, 20, 32, 0.24),
@@ -71,7 +120,7 @@ body[data-desk] .shell::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--desk-overlay);
+  background: linear-gradient(var(--desk-tone-veil), var(--desk-tone-veil)), var(--desk-overlay);
 }
 
 /* The wallpaper replaces the ambient glow rather than stacking with it. */

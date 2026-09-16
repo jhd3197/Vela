@@ -205,7 +205,7 @@ window.fetch = async (input, init) => {
       data_dir: 'C:\\fixture\\.vela',
     });
   if (url.includes('/api/platforms')) return json({ current: 'windows', supported: ['windows'] });
-  if (url.includes('/api/settings')) return json({ desk: { wallpaper: 'lake', dim: true } });
+  if (url.includes('/api/settings')) return json({ desk: { wallpaper: 'choroni', dim: true } });
   if (url.includes('/api/notifications')) return json({ notifications: [] });
   if (url.startsWith('/api/')) return json({});
   return real(input, init);

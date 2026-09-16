@@ -464,14 +464,81 @@ try {
     page.evaluate(
       () => getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
     );
-  assert.match(await wallpaperOf(), /wallpapers\/lake\.jpg/);
-  await sheet.getByRole('button', { name: /^Night/ }).click();
-  await page.waitForFunction(
-    () =>
-      !getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage.includes(
-        'lake.jpg',
-      ),
+  assert.match(await wallpaperOf(), /wallpapers\/choroni\.jpg/);
+
+  // The painted set previews as real thumbnails rather than empty swatches, so
+  // a picture can be chosen by looking at it. Gradients keep their CSS preview.
+  const painted = await sheet.evaluate((panel) =>
+    [...panel.querySelectorAll('.personalise-wall')]
+      .filter((wall) =>
+        getComputedStyle(wall.querySelector('.personalise-wall-preview')).backgroundImage.includes(
+          '/wallpapers/thumbs/',
+        ),
+      )
+      .map((wall) => wall.dataset.wallpaper),
   );
+  assert.equal(
+    painted.filter((id) => id !== 'daily').length,
+    8,
+    `painted wallpapers with a thumbnail: ${painted.join(', ')}`,
+  );
+  assert.ok(painted.includes('daily'), 'Daily previews the picture it would draw today');
+
+  // Choosing a painted wallpaper changes the picture the shell draws, and the
+  // tone hint rides along so the overlay can keep widget text readable.
+  await sheet.getByRole('button', { name: /^Páramo/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'paramo');
+  assert.match(await wallpaperOf(), /wallpapers\/paramo\.jpg/);
+  assert.equal(await page.evaluate(() => document.body.dataset.deskTone), 'dark');
+
+  // Daily is a standing choice, not a picture: it stays selected while the id
+  // underneath it follows the date.
+  await sheet.getByRole('button', { name: /^Daily/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskChoice === 'daily');
+  assert.equal(
+    await sheet.getByRole('button', { name: /^Daily/ }).getAttribute('aria-pressed'),
+    'true',
+    'Daily stays the selected choice, not the picture it resolved to',
+  );
+
+  // Checking which picture Daily lands on means fixing a date. The frozen clock
+  // gets a page of its own, because the rest of this suite needs a moving one.
+  // April 8th is the 98th day and the painted set has eight pictures, so the
+  // rotation lands on Médanos.
+  // The page carries the first one's storage, so it brings the hub session and
+  // the welcome flag along rather than meeting a login screen.
+  const datedContext = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    storageState: await page.context().storageState(),
+  });
+  const dated = await datedContext.newPage();
+  await dated.addInitScript((stamp) => {
+    const fixed = new Date(stamp).getTime();
+    const Real = Date;
+    globalThis.Date = class extends Real {
+      constructor(...args) {
+        super(...(args.length ? args : [fixed]));
+      }
+      static now() {
+        return fixed;
+      }
+    };
+  }, '2026-04-08T10:00:00');
+  await dated.goto(base + '/');
+  await dated.locator('.desk-grid').waitFor();
+  // The board draws before the stored preferences arrive, so the flags start at
+  // the default and settle a moment later. Waiting for the stored choice is what
+  // makes the picture underneath it worth asserting.
+  await dated.waitForFunction(() => document.body.dataset.deskChoice === 'daily');
+  assert.equal(
+    await dated.evaluate(() => document.body.dataset.deskWallpaper),
+    'medanos',
+    'Daily resolves by the date',
+  );
+  await datedContext.close();
+
+  await sheet.getByRole('button', { name: /^Night/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'night');
   assert.match(await wallpaperOf(), /gradient/);
 
   // The display toggles are real settings the server keeps, not previews.
@@ -518,7 +585,7 @@ try {
   await sheet.waitFor();
   await sheet.getByLabel('Ask on this board').click();
   await page.getByRole('region', { name: 'Ask', exact: true }).waitFor();
-  await sheet.getByRole('button', { name: /^Lake/ }).click();
+  await sheet.getByRole('button', { name: /^Choroní/ }).click();
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
 

@@ -771,7 +771,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def delete_wallpaper() -> dict:
         result = wallpaper.remove()
         if (settings.get("desk") or {}).get("wallpaper") == "custom":
-            settings.patch({"desk": {"wallpaper": "lake"}})
+            settings.patch({"desk": {"wallpaper": "choroni"}})
         return result
 
     @app.get("/api/desk")

@@ -95,11 +95,15 @@ separate board: arranging one never rearranges the other.
 
 ## Make the desk yours
 
-**Personalise**, in the desk menu, sets what the desk looks like. Pick one of the
-wallpapers Vela ships with, or **Use your own** — a JPEG, PNG or WebP up to 8 MB,
-which stays on your own computer and is never sent anywhere. **Dim the
-wallpaper** keeps widget text readable over a bright picture; turn it off if you
-would rather see the photograph. **Show app names** switches between named tiles
+**Personalise**, in the desk menu, sets what the desk looks like. Vela ships
+eight painted places — Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila,
+Castillo and Canaima — plus the Sage and Night gradients. **Daily** rotates
+through the painted set, moving to the next picture at midnight. Or pick **Use
+your own** — a JPEG, PNG or WebP up to 8 MB, which stays on your own computer and
+is never sent anywhere. The bundled wallpapers are Vela's own generated artwork,
+so there is no third-party licence to honour when you share a screenshot.
+**Dim the wallpaper** keeps widget text readable over a bright picture; turn it
+off if you would rather see the picture. **Show app names** switches between named tiles
 and icons only, and **Ask on this board** adds or removes the Ask widget from
 whichever board you are looking at.
 

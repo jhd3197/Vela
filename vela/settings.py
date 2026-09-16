@@ -22,13 +22,30 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The desk: which volumes it may show, and how it is dressed. `volumes` is
     # a list of {path, label}; it stays empty until the user names one, because
     # Vela does not go looking through the computer's drives on its own.
-    "desk": {"volumes": [], "wallpaper": "lake", "dim": True, "labels": True},
+    "desk": {"volumes": [], "wallpaper": "choroni", "dim": True, "labels": True},
     # The rail: which apps the user pinned to it, in the order they chose.
     # Entries are core-app ids (ask, library, …) or installed-app ids; the
     # dashboard drops any that no longer resolve. Defaults to Ask and the
     # Marketplace.
     "rail": {"pinned": ["ask", "library"]},
 }
+
+# Wallpapers that no longer ship, and what a desk still set to one now draws.
+# `lake` was a stock photograph with no licence anyone could point to; it was
+# removed rather than re-licensed. Normalising on read rather than rewriting the
+# file keeps this a display concern: nothing the user chose is overwritten
+# behind their back, and the picker shows the picture they are actually seeing.
+RETIRED_WALLPAPERS = {"lake": "choroni"}
+
+
+def _normalize_desk(desk: Any) -> Any:
+    if not isinstance(desk, dict):
+        return desk
+    replacement = RETIRED_WALLPAPERS.get(desk.get("wallpaper"))
+    if replacement:
+        desk = {**desk, "wallpaper": replacement}
+    return desk
+
 
 # The most pins the rail will store. Far more than fit on screen, but a bound
 # keeps a malformed patch from growing settings.json without limit.
@@ -96,8 +113,8 @@ class SettingsStore:
             value = data[key]
             base = DEFAULT_SETTINGS.get(key)
             if isinstance(value, dict) and isinstance(base, dict):
-                return _deep_merge(base, value)
-            return value
+                value = _deep_merge(base, value)
+            return _normalize_desk(value) if key == "desk" else value
         if key in DEFAULT_SETTINGS:
             return deepcopy(DEFAULT_SETTINGS[key])
         return default
@@ -127,6 +144,7 @@ class SettingsStore:
                 view[key] = _deep_merge(view[key], value)
             else:
                 view[key] = deepcopy(value)
+        view["desk"] = _normalize_desk(view.get("desk"))
         ntfy = view.get("ntfy_config")
         if isinstance(ntfy, dict):
             ntfy["passConfigured"] = bool(ntfy.pop("pass", ""))

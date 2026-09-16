@@ -48,6 +48,44 @@ class WallpaperApiTests(unittest.TestCase):
             "/api/wallpaper", headers={**self.hub, "Content-Type": content_type}, content=content
         )
 
+    def test_a_fresh_desk_draws_the_default_painted_wallpaper(self):
+        # The desk must have something to draw before the user chooses anything,
+        # and it is one of the painted set Vela ships rather than stock imagery.
+        desk = self.client.get("/api/settings", headers=self.hub).json()["desk"]
+        self.assertEqual(desk["wallpaper"], "choroni")
+        bundled = ROOT / "web/public/wallpapers"
+        self.assertTrue((bundled / "choroni.jpg").is_file())
+        self.assertTrue((bundled / "thumbs/choroni.jpg").is_file())
+        # The unlicensed stock photograph is gone, not merely unreferenced.
+        self.assertFalse((bundled / "lake.jpg").exists())
+
+    def test_every_painted_wallpaper_ships_with_a_thumbnail(self):
+        painted = [
+            "choroni",
+            "paramo",
+            "medanos",
+            "chiguire",
+            "pueblo",
+            "avila",
+            "castillo",
+            "canaima",
+        ]
+        bundled = ROOT / "web/public/wallpapers"
+        for name in painted:
+            with self.subTest(wallpaper=name):
+                self.assertTrue((bundled / f"{name}.jpg").is_file())
+                self.assertTrue((bundled / "thumbs" / f"{name}.jpg").is_file())
+
+    def test_a_desk_still_set_to_the_retired_photograph_draws_the_default(self):
+        # The stock photograph was removed, not re-licensed. A settings file
+        # written before that must still name a picture the desk can draw.
+        self.client.patch("/api/settings", headers=self.hub, json={"desk": {"wallpaper": "night"}})
+        stored = json.loads((self.config.data_dir / "settings.json").read_text(encoding="utf-8"))
+        stored["desk"]["wallpaper"] = "lake"
+        (self.config.data_dir / "settings.json").write_text(json.dumps(stored), encoding="utf-8")
+        desk = self.client.get("/api/settings", headers=self.hub).json()["desk"]
+        self.assertEqual(desk["wallpaper"], "choroni")
+
     def test_no_wallpaper_is_a_404_not_an_error(self):
         self.assertEqual(self.client.get("/api/wallpaper", headers=self.hub).status_code, 404)
 
@@ -104,7 +142,8 @@ class WallpaperApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/wallpaper", headers=self.hub).status_code, 404)
         # The desk must still have something to draw.
         self.assertEqual(
-            self.client.get("/api/settings", headers=self.hub).json()["desk"]["wallpaper"], "lake"
+            self.client.get("/api/settings", headers=self.hub).json()["desk"]["wallpaper"],
+            "choroni",
         )
         # Removing nothing is not an error.
         again = self.client.delete("/api/wallpaper", headers=self.hub)

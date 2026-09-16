@@ -197,7 +197,7 @@ class SettingsEndpointTests(unittest.TestCase):
     def test_desk_settings_default_and_reject_an_unknown_volume_path(self):
         settings = self.client.get("/api/settings", headers=self.hub).json()
         self.assertEqual(
-            settings["desk"], {"volumes": [], "wallpaper": "lake", "dim": True, "labels": True}
+            settings["desk"], {"volumes": [], "wallpaper": "choroni", "dim": True, "labels": True}
         )
         missing = str(self.root / "nowhere")
         response = self.client.patch(
@@ -220,7 +220,7 @@ class SettingsEndpointTests(unittest.TestCase):
         stored = self.client.get("/api/settings", headers=self.hub).json()["desk"]
         self.assertEqual(stored["volumes"], [{"path": str(media), "label": "Media"}])
         # Patching one desk key leaves the others alone.
-        self.assertEqual(stored["wallpaper"], "lake")
+        self.assertEqual(stored["wallpaper"], "choroni")
 
 
 if __name__ == "__main__":

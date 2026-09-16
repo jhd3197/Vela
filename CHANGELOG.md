@@ -59,6 +59,14 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Eight painted wallpapers, and a new one each day if you like.** Personalise
+  now offers Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila, Castillo and
+  Canaima — places drawn for Vela rather than stock photography — each shown as
+  a thumbnail you can pick by looking at it. **Daily** rotates through them,
+  moving to the next picture at midnight. Choroní is what a new desk opens on.
+  The Sage and Night gradients and your own uploaded image are unchanged, and
+  Vela nudges the shading behind your widgets to suit a bright or a dark
+  picture so the text over it stays readable either way.
 - **Keyboard shortcuts and phone gestures.** Press **?** (or **Ctrl+/**) for the
   full list: **Ctrl+K** searches, **Ctrl+Space** opens or closes the Launchpad,
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
@@ -155,6 +163,9 @@ until the release workflow prepares a tested server version.
 
 ### Removed
 
+- **The stock lake photograph no longer ships.** It had no licence anyone could
+  point to. Desks still set to it open on Choroní instead; nothing you chose
+  yourself is affected, and an uploaded wallpaper is untouched.
 - **The All apps drawer is gone.** Its job — every app in one place — is the
   Launchpad now, so there is one answer to "which apps do I have" instead of a
   drawer, a Manage apps page and the Library all showing the same set.

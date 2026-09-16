@@ -240,7 +240,7 @@ try {
       box.past <= 1,
       `a widget hangs past the board at ${size.width}: ${JSON.stringify(box)}`,
     );
-    assert.ok(box.wallpaper.includes('wallpapers/lake.jpg'), `desk wallpaper: ${box.wallpaper}`);
+    assert.ok(box.wallpaper.includes('wallpapers/choroni.jpg'), `desk wallpaper: ${box.wallpaper}`);
   }
   // Leaving the desk takes the wallpaper with it.
   await page.goto(base + '/library');
