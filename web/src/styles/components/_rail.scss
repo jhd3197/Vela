@@ -1,0 +1,20 @@
+/* The foot avatar: one letter standing for whoever this Vela belongs to. It is
+   the same size as a rail control so the column stays even, with the accent as
+   its ground because it is an identity rather than a destination. */
+.rail-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.rail-avatar-item:hover .rail-avatar,
+.rail-avatar-item:focus-visible .rail-avatar {
+  background: var(--accent-strong);
+}

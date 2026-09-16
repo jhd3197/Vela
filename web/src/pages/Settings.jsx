@@ -1,6 +1,7 @@
 import Button from '../components/ui/Button.jsx';
 import FormField from '../components/ui/FormField.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
+import Drawer from '../components/ui/Drawer.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -13,6 +14,9 @@ import {
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
+  ArrowCircleUp,
+  Stethoscope,
+  Folder,
   SquaresFour,
   Trash,
   Palette,
@@ -30,6 +34,8 @@ import { getTheme, setTheme } from '../theme.js';
 import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
 import SecuritySection from '../components/security/SecuritySection.jsx';
+import HealthSection from '../components/HealthSection.jsx';
+import UpdatesSection from '../components/UpdatesSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
@@ -410,25 +416,49 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
 function BackupsSection({ onPendingChange }) {
   const { pushToast } = useApps();
   const [backups, setBackups] = useState(null);
+  const [stats, setStats] = useState(null);
   const [creating, setCreating] = useState(false);
   const [verifying, setVerifying] = useState(null); // name being verified
+  const [restoring, setRestoring] = useState(null); // name being restored
+  const [confirmName, setConfirmName] = useState(''); // typed to confirm
+  const [drawer, setDrawer] = useState(null); // the backup being restored
   const [results, setResults] = useState({}); // name -> { ok, text }
   const [note, setNote] = useState(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const cancelRef = useRef(null);
+
+  const busy = creating || verifying !== null || restoring !== null || savingSchedule;
   useEffect(() => {
-    onPendingChange('backups', creating || verifying !== null);
+    onPendingChange('backups', busy);
     return () => onPendingChange('backups', false);
-  }, [creating, verifying, onPendingChange]);
+  }, [busy, onPendingChange]);
 
   const refresh = () => {
     api
       .getBackups()
       .then((data) => setBackups(data.backups || []))
       .catch(() => setBackups([]));
+    api
+      .backupStats()
+      .then(setStats)
+      .catch(() => setStats(null));
   };
 
   useEffect(() => {
     refresh();
   }, []);
+
+  const schedule = stats?.schedule;
+
+  const saveSchedule = (change) => {
+    setSavingSchedule(true);
+    setNote(null);
+    api
+      .updateSettings({ backups: { schedule: { ...schedule, ...change } } })
+      .then(() => refresh())
+      .catch((err) => setNote({ kind: 'err', text: err.message || 'Could not save the schedule.' }))
+      .finally(() => setSavingSchedule(false));
+  };
 
   const create = () => {
     setCreating(true);
@@ -450,12 +480,13 @@ function BackupsSection({ onPendingChange }) {
       .verifyBackup(name)
       .then((r) => {
         const manifests = r.manifests?.length ?? 0;
+        const files = r.files?.length ?? 0;
         setResults((prev) => ({
           ...prev,
           [name]: r.ok
             ? {
                 ok: true,
-                text: `Restore drill passed — ${r.files} file${r.files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.`,
+                text: `Restore drill passed — ${files} file${files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.`,
               }
             : { ok: false, text: 'Restore drill failed — this backup may not restore cleanly.' },
         }));
@@ -469,62 +500,219 @@ function BackupsSection({ onPendingChange }) {
       .finally(() => setVerifying(null));
   };
 
+  const restore = () => {
+    const name = drawer;
+    setRestoring(name);
+    setNote(null);
+    api
+      .restoreBackup(name)
+      .then((result) => {
+        setDrawer(null);
+        setConfirmName('');
+        pushToast(`Restored ${name}.`, 'success');
+        setNote({
+          kind: 'ok',
+          text:
+            `Restored ${name}. A copy of what it replaced was saved as ${result.safety}.` +
+            (result.failedToRestart?.length
+              ? ` ${result.failedToRestart.join(', ')} did not start again — open it to try.`
+              : ''),
+        });
+        refresh();
+      })
+      .catch((err) => setNote({ kind: 'err', text: err.message || 'Restore failed.' }))
+      .finally(() => setRestoring(null));
+  };
+
   return (
-    <section className="panel" id="settings-backups">
-      <div className="panel-head">
-        <h2>Backups</h2>
-        <Button size="small" variant="primary" disabled={creating} onClick={create}>
-          <Plus size={14} />
-          {creating ? 'Creating…' : 'Create backup'}
-        </Button>
-      </div>
-      <p className="panel-note" style={{ marginBottom: 14 }}>
-        Snapshots of hub state and installed app data. Verify runs a restore drill in an isolated
-        folder — live data is never touched.
-      </p>
-      {backups === null && <p className="panel-note">Checking…</p>}
-      {note && (
-        <p
-          className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
-          role={note.kind === 'err' ? 'alert' : 'status'}
-        >
-          {note.text}
+    <>
+      <section className="panel" id="settings-backups">
+        <div className="panel-head">
+          <h2>Backups</h2>
+          <Button size="small" variant="primary" disabled={busy} onClick={create}>
+            <Plus size={14} />
+            {creating ? 'Creating…' : 'Create backup'}
+          </Button>
+        </div>
+
+        {/* What is protected right now, before anything about how. */}
+        <dl className="fact-grid">
+          <div className="fact">
+            <dt>Last backup</dt>
+            <dd>{stats?.lastSuccessAt ? relTime(stats.lastSuccessAt) : 'Never'}</dd>
+          </div>
+          <div className="fact">
+            <dt>Next backup</dt>
+            <dd>
+              {schedule?.nextRunAt
+                ? new Date(schedule.nextRunAt).toLocaleString(undefined, {
+                    weekday: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Not scheduled'}
+            </dd>
+          </div>
+          <div className="fact">
+            <dt>Kept</dt>
+            <dd>{stats ? `${stats.count} · ${formatBytes(stats.totalSize)}` : '—'}</dd>
+          </div>
+        </dl>
+
+        <p className="panel-note">
+          A backup copies your settings, which apps are installed and what they saved. Logs and
+          wallpapers are not included. Verify runs a restore drill in an isolated folder — your live
+          data is never touched by it.
         </p>
-      )}
-      {backups !== null && backups.length === 0 && (
-        <p className="panel-note">No backups yet. Create the first snapshot.</p>
-      )}
-      {backups !== null && backups.length > 0 && (
-        <ul className="mini-list">
-          {backups.map((b) => {
-            const result = results[b.name];
-            return (
-              <li key={b.name} className="backup-row">
-                <ShieldCheck
-                  size={16}
-                  className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
-                />
-                <span className="backup-main">
-                  <span className="mini-list-name mono">{b.name}</span>
-                  <span className="backup-meta">
-                    {relTime(b.created_at)} · {formatBytes(b.size)}
-                    {result && (
-                      <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
-                        {' '}
-                        — {result.text}
-                      </span>
-                    )}
+
+        {note && (
+          <p
+            className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
+            role={note.kind === 'err' ? 'alert' : 'status'}
+          >
+            {note.text}
+          </p>
+        )}
+
+        {/* The schedule. Off by default: Vela does not start writing copies on
+            a timer until someone asks it to. */}
+        <div className="settings-row">
+          <div>
+            <h3 id="backup-schedule-label">Back up automatically</h3>
+            <p>
+              Once a day, at the time you choose
+              {schedule?.timezone ? `, by this computer's clock (${schedule.timezone})` : ''}. A run
+              missed because Vela was off is not made up later.
+            </p>
+          </div>
+          <button
+            className={`switch${schedule?.enabled ? ' switch-on' : ''}`}
+            role="switch"
+            aria-checked={Boolean(schedule?.enabled)}
+            aria-labelledby="backup-schedule-label"
+            disabled={busy || !schedule}
+            onClick={() => saveSchedule({ enabled: !schedule.enabled })}
+          />
+        </div>
+
+        {schedule?.enabled && (
+          <div className="field-row">
+            <FormField label="At">
+              <input
+                type="time"
+                value={schedule.time}
+                disabled={busy}
+                onChange={(event) => saveSchedule({ time: event.target.value })}
+              />
+            </FormField>
+            <FormField label="Backups to keep" hint="Older ones are removed automatically.">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={schedule.keep}
+                disabled={busy}
+                onChange={(event) => saveSchedule({ keep: Number(event.target.value) })}
+              />
+            </FormField>
+          </div>
+        )}
+
+        {backups === null && <p className="panel-note">Checking…</p>}
+        {backups !== null && backups.length === 0 && (
+          <p className="panel-note">No backups yet. Create the first snapshot.</p>
+        )}
+        {backups !== null && backups.length > 0 && (
+          <ul className="mini-list">
+            {backups.map((b) => {
+              const result = results[b.name];
+              return (
+                <li key={b.name} className="backup-row">
+                  <ShieldCheck
+                    size={16}
+                    className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
+                  />
+                  <span className="backup-main">
+                    <span className="mini-list-name mono">{b.name}</span>
+                    <span className="backup-meta">
+                      {relTime(b.created_at)} · {formatBytes(b.size)}
+                      {b.safety ? ' · taken before a restore' : ''}
+                      {result && (
+                        <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
+                          {' '}
+                          — {result.text}
+                        </span>
+                      )}
+                    </span>
                   </span>
-                </span>
-                <Button size="small" disabled={verifying === b.name} onClick={() => verify(b.name)}>
-                  {verifying === b.name ? 'Verifying…' : 'Verify'}
-                </Button>
-              </li>
-            );
-          })}
+                  <Button size="small" disabled={busy} onClick={() => verify(b.name)}>
+                    {verifying === b.name ? 'Verifying…' : 'Verify'}
+                  </Button>
+                  <Button
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      setConfirmName('');
+                      setDrawer(b.name);
+                    }}
+                  >
+                    Restore
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Restoring replaces live files and stops running apps, so it says so in
+          full and asks for the name to be typed. */}
+      <Drawer
+        open={Boolean(drawer)}
+        onClose={() => setDrawer(null)}
+        pending={restoring !== null}
+        initialFocusRef={cancelRef}
+        aria-label="Restore a backup"
+      >
+        <h2>Restore {drawer}?</h2>
+        <p className="panel-note">This puts back, as they were in that backup:</p>
+        <ul className="panel-note restore-list">
+          <li>your hub settings</li>
+          <li>everything your apps saved</li>
+          <li>which apps are installed, and their versions</li>
         </ul>
-      )}
-    </section>
+        <p className="panel-note">
+          Your logs, wallpapers and chats are left alone. Any app running right now is stopped first
+          and started again afterwards. Before anything is replaced, Vela checks that this backup
+          reads correctly and saves a copy of what it is about to replace — so you can come back
+          from this.
+        </p>
+        <FormField
+          label={`Type ${drawer} to confirm`}
+          hint="Restoring cannot be undone in one click, so it takes the name."
+        >
+          <input
+            value={confirmName}
+            autoComplete="off"
+            disabled={restoring !== null}
+            onChange={(event) => setConfirmName(event.target.value)}
+          />
+        </FormField>
+        <div className="actions">
+          <Button ref={cancelRef} disabled={restoring !== null} onClick={() => setDrawer(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            pending={restoring !== null}
+            disabled={confirmName.trim() !== drawer}
+            onClick={restore}
+          >
+            Restore this backup
+          </Button>
+        </div>
+      </Drawer>
+    </>
   );
 }
 
@@ -635,6 +823,144 @@ function DeskSection({ settings, onPatched, onPendingChange }) {
   );
 }
 
+// Files: the folders the Files app may show. This is the only place a share is
+// named, and the server refuses a path that is not a folder rather than storing
+// it and failing inside the app later. Vela's own data folder is refused
+// outright: browsing it would be a way to delete every app's data at once.
+function FilesSection({ settings, onPatched, onPendingChange }) {
+  const shares = settings?.files?.shares || [];
+  const [draft, setDraft] = useState({ path: '', label: '', writable: true });
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    onPendingChange('files', saving);
+    return () => onPendingChange('files', false);
+  }, [saving, onPendingChange]);
+
+  const save = (next) => {
+    setSaving(true);
+    setNote('');
+    return api
+      .updateSettings({ files: { shares: next } })
+      .then(() => {
+        onPatched({ files: { ...(settings?.files || {}), shares: next } });
+        setDraft({ path: '', label: '', writable: true });
+      })
+      .catch((error) => setNote(error.message || 'Could not save that share.'))
+      .finally(() => setSaving(false));
+  };
+
+  const add = (event) => {
+    event.preventDefault();
+    const path = draft.path.trim();
+    if (!path) return;
+    const label = draft.label.trim();
+    // An id the user never has to think about, from the label or the folder.
+    const base = (
+      label ||
+      path
+        .replace(/[\\/]+$/, '')
+        .split(/[\\/]/)
+        .pop() ||
+      'share'
+    )
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40);
+    let id = base || 'share';
+    let n = 2;
+    while (shares.some((entry) => entry.id === id)) id = `${base}-${n++}`;
+    save([...shares, { id, path, label, writable: draft.writable }]);
+  };
+
+  return (
+    <section className="panel" id="settings-files">
+      <div className="panel-head">
+        <h2>Files</h2>
+      </div>
+      <p className="panel-note" style={{ marginBottom: 14 }}>
+        Add a folder here and the Files app can show it. Nothing outside these folders is ever
+        served, and Vela's own data folder cannot be added. Deleting from Files moves things to a
+        trash that is cleared after 30 days.
+      </p>
+      {shares.length > 0 && (
+        <ul className="settings-volume-list">
+          {shares.map((share) => (
+            <li key={share.id}>
+              <span className="settings-volume-text">
+                <span>
+                  {share.label || share.path}
+                  {share.writable ? '' : ' · read-only'}
+                </span>
+                <small className="mono">{share.path}</small>
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Remove ${share.label || share.path}`}
+                disabled={saving}
+                onClick={() => save(shares.filter((entry) => entry.id !== share.id))}
+              >
+                <Trash size={16} aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="form-grid" onSubmit={add}>
+        <div className="field">
+          <FormField label="Folder">
+            <input
+              id="files-share-path"
+              value={draft.path}
+              disabled={saving}
+              placeholder="D:\Documents"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
+            />
+          </FormField>
+        </div>
+        <div className="field">
+          <FormField label="Name (optional)">
+            <input
+              id="files-share-label"
+              value={draft.label}
+              disabled={saving}
+              placeholder="Documents"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
+            />
+          </FormField>
+        </div>
+      </form>
+      <label className="personalise-row">
+        <span>
+          Let Vela change this folder
+          <small>Off means you can look and download, but not add, rename or delete.</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={draft.writable}
+          disabled={saving}
+          onChange={(event) => setDraft((prev) => ({ ...prev, writable: event.target.checked }))}
+        />
+      </label>
+      {note && (
+        <p className="inline-error" role="alert">
+          {note}
+        </p>
+      )}
+      <div className="form-actions">
+        <Button pending={saving} disabled={!draft.path.trim()} onClick={add}>
+          Add share
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 // --------------------------------------------------------------------- page
 
 const SECTIONS = [
@@ -651,6 +977,13 @@ const SECTIONS = [
     icon: SquaresFour,
     description: 'What your home board is allowed to show.',
     keywords: 'desk widgets volumes drive disk wallpaper home board',
+  },
+  {
+    id: 'files',
+    label: 'Files',
+    icon: Folder,
+    description: 'The folders the Files app may show.',
+    keywords: 'files shares folders browse downloads trash upload share read-only',
   },
   {
     id: 'appearance',
@@ -686,6 +1019,20 @@ const SECTIONS = [
     icon: Bell,
     description: 'Keep up with your server, wherever you are.',
     keywords: 'ntfy push topic alerts',
+  },
+  {
+    id: 'health',
+    label: 'Health',
+    icon: Stethoscope,
+    description: 'Check that this server has what it needs, and repair what Vela can.',
+    keywords: 'doctor checks repair diagnose disk space certificate runtime stale orphan',
+  },
+  {
+    id: 'updates',
+    label: 'Updates',
+    icon: ArrowCircleUp,
+    description: 'Keep this server current, and choose what it checks.',
+    keywords: 'update upgrade version release notes github download automatic',
   },
   {
     id: 'backups',
@@ -745,6 +1092,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [pendingSections, setPendingSections] = useState({});
+  // The two names, edited as a draft and saved together: typing a name one
+  // letter at a time should not write the file eight times, and the avatar
+  // should not change letter while the name is half typed.
+  const [identityDraft, setIdentityDraft] = useState({ displayName: '', serverName: '' });
+  const [identitySaved, setIdentitySaved] = useState({ displayName: '', serverName: '' });
+  const identityChanged =
+    identityDraft.displayName !== identitySaved.displayName ||
+    identityDraft.serverName !== identitySaved.serverName;
   const onPendingChange = useCallback((section, pending) => {
     setPendingSections((previous) => ({ ...previous, [section]: pending }));
   }, []);
@@ -754,6 +1109,29 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
     backRef.current = back;
     setSubScreen(Boolean(back));
   }, []);
+  const saveIdentity = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const saved = await api.updateSettings({ identity: identityDraft });
+      const identity = {
+        displayName: saved.identity?.displayName || '',
+        serverName: saved.identity?.serverName || '',
+      };
+      setSettings(saved);
+      setIdentityDraft(identity);
+      setIdentitySaved(identity);
+      // The rail draws the avatar from this setting, so it is told rather than
+      // left with the old letter until something else makes it re-read.
+      dispatchEvent(new Event('vela:identity-changed'));
+      pushToast('Saved.', 'success');
+    } catch (error) {
+      setSaveError(error.message || 'Could not save those names.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pending = saving || Object.values(pendingSections).some(Boolean);
   const locked = active === 'developer' && !developer;
 
@@ -766,6 +1144,12 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
       .getSettings()
       .then((s) => {
         setSettings(s);
+        const identity = {
+          displayName: s.identity?.displayName || '',
+          serverName: s.identity?.serverName || '',
+        };
+        setIdentityDraft(identity);
+        setIdentitySaved(identity);
         if (s.theme === 'dark' || s.theme === 'light') setThemeState(s.theme);
       })
       .catch(() => setLoadError(true));
@@ -1001,6 +1385,61 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
             <div className="panel-head">
               <h2>General</h2>
             </div>
+            {/* What this server is called and who it belongs to. Both are
+                labels: the address Vela answers on is further down this page,
+                and naming the server here changes nothing about the network. */}
+            <div className="settings-row settings-row-stack">
+              <div>
+                <h3 id="identity-label">Your name and this server's</h3>
+                <p>
+                  Vela greets you by name and shows the server's name on the desk. The server name
+                  is a label, not the address this computer answers on.
+                </p>
+              </div>
+              <div className="identity-fields" role="group" aria-labelledby="identity-label">
+                <label className="field-label" htmlFor="identity-display">
+                  Your name
+                  <input
+                    id="identity-display"
+                    type="text"
+                    className="field"
+                    maxLength={60}
+                    value={identityDraft.displayName}
+                    disabled={pending}
+                    placeholder="Marco"
+                    onChange={(event) =>
+                      setIdentityDraft((draft) => ({
+                        ...draft,
+                        displayName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="field-label" htmlFor="identity-server">
+                  Server name
+                  <input
+                    id="identity-server"
+                    type="text"
+                    className="field"
+                    maxLength={60}
+                    value={identityDraft.serverName}
+                    disabled={pending}
+                    placeholder="vela.marco.house"
+                    onChange={(event) =>
+                      setIdentityDraft((draft) => ({
+                        ...draft,
+                        serverName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <div className="form-actions">
+                  <Button disabled={pending || !identityChanged} onClick={saveIdentity}>
+                    Save names
+                  </Button>
+                </div>
+              </div>
+            </div>
             <div className="settings-row">
               <div>
                 <h3 id="developer-tools-label">Show developer tools</h3>
@@ -1131,6 +1570,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
             />
           </div>
 
+          <div hidden={active !== 'files'}>
+            <FilesSection
+              settings={settings}
+              onPatched={onPatched}
+              onPendingChange={onPendingChange}
+            />
+          </div>
+
           <div hidden={active !== 'ai'}>
             <AiSection
               settings={settings}
@@ -1147,6 +1594,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 onPendingChange={onPendingChange}
               />
             </fieldset>
+          </div>
+
+          <div hidden={active !== 'updates'}>
+            <UpdatesSection onPendingChange={onPendingChange} />
+          </div>
+
+          <div hidden={active !== 'health'}>
+            <HealthSection onPendingChange={onPendingChange} />
           </div>
 
           <div hidden={active !== 'backups'}>
@@ -1204,7 +1659,10 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 </div>
                 <p className="panel-note">
                   App logs and per-app diagnostics live with each app, under App settings. This
-                  shows the server behind them.
+                  shows the server behind them. System › Logs reads the logs Vela writes, System ›
+                  Errors lists what has failed, and{' '}
+                  <Link to="/environments">Create support bundle</Link> packages both into one
+                  redacted file you can share.
                 </p>
                 <dl className="fact-grid">
                   <div className="fact">

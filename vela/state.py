@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .config import write_json_atomic
+
 
 def pid_alive(pid: int, ctime: int | str | None = None) -> bool:
     """Liveness check; when ctime is given, PID reuse reads as dead."""
@@ -123,10 +125,12 @@ class StateStore:
         return data if isinstance(data, dict) else {}
 
     def _save(self, data: dict[str, Any]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.replace(self._path)
+        # Keeps the previous good state as state.json.bak for the doctor.
+        write_json_atomic(self._path, data)
+
+    def all(self) -> dict[str, Any]:
+        """Every recorded app, for callers that check the whole file at once."""
+        return self._load()
 
     def get(self, app_id: str) -> dict[str, Any] | None:
         entry = self._load().get(app_id)

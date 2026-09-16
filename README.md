@@ -98,6 +98,13 @@ carries you wherever you want to go.
 3. **Run an app locally** — Vela launches it on your machine and gives you a place to manage it.
 4. **Keep your apps** — they live with you, not on someone else's server.
 
+Vela makes one request of its own: once a day it asks GitHub which release is
+newest, so it can tell you when there is an update. That request is anonymous —
+no identifier, no version report, nothing about your apps or your data — and
+**Settings → Updates** turns it off, after which Vela contacts nothing. There is
+no telemetry and no crash reporting; when something breaks, the record stays on
+your computer for you to read.
+
 An app is just a folder with an `app.json` manifest (name, icon, run command,
 per-platform config — see the standalone `vela-hello` repository for a legacy example,
 or `vela-templates` for a v2 starter). Installed apps live in `~/.vela/` (override with `VELA_DATA_DIR`).
@@ -127,6 +134,28 @@ config-driven app registry on top of per-platform runners
 itself in an `app.json` manifest; the hub installs it into `~/.vela/`, launches
 it as a local process or serves it as a web app — after that the hub stays out
 of the way, and apps and their data never leave the machine.
+
+## 🧰 Running it
+
+Vela is meant to be operated from the dashboard, not a terminal.
+
+- **Health** — a set of checks over this computer: room where your data lives,
+  whether Vela is reachable, a certificate about to expire, an app it wrongly
+  thinks is running, runtimes it needs, how long since the last backup. Several
+  come with a Repair button.
+- **Backups** — on a schedule you choose, with a restore that verifies the
+  backup, stops running apps, saves a copy of what it replaces, and starts them
+  again.
+- **Logs and errors** — Vela's own logs, readable and searchable in System, and
+  a record of what has failed, so a problem is something you can look at.
+- **Support bundle** — one redacted file describing this server, built on your
+  computer for you to share if and when you want to.
+- **Updates** — Vela notices new releases, checks the download against its
+  published checksum, backs up, and installs it, with a way back if you need
+  one.
+
+Nothing in that list sends anything anywhere except the update check, which is
+one anonymous request a day and can be turned off.
 
 ## 🖥️ Platforms
 

@@ -19,7 +19,12 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
-connections, app actions, releases, launcher behavior and automations. Node checks
+connections, app actions, releases, launcher behavior, automations, the log
+store, the health checks, the error record, the support bundle, backups
+with their schedule and restore, and the update check with its
+apply path — downloads, checksum refusal, the journal, rollback decisions,
+automatic-mode gating and the generated apply scripts. Nothing in the suite
+contacts GitHub or replaces anything on the machine running it. Node checks
 cover the host bridge, service-worker boundaries, shared request behavior
 (polling, overlapping refreshes, errors, and cleanup) and the automation worker's
 protocol. No sibling checkout is needed.
@@ -56,7 +61,9 @@ node web/scripts/test-shared-ui.mjs
 node web/scripts/test-launchpad.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
+node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs
 node web/scripts/test-chat.mjs
@@ -64,6 +71,14 @@ node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
 node web/scripts/test-mobile-layout.mjs
 ```
+
+The Files suite runs against a real engine on a disposable data directory, so
+the only share it touches is the Downloads folder that engine makes for itself.
+It covers the default share, making and renaming a folder, uploading through the
+page's own control, walking into a folder and back, previewing a text file as
+text, deleting to the trash, and — the point of the feature — the share boundary
+refusing `..`, an absolute path, a drive letter and an unknown share without
+naming the real path in the refusal.
 
 Run browser suites sequentially because some use the same fixture server port.
 The shared UI suite uses an isolated Vite fixture without API calls to check
@@ -95,11 +110,24 @@ add-app sources, Settings › Desk refusing a folder that does not exist, and th
 `/environments` deep link explaining itself and offering an explicit enable
 action while developer tools are off. It saves screenshots under
 `docs/screenshots/shared-foundations/`.
+The system suite uses an isolated Vite fixture with disposable log files to
+check System: developer tools off explaining itself with no logs shown, the
+Overview and Logs tabs with the engine card, the file list grouped by what
+wrote each log with a rotated copy under its base, the newest lines with
+warnings and errors marked, search narrowing and highlighting with a "no match"
+state, `/` reaching the search box, the line-count choice, the auto-refresh
+switch, choosing another log, an authenticated download, Clear asking first and
+only emptying the log on confirmation, and no sideways overflow at 390 pixels.
+It also covers the Errors tab — one row per failure with its repeat count,
+source chips, the traceback behind a disclosure, search, resolve, reopen and
+delete — and building a support bundle from Overview. Screenshots go to
+`docs/screenshots/system/`.
 The desk suite drives the board against a disposable engine: adding a widget
 from the library, moving and resizing it with the keyboard and with a pointer,
 undo and redo, saving and finding the same arrangement after a reload, Cancel
 putting an edit back, the prompt when leaving with unsaved changes, removing a
 widget, the phone board staying its own board, long-press reaching Arrange mode,
+the health widget reporting the last sweep and running one when asked,
 and no sideways overflow while arranging at 320 and 390 pixels. It switches the
 settle transition off so geometry is never measured mid-animation.
 The settings suite checks the wide popup and the phone screens: category
@@ -109,7 +137,15 @@ preference saving and rollback, keyboard focus and deep links, with disposable
 API responses. The two compositions are checked at 320, 390, 430, 768, 860, 861
 and 1440 pixels, in a short landscape window, at 200% zoom, with reduced motion
 and with a stand-in open keyboard, keeping one unsent form draft through all of
-them and across the crossover between them. It also covers the developer-tools preference:
+them and across the crossover between them. It also checks Settings › Updates — the privacy copy naming the one anonymous
+request, the switch that stops it, release notes rendered with images stripped
+and links opening in a new tab — Settings › Backups & storage — the protection summary, turning
+the daily schedule on and changing what it keeps, and a restore that stays
+disabled until the backup's name is typed and then reports the safety copy it
+took — and Settings › Health: opening the section runs nothing, Run now
+lists the failing check first with a skipped one only counted, and Repair fixes
+the row it was pressed on without a second sweep. It also covers the
+developer-tools preference:
 off by default, switching without reloading or losing an unsent message,
 persisting across a reload, following another tab on the same origin, explaining
 itself when a bookmark lands on a hidden section, and falling back to the
@@ -245,6 +281,17 @@ that complete setup has been accepted. Some suites use a mock upstream.
 python scripts/build-server.py
 python scripts/test-server-bundle.py
 ```
+
+`test-server-bundle.py` starts with two update checks that need no bundle and
+run in seconds: it executes the real swap script against throwaway directories
+on this OS, asserting the install directory is replaced and the previous one
+kept, and it runs the whole download/verify/back-up path against a local asset
+server over HTTP, asserting a mismatched `.sha256` is refused *before* anything
+is backed up. Neither touches a real install or a real release.
+
+`test-windows-distribution.py` additionally checks that the flags Vela's
+updater passes to the installer are the same ones that check installs with, so
+an update can never run an invocation nothing has verified.
 
 Install the maintainer build requirements first, as described in
 [the developer guide](DEVELOPMENT.md#build-a-server-download). The smoke test

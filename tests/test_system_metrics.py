@@ -7,9 +7,11 @@ on a runner without psutil installed. Everything uses disposable data.
 """
 import copy
 import json
+import os
 import shutil
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -19,7 +21,7 @@ from fastapi.testclient import TestClient
 from vela.api import create_app
 from vela.config import Config
 from vela.settings import SettingsStore
-from vela.system_metrics import SystemMetrics, format_uptime, validate_volumes
+from vela.system_metrics import NET_KEEP_DAYS, SystemMetrics, format_uptime, validate_volumes
 
 ROOT = base.ROOT
 
@@ -27,11 +29,19 @@ ROOT = base.ROOT
 class FakePsutil:
     """Just the surface `system_metrics` uses, with readings we control."""
 
-    def __init__(self, samples=(11.0, 22.0, 33.0), usage=None, unreachable=()):
+    def __init__(self, samples=(11.0, 22.0, 33.0), usage=None, unreachable=(), net=None):
         self._samples = list(samples)
         self._taken = 0
         self._usage = usage
         self._unreachable = set(unreachable)
+        # Cumulative byte counters, read in order, the last one repeating.
+        self._net = list(net or [(0, 0)])
+        self._net_taken = 0
+
+    def net_io_counters(self):
+        reading = self._net[min(self._net_taken, len(self._net) - 1)]
+        self._net_taken += 1
+        return SimpleNamespace(bytes_sent=reading[0], bytes_recv=reading[1])
 
     def cpu_percent(self, interval=None):
         assert interval is None, "a request must never block on a CPU reading"
@@ -197,7 +207,20 @@ class SettingsEndpointTests(unittest.TestCase):
     def test_desk_settings_default_and_reject_an_unknown_volume_path(self):
         settings = self.client.get("/api/settings", headers=self.hub).json()
         self.assertEqual(
-            settings["desk"], {"volumes": [], "wallpaper": "lake", "dim": True, "labels": True}
+            settings["desk"],
+            {
+                "volumes": [],
+                "wallpaper": "choroni",
+                "dim": True,
+                "labels": True,
+                # The weather is off and has no place until the user names one.
+                "weather": {
+                    "enabled": False,
+                    "latitude": None,
+                    "longitude": None,
+                    "label": "",
+                },
+            },
         )
         missing = str(self.root / "nowhere")
         response = self.client.patch(
@@ -220,8 +243,160 @@ class SettingsEndpointTests(unittest.TestCase):
         stored = self.client.get("/api/settings", headers=self.hub).json()["desk"]
         self.assertEqual(stored["volumes"], [{"path": str(media), "label": "Media"}])
         # Patching one desk key leaves the others alone.
-        self.assertEqual(stored["wallpaper"], "lake")
+        self.assertEqual(stored["wallpaper"], "choroni")
 
+
+
+class NetworkTodayTests(unittest.TestCase):
+    """Daily network totals: deltas, the file, the rollover and a counter reset."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="vela-net-")
+        self.root = Path(self.temp.name)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def stored(self, config, day):
+        return json.loads((config.data_dir / "metrics" / f"net-{day}.json").read_text("utf-8"))
+
+    def test_only_the_difference_between_readings_counts_toward_today(self):
+        # The counters are cumulative since boot, so the first reading is a
+        # baseline rather than a day's worth of traffic.
+        psutil = FakePsutil(net=[(1_000, 5_000), (1_500, 9_000), (1_800, 9_400)])
+        store, _ = metrics_for(self.root, psutil)
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            store.sample()
+            self.assertEqual(store.network_today()["total"], 0)
+            store.sample()
+            store.sample()
+        today = store.network_today()
+        self.assertEqual(today["bytesSent"], 800)
+        self.assertEqual(today["bytesRecv"], 4_400)
+        self.assertEqual(today["total"], 5_200)
+        self.assertEqual(today["day"], date.today().isoformat())
+
+    def test_the_days_total_is_written_where_a_restart_can_find_it(self):
+        psutil = FakePsutil(net=[(0, 0), (400, 600)])
+        store, config = metrics_for(self.root, psutil)
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            store.sample()
+            store.sample()
+        # Samples inside the flush interval stay in memory, so ask for the write
+        # the way shutdown does.
+        with store._lock:
+            store._flush_locked()
+        self.assertEqual(
+            self.stored(config, date.today().isoformat()),
+            {"bytes_sent": 400, "bytes_recv": 600},
+        )
+
+        # A second run on the same day resumes from that file rather than zero.
+        again = SystemMetrics(config, SettingsStore(config.settings_file))
+        later = FakePsutil(net=[(9_000, 9_000), (9_100, 9_250)])
+        with mock.patch("vela.system_metrics._psutil", return_value=later):
+            again.sample()
+            again.sample()
+        self.assertEqual(again.network_today()["bytesSent"], 500)
+        self.assertEqual(again.network_today()["bytesRecv"], 850)
+
+    def test_midnight_starts_a_new_day_and_leaves_the_old_one_written(self):
+        psutil = FakePsutil(net=[(0, 0), (700, 300), (900, 400)])
+        store, config = metrics_for(self.root, psutil)
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            with mock.patch("vela.system_metrics.date") as clock:
+                clock.today.return_value = date.today() - timedelta(days=1)
+                store.sample()
+                store.sample()
+                with store._lock:
+                    store._flush_locked()
+            # The real clock is back, so the next sample is past midnight.
+            store.sample()
+        self.assertEqual(self.stored(config, yesterday)["bytes_sent"], 700)
+        # Today starts from nothing rather than inheriting yesterday's total.
+        self.assertEqual(store.network_today()["total"], 0)
+
+    def test_counters_that_go_backwards_are_not_counted_as_traffic(self):
+        # A reboot or an interface reset restarts the counters. What happened in
+        # between is unknowable, so it is skipped rather than guessed.
+        psutil = FakePsutil(net=[(5_000, 5_000), (5_400, 5_500), (10, 20), (60, 120)])
+        store, _ = metrics_for(self.root, psutil)
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            for _ in range(4):
+                store.sample()
+        self.assertEqual(store.network_today()["bytesSent"], 400 + 50)
+        self.assertEqual(store.network_today()["bytesRecv"], 500 + 100)
+
+    def test_a_day_older_than_the_window_is_deleted_on_a_flush(self):
+        psutil = FakePsutil(net=[(0, 0)])
+        store, config = metrics_for(self.root, psutil)
+        metrics = config.data_dir / "metrics"
+        metrics.mkdir(parents=True, exist_ok=True)
+        stale = (date.today() - timedelta(days=NET_KEEP_DAYS + 2)).isoformat()
+        (metrics / f"net-{stale}.json").write_text('{"bytes_sent": 1, "bytes_recv": 1}', "utf-8")
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            store.sample()
+        self.assertFalse((metrics / f"net-{stale}.json").exists())
+
+    def test_a_damaged_day_file_reads_as_nothing_rather_than_failing(self):
+        psutil = FakePsutil(net=[(0, 0), (100, 100)])
+        store, config = metrics_for(self.root, psutil)
+        metrics = config.data_dir / "metrics"
+        metrics.mkdir(parents=True, exist_ok=True)
+        (metrics / f"net-{date.today().isoformat()}.json").write_text("{not json", "utf-8")
+        with mock.patch("vela.system_metrics._psutil", return_value=psutil):
+            store.sample()
+            store.sample()
+        self.assertEqual(store.network_today()["total"], 200)
+
+
+class ConnectionModeTests(unittest.TestCase):
+    """What the desk may claim about how this server can be reached."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="vela-mode-")
+        self.root = Path(self.temp.name)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def store(self, *, remote=False, secure=None):
+        config = Config(
+            self.root / "data", self.root / "catalog", ROOT / "web/dist", remote_access=remote
+        )
+        config.ensure_dirs()
+        return SystemMetrics(config, SettingsStore(config.settings_file), secure=secure)
+
+    def test_loopback_is_local_and_a_wider_bind_is_lan(self):
+        with mock.patch.dict("os.environ", {"VELA_HOST": "127.0.0.1"}, clear=False):
+            os.environ.pop("VELA_CERT_FILE", None)
+            self.assertEqual(self.store().connection_mode(), "local")
+        with mock.patch.dict("os.environ", {"VELA_HOST": "0.0.0.0"}, clear=False):
+            os.environ.pop("VELA_CERT_FILE", None)
+            self.assertEqual(self.store().connection_mode(), "lan")
+
+    def test_a_certificate_makes_it_https_whatever_it_is_bound_to(self):
+        with mock.patch.dict(
+            "os.environ",
+            {"VELA_HOST": "127.0.0.1", "VELA_CERT_FILE": "/tmp/server.pem"},
+            clear=False,
+        ):
+            self.assertEqual(self.store().connection_mode(), "https")
+
+    def test_the_wifi_listener_counts_as_https_too(self):
+        with mock.patch.dict("os.environ", {"VELA_HOST": "127.0.0.1"}, clear=False):
+            os.environ.pop("VELA_CERT_FILE", None)
+            self.assertEqual(self.store(secure=lambda: True).connection_mode(), "https")
+            self.assertEqual(self.store(secure=lambda: False).connection_mode(), "local")
+
+    def test_a_secure_check_that_raises_does_not_break_the_snapshot(self):
+        def broken():
+            raise RuntimeError("no listener")
+
+        with mock.patch.dict("os.environ", {"VELA_HOST": "127.0.0.1"}, clear=False):
+            os.environ.pop("VELA_CERT_FILE", None)
+            self.assertEqual(self.store(secure=broken).connection_mode(), "local")
 
 if __name__ == "__main__":
     unittest.main()

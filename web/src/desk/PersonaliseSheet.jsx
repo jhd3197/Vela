@@ -6,16 +6,20 @@
 import { useRef, useState } from 'react';
 import { Check, Trash, UploadSimple } from '@phosphor-icons/react';
 import { api } from '../api.js';
+import { BUNDLED_WALLPAPERS, DEFAULT_WALLPAPER, dailyWallpaper } from './wallpaper.js';
 import Drawer from '../components/ui/Drawer.jsx';
 import Button from '../components/ui/Button.jsx';
 
-// `lake` is a photograph that ships with the dashboard; the other two are
-// gradients drawn in CSS, so they cost nothing to bundle and stay sharp at any
-// size. `custom` is the image the user uploaded.
+// The eight painted places ship as images; `sage` and `night` are gradients
+// drawn in CSS, so they cost nothing to bundle and stay sharp at any size.
+// `daily` is not a picture but a standing choice: rotate through the painted
+// set, a new one at each local midnight. `custom` is the image the user
+// uploaded.
 export const WALLPAPERS = [
-  { id: 'lake', name: 'Lake' },
+  ...BUNDLED_WALLPAPERS.map(({ id, name }) => ({ id, name })),
   { id: 'sage', name: 'Sage' },
   { id: 'night', name: 'Night' },
+  { id: 'daily', name: 'Daily' },
 ];
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -37,6 +41,40 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     } catch (error) {
       onChange(previous);
       setNote(error.message || 'Could not save that.');
+    }
+  };
+
+  // The weather is the one thing on this sheet that reaches the internet, so it
+  // is turned on by naming a place rather than by a switch alone: without
+  // coordinates there is nothing to ask for, and Vela would rather ask nothing.
+  const [place, setPlace] = useState('');
+  const [locating, setLocating] = useState(false);
+  const weather = desk.weather || {};
+  const located = typeof weather.latitude === 'number' && typeof weather.longitude === 'number';
+
+  const setWeather = (change) => patch({ weather: { ...weather, ...change } });
+
+  const findPlace = async (event) => {
+    event.preventDefault();
+    const typed = place.trim();
+    if (!typed) return;
+    setLocating(true);
+    setNote('');
+    try {
+      const found = await api.locateWeather(typed);
+      await patch({
+        weather: {
+          enabled: true,
+          latitude: found.latitude,
+          longitude: found.longitude,
+          label: found.label,
+        },
+      });
+      setPlace('');
+    } catch (error) {
+      setNote(error.message || 'Could not find that place.');
+    } finally {
+      setLocating(false);
     }
   };
 
@@ -69,7 +107,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setNote('');
     try {
       await api.deleteWallpaper();
-      onChange({ ...desk, wallpaper: 'lake' });
+      onChange({ ...desk, wallpaper: DEFAULT_WALLPAPER });
     } catch (error) {
       setNote(error.message || 'Could not remove it.');
     } finally {
@@ -78,6 +116,16 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
   };
 
   const choices = [...WALLPAPERS, { id: 'custom', name: 'Yours' }];
+
+  // The painted set and Daily preview as real thumbnails, which is why they
+  // carry an inline image rather than a rule each; the gradients and the
+  // uploaded image keep their CSS previews. Daily shows the picture it would
+  // draw today, so the choice is not a mystery until midnight.
+  const thumb = (id) => {
+    const painted = id === 'daily' ? dailyWallpaper() : id;
+    if (!BUNDLED_WALLPAPERS.some((wall) => wall.id === painted)) return undefined;
+    return { backgroundImage: `url('/wallpapers/thumbs/${painted}.jpg')` };
+  };
 
   return (
     <Drawer open onClose={onClose} aria-label="Personalise" panelClassName="personalise">
@@ -103,7 +151,11 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
                 aria-pressed={desk.wallpaper === choice.id}
                 onClick={() => patch({ wallpaper: choice.id })}
               >
-                <span className="personalise-wall-preview" aria-hidden="true" />
+                <span
+                  className="personalise-wall-preview"
+                  style={thumb(choice.id)}
+                  aria-hidden="true"
+                />
                 <span className="personalise-wall-name">
                   {choice.name}
                   {desk.wallpaper === choice.id && <Check size={14} weight="bold" />}
@@ -131,7 +183,10 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
             aria-label="Choose a wallpaper image"
             onChange={upload}
           />
-          <p className="panel-note">JPEG, PNG or WebP, up to 8 MB. It stays on this computer.</p>
+          <p className="panel-note">
+            Daily moves through the painted set, a new one each midnight. Your own image can be
+            JPEG, PNG or WebP, up to 8 MB. It stays on this computer.
+          </p>
         </section>
 
         <section className="personalise-section">
@@ -172,6 +227,49 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
               onChange={(event) => onToggleAsk(event.target.checked)}
             />
           </label>
+        </section>
+
+        <section className="personalise-section">
+          <h3 className="section-head">Weather</h3>
+          <label className="personalise-row">
+            <span>
+              Show the weather
+              <small>
+                {located
+                  ? `The temperature for ${weather.label || 'your place'} on the clock widget.`
+                  : 'Name a place below to turn this on.'}
+              </small>
+            </span>
+            <input
+              type="checkbox"
+              checked={Boolean(weather.enabled)}
+              disabled={busy || !located}
+              onChange={(event) => setWeather({ enabled: event.target.checked })}
+            />
+          </label>
+          <form className="personalise-place" onSubmit={findPlace}>
+            <label className="sr-only" htmlFor="personalise-place">
+              Town or city
+            </label>
+            <input
+              id="personalise-place"
+              type="text"
+              className="field"
+              placeholder={located ? weather.label : 'Town or city'}
+              value={place}
+              disabled={busy || locating}
+              onChange={(event) => setPlace(event.target.value)}
+            />
+            <Button type="submit" disabled={busy || locating || !place.trim()}>
+              {locating ? 'Looking…' : 'Find'}
+            </Button>
+          </form>
+          <p className="panel-note">
+            This is the only thing on your desk that leaves this computer. Vela asks Open-Meteo for
+            the temperature at the place you name, at most four times an hour, and sends nothing
+            else — no account, no identifier, and nothing about your apps. The place is looked up
+            once and only its coordinates are kept.
+          </p>
         </section>
 
         {note && (

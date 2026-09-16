@@ -26,8 +26,17 @@ import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
+import { firstWidget } from '../desk/addAppWidget.js';
+import { DEFAULT_WALLPAPER, useWallpaperFlags } from '../desk/wallpaper.js';
+import useWeather from '../desk/weather.js';
+import DeskStatus from '../desk/DeskStatus.jsx';
 import useEditingSession from '../desk/editing/useEditingSession.js';
-import { appIdOfType, APP_WIDGET_SIZES, useWidgetTypes } from '../desk/registry.js';
+import {
+  appIdOfType,
+  appWidgetTypeId,
+  APP_WIDGET_SIZES,
+  useWidgetTypes,
+} from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
 import {
   colsOf,
@@ -68,20 +77,15 @@ export default function Desk() {
   const { data: settings } = useResource(loadSettings);
   const [deskPrefs, setDeskPrefs] = useState(null);
   const desk = useMemo(
-    () => deskPrefs || settings?.desk || { wallpaper: 'lake', dim: true, labels: true },
+    () => deskPrefs || settings?.desk || { wallpaper: DEFAULT_WALLPAPER, dim: true, labels: true },
     [deskPrefs, settings],
   );
 
-  // The wallpaper and the two display toggles belong to the whole shell, so
-  // they ride on the same body element the desk flag does.
-  useEffect(() => {
-    document.body.dataset.deskWallpaper = desk.wallpaper || 'lake';
-    document.body.dataset.deskDim = desk.dim === false ? 'off' : 'on';
-    return () => {
-      delete document.body.dataset.deskWallpaper;
-      delete document.body.dataset.deskDim;
-    };
-  }, [desk.wallpaper, desk.dim]);
+  // The wallpaper and the dim toggle belong to the whole shell, so they ride on
+  // the same body element the desk flag does. The Launchpad floats over the same
+  // picture and sets them the same way, which is why the rules live in
+  // `wallpaper.js` rather than in either page.
+  useWallpaperFlags(desk);
 
   const [edit, setEdit] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -127,7 +131,10 @@ export default function Desk() {
   }, [boards, reset]);
 
   // What every widget is told about the desk it is on.
-  const deskContext = useMemo(() => ({ desk, phone }), [desk, phone]);
+  // Weather rides on the desk context so the clock widget can show it without
+  // fetching for itself; it asks for nothing while the switch is off.
+  const weather = useWeather(desk?.weather?.enabled);
+  const deskContext = useMemo(() => ({ desk, phone, weather }), [desk, phone, weather]);
 
   const shown = edit ? draft : boards;
   const cols = colsOf(shown, boardKey);
@@ -275,6 +282,40 @@ export default function Desk() {
     setEdit(true);
     setSelected(placed.i);
     setAnnouncement(`${type.name} added.`);
+  };
+
+  // An app tile dragged onto the board. The drop cell is a request rather than
+  // an instruction: the widget goes there if it fits and is pushed to the
+  // nearest free space if it does not, which is what the keyboard and pointer
+  // paths already do. Dropping opens Arrange mode, because a widget that
+  // appeared under the cursor should be movable without hunting for a menu.
+  const dropApp = (appId, at) => {
+    const app = (apps || []).find((item) => item.id === appId);
+    if (!app) return;
+    if (widgets.length >= MAX_WIDGETS_PER_BOARD) {
+      pushToast('This board is full.', 'error');
+      return;
+    }
+    const declared = firstWidget(app);
+    if (!declared) {
+      // An app with no widget of its own has nothing to place. Saying so beats
+      // dropping an unrelated widget on the board and calling it a shortcut.
+      pushToast(`${app.name} does not publish a desk widget.`);
+      return;
+    }
+    const type = appWidgetTypeId(app.id, declared.id);
+    if (widgets.some((widget) => widget.type === type)) {
+      pushToast(`${app.name} is already on this desk.`);
+      return;
+    }
+    const [w, h] = APP_WIDGET_SIZES[declared.size] || APP_WIDGET_SIZES.m;
+    const width = Math.min(w, cols);
+    const wanted = { x: Math.min(at?.x ?? 0, Math.max(0, cols - width)), y: at?.y ?? 0 };
+    const placed = { i: nextWidgetId(widgets), type, ...wanted, w: width, h, cfg: {} };
+    setWidgets(compact(pushDown([...widgets, placed], placed, cols)));
+    setEdit(true);
+    setSelected(placed.i);
+    setAnnouncement(`${app.name} added to the desk.`);
   };
 
   // The Ask toggle changes this board rather than a preference, so it saves
@@ -501,12 +542,16 @@ export default function Desk() {
             onChange={(next) => setWidgets(next)}
             onWidgetMenu={onWidgetMenu}
             onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
+            onAppDrop={dropApp}
             empty={
               <p className="desk-empty">
                 Your desk is empty. Use <b>Add widget</b> to put something on it.
               </p>
             }
           />
+          {/* The strip sits under the board rather than over it, so it never
+              covers a widget, and it stays out of the way while arranging. */}
+          {!phone && !edit && <DeskStatus />}
           {phone && !edit && (
             <div
               className="desk-swipe-up"

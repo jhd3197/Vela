@@ -1,0 +1,181 @@
+/* ---------- Files: the folders the user shared ---------- */
+
+.files-shares {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+.files-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.files-share.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* A share on a drive that is not plugged in is shown and marked rather than
+   hidden: the user configured it and should see why it is not working. */
+.files-share:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.files-share-off {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.files-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.files-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.files-crumbs span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+}
+
+.files-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.files-list {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: 6px;
+  min-height: 160px;
+}
+
+/* Dropping files onto the listing uploads them into the folder on screen. */
+.files-list.is-dropping {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.files-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 11px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files-row:hover {
+  background: var(--bg-inset);
+}
+
+.files-row.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.files-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.files-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-meta {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The grid view: the same rows as tiles, for looking at pictures. */
+.files-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 6px;
+}
+
+.files-list-grid .files-row {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 7px;
+  padding: 16px 10px;
+  text-align: center;
+}
+
+.files-list-grid .files-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A phone has room for the name and one number, not four columns. */
+.files-list-phone .files-row {
+  grid-template-columns: auto 1fr auto;
+}
+
+.files-list-phone .files-when {
+  display: none;
+}
+
+.files-preview {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  object-fit: contain;
+}
+
+/* Text is shown as text, never rendered: a shared HTML file is read, not run. */
+.files-preview-text {
+  max-height: 55vh;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

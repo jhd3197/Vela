@@ -144,7 +144,12 @@ export function BackupsWidget() {
   if (!loaded && !data) return <DeskLoading label="Checking backups…" />;
   if (!data) return <DeskFailed subject="your backups" />;
 
-  const latest = (data.backups || [])[0] || null;
+  // `/api/backups/stats` answers with the newest backup and the schedule, so
+  // the widget can say when the next one is without a second request.
+  const latest = data.lastSuccessAt
+    ? { created_at: data.lastSuccessAt, name: data.lastName }
+    : null;
+  const nextAt = data.schedule?.nextRunAt;
   const runBackup = async () => {
     setBusy(true);
     setFailed('');
@@ -163,7 +168,14 @@ export function BackupsWidget() {
       {latest ? (
         <WidgetStat
           value={formatRelativeTime(latest.created_at)}
-          caption={`Last backup · ${formatBytes(latest.size)}`}
+          caption={
+            nextAt
+              ? `Last backup · next at ${new Date(nextAt).toLocaleTimeString(undefined, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`
+              : `Last backup · ${data.count} kept, ${formatBytes(data.totalSize)}`
+          }
         />
       ) : (
         <DeskEmpty>No backups yet.</DeskEmpty>

@@ -70,7 +70,29 @@ try {
   assert.equal(await page.locator('.rail-apps-open').count(), 0, 'nothing is open');
   assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
-  assert.equal(await page.locator('.rail-foot button').count(), 1);
+  // Settings, then the avatar for whoever this Vela belongs to.
+  assert.equal(await page.locator('.rail-foot button').count(), 2);
+  const avatar = page.locator('.rail-avatar-item');
+  await avatar.waitFor();
+  assert.equal(await avatar.locator('.rail-avatar').innerText(), 'M');
+  assert.equal(
+    await avatar.getAttribute('aria-label'),
+    'Marco · vela.marco.house — open General settings',
+    'the avatar names who and which server, not just a letter',
+  );
+  // It is a real control: reachable by keyboard and opening Settings.
+  assert.equal(
+    await avatar.evaluate((node) => {
+      node.focus();
+      return document.activeElement === node;
+    }),
+    true,
+    'the avatar takes focus',
+  );
+  await avatar.click();
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor({ state: 'detached' });
   assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
   await noOverflow('empty');
 
@@ -182,18 +204,18 @@ try {
   await page.setViewportSize({ width: 683, height: 450 });
   await noOverflow('200% zoom');
   const zoomed = await page.evaluate(() => {
-    const settings = [...document.querySelectorAll('.rail-foot button')].pop();
-    return { bottom: settings.getBoundingClientRect().bottom, height: innerHeight };
+    const last = [...document.querySelectorAll('.rail-foot button')].pop();
+    return { bottom: last.getBoundingClientRect().bottom, height: innerHeight };
   });
   assert.ok(zoomed.bottom <= zoomed.height + 1, JSON.stringify(zoomed));
 
   // A short window keeps the utility controls reachable; the app list scrolls.
   await page.setViewportSize({ width: 1280, height: 380 });
   const reachable = await page.evaluate(() => {
-    const settings = [...document.querySelectorAll('.rail-foot button')].pop();
+    const last = [...document.querySelectorAll('.rail-foot button')].pop();
     const apps = document.querySelector('.rail-apps');
     return {
-      bottom: settings.getBoundingClientRect().bottom,
+      bottom: last.getBoundingClientRect().bottom,
       height: innerHeight,
       scrollable: apps.scrollHeight > apps.clientHeight,
     };
@@ -244,7 +266,12 @@ try {
       'page',
     );
     assert.equal(await page.locator('.rail a[href="/"]').count(), 1);
-    assert.equal(await page.locator('.rail').getByRole('button', { name: 'Settings' }).count(), 1);
+    // Exact: the foot avatar's label mentions General settings, and a loose
+    // match would count it as a second Settings control.
+    assert.equal(
+      await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).count(),
+      1,
+    );
     const geometry = await page.evaluate(() => {
       const rail = document.querySelector('.rail').getBoundingClientRect();
       const workspace = document.querySelector('.workspace').getBoundingClientRect();

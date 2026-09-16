@@ -240,7 +240,7 @@ try {
       box.past <= 1,
       `a widget hangs past the board at ${size.width}: ${JSON.stringify(box)}`,
     );
-    assert.ok(box.wallpaper.includes('wallpapers/lake.jpg'), `desk wallpaper: ${box.wallpaper}`);
+    assert.ok(box.wallpaper.includes('wallpapers/choroni.jpg'), `desk wallpaper: ${box.wallpaper}`);
   }
   // Leaving the desk takes the wallpaper with it.
   await page.goto(base + '/library');
@@ -356,9 +356,12 @@ try {
   await page.goto(base + '/settings#desk');
   const desk = page.getByRole('dialog', { name: 'Settings', exact: true });
   await desk.getByRole('heading', { name: 'Volumes', exact: true }).waitFor();
-  await desk.getByLabel('Folder', { exact: true }).fill('/definitely/not/a/folder');
-  await desk.getByRole('button', { name: 'Add volume', exact: true }).click();
-  await desk.getByRole('alert').filter({ hasText: 'not a folder on this computer' }).waitFor();
+  // Settings › Files has a Folder field of its own, so this one is reached
+  // through the Desk panel rather than by label alone.
+  const deskPanel = desk.locator('#settings-desk');
+  await deskPanel.getByLabel('Folder', { exact: true }).fill('/definitely/not/a/folder');
+  await deskPanel.getByRole('button', { name: 'Add volume', exact: true }).click();
+  await deskPanel.getByRole('alert').filter({ hasText: 'not a folder on this computer' }).waitFor();
   await page.keyboard.press('Escape');
 
   // The endpoint the System and Volume widgets read answers for this machine.

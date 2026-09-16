@@ -10,6 +10,21 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Existing 0.1.x servers need one manual update.** The updater ships *in*
+  this release, so a server running an earlier version cannot use it to get
+  here. Download this release the way you installed Vela originally — the
+  installer, the portable zip or the archive — and from then on Vela can update
+  itself.
+- **Settings, desk and app-state files keep a spare copy.** Each time Vela
+  writes one it keeps the previous good version beside it, so a file that will
+  no longer read can be put back from Settings → Health instead of falling
+  back to defaults.
+- **The server log is readable again.** Vela no longer records a line for every
+  request the dashboard makes, so its log holds what Vela did rather than
+  thousands of routine polls. Both ways of starting Vela — the tray on Windows
+  and `python -m vela` in a terminal — now write the same log, where before
+  only the tray kept one, and it keeps five 2 MB files instead of three.
+
 - **The desk is a desktop now.** The search sits in the middle of the wallpaper
   where a launcher's does, and the buttons that used to crowd it moved into a
   **⋯** menu at the top-right and a **right-click** (long press on a phone) on
@@ -46,11 +61,158 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Files: browse the folders you share with Vela.** A new app in the Launchpad
+  shows the folders you name in **Settings → Files** — and only those. Make
+  folders, rename things, drop files in to upload them, preview pictures, PDFs,
+  sound, video and text, and switch between a list and a grid. A share can be
+  marked read-only, so you can look without being able to change anything.
+  Deleting moves things to a trash Vela clears after 30 days rather than
+  removing them, and every change is written to Vela's audit log. Vela starts
+  with a Downloads folder of its own; its own data folder can never be shared,
+  and nothing outside a share is ever served.
+- **Give your server a name, and yourself one.** Vela now asks what to call you
+  and what to call this computer, once, when you first open it — both optional,
+  both changeable in **Settings → General**. Your initial sits at the bottom of
+  the rail and opens straight to those settings, the server's name heads the
+  Launchpad on a phone, and Ask greets you by name. The server name is a label
+  only: it does not change the address Vela answers on.
+- **Deal with what needs you, or put it off.** A row in **Needs you** now shows
+  what the app offered to do about it, and a **Later** that puts that one thing
+  aside for eight hours — it leaves the list and the dot on the rail goes with
+  it. Nothing is dismissed and the app is never told: open it and it shows
+  exactly what it did before. Whatever you put off comes back on its own.
+- **The desk tells you how this server is doing, in one line.** Along the bottom
+  of the board: how many apps are running, how many automations ran today,
+  anything that needs you, the room left where your data is kept, whether Vela
+  is reachable only from this computer or from your network, and how much it has
+  sent and received today. On a phone the same line sits at the top of the
+  Launchpad. Vela now keeps a daily total of what this computer moves over the
+  network, on this computer, for thirty days.
+- **The weather, if you want it.** **Personalise → Show the weather** takes the
+  name of a town, looks it up once and puts the temperature on your clock
+  widget. It is off until you turn it on, and the panel says plainly that this
+  is the only thing on your desk that leaves this computer: Vela asks Open-Meteo
+  for a temperature at most four times an hour and sends nothing else — no
+  account, no identifier, and nothing about your apps. Your coordinates are
+  rounded before they are sent, and the place name is never stored.
+- **The Launchpad sorts your apps four ways.** **All** is the grid you know;
+  **Frequent** is the twelve you actually open, ranked over the last month;
+  **Running** is what is open now; **Updates** is what has a newer version, with
+  a count on the tab. Frequent stays hidden until you have opened a few things,
+  because a ranking built on three clicks is not a habit. The counting happens
+  on this computer, one number per app per day, thirty days kept, gone when you
+  remove the app — and it is never sent anywhere. The search field now says how
+  many apps it is filtering.
+- **Apps can put a count on their own icon.** An app that has three things
+  waiting can say so, and the number appears on its tile in the Launchpad. Vela
+  does the same for itself: the Marketplace tile shows how many updates are
+  waiting and the Automations tile how many runs failed today.
+- **Drag an app onto your desk to make a widget of it.** Pull an app out of the
+  **Your apps** widget, drop it on an empty part of the board, and that app's
+  widget appears where you dropped it with arranging already open. An app that
+  has no widget says so instead.
+- **A refreshed Vela mark and palette.** The sail is redrawn — flatter, with
+  more of the violet and cyan it always meant to have — and every place it
+  appears now comes from one source file, so the browser tab, the installed app
+  icon, the Windows tray and the documentation cannot drift apart again. The
+  accent throughout the dashboard moves to Vela Violet, the dark theme is built
+  on Deep Navy rather than a near-black grey, and running things are marked in
+  Bright Cyan. Every colour Vela writes text in was checked against the surface
+  behind it. If you installed Vela to your home screen or taskbar, the icon
+  updates the next time it refreshes.
+- **Eight painted wallpapers, and a new one each day if you like.** Personalise
+  now offers Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila, Castillo and
+  Canaima — places drawn for Vela rather than stock photography — each shown as
+  a thumbnail you can pick by looking at it. **Daily** rotates through them,
+  moving to the next picture at midnight. Choroní is what a new desk opens on.
+  The Sage and Night gradients and your own uploaded image are unchanged, and
+  Vela nudges the shading behind your widgets to suit a bright or a dark
+  picture so the text over it stays readable either way.
 - **Keyboard shortcuts and phone gestures.** Press **?** (or **Ctrl+/**) for the
   full list: **Ctrl+K** searches, **Ctrl+Space** opens or closes the Launchpad,
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Vela installs its own updates.** When a newer release exists,
+  **Settings → Updates → Update now** downloads it, checks it against the
+  checksum published beside it, backs Vela up, and reopens as the new version —
+  usually in under a minute, with the page reconnecting on its own. Your apps
+  and everything they saved are never part of an update. You can also let it
+  install automatically at an hour you choose, which it does only when no app
+  is open, no automation is running and no health check is failing. Vela keeps
+  the version it replaced, so **Go back to the previous version** is there if
+  you need it, and if an update stops before it finishes Vela says so the next
+  time it starts and leaves you on the version you were on. Source checkouts
+  and containers are pointed at `git pull` and a new image tag instead.
+
+- **Vela tells you when there is a new version.** **Settings → Updates** shows
+  what you are running, what the newest release is and what changed in it,
+  rendered from the release notes. Once a day Vela asks GitHub which release is
+  newest — one anonymous request that carries no identifier, no version report
+  and nothing about your apps or your data. It is on by default, the section
+  says so in those words, and the switch beside it stops the request entirely.
+  A new release appears in **Needs you** on your desk, sends one notification
+  if you have set them up, and adds an entry to the Windows tray. Installing an
+  update from here comes next; for now Vela links to the right download for how
+  this copy was installed.
+
+- **Backups can run on a schedule, and you can restore one.**
+  **Settings → Backups & storage** now opens with what matters at a glance —
+  when the last backup was, when the next one is, how many are kept — and can
+  run one a day at a time you choose. Automatic backups are off until you turn
+  them on. **Restore** puts a backup back: Vela checks that it reads correctly,
+  stops any running app, saves a copy of what it is about to replace, swaps the
+  files, and starts the apps again. That copy is listed with your backups and
+  marked *taken before a restore*, so restoring the wrong one is recoverable.
+  Because a restore replaces live data, it asks you to type the backup's name.
+  Your logs, wallpapers and chats are never touched by a restore, and the desk's
+  Backups widget now shows when the next one is due.
+
+- **Failures are recorded so you can look at them.** **System → Errors** lists
+  what has gone wrong on this computer — errors from the engine and errors the
+  dashboard catches in your browser. One failure that keeps happening is one
+  row with a count, not a hundred rows; open a row for its details, resolve it
+  when you have dealt with it, or delete it. A page that fails while drawing
+  now shows an explanation and a Reload button instead of going blank, and the
+  rail stays usable. Vela keeps the last 500 errors or thirty days, whichever
+  comes first, and sends none of it anywhere.
+- **Create a support bundle in one click.** **System → Overview → Create
+  support bundle** writes a single file describing this server — its version
+  and platform, your settings with every password and token replaced, the last
+  health check, which apps are installed, your desk layout, recent errors and
+  the tail of each log. It leaves out everything your apps saved, your chats,
+  your wallpapers and your Vela password. Vela writes it to this computer and
+  sends it nowhere; attaching it to a message is your decision. Bundles are
+  deleted after a week.
+
+- **Vela checks its own health.** **Settings → Health** runs thirteen checks
+  over this computer — room left where your data is kept, whether Vela is
+  answering on its address, a certificate about to expire, an app it wrongly
+  believes is running, an installed folder that lost its app description, the
+  runtimes automations need, how long since the last backup, and settings files
+  that will no longer read — and says what each one found in plain words.
+  Checks that do not apply to your setup are skipped rather than shown as
+  problems. Three findings offer a **Repair**: clearing a stale app record,
+  removing an empty installed folder after backing Vela up first, and putting
+  back the last readable copy of a settings, desk or app-state file. Vela
+  sweeps daily and shortly after it starts; a check that fails appears in
+  **Needs you**, puts a dot on Settings, and sends one notification — not one a
+  day. A **Health** widget shows the same summary on your desk. Nothing is sent
+  anywhere: every check reads this computer.
+
+- **Read the server's logs from the dashboard.** **System → Logs** shows the
+  logs Vela writes on this computer — its own server log, a record of the
+  actions taken on the server, and one log per app that runs as its own
+  process — so you no longer need a file manager or a terminal to read them.
+  Pick a log to see its newest lines, search it (wrap the text in slashes for a
+  pattern), show 50 to 1000 lines, follow it live with auto-refresh, download
+  it to share, or clear one that has grown noisy after a confirmation. `/`
+  jumps to the search box and `End` to the newest line. System is now split
+  into Overview and Logs tabs; both stay behind the developer-tools switch.
+- **A record of what was done to this server.** Installing, launching,
+  stopping, backing up, restoring and repairing are written to an activity log
+  with whether they were done from this computer or over Wi-Fi.
+
 - **A full-screen Launchpad.** Opening **Apps** now fills the screen with every
   app over your blurred wallpaper, not a side drawer. A search in the middle
   filters as you type and Enter opens the first match; **Ctrl+Space**
@@ -62,6 +224,9 @@ until the release workflow prepares a tested server version.
 
 ### Removed
 
+- **The stock lake photograph no longer ships.** It had no licence anyone could
+  point to. Desks still set to it open on Choroní instead; nothing you chose
+  yourself is affected, and an uploaded wallpaper is untouched.
 - **The All apps drawer is gone.** Its job — every app in one place — is the
   Launchpad now, so there is one answer to "which apps do I have" instead of a
   drawer, a Manage apps page and the Library all showing the same set.

@@ -15,6 +15,16 @@ const SETTINGS_ENTRIES = [
   { label: 'Appearance & theme', to: '/settings#appearance', keywords: 'light dark' },
   { label: 'Local AI', to: '/settings#ai', keywords: 'ollama model' },
   { label: 'Notifications', to: '/settings#notifications', keywords: 'ntfy push alerts' },
+  {
+    label: 'Updates',
+    to: '/settings#updates',
+    keywords: 'update upgrade version release notes download',
+  },
+  {
+    label: 'Health',
+    to: '/settings#health',
+    keywords: 'doctor checks repair diagnose disk certificate runtime',
+  },
   { label: 'Backups & storage', to: '/settings#backups', keywords: 'restore snapshot disk space' },
   { label: 'Chat & privacy', to: '/settings#chat', keywords: 'history retention' },
   {
@@ -118,6 +128,9 @@ export default function GlobalSearch({
   onEnter,
   showResults = true,
   autoFocus = false,
+  // The Launchpad filters a grid it is already showing rather than searching
+  // everything, so it says how many apps are in front of you instead.
+  placeholder = 'Search apps, notes, settings, or ask…',
 }) {
   const { apps } = useApps();
   const navigate = useNavigate();
@@ -228,7 +241,7 @@ export default function GlobalSearch({
       <input
         ref={inputRef}
         type="search"
-        placeholder="Search apps, notes, settings, or ask…"
+        placeholder={placeholder}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

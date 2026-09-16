@@ -497,5 +497,18 @@ is required. If branch rules disallow the release bot's metadata commit to
 not disable branch protection as a workaround in the workflow.
 
 Windows has a per-user installer and tray controls with optional start at sign in.
-macOS/Linux currently use portable archives. Code signing, macOS notarization,
-background system services and automatic updates are not implemented.
+macOS/Linux currently use portable archives. Code signing, macOS notarization
+and background system services are not implemented.
+
+Vela updates itself from these releases. A running server asks GitHub once a
+day which release is newest, downloads the asset matching how it was installed,
+verifies it against the published `.sha256` sidecar, backs itself up, and then
+hands over to a small script that replaces the files and starts Vela again —
+because a process cannot overwrite what it is running from. The Windows
+installer path runs the new setup exe with the same silent flags
+`scripts/test-windows-distribution.py` verifies; the portable and tarball paths
+move the install directory aside as `.previous` and swap the new one in, which
+is also what a rollback moves back. Source checkouts and containers are told to
+update the way they actually update. `VELA_UPDATE_API` points the checker at a
+local asset server, which is how both distribution checks exercise the path
+without touching a real release.

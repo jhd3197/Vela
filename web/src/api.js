@@ -225,6 +225,77 @@ export const api = {
   getNotifications: (options) => request('/api/notifications', options),
   systemMetrics: (options) => request('/api/system/metrics', options),
   appWidgets: (options) => request('/api/widgets', options),
+  // Later: stop showing one app's attention flag on the desk for a while. The
+  // summary is untouched and the app is told nothing.
+  snoozeWidget: (appId, widgetId) =>
+    request(`/api/widgets/${encodeURIComponent(appId)}/${encodeURIComponent(widgetId)}/snooze`, {
+      method: 'POST',
+    }),
+  // Open counts behind the Launchpad's Frequent tab. Counted and kept on this
+  // computer; recording one is fire-and-forget, so a failure never blocks the
+  // app the user asked for.
+  // Files: every call names a share by id and a path relative to it. There is
+  // deliberately no call that takes a whole path.
+  fileShares: (options) => request('/api/files', options),
+  listFiles: (share, path = '', options) =>
+    request(`/api/files/${encodeURIComponent(share)}?path=${encodeURIComponent(path)}`, options),
+  // A file's bytes, fetched with the hub token and handed back as a blob URL.
+  // The engine authenticates by header only, so an `<img src>` or a plain link
+  // pointing at `/api/...` would be refused; the caller revokes the URL when it
+  // is finished with it.
+  fileBlobUrl: async (share, path, { inline = false } = {}) => {
+    const response = await hubFetch(
+      `/api/files/${encodeURIComponent(share)}/download?path=${encodeURIComponent(path)}${
+        inline ? '&inline=true' : ''
+      }`,
+    );
+    if (!response.ok) {
+      let detail = `Request failed (${response.status})`;
+      try {
+        const body = await response.json();
+        if (body && typeof body.detail === 'string') detail = body.detail;
+      } catch {
+        // Non-JSON error body; keep the status-based message.
+      }
+      throw new ApiError(detail, response.status);
+    }
+    return URL.createObjectURL(await response.blob());
+  },
+  createFolder: (share, path, name) =>
+    request(`/api/files/${encodeURIComponent(share)}/folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    }),
+  renameFile: (share, path, name) =>
+    request(`/api/files/${encodeURIComponent(share)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    }),
+  deleteFile: (share, path) =>
+    request(`/api/files/${encodeURIComponent(share)}?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE',
+    }),
+  uploadFile: (share, path, file) =>
+    request(
+      `/api/files/${encodeURIComponent(share)}/upload?path=${encodeURIComponent(
+        path,
+      )}&name=${encodeURIComponent(file.name)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file },
+    ),
+
+  usage: (options) => request('/api/usage', options),
+  // The desk's one outbound request, and only while the user has it on. The
+  // server makes it, caches it and answers with nothing at all when it is off.
+  weather: (options) => request('/api/weather', options),
+  locateWeather: (place) =>
+    request('/api/weather/locate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ place }),
+    }),
+  recordUsage: (id) => request(`/api/usage/${encodeURIComponent(id)}`, { method: 'POST' }),
   // The image goes up as raw bytes with its type in the header: one picture
   // does not justify a multipart parser on the server.
   putWallpaper: (file) =>
@@ -234,10 +305,92 @@ export const api = {
       body: file,
     }),
   deleteWallpaper: () => request('/api/wallpaper', { method: 'DELETE' }),
+  // Errors the engine recorded, and the dashboard's own reports.
+  getErrors: (query, options) =>
+    request(`/api/errors?${new URLSearchParams(query || {})}`, options),
+  errorStats: (options) => request('/api/errors/stats', options),
+  reportClientError: (value) =>
+    request('/api/errors/client', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  resolveError: (id, resolved = true) =>
+    request(`/api/errors/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolved }),
+    }),
+  deleteError: (id) => request(`/api/errors/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Support bundles. Built on this computer; sharing one is the user's move.
+  getSupportBundles: (options) => request('/api/support-bundle', options),
+  createSupportBundle: () => request('/api/support-bundle', { method: 'POST' }),
+  downloadSupportBundle: async (name) => {
+    const response = await hubFetch(`/api/support-bundle/${encodeURIComponent(name)}`);
+    if (!response.ok) throw new ApiError(`Could not download ${name}.`, response.status);
+    return response.blob();
+  },
+
+  // Updates. Reading is local; checking is the one request Vela makes on its
+  // own behalf, and only while the preference is on.
+  getUpdates: (options) => request('/api/updates', options),
+  checkUpdates: () => request('/api/updates/check', { method: 'POST' }),
+  updateJob: (options) => request('/api/updates/job', options),
+  updateReport: (options) => request('/api/updates/report', options),
+  // Replacing Vela with another copy of Vela carries its own header, like
+  // every other action that cannot be undone with one click.
+  applyUpdate: () =>
+    request('/api/updates/apply', {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'update' },
+    }),
+  rollbackUpdate: () =>
+    request('/api/updates/rollback', {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'rollback' },
+    }),
+
+  // Health checks. Reading is cheap and never starts a sweep; `runDoctor` is
+  // the deliberate action behind "Run now".
+  getDoctor: (options) => request('/api/doctor', options),
+  runDoctor: () => request('/api/doctor/run', { method: 'POST' }),
+  repairDoctor: (key) =>
+    request(`/api/doctor/${encodeURIComponent(key)}/repair`, { method: 'POST' }),
+
+  // Logs. `pattern` switches the read into a search; a `/…/` pattern is a
+  // regular expression, anything else a case-insensitive substring.
+  getLogs: (options) => request('/api/logs', options),
+  readLog: (name, { lines = 200, fromEnd = true, pattern = '' } = {}, options) => {
+    const query = new URLSearchParams({ lines: String(lines), from_end: String(fromEnd) });
+    if (pattern) query.set('pattern', pattern);
+    return request(`/api/logs/${encodeURIComponent(name)}?${query}`, options);
+  },
+  clearLog: (name) =>
+    request(`/api/logs/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      headers: { 'X-Vela-Confirm': 'clear' },
+    }),
+  // The download carries the hub token like every other call, so it cannot be
+  // a bare link: fetch the bytes and hand the browser a blob to save.
+  downloadLog: async (name) => {
+    const response = await hubFetch(`/api/logs/${encodeURIComponent(name)}/download`);
+    if (!response.ok) throw new ApiError(`Could not download ${name}.`, response.status);
+    return response.blob();
+  },
+
   getBackups: (options) => request('/api/backups', options),
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>
     request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),
+  backupStats: (options) => request('/api/backups/stats', options),
+  // Restoring replaces live files, so it carries the deliberate header the
+  // engine requires.
+  restoreBackup: (name) =>
+    request(`/api/backups/${encodeURIComponent(name)}/restore`, {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'restore' },
+    }),
 };
 
 const PLATFORM_LABELS = {

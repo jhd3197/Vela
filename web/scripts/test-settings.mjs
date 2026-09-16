@@ -22,16 +22,192 @@ try {
   await context.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
   let settings = { theme: 'light', chat_history: true, ntfy_config: {} };
   let failSave = false;
+  // Health: nothing until Run now is pressed, then one broken check that the
+  // repair fixes — the two states the section has to get right.
+  const brokenCheck = {
+    key: 'stale-apps',
+    title: 'App state',
+    status: 'fail',
+    detail: 'Vela still lists Notes as running, but the process is gone.',
+    repairable: true,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  const fixedCheck = {
+    ...brokenCheck,
+    status: 'ok',
+    detail: 'Every app Vela lists as running really is.',
+    repairable: false,
+  };
+  const passingCheck = {
+    key: 'data-dir',
+    title: 'Room to work',
+    status: 'ok',
+    detail: '120 GB free where Vela keeps your data.',
+    repairable: false,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  const skippedCheck = {
+    key: 'certificate',
+    title: 'Certificate',
+    status: 'skipped',
+    detail: 'Vela is not using HTTPS on this computer.',
+    repairable: false,
+    ranAt: '2026-09-16T09:00:00',
+  };
+  // Backups: one fixture backup, a schedule that starts off, and a restore
+  // that reports the safety copy it took.
+  let backupList = [
+    { name: '20260916-030000', size: 40960, created_at: '2026-09-16T03:00:00', safety: false },
+  ];
+  let backupSchedule = {
+    enabled: false,
+    time: '03:00',
+    keep: 10,
+    timezone: 'Europe/Madrid',
+    nextRunAt: null,
+  };
+  let restored = null;
+
+  // Updates: nothing known until Check now, then a newer release with notes.
+  let updateState = {
+    current: '0.1.10',
+    latest: null,
+    available: false,
+    notes: '',
+    asset: null,
+    capability: 'portable',
+    checkedAt: null,
+    error: null,
+    check: true,
+    mode: 'notify',
+    hour: 3,
+  };
+  let updateChecks = 0;
+  let updateJob = { state: 'idle', percent: 0, message: '', rollback: false };
+  let applied = false;
+
+  let doctorRan = false;
+  let doctorRepaired = false;
+  let doctorRuns = 0;
+  const doctorBody = () => {
+    if (!doctorRan)
+      return { checks: [], ranAt: null, summary: { text: 'Vela has not checked itself yet.' } };
+    const checks = [doctorRepaired ? fixedCheck : brokenCheck, passingCheck, skippedCheck];
+    const attention = checks.filter((c) => c.status === 'fail' || c.status === 'warn').length;
+    return {
+      checks,
+      ranAt: '2026-09-16T09:00:00',
+      summary: {
+        attention,
+        considered: 2,
+        text: attention ? `${attention} of 2 checks need attention.` : 'All 2 checks passed.',
+      },
+    };
+  };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname !== 'vela.test') return route.abort();
     if (url.pathname.startsWith('/api/')) {
+      if (url.pathname === '/api/updates') return route.fulfill({ json: updateState });
+      if (url.pathname === '/api/updates/job') return route.fulfill({ json: updateJob });
+      if (url.pathname === '/api/updates/report') return route.fulfill({ json: {} });
+      if (url.pathname === '/api/updates/apply') {
+        if (route.request().headers()['x-vela-confirm'] !== 'update')
+          return route.fulfill({ status: 428, json: { detail: 'Confirm installing this update' } });
+        applied = true;
+        updateJob = { state: 'downloading', percent: 40, message: '', rollback: false };
+        return route.fulfill({ json: updateJob });
+      }
+      if (url.pathname === '/api/updates/check') {
+        updateChecks += 1;
+        if (!updateState.check) return route.fulfill({ json: { ...updateState, skipped: 'off' } });
+        updateState = {
+          ...updateState,
+          latest: '0.2.0',
+          available: true,
+          checkedAt: '2026-09-16T09:00:00',
+          notes: [
+            '## What changed',
+            '',
+            '- A new desk',
+            '- ![shot](https://example.test/a.png)',
+            '- [Read more](https://example.test/notes)',
+          ].join('\n'),
+          asset: { name: 'vela-server-0.2.0-windows-x64.zip', size: 1024 },
+        };
+        return route.fulfill({ json: updateState });
+      }
+      if (url.pathname === '/api/backups') return route.fulfill({ json: { backups: backupList } });
+      if (url.pathname === '/api/backups/stats')
+        return route.fulfill({
+          json: {
+            count: backupList.length,
+            totalSize: backupList.reduce((sum, entry) => sum + entry.size, 0),
+            lastSuccessAt: backupList.find((entry) => !entry.safety)?.created_at || null,
+            lastName: backupList.find((entry) => !entry.safety)?.name || null,
+            keep: backupSchedule.keep,
+            schedule: backupSchedule,
+          },
+        });
+      if (url.pathname.endsWith('/restore')) {
+        if (route.request().headers()['x-vela-confirm'] !== 'restore')
+          return route.fulfill({ status: 428, json: { detail: 'Confirm restoring this backup' } });
+        restored = url.pathname.split('/')[3];
+        backupList = [
+          {
+            name: 'pre-restore-20260916-094500',
+            size: 40960,
+            created_at: '2026-09-16T09:45:00',
+            safety: true,
+          },
+          ...backupList,
+        ];
+        return route.fulfill({
+          json: {
+            name: restored,
+            safety: 'pre-restore-20260916-094500',
+            restored: ['settings.json'],
+            stopped: [],
+            restarted: [],
+            failedToRestart: [],
+          },
+        });
+      }
+      if (url.pathname === '/api/doctor') return route.fulfill({ json: doctorBody() });
+      if (url.pathname === '/api/doctor/run') {
+        doctorRan = true;
+        doctorRuns += 1;
+        return route.fulfill({ json: doctorBody() });
+      }
+      if (url.pathname === '/api/doctor/stale-apps/repair') {
+        doctorRepaired = true;
+        return route.fulfill({
+          json: { ok: true, detail: 'Cleared the stale record for Notes.', check: fixedCheck },
+        });
+      }
       if (url.pathname === '/api/settings') {
         if (route.request().method() === 'PATCH') {
           if (failSave)
             return route.fulfill({ status: 500, json: { detail: 'Fixture save failure' } });
           const patch = route.request().postDataJSON();
+          if (patch.updates) updateState = { ...updateState, ...patch.updates };
+          if (patch.backups?.schedule) {
+            backupSchedule = {
+              ...backupSchedule,
+              ...patch.backups.schedule,
+              nextRunAt: patch.backups.schedule.enabled ? '2026-09-17T03:00:00+02:00' : null,
+            };
+          }
           settings = { ...settings, ...patch };
+          // The engine derives the avatar letter from the display name rather
+          // than accepting one, so the fixture has to as well or the rail would
+          // never draw it here.
+          if (patch.identity) {
+            const identity = { ...settings.identity };
+            const source = identity.displayName || identity.serverName || '';
+            const letter = [...source].find((character) => /[\p{L}\p{N}]/u.test(character)) || '';
+            settings = { ...settings, identity: { ...identity, initial: letter.toUpperCase() } };
+          }
         }
         return route.fulfill({ json: settings });
       }
@@ -47,7 +223,6 @@ try {
         '/api/health': { version: '0.1.0' },
         '/api/platforms': { current: 'windows', supported: ['windows'] },
         '/api/notifications': { notifications: [] },
-        '/api/backups': { backups: [] },
         '/api/ai/status': {
           reachable: true,
           models: ['fixture-model'],
@@ -83,7 +258,7 @@ try {
   await page.goto('https://vela.test/ask');
   const composer = page.locator('textarea');
   await composer.fill('Keep this unfinished question');
-  const opener = page.locator('.rail').getByRole('button', { name: 'Settings' });
+  const opener = page.locator('.rail').getByRole('button', { name: 'Settings', exact: true });
   await opener.click();
   await dialog.waitFor();
   assert.equal(new URL(page.url()).pathname, '/ask');
@@ -159,7 +334,7 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
   // The rail has no secondary "More" menu; Settings opens from the foot.
   assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 0);
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor();
   assert.equal(
     await dialog.getByRole('button', { name: 'Developer tools', exact: true }).count(),
@@ -170,6 +345,28 @@ try {
     .getByRole('navigation')
     .getByRole('button', { name: 'General', exact: true })
     .click();
+  // The two names. They save together on Save names, not on every keystroke,
+  // and the button stays disabled until something actually changed.
+  const saveNames = dialog.getByRole('button', { name: 'Save names', exact: true });
+  assert.equal(await saveNames.isDisabled(), true, 'nothing to save yet');
+  await dialog.getByLabel('Your name', { exact: true }).fill('Marco');
+  await dialog.getByLabel('Server name', { exact: true }).fill('vela.marco.house');
+  assert.equal(await saveNames.isDisabled(), false);
+  await saveNames.click();
+  await page.waitForFunction(async () => {
+    const response = await fetch('/api/settings');
+    if (!response.ok) return false;
+    const stored = (await response.json()).identity || {};
+    return stored.displayName === 'Marco' && stored.initial === 'M';
+  });
+  // The rail draws the letter as soon as the names are saved, not on its next
+  // poll, and names who it belongs to.
+  const railAvatar = page.locator('.rail-avatar-item');
+  await railAvatar.waitFor();
+  assert.equal(await railAvatar.locator('.rail-avatar').innerText(), 'M');
+  assert.match(await railAvatar.getAttribute('aria-label'), /Marco · vela\.marco\.house/);
+  assert.equal(await saveNames.isDisabled(), true, 'saved, so nothing left to save');
+
   const devSwitch = dialog.getByRole('group', { name: 'Show developer tools' });
   assert.equal(
     await devSwitch.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'),
@@ -186,7 +383,7 @@ try {
 
   // The choice survives a reload, and another tab on the same origin follows.
   await page.reload();
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
   await dialog.getByText('/fixture/data', { exact: true }).waitFor();
   const second = await context.newPage();
@@ -220,7 +417,7 @@ try {
     };
   });
   await sealed.goto('https://vela.test/');
-  await sealed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await sealed.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const sealedDialog = sealed.getByRole('dialog', { name: 'Settings', exact: true });
   await sealedDialog
     .getByRole('navigation')
@@ -244,7 +441,7 @@ try {
     await page.setViewportSize({ width, height: 700 });
     // The rail stays beside Ask on a phone, so Settings is reached from it; the
     // unsent question stays mounted behind the whole journey.
-    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+    await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
     await dialog.waitFor();
     // Ordinary entry lands on the category list, and the list covers the
     // workspace edge to edge with no popup gap around it.
@@ -327,7 +524,7 @@ try {
   const crossing = page.locator('textarea');
   await crossing.fill('A draft that must survive the crossover');
   await page.setViewportSize({ width: 390, height: 780 });
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor();
   await dialog
     .getByRole('navigation')
@@ -379,7 +576,7 @@ try {
   const zoomed = await context.newPage();
   await zoomed.goto('https://vela.test/');
   await zoomed.setViewportSize({ width: 720, height: 450 });
-  await zoomed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await zoomed.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const zoomedDialog = zoomed.getByRole('dialog', { name: 'Settings', exact: true });
   await zoomedDialog.waitFor();
   assert.ok(await zoomedDialog.evaluate((el) => el.classList.contains('settings-screen')));
@@ -390,7 +587,7 @@ try {
   await still.emulateMedia({ reducedMotion: 'reduce' });
   await still.setViewportSize({ width: 390, height: 780 });
   await still.goto('https://vela.test/');
-  await still.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await still.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const stillDialog = still.getByRole('dialog', { name: 'Settings', exact: true });
   await stillDialog
     .getByRole('navigation')
@@ -433,6 +630,166 @@ try {
   );
   await still.close();
 
+  // Updates: the copy has to say exactly what leaves this computer, and the
+  // switch beside it has to stop the request entirely.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#updates');
+  await dialog.locator('#settings-updates').waitFor();
+  await dialog.getByText('one anonymous request to github.com', { exact: false }).waitFor();
+  await dialog.getByText('no identifier', { exact: false }).waitFor();
+  await dialog.getByText('Vela has not checked yet.').waitFor();
+  assert.equal(updateChecks, 0, 'opening Updates must not check');
+
+  // Checking on by default, installing automatically opt-in.
+  const checkSwitch = dialog.getByRole('switch', { name: 'Check for new versions' });
+  assert.equal(await checkSwitch.getAttribute('aria-checked'), 'true');
+
+  await dialog.getByRole('button', { name: 'Check now' }).click();
+  await dialog.getByRole('heading', { name: 'Vela 0.2.0 is available' }).waitFor();
+  assert.equal(updateChecks, 1);
+  await dialog.getByText('This is the portable Windows folder.').waitFor();
+
+  // Release notes render, with images dropped and links opening elsewhere.
+  await dialog.getByRole('heading', { name: 'Release notes' }).waitFor();
+  await dialog.getByText('A new desk').waitFor();
+  assert.equal(await dialog.locator('.update-notes img').count(), 0, 'images are stripped');
+  assert.equal(await dialog.locator('.update-notes a').first().getAttribute('target'), '_blank');
+  await page.screenshot({ path: path.join(shots, 'settings-updates.png') });
+
+  // Automatic installing is its own choice, and starts off.
+  const modeGroup = dialog.getByRole('group', { name: 'When an update is available' });
+  await modeGroup.waitFor();
+  assert.equal(
+    await modeGroup.getByRole('button', { name: 'Tell me' }).getAttribute('aria-pressed'),
+    'true',
+  );
+
+  // Installing is offered where Vela can actually do it, and says what will
+  // happen before it starts.
+  await dialog.getByRole('button', { name: 'Update now' }).click();
+  await page.getByRole('heading', { name: 'Install Vela 0.2.0?' }).waitFor();
+  await page.getByText('check it against its published checksum', { exact: false }).waitFor();
+  assert.equal(applied, false, 'the dialog must not install anything by opening');
+  await page.screenshot({ path: path.join(shots, 'settings-update-confirm.png') });
+
+  await page.getByRole('button', { name: 'Install it' }).click();
+  // The overlay takes over: there is nothing to do but wait.
+  await page.locator('.update-overlay').waitFor();
+  assert.equal(applied, true);
+  await page.getByText('Downloading…').waitFor();
+  assert.equal(
+    await page.locator('.update-progress [role], .update-progress').first().isVisible(),
+    true,
+  );
+  await page.screenshot({ path: path.join(shots, 'settings-update-progress.png') });
+
+  // Put the fixture back so the rest of the suite sees a settled section.
+  updateJob = { state: 'idle', percent: 0, message: '', rollback: false };
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#updates');
+  await dialog.locator('#settings-updates').waitFor();
+
+  // Turning the check off disables the button that would make the request.
+  await checkSwitch.click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#settings-updates button[aria-busy], #settings-updates') &&
+      !document
+        .querySelector('#settings-updates')
+        .querySelector('[role="switch"]')
+        .getAttribute('aria-checked')
+        .includes('true'),
+  );
+  assert.equal(await dialog.getByRole('button', { name: 'Check now' }).isDisabled(), true);
+  assert.equal(updateChecks, 1, 'turning it off must not check');
+
+  await page.goto('https://vela.test/');
+
+  // Backups: what is protected, the schedule, and a restore that asks for the
+  // backup's name before it replaces anything.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#backups');
+  await dialog.locator('#settings-backups').waitFor();
+  await dialog.getByText('Not scheduled').waitFor();
+  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
+
+  // The schedule is off until someone turns it on, and then says when.
+  const scheduleSwitch = dialog.getByRole('switch', { name: 'Back up automatically' });
+  assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'false');
+  assert.equal(await dialog.getByLabel('Backups to keep').count(), 0);
+  await scheduleSwitch.click();
+  await dialog.getByLabel('Backups to keep').waitFor();
+  assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'true');
+  await dialog.getByLabel('Backups to keep').fill('4');
+  await dialog.getByLabel('Backups to keep').blur();
+  await page.waitForFunction(() => !document.body.innerText.includes('Not scheduled'), undefined, {
+    timeout: 5000,
+  });
+  await page.screenshot({ path: path.join(shots, 'settings-backups.png') });
+
+  // Restore asks first, in full, and will not act until the name is typed.
+  await dialog.getByRole('button', { name: 'Restore' }).first().click();
+  const restoreDrawer = page.getByRole('dialog', { name: 'Restore a backup' });
+  await restoreDrawer.waitFor();
+  await restoreDrawer.getByText('everything your apps saved').waitFor();
+  const confirmButton = restoreDrawer.getByRole('button', { name: 'Restore this backup' });
+  assert.equal(await confirmButton.isDisabled(), true, 'the name must be typed first');
+  await restoreDrawer.getByRole('textbox').fill('not-the-name');
+  assert.equal(await confirmButton.isDisabled(), true, 'the wrong name must not enable it');
+  await page.screenshot({ path: path.join(shots, 'settings-restore.png') });
+  await restoreDrawer.getByRole('textbox').fill('20260916-030000');
+  assert.equal(await confirmButton.isDisabled(), false);
+  await confirmButton.click();
+  await restoreDrawer.waitFor({ state: 'detached' });
+  assert.equal(restored, '20260916-030000');
+  // It says where the copy of what it replaced went.
+  await dialog
+    .getByText(/pre-restore-20260916-094500/)
+    .first()
+    .waitFor();
+  // And that copy is listed, marked as one Vela took rather than one you made.
+  await dialog.getByText('taken before a restore').waitFor();
+
+  await page.goto('https://vela.test/');
+
+  // Health: opening the section must not start a sweep — thirteen checks
+  // should not run because a popup opened. Run now is the deliberate action.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#health');
+  // The section heading, not the popup's own header for the category.
+  await dialog.locator('#settings-health').getByRole('heading', { name: 'Health' }).waitFor();
+  await dialog.getByText('Vela has not checked itself yet.').waitFor();
+  assert.equal(doctorRuns, 0, 'opening Health must not run the checks');
+  assert.equal(await dialog.locator('.health-row').count(), 0);
+
+  await dialog.getByRole('button', { name: 'Run now' }).click();
+  await dialog.locator('.health-row').first().waitFor();
+  assert.equal(doctorRuns, 1);
+  // The failing check leads, a skipped one is summarised rather than listed.
+  assert.deepEqual(await dialog.locator('.health-title').allInnerTexts(), [
+    'App state',
+    'Room to work',
+  ]);
+  assert.equal(await dialog.locator('.health-row-fail').count(), 1);
+  await dialog.getByText('1 of 2 checks need attention.').waitFor();
+  await dialog.getByText('1 check did not apply to this server and was skipped.').waitFor();
+  await page.screenshot({ path: path.join(shots, 'settings-health.png') });
+
+  // Repair fixes the row it was pressed on, without a second sweep.
+  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 1);
+  await dialog.getByRole('button', { name: 'Repair' }).click();
+  await dialog.getByText('Every app Vela lists as running really is.').waitFor();
+  assert.equal(await dialog.locator('.health-row-fail').count(), 0);
+  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 0);
+  assert.equal(doctorRuns, 1, 'a repair must not trigger a whole sweep');
+
+  // Back to the desk, so the next deep link is a real navigation rather than a
+  // hash change on the document already open.
+  await page.goto('https://vela.test/');
+
   // A section asked for by name still opens directly, and the wide window
   // keeps the two-pane popup with its Done footer.
   await page.setViewportSize({ width: 390, height: 700 });
@@ -445,7 +802,7 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
+    'PASS: settings popup, the update check with its privacy copy and switch, the backup schedule and a confirmed restore, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();

@@ -42,3 +42,38 @@
   background: linear-gradient(155deg, var(--bg-card), var(--bg-inset));
   box-shadow: inset 0 0 0 1px var(--border);
 }
+
+/* A count an app puts on its own icon — unread items, pending updates. It sits
+   proud of the tile's top-right corner the way a notification badge does, and
+   carries its own colour rather than the app's so a badge means the same thing
+   on every tile. White on either violet clears 4.5:1; the ring keeps it legible
+   where it overlaps the tile. */
+.appicon {
+  position: relative;
+  overflow: visible;
+}
+
+.appicon-badge {
+  position: absolute;
+  top: -5%;
+  right: -5%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 1.75em;
+  height: 1.75em;
+  padding: 0 0.42em;
+  border-radius: 999px;
+  background: #5b2edb;
+  box-shadow: 0 0 0 2px var(--bg-card);
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+[data-theme='dark'] .appicon-badge {
+  background: #7b4dff;
+  box-shadow: 0 0 0 2px var(--bg-card);
+}

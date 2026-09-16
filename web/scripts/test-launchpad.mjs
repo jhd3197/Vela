@@ -63,7 +63,13 @@ try {
   };
   assert.deepEqual(await sectionTiles('Open'), ['Alpha', 'Health']);
   assert.deepEqual(await sectionTiles('Apps'), ['Alpha', 'Beta', 'Health', 'Notes', 'Zeta']);
-  assert.deepEqual(await sectionTiles('Vela'), ['Ask', 'Marketplace', 'Automations', 'Settings']);
+  assert.deepEqual(await sectionTiles('Vela'), [
+    'Ask',
+    'Marketplace',
+    'Automations',
+    'Files',
+    'Settings',
+  ]);
 
   // An app the user has not installed belongs in the Marketplace, never here.
   assert.equal(await page.getByText('Shoppe', { exact: true }).count(), 0);
@@ -89,6 +95,100 @@ try {
       .locator('.launch-dot-attention')
       .count(),
     0,
+  );
+
+  // --- tabs, badges ------------------------------------------------------
+
+  // Every tab is offered, Frequent included, because the fixture has enough
+  // history for it to say something true.
+  // Running and Updates carry their own counts: two apps open, one update out.
+  assert.deepEqual(
+    (await page.locator('.launch-tab').allInnerTexts()).map((text) =>
+      text.replace(/\s+/g, ' ').trim(),
+    ),
+    ['All', 'Frequent', 'Running 2', 'Updates 1'],
+  );
+
+  // A count an app published on a widget summary rides on its icon, and the
+  // tile says it once so a screen reader reaches it.
+  const healthTile = page.locator('.launch-tile', { hasText: 'Health' }).first();
+  assert.equal(await healthTile.locator('.appicon-badge').first().innerText(), '3');
+  assert.equal(await healthTile.getAttribute('aria-label'), 'Health, 3');
+  const notesTile = page.locator('.launch-tile', { hasText: 'Notes' }).first();
+  assert.equal(await notesTile.locator('.appicon-badge').first().innerText(), '73');
+  // An app that published no badge has no circle on its icon.
+  assert.equal(
+    await page
+      .locator('.launch-tile', { hasText: 'Beta' })
+      .first()
+      .locator('.appicon-badge')
+      .count(),
+    0,
+  );
+  // Vela's own tools count what Vela knows: one app has an update waiting and
+  // two automations failed today.
+  assert.equal(
+    await page
+      .locator('.launch-tile', { hasText: 'Marketplace' })
+      .first()
+      .locator('.appicon-badge')
+      .innerText(),
+    '1',
+  );
+  assert.equal(
+    await page
+      .locator('.launch-tile', { hasText: 'Automations' })
+      .first()
+      .locator('.appicon-badge')
+      .innerText(),
+    '2',
+  );
+
+  // Running shows only what is open; Updates only what has a newer release.
+  await page.getByRole('tab', { name: /^Running/ }).click();
+  await page.waitForFunction(
+    () => document.querySelector('.launch-section-label')?.innerText === 'RUNNING',
+  );
+  assert.deepEqual(await page.locator('.launch-tile .launch-label').allInnerTexts(), [
+    'Alpha',
+    'Health',
+  ]);
+
+  await page.getByRole('tab', { name: /^Updates/ }).click();
+  await page.waitForFunction(
+    () => document.querySelector('.launch-section-label')?.innerText === 'READY TO UPDATE',
+  );
+  assert.deepEqual(await page.locator('.launch-tile .launch-label').allInnerTexts(), ['Zeta']);
+
+  // Frequent ranks by opens over the window and puts Vela's own tools in the
+  // same list: Notes 12, Ask 7, Beta 4.
+  await page.getByRole('tab', { name: 'Frequent' }).click();
+  await page.waitForFunction(
+    () => document.querySelector('.launch-section-label')?.innerText === 'MOST OPENED',
+  );
+  assert.deepEqual(await page.locator('.launch-tile .launch-label').allInnerTexts(), [
+    'Notes',
+    'Ask',
+    'Beta',
+  ]);
+  await shot('launchpad-frequent');
+
+  // One tab is selected at a time, and the grid follows the selected one. (The
+  // tab also rides in the URL as `?tab=`, which this fixture's memory router
+  // cannot show; the real router is exercised by the app itself.)
+  assert.deepEqual(
+    await page
+      .locator('.launch-tab')
+      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('aria-selected'))),
+    ['false', 'true', 'false', 'false'],
+  );
+
+  await page.goto(base);
+  await page.locator('.launch-tile').first().waitFor();
+  // The filter says how many apps are in front of you.
+  assert.equal(
+    await page.getByRole('searchbox', { name: 'Search' }).getAttribute('placeholder'),
+    'Type to filter 5 apps',
   );
 
   // --- live search --------------------------------------------------------

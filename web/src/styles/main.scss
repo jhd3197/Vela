@@ -13,6 +13,7 @@
 @use 'pages/tiles';
 @use 'pages/desk';
 @use 'pages/launchpad';
+@use 'pages/files';
 @use 'components/context-menu';
 @use 'components/app-list';
 @use 'components/switch';
@@ -29,6 +30,7 @@
 @use 'pages/ask';
 @use 'components/forms';
 @use 'pages/backups';
+@use 'pages/logs';
 @use 'components/search-results';
 @use 'components/notifications';
 @use 'components/releases';

@@ -165,7 +165,7 @@ class PhoneAccess:
             if asset in ('', 'setup'):
                 return FileResponse(root / 'index.html')
             candidate = (root / asset).resolve()
-            if (asset == 'vela-mark.png' or asset.startswith(('assets/', 'icons/'))) and candidate.is_relative_to(root) and candidate.is_file():
+            if (asset in ('vela-mark.png', 'vela-mark.svg') or asset.startswith(('assets/', 'icons/'))) and candidate.is_relative_to(root) and candidate.is_file():
                 return FileResponse(candidate)
             return JSONResponse({'detail': 'Open the secure Vela address to use your apps'}, status_code=404)
 

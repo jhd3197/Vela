@@ -93,7 +93,13 @@ window.fetch = async (input, init) => {
   if (url.includes('/api/platforms')) return json({ current: 'windows', supported: ['windows'] });
   // The default pins: Ask and the Library. PATCH is accepted so the pin/unpin
   // controls persist optimistically without a real server.
-  if (url.includes('/api/settings')) return json({ rail: { pinned: ['ask', 'library'] } });
+  if (url.includes('/api/settings'))
+    return json({
+      rail: { pinned: ['ask', 'library'] },
+      // A named server, so the rail draws its avatar. The letter is
+      // derived by the engine, never sent by the dashboard.
+      identity: { displayName: 'Marco', serverName: 'vela.marco.house', initial: 'M' },
+    });
   if (url.includes('/api/notifications')) return json({ notifications: [] });
   if (url.startsWith('/api/')) return json({});
   return real(input, init);

@@ -210,6 +210,38 @@ try {
   await page.locator('.desk-grid').waitFor();
   assert.ok(!(await labels(page)).includes('System'), await labels(page));
 
+  // --- the health widget --------------------------------------------------
+  // It reports the engine's last sweep and never starts one by being looked
+  // at; running the checks is something the person asks for.
+  await page.goto(base + '/');
+  await add.click();
+  await library.waitFor();
+  await library.getByRole('searchbox', { name: 'Find a widget' }).fill('health');
+  await library.getByRole('button', { name: /^Health/ }).click();
+  await library.waitFor({ state: 'detached' });
+  await done.click();
+  await arrange.waitFor();
+  const health = page.getByRole('region', { name: 'Health', exact: true });
+  await health.getByText('Vela has not checked itself yet.').waitFor();
+
+  await health.getByRole('button', { name: 'Run checks' }).click();
+  // A real engine answers here, so the widget shows whatever this disposable
+  // server actually reports rather than a canned result.
+  await health.locator('.desk-stat-value').waitFor();
+  const verdict = await health.locator('.desk-stat-value').innerText();
+  assert.ok(
+    /All good|to look at/.test(verdict),
+    `the health widget must report the sweep: ${verdict}`,
+  );
+  // Whatever it found, it offers the way to the section that can act on it.
+  await health.getByRole('link', { name: /Health|Fix it/ }).waitFor();
+
+  await arrange.click();
+  await page.getByRole('button', { name: 'Menu for Health', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+  await done.click();
+  await arrange.waitFor();
+
   // --- the phone board is its own board -----------------------------------
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base + '/');
@@ -330,6 +362,21 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
+  // Dragging an app tile off the desk's own Apps widget and onto the board makes
+  // that app's widget where it lands, and opens Arrange so it can be moved
+  // straight away. Cancel puts the board back, leaving the flow below on the
+  // arrangement it expects.
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  const appTile = '.desk-tiles .tile-card:has-text("Widget Fixture")';
+  await page.locator(appTile).first().waitFor();
+  await page.dragAndDrop(appTile, '.desk-grid', { targetPosition: { x: 40, y: 40 } });
+  await page.getByRole('region', { name: 'Sync', exact: true }).waitFor();
+  assert.ok(await done.count(), 'dropping an app onto the board opens Arrange mode');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await arrange.waitFor();
+  await page.getByRole('region', { name: 'Sync', exact: true }).waitFor({ state: 'detached' });
+
   // The desk offers one type per declared widget, grouped under the app.
   await page.goto(base + '/');
   await page.locator('.desk-grid').waitFor();
@@ -351,6 +398,57 @@ try {
   // The rail raises its dot for the app that asked for attention.
   await page.reload();
   await page.locator('.desk-grid').waitFor();
+  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+
+  // --- Needs you: acting on an item, and putting it aside ------------------
+
+  // The flagged app is listed with the actions it was granted and a Later, and
+  // Later takes it off the desk and takes the rail's dot with it. The summary
+  // itself is untouched, which is why the server still publishes it.
+  const needsYou = page.getByRole('region', { name: 'Needs you', exact: true });
+  await needsYou.waitFor();
+  const flaggedRow = needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' });
+  await flaggedRow.waitFor();
+  await flaggedRow.getByRole('button', { name: 'Later', exact: true }).click();
+  await flaggedRow.waitFor({ state: 'detached' });
+  await page
+    .locator('.rail a[href="/app/widget-fixture"] .rail-dot')
+    .waitFor({ state: 'detached', timeout: 5000 });
+
+  const afterLater = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const all = await (
+      await fetch('/api/widgets', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    const entry = all.widgets.find((w) => w.appId === 'widget-fixture' && w.summary?.attention);
+    return { attention: Boolean(entry), snoozed: Boolean(entry?.snoozedUntil) };
+  });
+  assert.ok(afterLater.attention, 'Later does not clear what the app published');
+  assert.ok(afterLater.snoozed, 'Later marks the summary snoozed for the desk');
+
+  // It survives a reload — this is a setting on the server, not a hidden row.
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await needsYou.waitFor();
+  assert.equal(
+    await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).count(),
+    0,
+    'a snoozed item stays put aside across a reload',
+  );
+
+  // When the snooze runs out it comes back, rather than being dismissed for good.
+  await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    await fetch('/api/widgets/widget-fixture/sync/snooze', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).waitFor();
   await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
 
   // Uninstalling takes the summary and the widget with it, rather than leaving
@@ -415,6 +513,30 @@ try {
     );
   }
 
+  // --- the status strip ---------------------------------------------------
+
+  // One line along the bottom of the board, drawn from what the server can
+  // actually report. It says how this server can be reached, which on a test
+  // fixture bound to loopback is "Local", and it never shows a placeholder for
+  // something it does not have.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  const strip = page.getByRole('status', { name: 'This server' });
+  await strip.waitFor();
+  const stripText = await strip.innerText();
+  assert.match(stripText, /Local|LAN only|HTTPS/, `connection mode in: ${stripText}`);
+  assert.doesNotMatch(stripText, /undefined|NaN|—/, `the strip invents nothing: ${stripText}`);
+
+  // It is the board's own line, so arranging puts it away rather than leaving
+  // it under a widget being dragged.
+  await arrange.click();
+  await done.waitFor();
+  await strip.waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await arrange.waitFor();
+  await strip.waitFor();
+
   // Personalise: a real setting each time, focus returned on Escape.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/');
@@ -432,14 +554,81 @@ try {
     page.evaluate(
       () => getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
     );
-  assert.match(await wallpaperOf(), /wallpapers\/lake\.jpg/);
-  await sheet.getByRole('button', { name: /^Night/ }).click();
-  await page.waitForFunction(
-    () =>
-      !getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage.includes(
-        'lake.jpg',
-      ),
+  assert.match(await wallpaperOf(), /wallpapers\/choroni\.jpg/);
+
+  // The painted set previews as real thumbnails rather than empty swatches, so
+  // a picture can be chosen by looking at it. Gradients keep their CSS preview.
+  const painted = await sheet.evaluate((panel) =>
+    [...panel.querySelectorAll('.personalise-wall')]
+      .filter((wall) =>
+        getComputedStyle(wall.querySelector('.personalise-wall-preview')).backgroundImage.includes(
+          '/wallpapers/thumbs/',
+        ),
+      )
+      .map((wall) => wall.dataset.wallpaper),
   );
+  assert.equal(
+    painted.filter((id) => id !== 'daily').length,
+    8,
+    `painted wallpapers with a thumbnail: ${painted.join(', ')}`,
+  );
+  assert.ok(painted.includes('daily'), 'Daily previews the picture it would draw today');
+
+  // Choosing a painted wallpaper changes the picture the shell draws, and the
+  // tone hint rides along so the overlay can keep widget text readable.
+  await sheet.getByRole('button', { name: /^Páramo/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'paramo');
+  assert.match(await wallpaperOf(), /wallpapers\/paramo\.jpg/);
+  assert.equal(await page.evaluate(() => document.body.dataset.deskTone), 'dark');
+
+  // Daily is a standing choice, not a picture: it stays selected while the id
+  // underneath it follows the date.
+  await sheet.getByRole('button', { name: /^Daily/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskChoice === 'daily');
+  assert.equal(
+    await sheet.getByRole('button', { name: /^Daily/ }).getAttribute('aria-pressed'),
+    'true',
+    'Daily stays the selected choice, not the picture it resolved to',
+  );
+
+  // Checking which picture Daily lands on means fixing a date. The frozen clock
+  // gets a page of its own, because the rest of this suite needs a moving one.
+  // April 8th is the 98th day and the painted set has eight pictures, so the
+  // rotation lands on Médanos.
+  // The page carries the first one's storage, so it brings the hub session and
+  // the welcome flag along rather than meeting a login screen.
+  const datedContext = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    storageState: await page.context().storageState(),
+  });
+  const dated = await datedContext.newPage();
+  await dated.addInitScript((stamp) => {
+    const fixed = new Date(stamp).getTime();
+    const Real = Date;
+    globalThis.Date = class extends Real {
+      constructor(...args) {
+        super(...(args.length ? args : [fixed]));
+      }
+      static now() {
+        return fixed;
+      }
+    };
+  }, '2026-04-08T10:00:00');
+  await dated.goto(base + '/');
+  await dated.locator('.desk-grid').waitFor();
+  // The board draws before the stored preferences arrive, so the flags start at
+  // the default and settle a moment later. Waiting for the stored choice is what
+  // makes the picture underneath it worth asserting.
+  await dated.waitForFunction(() => document.body.dataset.deskChoice === 'daily');
+  assert.equal(
+    await dated.evaluate(() => document.body.dataset.deskWallpaper),
+    'medanos',
+    'Daily resolves by the date',
+  );
+  await datedContext.close();
+
+  await sheet.getByRole('button', { name: /^Night/ }).click();
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'night');
   assert.match(await wallpaperOf(), /gradient/);
 
   // The display toggles are real settings the server keeps, not previews.
@@ -472,6 +661,17 @@ try {
   // server before the switch settles; the widget going away is the signal.
   await sheet.getByLabel('Ask on this board').click();
   await page.getByRole('region', { name: 'Ask', exact: true }).waitFor({ state: 'detached' });
+  // The widget leaves the board as soon as the switch moves, but the point of
+  // this check is that the choice survives a reload — so wait for the server to
+  // have it rather than racing the save.
+  await page.waitForFunction(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const desk = await (
+      await fetch('/api/desk', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    return !desk.boards.desktop.widgets.some((widget) => widget.type === 'ask');
+  });
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
   assert.equal(
@@ -486,7 +686,7 @@ try {
   await sheet.waitFor();
   await sheet.getByLabel('Ask on this board').click();
   await page.getByRole('region', { name: 'Ask', exact: true }).waitFor();
-  await sheet.getByRole('button', { name: /^Lake/ }).click();
+  await sheet.getByRole('button', { name: /^Choroní/ }).click();
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
 
@@ -522,7 +722,8 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; keyboard ' +
+    'PASS: the desk adds, moves, resizes, undoes, redoes, saves and reloads a widget; the health ' +
+      'widget reports the last sweep and runs one on request; keyboard ' +
       'arrangement is announced; Cancel restores; leaving with unsaved changes asks; removing ' +
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
       'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +

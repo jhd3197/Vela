@@ -316,6 +316,7 @@ optional — `{}` is valid and means "nothing to report yet":
   "rows": [{ "label": "…", "detail": "…" }],
   "actions": [{ "action": "sync", "label": "Sync now" }],
   "attention": true,
+  "badge": "73",
   "expiresAt": "2026-09-16T02:14:00Z"
 }
 ```
@@ -323,7 +324,11 @@ optional — `{}` is valid and means "nothing to report yet":
 `value`, `unit`, `delta`, `caption` and every row and action label are text of at
 most 200 characters; `progress` is 0–100; `rows` holds at most eight
 `{label, detail}` pairs; `actions` at most three, each naming one of the app's
-own actions; `attention` is the boolean the rail's dot reads; `expiresAt` is an
+own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
+of at most three characters drawn on the app's icon in the Launchpad — an app
+with several widgets is badged once, from the first summary of its that carries
+one, and a longer value is refused rather than clipped into a number that reads
+wrong, so shorten it yourself (`"99+"`); `expiresAt` is an
 ISO 8601 timestamp after which the desk marks the summary stale. Nothing nests
 further and nothing is rendered as markup.
 
@@ -458,6 +463,209 @@ managed by the operator; no automatic release-history pruning is implemented.
 `storage_bytes` = total size of the data dir (installed apps + logs + state).
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
+
+### Updates API details
+
+Hub session only.
+
+- `GET /api/updates` — what Vela currently believes, with no request made:
+  `{ current, latest, available, notes, asset, checksum, capability, checkedAt,
+  error, check, mode, hour }`.
+- `POST /api/updates/check` — asks now, bypassing the six-hour cache. With the
+  preference off it makes **no request** and answers `{ skipped: "off" }`.
+
+The request is a single anonymous `GET` to
+`https://api.github.com/repos/jhd3197/vela/releases/latest` with
+`Accept: application/vnd.github+json`, no authentication and no body. Nothing
+identifying the server is sent. `VELA_UPDATE_API` overrides the address, which
+is how the tests and the distribution checks drive it without touching GitHub.
+The answer is cached in `<data_dir>/updates/latest.json` for six hours; a check
+that fails keeps the last good answer rather than blanking it, because being
+offline is not evidence that there is no update.
+
+`capability` says what this copy could do about an update: `installer` (a
+Windows Inno Setup install, detected by the uninstall registry key or
+`unins000.exe` beside the exe), `portable` (an unzipped Windows folder),
+`tarball` (macOS/Linux), `source` (a checkout) or `container`. `asset` is the
+matching release file for this capability and architecture, and `checksum` its
+`.sha256` sidecar; both are `null` for `source` and `container`.
+
+Preferences live under the `updates` settings key as
+`{ check, mode, hour }`, validated on `PATCH /api/settings`. `check` defaults
+to true and `mode` to `notify` — installing automatically is opt-in. The
+scheduler checks two minutes after startup and then daily, publishing one
+`kind: 'update'` notification per new release. `GET /api/doctor` carries the
+same answer under `update` so the desk reads it with the health checks rather
+than making a second request.
+
+### Applying an update
+
+- `GET /api/updates/job` — `{ state, percent, message, version, rollback }`.
+  `state` is one of `idle`, `downloading`, `verifying`, `backing-up`,
+  `applying`, `restarting`, `done`, `error`. `rollback` says whether there is a
+  previous version to go back to.
+- `POST /api/updates/apply` — requires `X-Vela-Confirm: update`; `428`
+  without it. Refused with `409` when there is nothing newer, when one is
+  already running, or when this copy cannot install for itself.
+- `POST /api/updates/rollback` — requires `X-Vela-Confirm: rollback`.
+- `GET /api/updates/report` — what the previous update did, once:
+  `{ outcome: 'updated' | 'failed' | 'error', from, to, message }`, or `{}`.
+
+The order is the guarantee. Download, verify against the `.sha256` sidecar
+(whose filename must name this asset), back up, *then* replace. A failure at
+any step before the replace leaves the computer exactly as it was, and a
+checksum mismatch happens before the backup, not after it.
+
+Replacing is a detached script, because a process cannot overwrite the files it
+is running from. It waits for Vela's pid to exit, does the work, then starts
+Vela again with the arguments it had. On Windows an installer copy runs the new
+setup exe with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`
+and a log; a portable copy and a macOS/Linux tarball move the install directory
+to `<name>.previous` and move the staged one into its place, putting the old
+one back if that fails. `.previous` is what a rollback moves back; an installer
+rollback re-runs the previous release's setup, kept in `<data_dir>/updates/`
+for seven days.
+
+`<data_dir>/updates/update.log` is the journal. It is the only way the *next*
+process can know what the one before it was doing, so it is written at every
+step and read once on startup. Data is never part of an update: the data
+directory is not read, written or replaced by any of it.
+
+Automatic mode (`updates.mode = "auto"`) applies at `updates.hour` only when no
+app is running, no automation is in progress and the last health run had no
+failure. Otherwise it waits for the next day and the notice stays.
+
+### Backups API details
+
+Hub session only.
+
+- `GET /api/backups` — `{ backups: [{ name, size, created_at, safety }] }`,
+  newest first. `safety` marks a copy taken automatically before a restore.
+- `POST /api/backups` (`201`) — creates one. Two in the same second get a
+  `-2`, `-3` … suffix rather than failing.
+- `POST /api/backups/{name}/verify` — the restore drill, in an isolated temp
+  directory. Live files are never touched.
+- `GET /api/backups/stats` —
+  `{ count, totalSize, lastSuccessAt, lastName, keep, schedule }`, where
+  `schedule` is `{ enabled, time, keep, timezone, nextRunAt, error? }`.
+- `POST /api/backups/{name}/restore` — requires `X-Vela-Confirm: restore`;
+  without it the answer is `428` and nothing changes. Returns
+  `{ name, restored, safety, stopped, restarted, failedToRestart, restored_at }`.
+  A backup that fails its drill is refused with `409` before anything is
+  touched.
+
+The schedule is stored under the `backups` settings key as
+`{ schedule: { enabled, time, keep } }` and validated on `PATCH /api/settings`
+(`422` for a bad time or an out-of-range `keep`). It runs daily at `time` in the
+server's own timezone, using the same arithmetic as automation schedules, so a
+clock change behaves identically for both. There is no catch-up: a run missed
+while Vela was not running does not happen later.
+
+A restore, in order: verify; stop every running *process* app; create a
+`pre-restore-<timestamp>` backup; replace `state.json`, `settings.json`,
+`app-data.sqlite` and the installed `app.json` manifests; start again the apps
+that were stopped. A failure before the replace step leaves everything as it
+was. Logs, wallpapers and chat history are never restored or deleted. Retention
+counts ordinary backups against `keep` and safety copies separately, so backups
+taken after a restore cannot push out the copy that restore made.
+
+### Errors and support bundle API details
+
+Hub session only. Nothing here leaves the computer.
+
+- `GET /api/errors?source=&resolved=&search=&page=` —
+  `{ errors: [...], total, page, pageSize }`, newest first. `source` is
+  `server`, `dashboard` or `app`; `resolved` is `true`/`false`.
+- `GET /api/errors/stats` — `{ unresolved, lastDay, total, bySource }`.
+- `POST /api/errors/client` — the dashboard reporting its own failure:
+  `{ message, type?, stack?, url? }`. Answers `202` with
+  `{ recorded }`; over 20 reports a minute the report is accepted and dropped,
+  so a render loop that throws cannot fill the database.
+- `POST /api/errors/{id}/resolve` with `{ resolved }`, and
+  `DELETE /api/errors/{id}` (`204`).
+- `GET /api/support-bundle`, `POST /api/support-bundle` (`201`, returns
+  `{ name, size, created_at }`), `GET /api/support-bundle/{name}` (the zip).
+
+An error is `{ id, fingerprint, source, type, message, traceback, endpoint,
+count, firstSeen, lastSeen, resolved }`. The fingerprint is
+`sha256(source|type|message[:200]|endpoint)`: a repeat of an *unresolved*
+failure raises its `count` instead of adding a row, while a repeat of a
+resolved one starts a new row, because that is news. Retention is 500 rows or
+30 days, whichever comes first.
+
+Unhandled server exceptions are recorded by an exception handler that re-raises,
+so the caller still gets the `500` it would have got. Ordinary `HTTPException`
+answers (a `404`, a `422`) are not errors and are not recorded. App frames are
+not hooked: an app's errors are the app's.
+
+A support bundle contains `README.txt`, `meta.json`, `settings.json`,
+`doctor.json`, `apps.json`, `desk.json`, `errors.json`, `automations.json` and
+`logs/<name>` (the last 500 lines of each). Settings values whose key matches
+`token|secret|pass|key|credential|authorization` are replaced, and all free text
+is scrubbed of `Bearer`/`Basic` tokens, bare JWTs and credential assignments.
+App storage, chat history, wallpapers and the access password are never
+collected. Bundles older than 7 days are pruned. See `SECURITY.md`.
+
+### Health API details
+
+Hub session only. Reading never starts a sweep, so opening a page costs
+nothing; `POST /api/doctor/run` is the deliberate action.
+
+- `GET /api/doctor` — the last sweep:
+  `{ checks: [...], ranAt, summary }`. Before the first sweep in this process,
+  `checks` is empty and `ranAt` is `null`.
+- `POST /api/doctor/run` — runs every check and returns the same shape. Checks
+  run together with a per-check timeout (5 s) inside one wall-clock budget
+  (15 s); a check that raises or overruns becomes one `warn` rather than
+  ending the sweep.
+- `POST /api/doctor/{key}/repair` — `{ ok, detail, check }`, where `check` is
+  that check re-run afterwards, so a caller updates one row without a second
+  sweep. Recorded in `audit.log`. An unknown or unrepairable key is `422`.
+
+A check is `{ key, title, status, detail, repairable, ranAt }` with `status`
+one of `ok`, `warn`, `fail` or `skipped`. `skipped` means the check does not
+apply to this server (no HTTPS, no catalog, no chat model) and is excluded
+from the summary's counts. `repairable` is true only where a repair exists
+*and* there is something to repair. Failing checks sort first.
+
+The thirteen checks are `data-dir`, `port`, `certificate`, `stale-apps`,
+`orphans`, `worker`, `node`, `psutil`, `catalog`, `ollama`, `backups`,
+`settings` and `update`. `stale-apps`, `orphans` and `settings` have repairs;
+`orphans` creates a backup before it removes anything, and removes nothing if
+that backup fails. The scheduler sweeps about a minute after startup and then
+daily, publishing one notification (`kind: 'health'`) per newly failing check
+and re-arming only after that check passes again. Nothing leaves the computer:
+every check reads local state.
+
+### Logs API details
+
+All four routes need the hub session and refuse anything that is not a plain
+file name inside the data directory's `logs/`. "Show developer tools" decides
+what the dashboard shows, never what a request may do, so it is not a
+server-side check.
+
+- `GET /api/logs` — `{ "logs": [{ name, kind, size, modified, base, rotated }] }`.
+  `kind` is `server`, `audit`, `worker` or `app`; `base` is the log a rotated
+  file belongs to (`server.log` for `server.log.1`).
+- `GET /api/logs/{name}?lines=&from_end=&pattern=` —
+  `{ name, lines: [...], total, truncated }`. Without `pattern` this tails
+  (`from_end=true`, the default) or heads the file. With one it searches: a
+  case-insensitive substring, or a regular expression when the pattern is
+  wrapped in `/…/`. `total` counts every line or every match, so `truncated`
+  says whether more exist than were returned. At most 5000 lines per request.
+- `GET /api/logs/{name}/download` — the whole file as `text/plain`, as an
+  attachment. It carries the hub token like any other call, so the dashboard
+  fetches it rather than linking to it.
+- `DELETE /api/logs/{name}` — truncates the file in place, so the running
+  handler keeps writing to it, and records the action in `audit.log`. Requires
+  `X-Vela-Confirm: clear`; without the header the answer is `428` and nothing
+  is deleted. Rotated copies are not touched.
+
+Vela writes `server.log` (2 MB × 5, shared by the console server and the tray),
+`audit.log` (install, uninstall, launch, stop, update, backup, restore, repair
+and log clearing, each with `actor=local` or `actor=remote`), and one
+`<app-id>.log` per process app. `httpx` and `httpcore` log at `WARNING`, so a
+request line no longer appears for every poll.
 
 ## Data Directory
 
@@ -921,7 +1129,10 @@ restrained 14px card corners), in light and dark.
   `attention`. Right-click, Shift+F10 or a long press opens a context menu —
   Open, Pin to rail, Add widget to desk (when the app declares widgets), App
   settings, Stop (running process apps) and Remove — and arrow keys move
-  between tiles in the `role="grid"`. On a phone it is a four-column grid the
+  between tiles in the `role="grid"`. Open counts live in
+  `<data_dir>/usage.json` behind `GET /api/usage` and `POST /api/usage/{id}`:
+  one count per app per day, thirty days kept, written only when someone
+  deliberately opens something, removed with the app, and never sent anywhere. On a phone it is a four-column grid the
   rail stays beside.
 - **Phone**: there is no bottom bar and no hamburger. Every page keeps the
   rail on screen at every width — beside its content, never over it — so a
@@ -985,14 +1196,100 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Files** (`/files`, a core app): browses the folders named in
+  `settings.files.shares` (`id`, `label`, `path`, `writable`), managed in
+  Settings › Files and defaulting to one `Downloads` share under
+  `<data_dir>/shares/downloads`. **A path is served only when it resolves
+  inside a configured share.** Every route names a share id and a path relative
+  to it, and there is deliberately no route that accepts a whole path; `..`, an
+  absolute path, a drive letter, a UNC path and a symlink pointing out of the
+  share are all refused by the same check, and a refusal never names the real
+  path. Vela's own data directory cannot be configured as a share.
+  `GET /api/files` lists the shares, each marked `reachable`;
+  `GET /api/files/{share}?path=` lists a folder (name, path, kind, size,
+  modified, folders first), capped at 5000 entries with `truncated` when there
+  are more; `GET /api/files/{share}/download?path=` sends a file, as an
+  attachment unless `inline` is asked for and the kind is one a browser renders
+  — an SVG is never inline, because it is an image that can carry script;
+  `POST …/folder`, `…/rename`, `…/move` and `DELETE /api/files/{share}?path=`
+  change things, and `POST …/upload?path=&name=` streams one file of at most
+  2 GB. A read-only share refuses every change. Deletes move to
+  `<data_dir>/trash`, listed by `GET /api/files-trash` and cleared after 30
+  days. Every change is written to `audit.log` as a `files` event. The engine
+  authenticates by header, so the dashboard fetches a file with the session and
+  hands the browser a blob rather than linking at `/api/…` directly, and a text
+  preview is shown as text rather than rendered.
+- **Identity** (`settings.identity`: `serverName`, `displayName`, `initial`):
+  two labels the user chose. `serverName` is what the desk and the Launchpad
+  call this computer, not the address it answers on — naming it changes nothing
+  about how the server listens. `initial` is derived from the display name (or
+  the server name) on read and is never accepted from a caller, so no two
+  surfaces can show a different letter for the same person; a patch offering
+  one is refused, as is an unknown field, a non-string, or a name over 60
+  characters. Both are asked once on first run, both may be left blank, and
+  both are edited in Settings › General. The rail's foot draws a 34px avatar
+  with the initial, labelled "<displayName> · <serverName>", opening Settings ›
+  General; with no name there is no avatar rather than a placeholder letter.
+  Ask greets by display name when there is one.
+- **Needs you actions and Later**: each flagged row carries the summary's
+  `actions` that the user has already granted — they open the app, as the app's
+  own widget does; Vela does not run an app's action on its behalf — and a
+  **Later** button. Later calls
+  `POST /api/widgets/{app}/{widget}/snooze` and puts that one widget aside for
+  eight hours in `<data_dir>/snooze.json`; `DELETE` on the same path brings it
+  back. A snoozed entry is still returned in full by `GET /api/widgets` and is
+  still drawn by the app's own widget — the summary is untouched and the app is
+  told nothing — but it carries `snoozedUntil`, and the desk's Needs you list,
+  the rail's dot and the Launchpad's attention dot leave it out until then. An
+  expired snooze is deleted the next time the file is read, and uninstalling an
+  app forgets its snoozes.
+- **Status strip** (`.desk-statusbar`, desktop only, pinned to the bottom of the
+  workspace, hidden while arranging): apps running · flows today · the first
+  app whose summary says `attention` · the room left on the volume Vela's data
+  sits on · the connection mode · what this computer moved today. It draws only
+  the parts it actually has and does not render at all when it has none. On a
+  phone the Launchpad's header line carries the running count and today's total
+  instead.
+- **Connection mode** (`network.mode` in `GET /api/system/metrics`): `https`
+  when the server was started with a certificate or the Wi-Fi listener is up,
+  `lan` when it is bound wider than loopback or reached through a configured
+  public origin, otherwise `local`. It is read from how the server was actually
+  started, never from a setting, so it cannot claim to be private while
+  listening to the network.
+- **Network today** (`network.today`): `bytesSent`, `bytesRecv` and `total`
+  since local midnight, sampled from `psutil.net_io_counters()` every 10 s and
+  written to `<data_dir>/metrics/net-<date>.json` at most once a minute, 30 days
+  kept. Counters that go backwards (a reboot, an interface reset) are skipped
+  rather than guessed at.
+- **Weather** (`settings.desk.weather`: `enabled`, `latitude`, `longitude`,
+  `label`): the only outbound request the desk makes, off until the user names
+  a place in Personalise. `POST /api/weather/locate` geocodes a typed name once
+  through Open-Meteo and stores the coordinates, not the name;
+  `GET /api/weather` returns the current temperature and the WMO code in words,
+  cached for 15 minutes, and returns `{"enabled": false}` without making any
+  request while the switch is off. Coordinates are rounded to two decimal
+  places before they leave the computer, and nothing else is sent — no key, no
+  account, no identifier. The clock widget shows the reading when there is one.
+- **Dragging an app onto the desk**: an app tile in the desk's **Your apps**
+  widget is draggable and carries `application/x-vela-app`. Dropping it on bare
+  board adds that app's first declared widget at the cell it landed on, pushing
+  neighbours down if it does not fit, and opens Arrange so it can be moved at
+  once. An app that declares no widget, or one already on the board, says so
+  instead of placing something unrelated.
 - **Personalise** (a desk control, and a long press on bare wallpaper on a
-  phone): the wallpaper — bundled `lake` (a photograph), `sage` and `night`
-  (gradients), or `custom` — plus **Dim the wallpaper**, **Show app names** and
+  phone): the wallpaper — the eight painted images `choroni` (the default),
+  `paramo`, `medanos`, `chiguire`, `pueblo`, `avila`, `castillo` and `canaima`,
+  the `sage` and `night` gradients, `daily` (a standing choice that resolves to
+  one of the painted set by the local day of the year and moves on at midnight),
+  or `custom` — plus **Dim the wallpaper**, **Show app names** and
   **Ask on this board**, which adds or removes that board's Ask widget and saves
   immediately. `GET/PUT/DELETE /api/wallpaper` stores one image in the data
   directory: JPEG, PNG or WebP only, checked against its own header rather than
   its declared type, at most 8 MB, replaced rather than accumulated, and
-  removing it returns the desk to `lake`.
+  removing it returns the desk to `choroni`. The drawn picture rides on
+  `data-desk-wallpaper` and the standing choice on `data-desk-choice`, which
+  differ only under `daily`; `data-desk-tone` carries a per-image `light`/`dark`
+  hint that nudges the overlay so widget text stays readable over either.
 - **Desk widgets and their sources**: `clock` (the browser's clock),
   `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
   `system` and `volume` (`GET /api/system/metrics`), `flows`
@@ -1039,9 +1336,14 @@ restrained 14px card corners), in light and dark.
 - **System** (`/environments`): a developer destination. With developer tools
   off the route stays valid and explains itself, offering an explicit "Enable
   developer tools" action and a way back; visiting never enables it. With them
-  on: the Local Engine card from `GET /api/engine` — status dot and Running
-  pill, endpoint, applications installed, storage used, data directory — plus
-  the running apps.
+  on it has tabs, the active one in `?tab=`: **Overview** (the default) shows
+  the Local Engine card from `GET /api/engine` — status dot and Running pill,
+  endpoint, applications installed, storage used, data directory — plus the
+  running apps; **Logs** (`?tab=logs`, the open file in `?log=`) lists the
+  files Vela wrote, grouped by what wrote them with rotated copies under their
+  base, and shows one of them with a line count, search, auto-refresh,
+  Download and a confirmed Clear. Automation runs are linked to their own
+  viewer rather than duplicated here.
 - **Settings**: a popup over the current screen with searchable categories for
   General, Appearance, Chat & privacy, Local AI, Notifications, Backups &
   storage, and Developer tools while that preference is on. Theme previews and

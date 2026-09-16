@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   ArrowLineDown,
@@ -104,12 +104,35 @@ export default function AppRail({ onNavigate }) {
   const menuOpener = useRef(null);
 
   const loadSummaries = useCallback((options) => api.appWidgets(options), []);
-  const { data } = useResource(loadSummaries, { intervalMs: 60000 });
+  const { data, refresh: refreshSummaries } = useResource(loadSummaries, { intervalMs: 60000 });
   const summaries = data?.widgets;
+  // Putting an item aside on the desk should take this dot with it, not leave
+  // it on until the next minute's poll.
+  useEffect(() => {
+    const onChanged = () => refreshSummaries();
+    addEventListener('vela:widgets-changed', onChanged);
+    return () => removeEventListener('vela:widgets-changed', onChanged);
+  }, [refreshSummaries]);
+  // Settings holds Health, so a failed check is what puts a dot on Settings.
+  // Reading the last sweep never starts one.
+  const loadHealth = useCallback((options) => api.getDoctor(options), []);
+  const { data: health } = useResource(loadHealth, { intervalMs: 120000 });
+  // Who this server belongs to. The avatar is the one place the rail says it,
+  // so it reads the setting rather than being handed a prop through the shell.
+  const loadIdentity = useCallback((options) => api.getSettings(options), []);
+  const { data: settingsData, refresh: refreshIdentity } = useResource(loadIdentity);
+  const identity = settingsData?.identity || {};
+  useEffect(() => {
+    const onChanged = () => refreshIdentity();
+    addEventListener('vela:identity-changed', onChanged);
+    return () => removeEventListener('vela:identity-changed', onChanged);
+  }, [refreshIdentity]);
+  const healthFailing = (health?.checks || []).some((check) => check.status === 'fail');
   const needsAttention = useMemo(() => {
     const ids = new Set();
     for (const entry of summaries || []) {
-      if (entry?.summary?.attention) ids.add(entry.appId);
+      // A snoozed item is put aside on the desk, so the dot goes with it.
+      if (entry?.summary?.attention && !entry.snoozedUntil) ids.add(entry.appId);
     }
     return ids;
   }, [summaries]);
@@ -264,15 +287,47 @@ export default function AppRail({ onNavigate }) {
             type="button"
             className="rail-item"
             aria-haspopup="dialog"
+            aria-describedby={healthFailing ? 'rail-health-attention' : undefined}
             onClick={() => {
               onNavigate?.();
               openSettings();
             }}
           >
             <Icon size={19} aria-hidden="true" />
+            {healthFailing ? <span className="rail-dot" aria-hidden="true" /> : null}
             <span className="rail-tip">{label}</span>
+            {healthFailing ? (
+              <span id="rail-health-attention" hidden>
+                Something needs your attention in Health
+              </span>
+            ) : null}
           </button>
         ))}
+        {/* The foot avatar: who this is. It opens the same Settings popup the
+            gear does, on General, where the two names are edited. Without a
+            name there is nothing true to draw, so it is not drawn. */}
+        {identity.initial ? (
+          <button
+            type="button"
+            className="rail-item rail-avatar-item"
+            aria-haspopup="dialog"
+            aria-label={`${identity.displayName || 'You'}${
+              identity.serverName ? ` · ${identity.serverName}` : ''
+            } — open General settings`}
+            onClick={() => {
+              onNavigate?.();
+              openSettings('general');
+            }}
+          >
+            <span className="rail-avatar" aria-hidden="true">
+              {identity.initial}
+            </span>
+            <span className="rail-tip">
+              {identity.displayName || 'You'}
+              {identity.serverName ? ` · ${identity.serverName}` : ''}
+            </span>
+          </button>
+        ) : null}
         {remote && (
           <button
             type="button"

@@ -19,12 +19,16 @@ import Desk from './pages/Desk.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import { installErrorReporting } from './errors.js';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { initTheme } from './theme.js';
 import { sharedViewport } from './viewport.js';
 import './styles/main.scss';
 
 registerServiceWorker();
 initTheme();
+// Record the dashboard's own failures so they can be read back later.
+installErrorReporting();
 // One viewport owner for the whole dashboard; layout reads its CSS variables.
 sharedViewport();
 
@@ -50,7 +54,19 @@ const router = createBrowserRouter(
       >
         <Route element={<Shell />}>
           {routablePages.flatMap(({ to, childPaths = [], component: Page }) =>
-            [to, ...childPaths].map((path) => <Route key={path} path={path} element={<Page />} />),
+            [to, ...childPaths].map((path) => (
+              // Around the page, not the shell: a page that throws must not
+              // take the rail with it.
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <ErrorBoundary>
+                    <Page />
+                  </ErrorBoundary>
+                }
+              />
+            )),
           )}
         </Route>
         {/* The manifest chooses the app view's host navigation. */}

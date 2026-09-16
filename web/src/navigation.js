@@ -1,5 +1,6 @@
 import {
   ChatCircleText,
+  Folder,
   GearSix,
   HardDrives,
   HouseSimple,
@@ -11,7 +12,8 @@ import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
 import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
-import Environments from './pages/Environments.jsx';
+import System from './pages/System.jsx';
+import Files from './pages/Files.jsx';
 import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
@@ -43,7 +45,7 @@ export const dashboardPages = [
     icon: ChatCircleText,
     core: true,
     id: 'ask',
-    color: '#796cbf',
+    color: '#7b4dff',
     // A selected conversation is part of the route, so reloads and links restore it.
     childPaths: ['/ask/:conversationId'],
     component: Ask,
@@ -71,6 +73,15 @@ export const dashboardPages = [
     component: Automations,
   },
   {
+    to: '/files',
+    label: 'Files',
+    icon: Folder,
+    core: true,
+    id: 'files',
+    color: '#2f8fd0',
+    component: Files,
+  },
+  {
     to: '/environments',
     label: 'System',
     icon: HardDrives,
@@ -78,7 +89,7 @@ export const dashboardPages = [
     id: 'system',
     color: '#21a377',
     developer: true,
-    component: Environments,
+    component: System,
   },
   {
     to: '/settings',

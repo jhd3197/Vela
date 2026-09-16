@@ -114,6 +114,29 @@ def tray_smoke(executable, data, work):
                 process.wait(timeout=10)
 
 
+def check_update_flags(installer):
+    """The flags Vela's updater uses are the ones this check proves work.
+
+    `main` below installs and upgrades with an explicit silent command line. If
+    the apply script the updater writes ever drifts from it, an update would be
+    running an installer invocation nothing has verified. Comparing them here
+    keeps the two in step.
+    """
+    from vela.updates import windows_installer_script
+
+    script = windows_installer_script(
+        pid=1234, setup=installer, updates_dir=installer.parent,
+        relaunch='"{}" --no-open-browser'.format(installer.parent / 'Vela.exe'))
+    for flag in ('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'):
+        assert flag in script, f'The updater no longer passes {flag}'
+    assert '/CLOSEAPPLICATIONS' in script, (
+        'The updater must let the installer close a running Vela')
+    assert str(installer) in script, 'The apply script does not run the setup it downloaded'
+    # It waits for this process to exit before touching the files it is using.
+    assert 'PID eq 1234' in script and 'goto wait' in script
+    print('PASS: the updater installs with the same silent flags this check verifies')
+
+
 def main():
     # The test installer has a separate AppId and never creates real shortcuts/startup entries.
     assert sys.platform == 'win32', 'Run this verification on Windows'
@@ -121,6 +144,7 @@ def main():
     installer = ROOT / f'.local/releases/vela-server-{__version__}-windows-x64-setup.exe'
     check_branding(portable)
     check_branding(installer)
+    check_update_flags(installer)
     subprocess.run([sys.executable, str(ROOT / 'scripts/build-windows-installer.py'), '--test-build'], check=True)
     test_installer = ROOT / f'.local/installer-test/vela-server-{__version__}-windows-x64-setup.exe'
     uninstall_key = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\Vela.Server.SmokeTest_is1'
@@ -191,7 +215,7 @@ def main():
                 raise AssertionError('Uninstall registration was not removed')
         except FileNotFoundError:
             pass
-    print('PASS: branded executables, portable and installed tray startup/shutdown, install/upgrade/uninstall, data preservation')
+    print('PASS: branded executables, portable and installed tray startup/shutdown, install/upgrade/uninstall, data preservation, updater flag parity')
 
 
 if __name__ == '__main__':

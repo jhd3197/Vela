@@ -35,6 +35,9 @@ export default function DeskGrid({
   ctx,
   onWidgetMenu,
   onViewMenu,
+  // Dropping an app tile here makes a widget of it. The board owns placement,
+  // so all this reports is which app landed on which cell.
+  onAppDrop,
   empty = null,
 }) {
   const hostRef = useRef(null);
@@ -160,12 +163,53 @@ export default function DeskGrid({
     [drag, cell, gap, rowHeight, stepX, stepY],
   );
 
+  // An app tile dragged from elsewhere in the dashboard. This is the HTML drag
+  // API rather than the pointer gestures above: the drag starts in another
+  // component, so there is no pointer capture to share.
+  const [over, setOver] = useState(false);
+
+  const cellAt = useCallback(
+    (event) => {
+      const box = hostRef.current?.getBoundingClientRect();
+      if (!box || cell <= 0) return { x: 0, y: 0 };
+      return {
+        x: clamp(Math.floor((event.clientX - box.left) / stepX), 0, cols - 1),
+        y: Math.max(0, Math.floor((event.clientY - box.top) / stepY)),
+      };
+    },
+    [cell, cols, stepX, stepY],
+  );
+
+  const carriesApp = (event) =>
+    Array.from(event.dataTransfer?.types || []).includes('application/x-vela-app');
+
+  const onDragOver = (event) => {
+    if (!onAppDrop || !carriesApp(event)) return;
+    // Taking the event is what tells the browser this is a valid drop target.
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (!over) setOver(true);
+  };
+
+  const onDrop = (event) => {
+    if (!onAppDrop || !carriesApp(event)) return;
+    event.preventDefault();
+    setOver(false);
+    const appId = event.dataTransfer.getData('application/x-vela-app');
+    if (appId) onAppDrop(appId, cellAt(event));
+  };
+
   const hostClassName = useMemo(
     () =>
-      ['desk-grid', edit && 'desk-grid-edit', drag && 'desk-grid-dragging']
+      [
+        'desk-grid',
+        edit && 'desk-grid-edit',
+        drag && 'desk-grid-dragging',
+        over && 'desk-grid-dropping',
+      ]
         .filter(Boolean)
         .join(' '),
-    [edit, drag],
+    [edit, drag, over],
   );
 
   return (
@@ -176,7 +220,21 @@ export default function DeskGrid({
       onPointerDown={(event) => {
         if (edit && event.target === event.currentTarget) onSelect?.(null);
       }}
+      onDragOver={onDragOver}
+      onDragEnter={onDragOver}
+      onDragLeave={(event) => {
+        // `dragleave` also fires crossing into a child, so only a pointer that
+        // actually left the board clears the highlight.
+        if (!event.currentTarget.contains(event.relatedTarget)) setOver(false);
+      }}
+      onDrop={onDrop}
     >
+      {over && (
+        <div className="desk-grid-dropzone" aria-hidden="true">
+          <span>Drop to add a widget</span>
+        </div>
+      )}
+
       {edit && (
         <div
           className="desk-grid-ghost"

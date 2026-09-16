@@ -47,7 +47,17 @@ const apps = [
     color: '#2bb6d8',
     widgets: [{ id: 'recent', name: 'Recent notes', size: 'm' }],
   },
-  { id: 'zeta', name: 'Zeta', installed: true, running: false, runtime: 'web', color: '#c4a7ff' },
+  {
+    id: 'zeta',
+    name: 'Zeta',
+    installed: true,
+    running: false,
+    runtime: 'web',
+    color: '#c4a7ff',
+    // A newer release is out, which is what puts Zeta in the Updates tab and
+    // gives the Marketplace tile its count.
+    releaseAvailable: { version: '2.0.0' },
+  },
   // Not installed: it belongs in the Marketplace, so the Launchpad must not
   // show it among the apps the user has.
   { id: 'shop', name: 'Shoppe', installed: false, supported: true, category: 'lifestyle' },
@@ -92,8 +102,21 @@ window.fetch = async (input, init) => {
     });
   if (url.includes('/api/platforms')) return json({ current: 'windows', supported: ['windows'] });
   if (url.includes('/api/widgets'))
-    return json({ widgets: [{ appId: 'health', summary: { attention: true } }] });
-  if (url.includes('/api/settings')) return json({ desk: { wallpaper: 'lake', dim: true } });
+    return json({
+      widgets: [
+        { appId: 'health', summary: { attention: true, badge: '3' } },
+        // A second summary for the same app: the first badge wins rather than
+        // two counts fighting over one icon.
+        { appId: 'health', summary: { badge: '9' } },
+        { appId: 'notes', summary: { badge: '73' } },
+      ],
+    });
+  // Opens over the last 30 days. Notes is the habit; Beta is occasional.
+  if (url.includes('/api/usage'))
+    return json({ totals: { notes: 12, beta: 4, ask: 7 }, windowDays: 30 });
+  if (url.includes('/api/automations/status'))
+    return json({ runsToday: 3, failuresToday: 2, averageDurationMs: 120 });
+  if (url.includes('/api/settings')) return json({ desk: { wallpaper: 'choroni', dim: true } });
   if (url.includes('/api/notifications')) return json({ notifications: [] });
   if (url.startsWith('/api/')) return json({});
   return real(input, init);

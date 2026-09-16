@@ -75,6 +75,15 @@ export default function AppsWidget({ cfg = {}, ctx }) {
             className="tile-card"
             disabled={busy}
             aria-label={`Open ${app.name}`}
+            // Dragging a tile off this widget and onto bare desk adds that app's
+            // own widget where it lands. The board is the only surface that
+            // accepts this type, so the drag is inert anywhere else.
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.setData('application/x-vela-app', app.id);
+              event.dataTransfer.setData('text/plain', app.name);
+              event.dataTransfer.effectAllowed = 'copy';
+            }}
             onClick={() => openApp(app.id, { returnTo: '/' })}
           >
             <AppIcon app={app} size={phone ? 52 : 56} />

@@ -1,6 +1,14 @@
 /* Vela hub shell (v3) — Nocturne design language.
-   Inter, Phosphor icons, blurple accent, gradient app tiles.
-   Light theme by default; [data-theme="dark"] follows the Home prototype. */
+   Inter, Phosphor icons, gradient app tiles.
+   Light theme by default; [data-theme="dark"] follows the Home prototype.
+
+   Colour comes from the Vela brand kit: Deep Navy #111A27, Vela Violet #7B4DFF,
+   Soft Lavender #C9B0FF, Bright Cyan #2FD3F6, Cloud White #F6F8FB and Slate
+   Gray #70798A. Anything used as text carries at least 4.5:1 against the surface
+   behind it, which is why `--accent-strong` exists: the raw violet clears that
+   on white but not on a tinted card, and the lavender clears it only on navy.
+   `--cyan` marks running things; it is drawn as a dot or a line rather than as
+   text, so it is tuned per theme to stay visible rather than to read. */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -26,13 +34,14 @@
   --text-dim: #595d6c;
   --text-faint: #75798c;
 
-  --accent: #796cbf;
-  --accent-strong: #5d5294;
-  --accent-soft: #e7e5fe;
-  --accent-line: #968ae0;
-  --nav-active-text: #5d5294;
-  --nav-active-bg: #e7e5fe;
-  --nav-active-bar: #796cbf;
+  --accent: #7b4dff;
+  --accent-strong: #5b2edb;
+  --accent-soft: #efe6ff;
+  --accent-line: #c9b0ff;
+  --cyan: #1595b6;
+  --nav-active-text: #5b2edb;
+  --nav-active-bg: #efe6ff;
+  --nav-active-bar: #7b4dff;
 
   --green: #21a377;
   --green-soft: rgba(33, 163, 119, 0.12);
@@ -50,35 +59,36 @@
   --content-pad: 22px 26px;
 
   --glow:
-    radial-gradient(720px 320px at 24% -10%, rgba(139, 92, 246, 0.14), transparent 68%),
-    radial-gradient(480px 280px at 96% 4%, rgba(55, 213, 245, 0.1), transparent 70%);
+    radial-gradient(720px 320px at 24% -10%, rgba(123, 77, 255, 0.14), transparent 68%),
+    radial-gradient(480px 280px at 96% 4%, rgba(47, 211, 246, 0.1), transparent 70%);
 
   color-scheme: light;
 }
 
 [data-theme='dark'] {
-  --bg: #101220;
-  --bg-rail: rgba(11, 14, 24, 0.85);
-  --bg-workspace: #161826;
-  --bg-panel: rgba(27, 30, 46, 0.72);
-  --bg-header: rgba(22, 24, 38, 0.72);
-  --bg-card: #232532;
-  --bg-field: #1b1e2e;
-  --bg-inset: #1b1e2e;
-  --bg-pop: #262836;
-  --border: color-mix(in srgb, #e9e9ed 14%, transparent);
-  --border-strong: color-mix(in srgb, #e9e9ed 28%, transparent);
-  --text: #e9e9ed;
-  --text-dim: #b2b6ca;
-  --text-faint: #9397ab;
+  --bg: #111a27;
+  --bg-rail: rgba(9, 15, 24, 0.85);
+  --bg-workspace: #16202f;
+  --bg-panel: rgba(29, 41, 57, 0.72);
+  --bg-header: rgba(22, 32, 47, 0.72);
+  --bg-card: #1d2939;
+  --bg-field: #1a2433;
+  --bg-inset: #1a2433;
+  --bg-pop: #212e40;
+  --border: color-mix(in srgb, #e8ecf4 14%, transparent);
+  --border-strong: color-mix(in srgb, #e8ecf4 28%, transparent);
+  --text: #e8ecf4;
+  --text-dim: #b4bece;
+  --text-faint: #97a2b4;
 
-  --accent: #9184d9;
-  --accent-strong: #d2cefd;
-  --accent-soft: color-mix(in srgb, #9184d9 14%, transparent);
-  --accent-line: #9184d9;
-  --nav-active-text: #d2cefd;
-  --nav-active-bg: color-mix(in srgb, #9184d9 14%, transparent);
-  --nav-active-bar: #9184d9;
+  --accent: #a78bff;
+  --accent-strong: #c9b0ff;
+  --accent-soft: color-mix(in srgb, #a78bff 16%, transparent);
+  --accent-line: #a78bff;
+  --cyan: #2fd3f6;
+  --nav-active-text: #c9b0ff;
+  --nav-active-bg: color-mix(in srgb, #a78bff 16%, transparent);
+  --nav-active-bar: #a78bff;
 
   --green: #33d69f;
   --green-soft: rgba(51, 214, 159, 0.12);
@@ -89,8 +99,8 @@
   --shadow-pop: 0 0 0 1px var(--border-strong), 0 16px 44px rgba(0, 0, 0, 0.6);
 
   --glow:
-    radial-gradient(760px 320px at 28% -12%, rgba(145, 132, 217, 0.16), transparent 70%),
-    radial-gradient(520px 260px at 96% 4%, rgba(55, 213, 245, 0.07), transparent 70%);
+    radial-gradient(760px 320px at 28% -12%, rgba(167, 139, 255, 0.16), transparent 70%),
+    radial-gradient(520px 260px at 96% 4%, rgba(47, 211, 246, 0.07), transparent 70%);
 
   color-scheme: dark;
 }

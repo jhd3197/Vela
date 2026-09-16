@@ -3,13 +3,14 @@ import ctypes
 from ctypes import wintypes
 import hashlib
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 import subprocess
 import sys
 import threading
 import webbrowser
+
+from .logging_setup import SERVER_LOG, configure_logging, teardown_logging
 
 LOG = logging.getLogger(__name__)
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -126,6 +127,26 @@ def set_start_at_login(enabled):
                 pass
 
 
+def update_available(config):
+    """The version the last update check found, or None.
+
+    The tray reads the checker's cache rather than making its own request: the
+    engine owns when Vela talks to GitHub, and the tray must not turn a menu
+    redraw into network traffic.
+    """
+    try:
+        import json
+
+        cached = json.loads((config.data_dir / 'updates' / 'latest.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    from . import __version__
+    from .version import is_newer
+
+    latest = cached.get('latest')
+    return latest if latest and is_newer(latest, __version__) else None
+
+
 def run_tray(factory, dashboard_url, config, host, port):
     import pystray
     from PIL import Image
@@ -141,12 +162,18 @@ def run_tray(factory, dashboard_url, config, host, port):
                 'Vela Server', 0x40)
             return
         application = WindowsMutex(APP_MUTEX)
-        log_path = config.logs_dir / 'server.log'
-        handler = RotatingFileHandler(log_path, maxBytes=2_000_000, backupCount=2, encoding='utf-8')
-        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
-        logging.getLogger().addHandler(handler)
-        logging.getLogger().setLevel(logging.INFO)
+        log_path = config.logs_dir / SERVER_LOG
+        configure_logging(config)
         controller = ServerController(factory)
+        # An update has to stop the server before its files can be replaced.
+        # Handing the controller over means it stops the same way the menu
+        # does, rather than the engine signalling its own process.
+        try:
+            from .api import app as engine
+
+            engine.state.server_controller = controller
+        except Exception:  # noqa: BLE001 - the tray still works without it
+            LOG.warning('could not share the server controller with the engine', exc_info=True)
         icon = None
 
         def changed():
@@ -192,6 +219,9 @@ def run_tray(factory, dashboard_url, config, host, port):
                      enabled=lambda _: controller.state in ('Stopped', 'Failed')),
                 item('Stop server', stop_server, enabled=lambda _: controller.state == 'Running'),
                 pystray.Menu.SEPARATOR,
+                item(lambda _: 'Install update ' + (update_available(config) or ''),
+                     lambda: webbrowser.open(dashboard_url + '/settings#updates'),
+                     visible=lambda _: bool(update_available(config))),
                 item('Start at sign in', toggle_login, checked=lambda _: starts_at_login(),
                      enabled=bool(getattr(sys, 'frozen', False)) and 'VELA_DATA_DIR' not in os.environ),
                 item('Open logs', lambda: os.startfile(str(log_path))),
@@ -203,8 +233,7 @@ def run_tray(factory, dashboard_url, config, host, port):
                 controller.stop()
                 if controller.thread:
                     controller.thread.join()
-                logging.getLogger().removeHandler(handler)
-                handler.close()
+                teardown_logging()
     finally:
         instance.close()
         if application:

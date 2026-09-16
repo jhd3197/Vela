@@ -6,7 +6,7 @@ import { appArtwork } from './appArtwork.jsx';
 // and hue second — both still legible at rail size. The artwork is decorative,
 // so the tile stays hidden from screen readers and every control that uses it
 // keeps its own accessible name.
-export default function AppIcon({ app, size = 44, plain }) {
+export default function AppIcon({ app, size = 44, plain, badge }) {
   const art = appArtwork(app);
   const Glyph = app?.glyph || null;
   const mark = Math.round(size * art.scale);
@@ -19,6 +19,11 @@ export default function AppIcon({ app, size = 44, plain }) {
     height: size,
     borderRadius: Math.max(8, size * 0.29),
   };
+  // A badge is a count an app puts on its own icon. It is three characters at
+  // most, so it is drawn rather than truncated, and it stays out of the
+  // accessibility tree here: every control that uses an icon already builds its
+  // own name, and that is where the count belongs so it is read once.
+  const count = typeof badge === 'string' ? badge.trim().slice(0, 3) : '';
   if (tones) {
     style['--tile-mark'] = tones.mark;
     style['--tile-wash'] = tones.wash;
@@ -30,6 +35,11 @@ export default function AppIcon({ app, size = 44, plain }) {
 
   return (
     <span className={`appicon${isPlain ? ' appicon-plain' : ''}`} style={style} aria-hidden="true">
+      {count ? (
+        <span className="appicon-badge" style={{ fontSize: Math.max(9, Math.round(size * 0.2)) }}>
+          {count}
+        </span>
+      ) : null}
       {Glyph ? (
         <Glyph size={mark} weight="regular" />
       ) : (

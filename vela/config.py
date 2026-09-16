@@ -1,8 +1,11 @@
 """Data-directory layout and environment overrides."""
 
+import json
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = Path.home() / ".vela"
@@ -65,3 +68,30 @@ def load_config() -> Config:
     )
     config.ensure_dirs()
     return config
+
+
+def write_json_atomic(path: Path, data: Any) -> None:
+    """Write JSON so a crash mid-write cannot lose the previous good file.
+
+    The new content goes to a temporary file first and `replace` swaps it in,
+    which is atomic on both platforms Vela ships for. Before the swap the file
+    that is about to be replaced is kept as `<name>.bak`, but only when it
+    still parses: a `.bak` is only worth having if it is something the doctor's
+    `settings` repair can put back.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
+        else:
+            try:
+                shutil.copy2(path, path.with_suffix(path.suffix + ".bak"))
+            except OSError:
+                # A backup copy is a convenience. Failing to make one must not
+                # stop the write the user actually asked for.
+                pass
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp.replace(path)

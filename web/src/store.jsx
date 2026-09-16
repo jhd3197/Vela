@@ -104,6 +104,11 @@ export function AppsProvider({ children }) {
   const openApp = useCallback(
     async (id, { returnTo = '/' } = {}) => {
       if (opening.current) return;
+      // This is the deliberate-open path described above, which makes it the
+      // one place worth counting for the Launchpad's Frequent tab. It is
+      // fire-and-forget: a count that does not save is not a reason to fail to
+      // open the app someone asked for.
+      api.recordUsage(id).catch(() => {});
       const app = (apps || []).find((item) => item.id === id);
       const go = () => navigate(`/app/${id}`, { state: { returnTo } });
       const needsStart =

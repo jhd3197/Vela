@@ -1,8 +1,8 @@
 // The widget types Vela itself provides.
 //
-// A type ships only when its data source exists. Health, Money, Meals,
-// Photos, Paperless and weather appear in the mockups; none of them has a
-// source on the host, so none of them is here. App-owned widgets arrive
+// A type ships only when its data source exists. Money, Meals, Photos,
+// Paperless and weather appear in the mockups; none of them has a source on
+// the host, so none of them is here. App-owned widgets arrive
 // through the manifest instead — see `registry.js`.
 import {
   Archive,
@@ -12,10 +12,12 @@ import {
   Lightning,
   PlayCircle,
   SquaresFour,
+  Stethoscope,
   WarningCircle,
 } from '@phosphor-icons/react';
 import AppsWidget from './widgets/AppsWidget.jsx';
 import AskWidget from './widgets/AskWidget.jsx';
+import HealthWidget from './widgets/HealthWidget.jsx';
 import NeedsYouWidget from './widgets/NeedsYouWidget.jsx';
 import RunningWidget from './widgets/RunningWidget.jsx';
 import {
@@ -37,7 +39,9 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
-    render: ({ cfg }) => <WidgetClock showSeconds={cfg.seconds === true} />,
+    render: ({ cfg, ctx }) => (
+      <WidgetClock showSeconds={cfg.seconds === true} weather={ctx?.weather} />
+    ),
   },
   {
     id: 'apps',
@@ -126,6 +130,18 @@ export const CORE_WIDGET_TYPES = [
     min: [1, 1],
     defaultCfg: {},
     render: FlowsWidget,
+  },
+  {
+    id: 'health',
+    name: 'Health',
+    icon: Stethoscope,
+    cat: 'Vela',
+    desc: "Whether this server has what it needs, from Vela's own checks",
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: {},
+    render: HealthWidget,
   },
   {
     id: 'backups',
