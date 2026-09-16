@@ -60,6 +60,7 @@ class Doctor:
         backups=None,
         assistant=None,
         catalog=None,
+        updates=None,
     ):
         self._config = config
         self._state = state
@@ -68,6 +69,7 @@ class Doctor:
         self._backups = backups
         self._assistant = assistant
         self._catalog = catalog
+        self._updates = updates
         self._checks: dict[str, dict[str, Any]] = {}
         self._last: dict[str, Any] | None = None
         self.register_defaults()
@@ -572,8 +574,24 @@ class Doctor:
         }
 
     def _check_update(self) -> dict[str, Any]:
-        # Stage 5 gives this one a real answer.
-        return {"status": SKIPPED, "detail": "Vela does not check for updates yet."}
+        if self._updates is None:
+            return {"status": SKIPPED, "detail": "This server does not check for updates."}
+        status = self._updates.status()
+        if not status.get("check"):
+            return {"status": SKIPPED, "detail": "Checking for updates is turned off."}
+        if not status.get("checkedAt"):
+            return {"status": SKIPPED, "detail": "Vela has not checked for a new version yet."}
+        if status.get("error"):
+            return {
+                "status": WARN,
+                "detail": f"Vela could not reach GitHub to check for a new version ({status['error']}).",
+            }
+        if status.get("available"):
+            return {
+                "status": WARN,
+                "detail": f"Vela {status['latest']} is available. You are on {status['current']}.",
+            }
+        return {"status": OK, "detail": f"Vela {status['current']} is the latest release."}
 
 
 _ORDER = [FAIL, WARN, OK, SKIPPED]

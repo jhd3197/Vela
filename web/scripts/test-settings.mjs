@@ -68,6 +68,22 @@ try {
   };
   let restored = null;
 
+  // Updates: nothing known until Check now, then a newer release with notes.
+  let updateState = {
+    current: '0.1.10',
+    latest: null,
+    available: false,
+    notes: '',
+    asset: null,
+    capability: 'portable',
+    checkedAt: null,
+    error: null,
+    check: true,
+    mode: 'notify',
+    hour: 3,
+  };
+  let updateChecks = 0;
+
   let doctorRan = false;
   let doctorRepaired = false;
   let doctorRuns = 0;
@@ -90,6 +106,26 @@ try {
     const url = new URL(route.request().url());
     if (url.hostname !== 'vela.test') return route.abort();
     if (url.pathname.startsWith('/api/')) {
+      if (url.pathname === '/api/updates') return route.fulfill({ json: updateState });
+      if (url.pathname === '/api/updates/check') {
+        updateChecks += 1;
+        if (!updateState.check) return route.fulfill({ json: { ...updateState, skipped: 'off' } });
+        updateState = {
+          ...updateState,
+          latest: '0.2.0',
+          available: true,
+          checkedAt: '2026-09-16T09:00:00',
+          notes: [
+            '## What changed',
+            '',
+            '- A new desk',
+            '- ![shot](https://example.test/a.png)',
+            '- [Read more](https://example.test/notes)',
+          ].join('\n'),
+          asset: { name: 'vela-server-0.2.0-windows-x64.zip', size: 1024 },
+        };
+        return route.fulfill({ json: updateState });
+      }
       if (url.pathname === '/api/backups') return route.fulfill({ json: { backups: backupList } });
       if (url.pathname === '/api/backups/stats')
         return route.fulfill({
@@ -143,6 +179,7 @@ try {
           if (failSave)
             return route.fulfill({ status: 500, json: { detail: 'Fixture save failure' } });
           const patch = route.request().postDataJSON();
+          if (patch.updates) updateState = { ...updateState, ...patch.updates };
           if (patch.backups?.schedule) {
             backupSchedule = {
               ...backupSchedule,
@@ -551,6 +588,49 @@ try {
   );
   await still.close();
 
+  // Updates: the copy has to say exactly what leaves this computer, and the
+  // switch beside it has to stop the request entirely.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#updates');
+  await dialog.locator('#settings-updates').waitFor();
+  await dialog.getByText('one anonymous request to github.com', { exact: false }).waitFor();
+  await dialog.getByText('no identifier', { exact: false }).waitFor();
+  await dialog.getByText('Vela has not checked yet.').waitFor();
+  assert.equal(updateChecks, 0, 'opening Updates must not check');
+
+  // Checking on by default, installing automatically opt-in.
+  const checkSwitch = dialog.getByRole('switch', { name: 'Check for new versions' });
+  assert.equal(await checkSwitch.getAttribute('aria-checked'), 'true');
+
+  await dialog.getByRole('button', { name: 'Check now' }).click();
+  await dialog.getByRole('heading', { name: 'Vela 0.2.0 is available' }).waitFor();
+  assert.equal(updateChecks, 1);
+  await dialog.getByText('This is the portable Windows folder.').waitFor();
+
+  // Release notes render, with images dropped and links opening elsewhere.
+  await dialog.getByRole('heading', { name: 'Release notes' }).waitFor();
+  await dialog.getByText('A new desk').waitFor();
+  assert.equal(await dialog.locator('.update-notes img').count(), 0, 'images are stripped');
+  assert.equal(await dialog.locator('.update-notes a').first().getAttribute('target'), '_blank');
+  await page.screenshot({ path: path.join(shots, 'settings-updates.png') });
+
+  // Turning the check off disables the button that would make the request.
+  await checkSwitch.click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#settings-updates button[aria-busy], #settings-updates') &&
+      !document
+        .querySelector('#settings-updates')
+        .querySelector('[role="switch"]')
+        .getAttribute('aria-checked')
+        .includes('true'),
+  );
+  assert.equal(await dialog.getByRole('button', { name: 'Check now' }).isDisabled(), true);
+  assert.equal(updateChecks, 1, 'turning it off must not check');
+
+  await page.goto('https://vela.test/');
+
   // Backups: what is protected, the schedule, and a restore that asks for the
   // backup's name before it replaces anything.
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -647,7 +727,7 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, the backup schedule and a confirmed restore, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
+    'PASS: settings popup, the update check with its privacy copy and switch, the backup schedule and a confirmed restore, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();

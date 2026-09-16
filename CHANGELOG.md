@@ -59,6 +59,17 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Vela tells you when there is a new version.** **Settings → Updates** shows
+  what you are running, what the newest release is and what changed in it,
+  rendered from the release notes. Once a day Vela asks GitHub which release is
+  newest — one anonymous request that carries no identifier, no version report
+  and nothing about your apps or your data. It is on by default, the section
+  says so in those words, and the switch beside it stops the request entirely.
+  A new release appears in **Needs you** on your desk, sends one notification
+  if you have set them up, and adds an entry to the Windows tray. Installing an
+  update from here comes next; for now Vela links to the right download for how
+  this copy was installed.
+
 - **Backups can run on a schedule, and you can restore one.**
   **Settings → Backups & storage** now opens with what matters at a glance —
   when the last backup was, when the next one is, how many are kept — and can

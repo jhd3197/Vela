@@ -14,6 +14,7 @@ import {
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
+  ArrowCircleUp,
   Stethoscope,
   SquaresFour,
   Trash,
@@ -33,6 +34,7 @@ import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
 import SecuritySection from '../components/security/SecuritySection.jsx';
 import HealthSection from '../components/HealthSection.jsx';
+import UpdatesSection from '../components/UpdatesSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
@@ -880,6 +882,13 @@ const SECTIONS = [
     keywords: 'doctor checks repair diagnose disk space certificate runtime stale orphan',
   },
   {
+    id: 'updates',
+    label: 'Updates',
+    icon: ArrowCircleUp,
+    description: 'Keep this server current, and choose what it checks.',
+    keywords: 'update upgrade version release notes github download automatic',
+  },
+  {
     id: 'backups',
     label: 'Backups & storage',
     icon: ShieldCheck,
@@ -1339,6 +1348,10 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 onPendingChange={onPendingChange}
               />
             </fieldset>
+          </div>
+
+          <div hidden={active !== 'updates'}>
+            <UpdatesSection onPendingChange={onPendingChange} />
           </div>
 
           <div hidden={active !== 'health'}>

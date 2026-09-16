@@ -127,6 +127,26 @@ def set_start_at_login(enabled):
                 pass
 
 
+def update_available(config):
+    """The version the last update check found, or None.
+
+    The tray reads the checker's cache rather than making its own request: the
+    engine owns when Vela talks to GitHub, and the tray must not turn a menu
+    redraw into network traffic.
+    """
+    try:
+        import json
+
+        cached = json.loads((config.data_dir / 'updates' / 'latest.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    from . import __version__
+    from .version import is_newer
+
+    latest = cached.get('latest')
+    return latest if latest and is_newer(latest, __version__) else None
+
+
 def run_tray(factory, dashboard_url, config, host, port):
     import pystray
     from PIL import Image
@@ -190,6 +210,9 @@ def run_tray(factory, dashboard_url, config, host, port):
                      enabled=lambda _: controller.state in ('Stopped', 'Failed')),
                 item('Stop server', stop_server, enabled=lambda _: controller.state == 'Running'),
                 pystray.Menu.SEPARATOR,
+                item(lambda _: 'Update to ' + (update_available(config) or ''),
+                     lambda: webbrowser.open(dashboard_url + '/settings#updates'),
+                     visible=lambda _: bool(update_available(config))),
                 item('Start at sign in', toggle_login, checked=lambda _: starts_at_login(),
                      enabled=bool(getattr(sys, 'frozen', False)) and 'VELA_DATA_DIR' not in os.environ),
                 item('Open logs', lambda: os.startfile(str(log_path))),

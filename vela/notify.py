@@ -20,6 +20,9 @@ DOCTOR_INTERVAL_SECONDS = 24 * 60 * 60
 # How often the scheduler looks at the backup schedule. A minute is fine
 # grained enough for a schedule whose smallest unit is a minute.
 BACKUP_TICK_SECONDS = 60
+# The update check waits a couple of minutes after startup, then runs daily.
+UPDATE_STARTUP_DELAY_SECONDS = 120
+UPDATE_INTERVAL_SECONDS = 24 * 60 * 60
 EVENT_BUFFER_SIZE = 50
 
 
@@ -188,6 +191,11 @@ class NotifyScheduler:
         # The moment the schedule last named. A run is due once it has passed.
         self._backup_due: datetime | None = None
         self._backup_task: asyncio.Task | None = None
+        self._updates = None
+        self._update_task: asyncio.Task | None = None
+        # The version already announced. One notification per release, not one
+        # a day until someone installs it.
+        self._announced_version: str | None = None
         # Check keys already announced. A failure is worth one notification,
         # not one every day until someone fixes it; clearing the check arms it
         # again.
@@ -201,9 +209,11 @@ class NotifyScheduler:
             self._doctor_task = asyncio.create_task(self._doctor_loop())
         if self._backups is not None:
             self._backup_task = asyncio.create_task(self._backup_loop())
+        if self._updates is not None:
+            self._update_task = asyncio.create_task(self._update_loop())
 
     async def stop(self) -> None:
-        for name in ("_task", "_doctor_task", "_backup_task"):
+        for name in ("_task", "_doctor_task", "_backup_task", "_update_task"):
             task = getattr(self, name)
             if task is not None:
                 task.cancel()
@@ -216,6 +226,46 @@ class NotifyScheduler:
     def attach_doctor(self, doctor) -> None:
         """Give the scheduler the doctor to sweep with, before `start()`."""
         self._doctor = doctor
+
+    def attach_updates(self, updates) -> None:
+        """Give the scheduler the update checker to run, before `start()`."""
+        self._updates = updates
+
+    async def _update_loop(self) -> None:
+        await asyncio.sleep(UPDATE_STARTUP_DELAY_SECONDS)
+        while True:
+            try:
+                await self.run_update_check()
+            except Exception:
+                pass
+            await asyncio.sleep(UPDATE_INTERVAL_SECONDS)
+
+    async def run_update_check(self) -> dict[str, Any]:
+        """One check, announcing a version that has not been announced yet.
+
+        With checking turned off this makes no request: the checker itself
+        refuses, so the switch is honoured on every path, not just the button.
+        """
+        status = await asyncio.to_thread(self._updates.check)
+        latest = status.get("latest")
+        if not status.get("available") or not latest:
+            # Nothing to say. If the user installs it, the next new release is
+            # news again.
+            self._announced_version = None
+            return status
+        if latest == self._announced_version:
+            return status
+        self._announced_version = latest
+        cfg = self._notifier.config()
+        if cfg["server"] and cfg["topic"]:
+            await self._notifier.publish(
+                f"Vela {latest} is available",
+                f"You are running {status.get('current')}. Open Settings › Updates to see what changed.",
+                tags=["arrow_up"],
+                priority=3,
+                kind="update",
+            )
+        return status
 
     def attach_backups(self, backups, settings) -> None:
         """Give the scheduler the backup store to run on its schedule."""

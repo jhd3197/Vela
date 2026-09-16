@@ -261,6 +261,11 @@ export const api = {
     return response.blob();
   },
 
+  // Updates. Reading is local; checking is the one request Vela makes on its
+  // own behalf, and only while the preference is on.
+  getUpdates: (options) => request('/api/updates', options),
+  checkUpdates: () => request('/api/updates/check', { method: 'POST' }),
+
   // Health checks. Reading is cheap and never starts a sweep; `runDoctor` is
   // the deliberate action behind "Run now".
   getDoctor: (options) => request('/api/doctor', options),

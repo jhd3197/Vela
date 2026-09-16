@@ -98,6 +98,13 @@ carries you wherever you want to go.
 3. **Run an app locally** — Vela launches it on your machine and gives you a place to manage it.
 4. **Keep your apps** — they live with you, not on someone else's server.
 
+Vela makes one request of its own: once a day it asks GitHub which release is
+newest, so it can tell you when there is an update. That request is anonymous —
+no identifier, no version report, nothing about your apps or your data — and
+**Settings → Updates** turns it off, after which Vela contacts nothing. There is
+no telemetry and no crash reporting; when something breaks, the record stays on
+your computer for you to read.
+
 An app is just a folder with an `app.json` manifest (name, icon, run command,
 per-platform config — see the standalone `vela-hello` repository for a legacy example,
 or `vela-templates` for a v2 starter). Installed apps live in `~/.vela/` (override with `VELA_DATA_DIR`).

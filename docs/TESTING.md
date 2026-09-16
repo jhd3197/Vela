@@ -20,8 +20,8 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases, launcher behavior, automations, the log
-store, the health checks, the error record, the support bundle, and backups
-with their schedule and restore. Node checks
+store, the health checks, the error record, the support bundle, backups
+with their schedule and restore, and the update check. Node checks
 cover the host bridge, service-worker boundaries, shared request behavior
 (polling, overlapping refreshes, errors, and cleanup) and the automation worker's
 protocol. No sibling checkout is needed.
@@ -125,7 +125,9 @@ preference saving and rollback, keyboard focus and deep links, with disposable
 API responses. The two compositions are checked at 320, 390, 430, 768, 860, 861
 and 1440 pixels, in a short landscape window, at 200% zoom, with reduced motion
 and with a stand-in open keyboard, keeping one unsent form draft through all of
-them and across the crossover between them. It also checks Settings › Backups & storage — the protection summary, turning
+them and across the crossover between them. It also checks Settings › Updates — the privacy copy naming the one anonymous
+request, the switch that stops it, release notes rendered with images stripped
+and links opening in a new tab — Settings › Backups & storage — the protection summary, turning
 the daily schedule on and changing what it keeps, and a restore that stays
 disabled until the backup's name is typed and then reports the safety copy it
 took — and Settings › Health: opening the section runs nothing, Run now

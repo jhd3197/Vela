@@ -16,6 +16,11 @@ const SETTINGS_ENTRIES = [
   { label: 'Local AI', to: '/settings#ai', keywords: 'ollama model' },
   { label: 'Notifications', to: '/settings#notifications', keywords: 'ntfy push alerts' },
   {
+    label: 'Updates',
+    to: '/settings#updates',
+    keywords: 'update upgrade version release notes download',
+  },
+  {
     label: 'Health',
     to: '/settings#health',
     keywords: 'doctor checks repair diagnose disk certificate runtime',

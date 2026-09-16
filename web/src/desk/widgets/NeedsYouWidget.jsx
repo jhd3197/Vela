@@ -59,6 +59,21 @@ export default function NeedsYouWidget() {
     });
   }
 
+  // A new release is Vela asking for attention too, once.
+  if (health?.update?.available) {
+    rows.push({
+      id: 'update',
+      name: `Vela ${health.update.latest} is available`,
+      meta: `You are running ${health.update.current}`,
+      state: 'warn',
+      lead: (
+        <Link className="desk-status-open" to="/settings#updates" aria-label="Open Updates">
+          <span className="desk-status-dot" data-state="warn" />
+        </Link>
+      ),
+    });
+  }
+
   if (!loaded && !data) return <DeskEmpty>Checking…</DeskEmpty>;
   if (rows.length === 0) return <DeskEmpty>Everything’s running.</DeskEmpty>;
   return <WidgetStatus cells={rows} />;

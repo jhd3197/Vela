@@ -459,6 +459,40 @@ managed by the operator; no automatic release-history pruning is implemented.
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
 
+### Updates API details
+
+Hub session only.
+
+- `GET /api/updates` — what Vela currently believes, with no request made:
+  `{ current, latest, available, notes, asset, checksum, capability, checkedAt,
+  error, check, mode, hour }`.
+- `POST /api/updates/check` — asks now, bypassing the six-hour cache. With the
+  preference off it makes **no request** and answers `{ skipped: "off" }`.
+
+The request is a single anonymous `GET` to
+`https://api.github.com/repos/jhd3197/vela/releases/latest` with
+`Accept: application/vnd.github+json`, no authentication and no body. Nothing
+identifying the server is sent. `VELA_UPDATE_API` overrides the address, which
+is how the tests and the distribution checks drive it without touching GitHub.
+The answer is cached in `<data_dir>/updates/latest.json` for six hours; a check
+that fails keeps the last good answer rather than blanking it, because being
+offline is not evidence that there is no update.
+
+`capability` says what this copy could do about an update: `installer` (a
+Windows Inno Setup install, detected by the uninstall registry key or
+`unins000.exe` beside the exe), `portable` (an unzipped Windows folder),
+`tarball` (macOS/Linux), `source` (a checkout) or `container`. `asset` is the
+matching release file for this capability and architecture, and `checksum` its
+`.sha256` sidecar; both are `null` for `source` and `container`.
+
+Preferences live under the `updates` settings key as
+`{ check, mode, hour }`, validated on `PATCH /api/settings`. `check` defaults
+to true and `mode` to `notify` — installing automatically is opt-in. The
+scheduler checks two minutes after startup and then daily, publishing one
+`kind: 'update'` notification per new release. `GET /api/doctor` carries the
+same answer under `update` so the desk reads it with the health checks rather
+than making a second request.
+
 ### Backups API details
 
 Hub session only.

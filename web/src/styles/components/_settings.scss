@@ -622,3 +622,63 @@ button.notif-foot {
 .health-row-fail {
   background: var(--red-soft);
 }
+
+/* ---------- Updates (Settings › Updates) ---------- */
+
+.update-banner {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.update-banner h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--accent-strong);
+}
+
+.update-notes {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.update-notes h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+/* Release notes are someone else's Markdown, so the rules here keep whatever
+   it contains inside the popup rather than trusting it to behave. */
+.update-notes :is(p, ul, ol) {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.update-notes :is(h1, h2, h3, h4) {
+  font-size: 13px;
+  margin: 10px 0 4px;
+}
+
+.update-notes pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-size: 12px;
+}
+
+.update-notes code {
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.update-notes table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}

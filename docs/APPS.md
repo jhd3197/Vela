@@ -173,6 +173,27 @@ permissions, starts or stops anything, or affects what Vela allows. It is
 remembered in this browser alone, so your phone does not inherit the choice you
 made on a desktop.
 
+## Keep Vela up to date
+
+**Settings → Updates** shows which version this server runs, which is the
+newest, and what changed in it.
+
+Once a day Vela asks GitHub which release is newest. That is **one anonymous
+request** to github.com: it carries no identifier, no report of your version,
+and nothing at all about your apps or your data. It is on when you install Vela,
+and the switch in that section turns it off — after which Vela makes no request
+of its own at all, and you can check the
+[releases page](https://github.com/jhd3197/vela/releases) yourself whenever you
+like.
+
+When a newer release exists, Vela says so in Settings, on your desk under
+**Needs you**, and — if you have set up notifications — once, by notification.
+Once per release, not once a day. On Windows the tray icon gains an entry too.
+
+Vela also notices how this copy was installed, because that decides how it
+updates: the Windows installer, the portable Windows folder, a macOS or Linux
+`.tar.gz`, a source checkout (`git pull`) or a container image (a new tag).
+
 ## Back up and restore
 
 **Settings → Backups & storage** keeps recoverable copies of your server. A

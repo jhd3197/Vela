@@ -23,6 +23,7 @@ from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
 from .support_bundle import SupportBundle
+from .updates import DEFAULT_UPDATES, MODES, UpdateChecker
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
@@ -50,7 +51,7 @@ from .automations import Automations, router as automations_router
 
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
-                  "backups"}
+                  "backups", "updates"}
 
 
 class ClientError(BaseModel):
@@ -303,8 +304,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     widgets = Widgets(storage, registry, actions)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
+    updates = UpdateChecker(config, __version__, settings=settings)
     doctor = Doctor(config, state=state, registry=registry, settings=settings,
-                    backups=backups, assistant=assistant, catalog=catalog)
+                    backups=backups, assistant=assistant, catalog=catalog, updates=updates)
     errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
     support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
                             errors=errors, doctor=doctor, automations=automations)
@@ -312,6 +314,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
     scheduler.attach_backups(backups, settings)
+    scheduler.attach_updates(updates)
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
@@ -777,6 +780,26 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             rail["pinned"] = sanitize_pins(rail["pinned"])
         # A backup schedule names a time this computer will act on, so it is
         # checked before it is stored rather than failing quietly at 03:00.
+        # Update preferences decide whether Vela makes a network request at
+        # all, so a malformed patch must not quietly turn checking on.
+        update_settings = update.get("updates")
+        if isinstance(update_settings, dict):
+            cleaned = {}
+            if "check" in update_settings:
+                cleaned["check"] = bool(update_settings["check"])
+            if "mode" in update_settings:
+                if update_settings["mode"] not in MODES:
+                    raise HTTPException(status_code=422, detail="updates.mode is notify or auto")
+                cleaned["mode"] = update_settings["mode"]
+            if "hour" in update_settings:
+                try:
+                    hour = int(update_settings["hour"])
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=422, detail="updates.hour is an hour of the day")
+                if not 0 <= hour <= 23:
+                    raise HTTPException(status_code=422, detail="updates.hour is an hour of the day")
+                cleaned["hour"] = hour
+            update["updates"] = cleaned
         backup_settings = update.get("backups")
         if isinstance(backup_settings, dict) and "schedule" in backup_settings:
             try:
@@ -1121,7 +1144,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # not start thirteen checks; Run now is the deliberate action.
     @app.get("/api/doctor")
     def doctor_status() -> dict:
-        return doctor.last() or {"checks": [], "ranAt": None, "summary": summarise([])}
+        last = doctor.last() or {"checks": [], "ranAt": None, "summary": summarise([])}
+        # The desk reads one source for "is anything asking for me", so the
+        # pending update rides along with the checks rather than costing the
+        # desk a second request.
+        status = updates.status()
+        return {
+            **last,
+            "update": {
+                "available": status["available"],
+                "latest": status["latest"],
+                "current": status["current"],
+            },
+        }
 
     @app.post("/api/doctor/run")
     async def doctor_run() -> dict:
@@ -1228,6 +1263,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             return logs.clear(name, actor=request_actor(auth, request))
         except LogError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    # Updates. One anonymous request to the GitHub releases API, at most every
+    # six hours, and only while the check is on.
+    @app.get("/api/updates")
+    def update_status() -> dict:
+        return updates.status()
+
+    @app.post("/api/updates/check")
+    async def check_updates() -> dict:
+        return await asyncio.to_thread(updates.check, force=True)
 
     @app.get("/api/backups")
     def list_backups() -> dict:
