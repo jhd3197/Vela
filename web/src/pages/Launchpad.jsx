@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowSquareOut,
   GearSix,
@@ -30,6 +30,20 @@ import Dialog from '../components/ui/Dialog.jsx';
 import Button from '../components/ui/Button.jsx';
 import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
+import { hasUpdate } from './Library.jsx';
+import { automationsApi } from '../automationsApi.js';
+
+// The tabs, in the order they are shown. Frequent stays hidden until there is
+// enough history for it to say anything true, so a new Vela does not offer a
+// tab that would sit empty or, worse, rank three opens as a habit.
+const TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'frequent', label: 'Frequent' },
+  { key: 'running', label: 'Running' },
+  { key: 'updates', label: 'Updates' },
+];
+const FREQUENT_MIN_OPENS = 5;
+const FREQUENT_MAX = 12;
 
 // The desk's wallpaper preferences also dress the Launchpad, which floats over
 // the same blurred picture. Reading them here keeps the two surfaces in step
@@ -56,6 +70,10 @@ export default function Launchpad() {
   // draws the picture and the rail takes its on-wallpaper ink.
   useWallpaperBody(desk);
 
+  // The tab rides in the URL, so a Launchpad opened on Updates can be linked to
+  // and survives a reload the way the Marketplace's tabs do.
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('tab');
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(null); // { item, x, y }
   const [settingsApp, setSettingsApp] = useState(null);
@@ -75,6 +93,24 @@ export default function Launchpad() {
     return ids;
   }, [summaryData]);
 
+  // Which icons carry a count. An app publishes it on a widget summary, so the
+  // first summary of its that has one wins — an app with several widgets badges
+  // its icon once rather than fighting with itself.
+  const badges = useMemo(() => {
+    const found = new Map();
+    for (const entry of summaryData?.widgets || []) {
+      const badge = entry?.summary?.badge;
+      if (badge && !found.has(entry.appId)) found.set(entry.appId, badge);
+    }
+    return found;
+  }, [summaryData]);
+
+  // Open counts for Frequent. Read once when the Launchpad opens: a tab that
+  // reorders itself while being looked at would move the tile under the cursor.
+  const loadUsage = useCallback((options) => api.usage(options), []);
+  const { data: usageData } = useResource(loadUsage);
+  const opens = useMemo(() => usageData?.totals || {}, [usageData]);
+
   const installed = useMemo(
     () =>
       (apps || [])
@@ -82,6 +118,23 @@ export default function Launchpad() {
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
     [apps],
+  );
+
+  const updatable = useMemo(() => installed.filter(hasUpdate), [installed]);
+
+  // Vela's own tools carry counts too, from what Vela itself knows rather than
+  // from a published summary: how many apps have an update waiting, and how many
+  // automations failed today.
+  const loadFlows = useCallback((options) => automationsApi.status(options), []);
+  const { data: flows } = useResource(loadFlows, { intervalMs: 60000 });
+  const coreBadge = useCallback(
+    (id) => {
+      if (id === 'library' && updatable.length) return String(Math.min(updatable.length, 99));
+      if (id === 'automations' && flows?.failuresToday)
+        return String(Math.min(flows.failuresToday, 99));
+      return '';
+    },
+    [updatable, flows],
   );
 
   // Vela's own tools drawn as tiles. `glyph` lets AppIcon render the tool's
@@ -94,16 +147,48 @@ export default function Launchpad() {
         name: entry.label,
         to: entry.to,
         popup: entry.popup,
+        badge: coreBadge(entry.id),
         appLike: { id: entry.id, name: entry.label, glyph: entry.icon, color: entry.color },
       })),
-    [developer],
+    [developer, coreBadge],
   );
 
   const appItems = useMemo(
-    () => installed.map((app) => ({ kind: 'app', id: app.id, name: app.name, app })),
-    [installed],
+    () =>
+      installed.map((app) => ({
+        kind: 'app',
+        id: app.id,
+        name: app.name,
+        app,
+        badge: badges.get(app.id) || '',
+      })),
+    [installed, badges],
   );
   const openItems = useMemo(() => appItems.filter((item) => item.app.running), [appItems]);
+  const updateItems = useMemo(() => appItems.filter((item) => hasUpdate(item.app)), [appItems]);
+
+  // Frequent ranks Vela's own tools beside apps, because "what do I open" does
+  // not distinguish them. It stays hidden until there is enough history for the
+  // ranking to mean something.
+  const frequentItems = useMemo(() => {
+    const ranked = [...appItems, ...core]
+      .map((item) => ({ item, count: opens[item.id] || 0 }))
+      .filter((entry) => entry.count > 0)
+      .sort((a, b) => b.count - a.count || a.item.name.localeCompare(b.item.name));
+    return ranked.slice(0, FREQUENT_MAX).map((entry) => entry.item);
+  }, [appItems, core, opens]);
+
+  const totalOpens = useMemo(
+    () => Object.values(opens).reduce((sum, count) => sum + count, 0),
+    [opens],
+  );
+  const frequentReady = totalOpens >= FREQUENT_MIN_OPENS && frequentItems.length > 0;
+
+  const tabs = useMemo(
+    () => TABS.filter((entry) => entry.key !== 'frequent' || frequentReady),
+    [frequentReady],
+  );
+  const tab = tabs.some((entry) => entry.key === requested) ? requested : 'all';
 
   const needle = query.trim().toLowerCase();
   const matches = useCallback(
@@ -111,7 +196,22 @@ export default function Launchpad() {
     [needle],
   );
 
+  // Each tab is a different cut of the same set. All keeps the sections it has
+  // always had; the others are one list, because a Frequent tab split into
+  // "Apps" and "Vela" would undo the ranking that is the point of it.
   const sections = useMemo(() => {
+    if (tab === 'frequent') {
+      const items = frequentItems.filter(matches);
+      return items.length ? [{ key: 'frequent', label: 'Most opened', items }] : [];
+    }
+    if (tab === 'running') {
+      const items = openItems.filter(matches);
+      return items.length ? [{ key: 'running', label: 'Running', items }] : [];
+    }
+    if (tab === 'updates') {
+      const items = updateItems.filter(matches);
+      return items.length ? [{ key: 'updates', label: 'Ready to update', items }] : [];
+    }
     const open = openItems.filter(matches);
     const all = appItems.filter(matches);
     const vela = core.filter(matches);
@@ -120,7 +220,15 @@ export default function Launchpad() {
     if (all.length) list.push({ key: 'apps', label: 'Apps', items: all });
     if (vela.length) list.push({ key: 'vela', label: 'Vela', items: vela });
     return list;
-  }, [openItems, appItems, core, matches]);
+  }, [tab, frequentItems, openItems, updateItems, appItems, core, matches]);
+
+  // What a tab says when it has nothing in it, which is a different sentence
+  // from "your search found nothing".
+  const emptyTab = {
+    running: 'No apps are running.',
+    updates: 'Every app is up to date.',
+    frequent: 'Nothing opened yet.',
+  }[tab];
 
   const flatItems = useMemo(() => sections.flatMap((section) => section.items), [sections]);
   const nothing = needle && flatItems.length === 0;
@@ -131,6 +239,9 @@ export default function Launchpad() {
         openApp(item.id, { returnTo: '/apps' });
         return;
       }
+      // `openApp` counts an app open for Frequent; a core tool is opened here,
+      // so it is counted here for the same tab to rank them together.
+      api.recordUsage(item.id).catch(() => {});
       if (item.popup) {
         openSettings();
         return;
@@ -198,6 +309,15 @@ export default function Launchpad() {
     menuOpener.current = opener || null;
     setMenu({ item, x, y });
   }, []);
+
+  // Dragging an app tile carries its id in Vela's own type, so only a surface
+  // that knows what to do with an app — the desk board — accepts the drop. The
+  // plain-text copy is what a drop onto a text field would paste.
+  const onTileDragStart = (item) => (event) => {
+    event.dataTransfer.setData('application/x-vela-app', item.id);
+    event.dataTransfer.setData('text/plain', item.name);
+    event.dataTransfer.effectAllowed = 'copy';
+  };
 
   const onTileContextMenu = (item) => (event) => {
     event.preventDefault();
@@ -267,22 +387,32 @@ export default function Launchpad() {
   const tile = (item, tabbable) => {
     const dot = item.kind === 'app' && item.app.running;
     const flag = item.kind === 'app' && attention.has(item.id);
+    // The badge is drawn on the icon, which is decorative, so the count is said
+    // once here instead — "Notes, 3" rather than a number no reader reaches.
+    const label = item.badge ? `${item.name}, ${item.badge}` : item.name;
     return (
       <button
         key={`${item.kind}-${item.id}`}
         type="button"
         className="launch-tile"
         data-item={item.id}
+        data-badge={item.badge || undefined}
         role="gridcell"
         tabIndex={tabbable ? 0 : -1}
-        aria-label={item.name}
+        aria-label={label}
+        draggable={item.kind === 'app'}
+        onDragStart={item.kind === 'app' ? onTileDragStart(item) : undefined}
         onClick={() => openItem(item)}
         onContextMenu={onTileContextMenu(item)}
         onKeyDown={onTileKeyDown}
         {...longPress}
       >
         <span className="launch-icon">
-          <AppIcon app={item.kind === 'core' ? item.appLike : item.app} size={iconSize} />
+          <AppIcon
+            app={item.kind === 'core' ? item.appLike : item.app}
+            size={iconSize}
+            badge={item.badge}
+          />
           {dot ? <span className="launch-dot launch-dot-running" aria-hidden="true" /> : null}
           {flag ? <span className="launch-dot launch-dot-attention" aria-hidden="true" /> : null}
           {item.kind === 'core' ? (
@@ -330,10 +460,34 @@ export default function Launchpad() {
               onQueryChange={setQuery}
               showResults={false}
               autoFocus
+              placeholder={`Type to filter ${appItems.length} app${appItems.length === 1 ? '' : 's'}`}
               onEnter={() => {
                 if (flatItems[0]) openItem(flatItems[0]);
               }}
             />
+          </div>
+
+          <div className="launch-tabs" role="tablist" aria-label="Which apps">
+            {tabs.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                role="tab"
+                className={`launch-tab${tab === entry.key ? ' is-active' : ''}`}
+                aria-selected={tab === entry.key}
+                onClick={() =>
+                  setParams(entry.key === 'all' ? {} : { tab: entry.key }, { replace: true })
+                }
+              >
+                {entry.label}
+                {entry.key === 'updates' && updatable.length ? (
+                  <span className="launch-tab-count">{updatable.length}</span>
+                ) : null}
+                {entry.key === 'running' && openItems.length ? (
+                  <span className="launch-tab-count">{openItems.length}</span>
+                ) : null}
+              </button>
+            ))}
           </div>
 
           {apps === null ? (
@@ -354,6 +508,10 @@ export default function Launchpad() {
             <p className="launch-empty" role="status">
               No app matches “{query.trim()}”.
             </p>
+          ) : sections.length === 0 && emptyTab ? (
+            <p className="launch-empty" role="status">
+              {emptyTab}
+            </p>
           ) : (
             <div className="launch-sections" ref={gridRef} role="grid" aria-label="Apps">
               {sections.map((section) => (
@@ -362,7 +520,7 @@ export default function Launchpad() {
                   <div className="launch-grid">{section.items.map(renderTile)}</div>
                 </section>
               ))}
-              {!needle && (
+              {!needle && tab === 'all' && (
                 <section className="launch-section" role="row">
                   <h2 className="launch-section-label">Get more apps</h2>
                   <div className="launch-grid">

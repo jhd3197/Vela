@@ -919,3 +919,34 @@ body[data-desk] .rail-divider {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ---------- Dropping an app onto the board ---------- */
+
+/* An app tile dragged from the desk's Apps widget onto bare board. The board
+   says it will take the drop rather than leaving the cursor to guess. */
+.desk-grid-dropping {
+  outline: 2px dashed var(--accent-line);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+
+.desk-grid-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+
+.desk-grid-dropzone span {
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--bg-pop);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}

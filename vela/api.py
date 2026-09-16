@@ -23,6 +23,7 @@ from .rooms import Rooms
 from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, validate_schedule
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
+from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
 from .support_bundle import SupportBundle
@@ -283,6 +284,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     scheduler = NotifyScheduler(notifier, registry, config)
     system_metrics = SystemMetrics(config, settings)
     desk = DeskStore(config.data_dir / "desk.json")
+    usage = UsageStore(config.data_dir / "usage.json")
     wallpaper = Wallpaper(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
@@ -675,7 +677,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.delete("/api/apps/{app_id}")
     def uninstall_app(app_id: str) -> dict:
-        return lifecycle.uninstall_app(app_id)
+        result = lifecycle.uninstall_app(app_id)
+        # Removing an app removes the record of having opened it, rather than
+        # leaving it to age out of the Frequent window over the next month.
+        usage.forget(app_id)
+        return result
 
     @app.post("/api/apps/{app_id}/launch")
     def launch_app(app_id: str) -> dict:
@@ -773,6 +779,18 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if (settings.get("desk") or {}).get("wallpaper") == "custom":
             settings.patch({"desk": {"wallpaper": "choroni"}})
         return result
+
+    @app.get("/api/usage")
+    def get_usage() -> dict:
+        """Opens per app over the last 30 days, for the Launchpad's Frequent tab.
+
+        Counted and kept on this computer only; nothing here is sent anywhere.
+        """
+        return {"totals": usage.totals(), "windowDays": USAGE_WINDOW_DAYS}
+
+    @app.post("/api/usage/{app_id}")
+    def record_usage(app_id: str) -> dict:
+        return usage.record(app_id)
 
     @app.get("/api/desk")
     def get_desk() -> dict:

@@ -101,6 +101,7 @@ class SummaryTests(unittest.TestCase):
             "rows": [{"label": "Shopping", "detail": "2 min ago"}, {"label": "Ideas"}],
             "actions": [{"action": "sync-now", "label": "Sync now"}],
             "attention": True,
+            "badge": "73",
             "expiresAt": "2026-09-16T02:14:00Z",
         }
         checked = validate_summary(payload)
@@ -108,6 +109,17 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(checked["rows"][1], {"label": "Ideas"})
         self.assertEqual(checked["actions"], payload["actions"])
         self.assertTrue(checked["attention"])
+        self.assertEqual(checked["badge"], "73")
+
+    def test_a_badge_is_short_text_and_a_blank_one_is_no_badge(self):
+        # A count arrives as a number often enough that refusing it would only
+        # push the same `str()` into every app.
+        self.assertEqual(validate_summary({"badge": 7})["badge"], "7")
+        self.assertEqual(validate_summary({"badge": " 12 "})["badge"], "12")
+        self.assertEqual(validate_summary({"badge": "99+"})["badge"], "99+")
+        # Nothing to badge is the absence of one, not an empty circle.
+        self.assertNotIn("badge", validate_summary({"badge": ""}))
+        self.assertNotIn("badge", validate_summary({"badge": "   "}))
 
     def test_nothing_to_report_is_a_valid_summary(self):
         self.assertEqual(validate_summary({}), {})
@@ -125,6 +137,8 @@ class SummaryTests(unittest.TestCase):
             "at most 3 actions": {"actions": [{"action": f"a{n}", "label": "x"} for n in range(4)]},
             "an action names one": {"actions": [{"action": "Sync Now", "label": "x"}]},
             "attention is true or false": {"attention": "yes"},
+            "a badge is at most 3 characters": {"badge": "1200"},
+            "a badge is a short string": {"badge": ["7"]},
             "ISO 8601": {"expiresAt": "tomorrow"},
             "a summary is a JSON object": ["value"],
         }

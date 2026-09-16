@@ -316,6 +316,7 @@ optional — `{}` is valid and means "nothing to report yet":
   "rows": [{ "label": "…", "detail": "…" }],
   "actions": [{ "action": "sync", "label": "Sync now" }],
   "attention": true,
+  "badge": "73",
   "expiresAt": "2026-09-16T02:14:00Z"
 }
 ```
@@ -323,7 +324,11 @@ optional — `{}` is valid and means "nothing to report yet":
 `value`, `unit`, `delta`, `caption` and every row and action label are text of at
 most 200 characters; `progress` is 0–100; `rows` holds at most eight
 `{label, detail}` pairs; `actions` at most three, each naming one of the app's
-own actions; `attention` is the boolean the rail's dot reads; `expiresAt` is an
+own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
+of at most three characters drawn on the app's icon in the Launchpad — an app
+with several widgets is badged once, from the first summary of its that carries
+one, and a longer value is refused rather than clipped into a number that reads
+wrong, so shorten it yourself (`"99+"`); `expiresAt` is an
 ISO 8601 timestamp after which the desk marks the summary stale. Nothing nests
 further and nothing is rendered as markup.
 
@@ -1124,7 +1129,10 @@ restrained 14px card corners), in light and dark.
   `attention`. Right-click, Shift+F10 or a long press opens a context menu —
   Open, Pin to rail, Add widget to desk (when the app declares widgets), App
   settings, Stop (running process apps) and Remove — and arrow keys move
-  between tiles in the `role="grid"`. On a phone it is a four-column grid the
+  between tiles in the `role="grid"`. Open counts live in
+  `<data_dir>/usage.json` behind `GET /api/usage` and `POST /api/usage/{id}`:
+  one count per app per day, thirty days kept, written only when someone
+  deliberately opens something, removed with the app, and never sent anywhere. On a phone it is a four-column grid the
   rail stays beside.
 - **Phone**: there is no bottom bar and no hamburger. Every page keeps the
   rail on screen at every width — beside its content, never over it — so a
@@ -1188,6 +1196,12 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Dragging an app onto the desk**: an app tile in the desk's **Your apps**
+  widget is draggable and carries `application/x-vela-app`. Dropping it on bare
+  board adds that app's first declared widget at the cell it landed on, pushing
+  neighbours down if it does not fit, and opens Arrange so it can be moved at
+  once. An app that declares no widget, or one already on the board, says so
+  instead of placing something unrelated.
 - **Personalise** (a desk control, and a long press on bare wallpaper on a
   phone): the wallpaper — the eight painted images `choroni` (the default),
   `paramo`, `medanos`, `chiguire`, `pueblo`, `avila`, `castillo` and `canaima`,

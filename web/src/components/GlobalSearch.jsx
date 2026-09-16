@@ -128,6 +128,9 @@ export default function GlobalSearch({
   onEnter,
   showResults = true,
   autoFocus = false,
+  // The Launchpad filters a grid it is already showing rather than searching
+  // everything, so it says how many apps are in front of you instead.
+  placeholder = 'Search apps, notes, settings, or ask…',
 }) {
   const { apps } = useApps();
   const navigate = useNavigate();
@@ -238,7 +241,7 @@ export default function GlobalSearch({
       <input
         ref={inputRef}
         type="search"
-        placeholder="Search apps, notes, settings, or ask…"
+        placeholder={placeholder}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

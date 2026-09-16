@@ -225,6 +225,11 @@ export const api = {
   getNotifications: (options) => request('/api/notifications', options),
   systemMetrics: (options) => request('/api/system/metrics', options),
   appWidgets: (options) => request('/api/widgets', options),
+  // Open counts behind the Launchpad's Frequent tab. Counted and kept on this
+  // computer; recording one is fire-and-forget, so a failure never blocks the
+  // app the user asked for.
+  usage: (options) => request('/api/usage', options),
+  recordUsage: (id) => request(`/api/usage/${encodeURIComponent(id)}`, { method: 'POST' }),
   // The image goes up as raw bytes with its type in the header: one picture
   // does not justify a multipart parser on the server.
   putWallpaper: (file) =>

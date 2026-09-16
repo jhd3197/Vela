@@ -30,6 +30,9 @@ WIDGET_SIZES = ("s", "m", "l")
 #: The published payload's limits. 4 KB is generous for a stat and a handful of
 #: rows, and small enough that a misbehaving app cannot fill the database.
 MAX_SUMMARY_BYTES = 4096
+#: What fits on an icon at rail size. A count past 99 is the app's to shorten
+#: ("99+"), because only the app knows whether rounding it is honest.
+MAX_BADGE = 3
 MAX_STRING = 200
 MAX_ROWS = 8
 MAX_ACTIONS = 3
@@ -96,7 +99,7 @@ def validate_summary(payload: Any) -> dict[str, Any]:
         raise WidgetError(413, f"a summary is at most {MAX_SUMMARY_BYTES} bytes")
 
     allowed = {"value", "unit", "delta", "caption", "progress", "rows", "actions",
-               "attention", "expiresAt"}
+               "attention", "badge", "expiresAt"}
     unknown = set(payload) - allowed
     if unknown:
         raise WidgetError(422, f"unknown summary fields: {', '.join(sorted(unknown))}")
@@ -153,6 +156,20 @@ def validate_summary(payload: Any) -> dict[str, Any]:
         if not isinstance(payload["attention"], bool):
             raise WidgetError(422, "attention is true or false")
         out["attention"] = payload["attention"]
+
+    if "badge" in payload:
+        # A badge rides on the app's icon in the Launchpad and on the rail, where
+        # there is room for a count and nothing more. Three characters is what
+        # fits legibly at rail size, so a longer one is refused rather than
+        # silently clipped into something that reads wrong ("120" from "1200").
+        badge = payload["badge"]
+        if isinstance(badge, bool) or not isinstance(badge, (str, int)):
+            raise WidgetError(422, "a badge is a short string")
+        badge = str(badge).strip()
+        if len(badge) > MAX_BADGE:
+            raise WidgetError(422, f"a badge is at most {MAX_BADGE} characters")
+        if badge:
+            out["badge"] = badge
 
     if "expiresAt" in payload:
         stamp = payload["expiresAt"]

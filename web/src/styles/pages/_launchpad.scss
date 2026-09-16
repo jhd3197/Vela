@@ -249,3 +249,63 @@
     max-width: 100%;
   }
 }
+
+/* ---------- Launchpad tabs ---------- */
+
+/* Which cut of the apps is on screen: everything, the ones this person actually
+   opens, the ones running now, the ones with an update waiting. They sit under
+   the hero field over the blurred wallpaper, so they take the same
+   on-wallpaper ink the rest of this surface does. */
+.launch-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 22px;
+}
+
+.launch-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.launch-tab:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.launch-tab.is-active {
+  background: rgba(255, 255, 255, 0.92);
+  color: #20242e;
+}
+
+.launch-tab:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.launch-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.launch-tab.is-active .launch-tab-count {
+  background: rgba(32, 36, 46, 0.12);
+}

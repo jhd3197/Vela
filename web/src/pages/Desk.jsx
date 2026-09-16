@@ -26,9 +26,15 @@ import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
+import { firstWidget } from '../desk/addAppWidget.js';
 import { DEFAULT_WALLPAPER, useWallpaperFlags } from '../desk/wallpaper.js';
 import useEditingSession from '../desk/editing/useEditingSession.js';
-import { appIdOfType, APP_WIDGET_SIZES, useWidgetTypes } from '../desk/registry.js';
+import {
+  appIdOfType,
+  appWidgetTypeId,
+  APP_WIDGET_SIZES,
+  useWidgetTypes,
+} from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
 import {
   colsOf,
@@ -273,6 +279,40 @@ export default function Desk() {
     setAnnouncement(`${type.name} added.`);
   };
 
+  // An app tile dragged onto the board. The drop cell is a request rather than
+  // an instruction: the widget goes there if it fits and is pushed to the
+  // nearest free space if it does not, which is what the keyboard and pointer
+  // paths already do. Dropping opens Arrange mode, because a widget that
+  // appeared under the cursor should be movable without hunting for a menu.
+  const dropApp = (appId, at) => {
+    const app = (apps || []).find((item) => item.id === appId);
+    if (!app) return;
+    if (widgets.length >= MAX_WIDGETS_PER_BOARD) {
+      pushToast('This board is full.', 'error');
+      return;
+    }
+    const declared = firstWidget(app);
+    if (!declared) {
+      // An app with no widget of its own has nothing to place. Saying so beats
+      // dropping an unrelated widget on the board and calling it a shortcut.
+      pushToast(`${app.name} does not publish a desk widget.`);
+      return;
+    }
+    const type = appWidgetTypeId(app.id, declared.id);
+    if (widgets.some((widget) => widget.type === type)) {
+      pushToast(`${app.name} is already on this desk.`);
+      return;
+    }
+    const [w, h] = APP_WIDGET_SIZES[declared.size] || APP_WIDGET_SIZES.m;
+    const width = Math.min(w, cols);
+    const wanted = { x: Math.min(at?.x ?? 0, Math.max(0, cols - width)), y: at?.y ?? 0 };
+    const placed = { i: nextWidgetId(widgets), type, ...wanted, w: width, h, cfg: {} };
+    setWidgets(compact(pushDown([...widgets, placed], placed, cols)));
+    setEdit(true);
+    setSelected(placed.i);
+    setAnnouncement(`${app.name} added to the desk.`);
+  };
+
   // The Ask toggle changes this board rather than a preference, so it saves
   // immediately: Personalise is not an arrange session with a Done button.
   const toggleAsk = async (on) => {
@@ -497,6 +537,7 @@ export default function Desk() {
             onChange={(next) => setWidgets(next)}
             onWidgetMenu={onWidgetMenu}
             onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
+            onAppDrop={dropApp}
             empty={
               <p className="desk-empty">
                 Your desk is empty. Use <b>Add widget</b> to put something on it.

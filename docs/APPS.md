@@ -29,6 +29,11 @@ what is already going is where you look first. When nothing unpinned is running
 the label is simply not there.
 
 The **Launchpad** is every app in one place, full-screen over your wallpaper.
+Four tabs cut the same set: **All**, **Frequent** (the twelve you open most,
+counted on this computer over the last month and shown once you have opened a
+few things), **Running** and **Updates**. An app can put a small count on its
+own icon — unread items, say — and Vela does the same for waiting updates and
+for automations that failed today.
 Open it from the rail or by pressing **Ctrl+Space** (**Cmd+Space** on a Mac).
 Start typing to filter the grid and press Enter to open the first match; Escape
 closes it again. Apps
@@ -73,6 +78,12 @@ answer for. Picking one puts it in the first free space and switches the board
 into arranging. Right-click a widget for its own quick menu — open its app,
 resize it small, medium or large, or remove it — without arranging the whole
 board.
+
+There is a quicker way for an app that has a widget: drag the app straight out
+of the **Your apps** widget and drop it where you want it. Vela puts that app's
+widget at the spot you dropped it and opens arranging so you can nudge it. An
+app with no widget of its own says so rather than dropping something unrelated
+on your board.
 
 While you are arranging, drag a widget by its top bar to move it, or its
 bottom-right corner to resize it. Everything else moves out of the way, and

@@ -362,6 +362,21 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
+  // Dragging an app tile off the desk's own Apps widget and onto the board makes
+  // that app's widget where it lands, and opens Arrange so it can be moved
+  // straight away. Cancel puts the board back, leaving the flow below on the
+  // arrangement it expects.
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  const appTile = '.desk-tiles .tile-card:has-text("Widget Fixture")';
+  await page.locator(appTile).first().waitFor();
+  await page.dragAndDrop(appTile, '.desk-grid', { targetPosition: { x: 40, y: 40 } });
+  await page.getByRole('region', { name: 'Sync', exact: true }).waitFor();
+  assert.ok(await done.count(), 'dropping an app onto the board opens Arrange mode');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await arrange.waitFor();
+  await page.getByRole('region', { name: 'Sync', exact: true }).waitFor({ state: 'detached' });
+
   // The desk offers one type per declared widget, grouped under the app.
   await page.goto(base + '/');
   await page.locator('.desk-grid').waitFor();

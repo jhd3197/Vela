@@ -59,6 +59,22 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **The Launchpad sorts your apps four ways.** **All** is the grid you know;
+  **Frequent** is the twelve you actually open, ranked over the last month;
+  **Running** is what is open now; **Updates** is what has a newer version, with
+  a count on the tab. Frequent stays hidden until you have opened a few things,
+  because a ranking built on three clicks is not a habit. The counting happens
+  on this computer, one number per app per day, thirty days kept, gone when you
+  remove the app — and it is never sent anywhere. The search field now says how
+  many apps it is filtering.
+- **Apps can put a count on their own icon.** An app that has three things
+  waiting can say so, and the number appears on its tile in the Launchpad. Vela
+  does the same for itself: the Marketplace tile shows how many updates are
+  waiting and the Automations tile how many runs failed today.
+- **Drag an app onto your desk to make a widget of it.** Pull an app out of the
+  **Your apps** widget, drop it on an empty part of the board, and that app's
+  widget appears where you dropped it with arranging already open. An app that
+  has no widget says so instead.
 - **A refreshed Vela mark and palette.** The sail is redrawn — flatter, with
   more of the violet and cyan it always meant to have — and every place it
   appears now comes from one source file, so the browser tab, the installed app
