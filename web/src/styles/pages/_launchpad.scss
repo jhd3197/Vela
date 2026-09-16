@@ -30,7 +30,9 @@
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 40px 28px 64px;
+  /* The search shares the 56px line with the floating bell: 4px down puts
+     the 48px field on the icons' centre. */
+  padding: calc(4px + env(safe-area-inset-top, 0px)) 28px 64px;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -217,18 +219,19 @@
 /* Phone: four columns of smaller icons, the search pinned above them, the
    sections reading as one scrolling list with Open first. */
 @media (max-width: 860px) {
-  /* The floating bell takes the top strip, so the search starts, and sticks,
-     just below it. */
+  /* The bell floats at the right of the search line, so the field stops
+     short of it and sticks on that same line. */
   .launchpad-inner {
-    padding: calc(56px + env(safe-area-inset-top, 0px)) 16px
+    padding: calc(4px + env(safe-area-inset-top, 0px)) 16px
       calc(48px + env(safe-area-inset-bottom, 0px));
     gap: 20px;
   }
 
   .launchpad-hero {
     position: sticky;
-    top: calc(56px + env(safe-area-inset-top, 0px));
+    top: calc(4px + env(safe-area-inset-top, 0px));
     z-index: 2;
+    padding-right: 84px;
   }
 
   .searchbox-hero {
