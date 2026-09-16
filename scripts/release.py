@@ -7,11 +7,13 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 # One definition of what a version is, shared with the updater in `vela/`.
 from vela.version import version_tuple
 
-ROOT = Path(__file__).resolve().parent.parent
 RELEASE_FILES = ('vela/__init__.py', 'web/package.json', 'web/package-lock.json', 'README.md', 'CHANGELOG.md')
 
 
