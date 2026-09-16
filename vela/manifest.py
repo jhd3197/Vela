@@ -60,10 +60,12 @@ class Manifest:
     @property
     def view(self) -> dict:
         if self.schema_version == 1:
-            return {"surface": "embedded", "chrome": "compact"}
+            return {"surface": "embedded", "chrome": "compact", "appearance": "auto"}
         view = dict(self.raw["view"])
         if view["surface"] == "embedded":
             view.setdefault("chrome", "compact")
+        # The window-chrome theme hint defaults to following the hub theme.
+        view.setdefault("appearance", "auto")
         return view
 
     @property

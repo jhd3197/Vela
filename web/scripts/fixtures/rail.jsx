@@ -44,7 +44,7 @@ const SETS = {
       id: 'workspace',
       name: 'Workspace app',
       installed: true,
-      running: false,
+      running: true,
       color: '#7c4dee',
       view: { surface: 'none', chrome: 'hub' },
     },
@@ -52,7 +52,7 @@ const SETS = {
       id: 'standalone',
       name: 'Standalone app',
       installed: true,
-      running: false,
+      running: true,
       color: '#21a377',
       view: { surface: 'none', chrome: 'compact' },
     },
@@ -91,7 +91,9 @@ window.fetch = async (input, init) => {
       storage_bytes: 1024,
     });
   if (url.includes('/api/platforms')) return json({ current: 'windows', supported: ['windows'] });
-  if (url.includes('/api/settings')) return json({});
+  // The default pins: Ask and the Library. PATCH is accepted so the pin/unpin
+  // controls persist optimistically without a real server.
+  if (url.includes('/api/settings')) return json({ rail: { pinned: ['ask', 'library'] } });
   if (url.includes('/api/notifications')) return json({ notifications: [] });
   if (url.startsWith('/api/')) return json({});
   return real(input, init);

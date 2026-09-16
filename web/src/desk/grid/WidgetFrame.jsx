@@ -21,6 +21,7 @@ export default function WidgetFrame({
   selected = false,
   onSelect,
   onMenu,
+  onViewMenu,
   onDragStart,
   onResizeStart,
   style,
@@ -69,6 +70,13 @@ export default function WidgetFrame({
       tabIndex={edit ? 0 : undefined}
       onPointerDown={() => {
         if (edit) onSelect?.(widget.i);
+      }}
+      onContextMenu={(event) => {
+        // In view mode a right-click on a widget offers its own actions; in
+        // edit mode the frame keeps its overflow menu.
+        if (edit || !onViewMenu) return;
+        event.preventDefault();
+        onViewMenu(widget, event.clientX, event.clientY);
       }}
     >
       {edit && (

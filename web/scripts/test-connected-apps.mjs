@@ -148,7 +148,13 @@ try {
       .getByRole('dialog')
       .getByRole('button', { name: 'Add web app', exact: true })
       .click();
-    await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).click();
+    // A connected app is installed, so it lives in the Marketplace's Installed
+    // tab; open its row to reach the detail drawer.
+    await page.goto(base + '/library?tab=installed');
+    await page
+      .locator('.group-row')
+      .filter({ hasText: `Reading ${viewport.width}` })
+      .click();
     await page.getByRole('dialog').getByRole('button', { name: 'Open', exact: true }).click();
     const appUrl = page.url();
     const frame = page.frameLocator('iframe').frameLocator('iframe');
@@ -218,18 +224,25 @@ try {
     await page.getByRole('link', { name: 'Open in browser' }).waitFor();
     // The host rail, on screen at every width, is the way out; the frame has
     // no chrome.
-    await page.locator('.rail').getByRole('link', { name: 'Library', exact: true }).click();
+    await page.locator('.rail').getByRole('link', { name: 'Marketplace', exact: true }).click();
     await page.waitForURL(base + '/library');
-    await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).click();
+    await page.goto(base + '/library?tab=installed');
+    await page
+      .locator('.group-row')
+      .filter({ hasText: `Reading ${viewport.width}` })
+      .click();
     await page.getByRole('button', { name: 'Edit connection' }).click();
     await page.getByRole('button', { name: 'Remove connection' }).click();
     await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length === 0);
     assert.equal(
-      await page.getByRole('button', { name: `Details for Reading ${viewport.width}` }).count(),
+      await page
+        .locator('.group-row')
+        .filter({ hasText: `Reading ${viewport.width}` })
+        .count(),
       0,
     );
     await page.goto(appUrl);
-    await page.getByRole('heading', { name: 'App not found' }).waitFor();
+    await page.getByRole('heading', { name: 'App unavailable' }).waitFor();
     await context.close();
   }
   assert.ok(requests.length > 0);

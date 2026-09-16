@@ -1,0 +1,70 @@
+/* ---------- Context menu: right-click / long-press actions ---------- */
+
+.context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--bg-pop);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover:not(:disabled),
+.context-menu-item:focus-visible {
+  background: var(--accent-soft);
+  color: var(--nav-active-text);
+  outline: none;
+}
+
+.context-menu-item:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.context-menu-item.is-danger {
+  color: var(--red);
+}
+
+.context-menu-item.is-danger:hover:not(:disabled),
+.context-menu-item.is-danger:focus-visible {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.context-menu-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.context-menu-gap {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.context-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}

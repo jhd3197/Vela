@@ -157,7 +157,8 @@ try {
   const draft = page.locator('textarea');
   await draft.fill('Draft that must survive the switch');
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
-  assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 1);
+  // The rail has no secondary "More" menu; Settings opens from the foot.
+  assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 0);
   await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
   await dialog.waitFor();
   assert.equal(

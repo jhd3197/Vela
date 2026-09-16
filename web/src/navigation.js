@@ -2,7 +2,6 @@ import {
   ChatCircleText,
   GearSix,
   HardDrives,
-  AppWindow,
   HouseSimple,
   Lightning,
   SquaresFour,
@@ -10,44 +9,52 @@ import {
 } from '@phosphor-icons/react';
 import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
-import Apps from './pages/Apps.jsx';
+import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
 import Environments from './pages/Environments.jsx';
 import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
-// `rail` places a destination: `primary` sits above the installed-app
-// shortcuts, `tools` below the separator, and `more` inside the labelled
-// secondary menu. `developer` marks a destination that only appears while
-// "Show developer tools" is on; its route stays valid either way.
+//
+// `rail: 'primary'` fixes a destination at the top of the rail (Desk and the
+// Launchpad); `rail: 'foot'` sits at the bottom (Settings). Everything else the
+// user reaches is either an installed app or a `core` app — Vela's own tools,
+// which appear in the Launchpad's "Vela" section, rank in search like apps, and
+// can be pinned to the rail like any app. `developer` marks a destination that
+// only appears while "Show developer tools" is on; its route stays valid
+// either way. `color` tints its icon tile in the Nocturne accent family.
 export const dashboardPages = [
   { to: '/', label: 'Desk', end: true, icon: HouseSimple, rail: 'primary', component: Desk },
+  // The Launchpad: a full-screen grid of every app over the blurred wallpaper.
+  // It replaces the All apps drawer and the old Manage apps page as the one
+  // place that answers "which apps do I have".
+  {
+    to: '/apps',
+    label: 'Launchpad',
+    icon: SquaresFour,
+    rail: 'primary',
+    railOrder: 2,
+    end: true,
+    component: Launchpad,
+  },
   {
     to: '/ask',
     label: 'Ask',
     icon: ChatCircleText,
-    rail: 'primary',
+    core: true,
+    id: 'ask',
+    color: '#796cbf',
     // A selected conversation is part of the route, so reloads and links restore it.
     childPaths: ['/ask/:conversationId'],
     component: Ask,
   },
-  // Not a destination: every installed app in one place, over whatever page is
-  // open. It has no route and no component, so nothing links to it and the
-  // rail renders it as a button rather than a NavLink.
-  {
-    id: 'all-apps',
-    label: 'All apps',
-    icon: SquaresFour,
-    rail: 'primary',
-    railOrder: 3,
-    drawer: true,
-  },
   {
     to: '/library',
-    label: 'Library',
+    label: 'Marketplace',
     icon: Storefront,
-    rail: 'tools',
-    railOrder: 1,
+    core: true,
+    id: 'library',
+    color: '#2bb6d8',
     component: Library,
   },
   {
@@ -55,35 +62,37 @@ export const dashboardPages = [
     label: 'Automations',
     icon: Lightning,
     weight: 'fill',
-    rail: 'more',
-    railOrder: 1,
+    core: true,
+    id: 'automations',
+    color: '#d08a2e',
     // The editor is part of the route so a reload, a link and the browser's
     // back button all land on the same automation.
     childPaths: ['/automations/:workflowId'],
     component: Automations,
   },
   {
-    to: '/apps',
-    label: 'Manage apps',
-    icon: AppWindow,
-    rail: 'more',
-    railOrder: 2,
-    component: Apps,
-  },
-  {
     to: '/environments',
     label: 'System',
     icon: HardDrives,
-    rail: 'more',
-    railOrder: 3,
+    core: true,
+    id: 'system',
+    color: '#21a377',
     developer: true,
     component: Environments,
   },
-  { to: '/settings', label: 'Settings', icon: GearSix, rail: 'foot', component: Desk, popup: true },
+  {
+    to: '/settings',
+    label: 'Settings',
+    icon: GearSix,
+    rail: 'foot',
+    core: true,
+    id: 'settings',
+    color: '#75798c',
+    component: Desk,
+    popup: true,
+  },
 ];
 
-// A rail entry that opens a drawer is not a destination: it has no path and no
-// component, so it never becomes a route.
 export const routablePages = dashboardPages.filter((page) => page.to && page.component);
 
 export const visiblePages = (developer) =>
@@ -93,3 +102,24 @@ export const railGroup = (group, developer = false) =>
   visiblePages(developer)
     .filter((page) => page.rail === group)
     .sort((a, b) => (a.railOrder ?? 0) - (b.railOrder ?? 0));
+
+// Vela's own tools as core apps: the Launchpad draws them in its "Vela"
+// section, the rail can pin them, and search ranks them with installed apps.
+// One source of truth — the `core` pages above — so an id, colour or label is
+// defined once. System is developer-only.
+export const coreApps = (developer = false) =>
+  visiblePages(developer)
+    .filter((page) => page.core)
+    .map((page) => ({
+      id: page.id,
+      label: page.label,
+      to: page.to,
+      icon: page.icon,
+      color: page.color,
+      popup: page.popup,
+      developer: page.developer,
+    }));
+
+export const isCoreId = (id) => dashboardPages.some((page) => page.core && page.id === id);
+
+export const coreById = (id) => coreApps(true).find((entry) => entry.id === id) || null;

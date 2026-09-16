@@ -21,7 +21,38 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # a list of {path, label}; it stays empty until the user names one, because
     # Vela does not go looking through the computer's drives on its own.
     "desk": {"volumes": [], "wallpaper": "lake", "dim": True, "labels": True},
+    # The rail: which apps the user pinned to it, in the order they chose.
+    # Entries are core-app ids (ask, library, …) or installed-app ids; the
+    # dashboard drops any that no longer resolve. Defaults to Ask and the
+    # Marketplace.
+    "rail": {"pinned": ["ask", "library"]},
 }
+
+# The most pins the rail will store. Far more than fit on screen, but a bound
+# keeps a malformed patch from growing settings.json without limit.
+MAX_PINS = 40
+
+
+def sanitize_pins(value: Any) -> list[str]:
+    """A rail pin list reduced to unique, non-empty id strings in order.
+
+    The dashboard decides which ids still resolve to a real app; the store only
+    guarantees the shape, so a patch cannot write anything but a bounded list of
+    id strings. A non-list is rejected by the caller before this runs.
+    """
+    seen: set[str] = set()
+    pins: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            continue
+        pin = entry.strip()
+        if not pin or pin in seen:
+            continue
+        seen.add(pin)
+        pins.append(pin)
+        if len(pins) >= MAX_PINS:
+            break
+    return pins
 
 
 def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:

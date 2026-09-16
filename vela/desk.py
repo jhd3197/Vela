@@ -61,7 +61,8 @@ def default_boards() -> dict[str, Any]:
                 _widget("w1", "clock", 0, 0, 2, 1),
                 _widget("w2", "apps", 2, 0, 4, 2),
                 _widget("w3", "running", 0, 1, 2, 1),
-                _widget("w4", "ask", 0, 2, 2, 2),
+                _widget("w4", "needs-you", 0, 2, 2, 2),
+                _widget("w5", "ask", 2, 2, 4, 2),
             ],
         },
         "phone": {

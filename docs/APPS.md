@@ -11,38 +11,68 @@ The board is the same on a wide screen and a phone, laid out differently: six
 columns of widgets on a desktop, two in your hand. Each is remembered on its
 own, so arranging one never rearranges the other.
 
-A narrow rail runs down the left of the dashboard: Desk, Ask, **All apps**, a
-shortcut for every installed app, then Library and a **More** menu holding
-Automations and Manage apps. Settings sits at the bottom. Hover or tab to an
-icon to see its name. The open destination is marked on the rail, so you always
-know where you are.
+A narrow rail runs down the left of the dashboard: **Desk** and the
+**Launchpad** at the top, then the apps you have **pinned** — Ask and the
+Library to begin with — a divider, and the apps that are **open** but not
+pinned. Settings sits at the bottom. Hover or tab to an icon to see its name.
+The open destination is marked on the rail, so you always know where you are.
 
-Apps that are running now sit together at the top of the shortcuts, under a
-small OPEN label, so what is already going is where you look first. When
-nothing is running the label is simply not there.
+Pin whatever you reach for: right-click an app on the rail or in the Launchpad,
+or press and hold it on a phone, and choose **Pin to rail** — then **Move up**
+or **Move down** to order your pins, or **Unpin** to remove one. Vela's own
+tools (Ask, Automations, the Library, Settings and, for developers, System) can
+be pinned just like any app. Everything else you have is one tap away in the
+Launchpad, so the rail stays short.
 
-**All apps** opens a panel over whatever you are doing with everything you have
-installed: what is running, then the full set with each app's version, and one
-way to add another. Search it by name. Escape closes it and puts you back where
-you were.
+Apps that are running but not pinned sit together under a small OPEN label, so
+what is already going is where you look first. When nothing unpinned is running
+the label is simply not there.
+
+The **Launchpad** is every app in one place, full-screen over your wallpaper.
+Open it from the rail or by pressing **Ctrl+Space** (**Cmd+Space** on a Mac).
+Start typing to filter the grid and press Enter to open the first match; Escape
+closes it again. Apps
+that are running are grouped first, then everything you have installed, then
+Vela's own tools, and a last tile leads to the Library for more. Right-click a
+tile — or press and hold it on a phone — for Open, Add widget to desk, App
+settings, Stop and Remove.
 
 The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
 button to reach them.
 
-Apps open beside the rail, with their name in the bar above them; an app that
-asks for a seamless view opens on its own, with a small Vela menu in its
-corner. Either way, if an app has unsaved work, leaving it asks before anything
-is lost. **App settings**, in that bar or in the app's Vela menu, holds the
-app's permissions, its connection, updates and removal.
+From a keyboard: **Ctrl+K** searches, **Ctrl+Space** opens or closes the
+Launchpad, **Ctrl+1** to **Ctrl+9** open the pinned apps by their place on the
+rail, **Esc** backs out of the Launchpad, a menu or a dialog, and **?** (or
+**Ctrl+/**) shows the whole list.
+
+Apps open beside the rail with a title bar of their own: a back arrow to where
+you opened the app from, its name and whether it is running, and a **⋯** menu to
+pin it to the rail, add its widget to your desk, reach its settings, reload it,
+open it in a new tab, stop it or close it. While an app is starting you see it
+over a dimmed background; if it never answers, Vela says so and offers to reload
+or stop it. An app that asks for a seamless view opens on its own instead, with
+a small Vela menu in its corner that holds the same actions. Either way, if an
+app has unsaved work, leaving it asks before anything is lost. **App settings**,
+in the title-bar menu or the Vela menu, holds the app's permissions, its
+connection, updates and removal.
+
+The desk opens with a single search field centred over the wallpaper — start
+typing to reach an app, a note, a setting or Ask. The desk's own controls live
+in the **⋯** menu at the top-right (next to the bell), or a **right-click** — a
+long press on a phone — anywhere on the wallpaper: **Add widget**, **Arrange
+desk**, **Personalise** and **Reset desk**, which puts the board being looked at
+back to the one Vela ships (your other board is left alone).
 
 ## Arrange your desk
 
-Choose **Add widget** above the board to see everything Vela can show you.
+Choose **Add widget** from the desk menu to see everything Vela can show you.
 Widgets are grouped by who owns them — Vela's own first, then one group per app
 that provides any — and the list only ever offers something Vela can really
 answer for. Picking one puts it in the first free space and switches the board
-into arranging.
+into arranging. Right-click a widget for its own quick menu — open its app,
+resize it small, medium or large, or remove it — without arranging the whole
+board.
 
 While you are arranging, drag a widget by its top bar to move it, or its
 bottom-right corner to resize it. Everything else moves out of the way, and
@@ -65,7 +95,7 @@ separate board: arranging one never rearranges the other.
 
 ## Make the desk yours
 
-**Personalise**, above the board, sets what the desk looks like. Pick one of the
+**Personalise**, in the desk menu, sets what the desk looks like. Pick one of the
 wallpapers Vela ships with, or **Use your own** — a JPEG, PNG or WebP up to 8 MB,
 which stays on your own computer and is never sent anywhere. **Dim the
 wallpaper** keeps widget text readable over a bright picture; turn it off if you
@@ -73,7 +103,8 @@ would rather see the photograph. **Show app names** switches between named tiles
 and icons only, and **Ask on this board** adds or removes the Ask widget from
 whichever board you are looking at.
 
-On a phone, press and hold an empty part of the wallpaper to open Personalise.
+On a phone, press and hold an empty part of the wallpaper to open the desk menu,
+then choose Personalise.
 
 ## App widgets on the desk
 
@@ -98,6 +129,13 @@ Only the app can set that — Vela never decides on an app's behalf that
 something is wrong.
 
 ## On a phone
+
+The rail stays down the side at every width — there is no bottom bar and no
+hamburger — so an app or a destination is always one tap away. Swipe up from the
+bottom edge of the desk to open the Launchpad, and swipe down from the top of
+the Launchpad to close it again. Press and hold an app tile, a rail icon, a
+widget or the bare wallpaper for the same menus a right-click gives on a
+computer.
 
 Vela is meant to be used from a phone as well as a computer. Tapping a field
 does not zoom the page and leave it zoomed, and when the keyboard opens the box
@@ -138,9 +176,9 @@ made on a desktop.
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In
-**Library → Add an app → Connect a website**, enter its name, HTTPS address
+**Marketplace → Add an app → Connect a website**, enter its name, HTTPS address
 and icon color. The
-connection appears in Library, Manage apps and on your desk. Open it to use the service inside
+connection appears in the Marketplace's Installed tab and on your desk. Open it to use the service inside
 Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
 bar above it, always outside the service's frame.
 
@@ -178,14 +216,20 @@ closed, and stop while Vela is not running. See
 
 ## Install and update
 
-Open **Library → Import apps & refresh catalog**. Upload an app release ZIP or
-enter the path of an app folder on the server computer. The package must have
-`app.json` at its root. Review the source, version, permissions and any data
-changes, then confirm the installation. A publisher name in a manifest is not
-proof of a verified publisher.
+The **Marketplace** (in the rail, or "Get more apps" in the Launchpad) has three
+tabs. **Discover** is the apps you do not have yet — browse or search, then
+Install. **Installed** is everything on this computer, including connected web
+apps, where you open an app's details to update or remove it. **Updates**
+gathers the apps with a newer release and can **Update all** at once.
 
-To update, import a newer version with the same app ID. Save work in open app
-views first, then reopen the app after updating. Vela stages the reviewed
+To add an app from a file, open **Marketplace → Add an app**. Upload an app
+release ZIP or enter the path of an app folder on the server computer. The
+package must have `app.json` at its root. Review the source, version,
+permissions and any data changes, then confirm the installation. A publisher
+name in a manifest is not proof of a verified publisher.
+
+To update, use the Updates tab, or import a newer version with the same app ID.
+Save work in open app views first, then reopen the app after updating. Vela stages the reviewed
 package and rejects a stale review if the package or app data changes before
 confirmation. Updating an app does not require rebuilding the server.
 

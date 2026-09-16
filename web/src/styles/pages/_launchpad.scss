@@ -1,0 +1,251 @@
+/* ---------- Launchpad: a full-screen app grid over the wallpaper ---------- */
+
+/* The Launchpad rides on the desk's wallpaper flags (set by the page), so the
+   shell already draws the picture and the rail already takes its white ink.
+   This layer adds the launcher's own heavy blur and dim so the icons read as
+   the foreground rather than sitting in the scene. */
+.launchpad-workspace .workspace-content {
+  padding: 0;
+}
+
+.launchpad {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.launchpad-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  backdrop-filter: blur(40px);
+  background: rgba(18, 20, 32, 0.45);
+  pointer-events: none;
+}
+
+.launchpad-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px 28px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.launchpad-hero {
+  display: flex;
+  justify-content: center;
+}
+
+/* The hero field: centred, wide and tall, translucent over the blur. */
+.searchbox-hero {
+  flex: 0 1 560px;
+  height: 48px;
+  border-radius: 24px;
+  padding: 0 14px 0 18px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  border-color: transparent;
+}
+
+.searchbox-hero input,
+.searchbox-hero .searchbox-icon,
+.searchbox-hero .searchbox-kbd {
+  color: #fff;
+}
+
+.searchbox-hero input {
+  font-size: 16px;
+}
+
+.searchbox-hero input::placeholder {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.searchbox-hero .searchbox-kbd {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: transparent;
+}
+
+.launch-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.launch-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.launch-section-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.launch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 24px 12px;
+}
+
+.launch-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: #fff;
+  font-family: inherit;
+}
+
+.launch-tile:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.launch-tile:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 2px;
+}
+
+.launch-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.launch-label {
+  font-size: 13px;
+  line-height: 1.25;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.94);
+  max-width: 108px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.launch-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(18, 20, 32, 0.6);
+}
+
+.launch-dot-running {
+  background: var(--green);
+}
+
+.launch-dot-attention {
+  background: #e8a23a;
+  top: auto;
+  bottom: 2px;
+  right: 2px;
+}
+
+/* Vela's own tools carry a small mark so a core tool reads as part of Vela, not
+   an app someone installed. */
+.launch-vela {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 20, 32, 0.72);
+  box-shadow: 0 0 0 2px rgba(18, 20, 32, 0.4);
+}
+
+.launch-vela img {
+  width: 12px;
+  height: 12px;
+}
+
+.launch-more-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 21px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.launch-tile-skeleton {
+  height: 118px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.launch-empty {
+  color: rgba(255, 255, 255, 0.86);
+  text-align: center;
+  font-size: 15px;
+  padding: 40px 0;
+}
+
+.linklike {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #fff;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Phone: four columns of smaller icons, the search pinned above them, the
+   sections reading as one scrolling list with Open first. */
+@media (max-width: 860px) {
+  .launchpad-inner {
+    padding: 20px 16px calc(48px + env(safe-area-inset-bottom, 0px));
+    gap: 20px;
+  }
+
+  .launchpad-hero {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 2;
+  }
+
+  .searchbox-hero {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .launch-grid {
+    /* minmax(0, …) lets a track shrink below the icon on a narrow phone so the
+       four columns always fit beside the rail instead of forcing a scroll. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 4px;
+  }
+
+  .launch-tile {
+    padding: 6px 2px;
+  }
+
+  .launch-label {
+    font-size: 12px;
+    max-width: 100%;
+  }
+}

@@ -23,7 +23,7 @@ from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
 from .runners import current_platform, get_runner
-from .settings import SettingsStore
+from .settings import SettingsStore, sanitize_pins
 from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
@@ -43,7 +43,7 @@ from .phone_access import PhoneAccess
 from .automations import Automations, router as automations_router
 
 
-_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk"}
+_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail"}
 
 
 class NotifyPublishRequest(BaseModel):
@@ -721,6 +721,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 desk["volumes"] = validate_volumes(desk["volumes"])
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
+        # Rail pins are a list of app ids; store the shape, not the meaning —
+        # the dashboard drops ids that no longer name a real app.
+        rail = update.get("rail")
+        if isinstance(rail, dict) and "pinned" in rail:
+            if not isinstance(rail["pinned"], list):
+                raise HTTPException(status_code=422, detail="rail.pinned must be a list of ids")
+            rail["pinned"] = sanitize_pins(rail["pinned"])
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:

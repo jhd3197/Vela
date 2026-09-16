@@ -6,6 +6,64 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Changed
+
+- **The desk is a desktop now.** The search sits in the middle of the wallpaper
+  where a launcher's does, and the buttons that used to crowd it moved into a
+  **⋯** menu at the top-right and a **right-click** (long press on a phone) on
+  the wallpaper: Add widget, Arrange desk, Personalise, and **Reset desk** to
+  put a board back the way Vela ships it. Right-click a widget for its own
+  quick menu — open its app, resize it, or remove it — without arranging the
+  whole board. A fresh desk fills the screen with no bare gaps, and your apps
+  show as a labelled icon grid with **Open all** leading to the Launchpad.
+- **Apps open in a real window.** An app you open now has its own title bar: a
+  back arrow to where you came from, its name and whether it is running, and a
+  **⋯** menu to pin it to the rail, add its widget to your desk, reach its
+  settings, reload it, open it in a new tab, stop it or close it — no more second
+  search box above the app. While an app is starting you see it over a dimmed
+  background, and if it never answers Vela says so and offers to reload or stop
+  it. Opening an app that is no longer installed leads back to the Marketplace.
+  An app can ask (with `view.appearance`) for its title bar to stay dark so a
+  dark app is not topped by a light strip.
+- **The Library is now the Marketplace.** One place — still at the same
+  address — to find, install, update and remove apps, in three tabs. **Discover**
+  shows the apps you do not have yet, led by a small featured row. **Installed**
+  is everything on this computer, connected websites included, where you open an
+  app to update or remove it. **Updates** gathers the apps with a newer release
+  and can update them all at once. The separate Manage apps page is gone; its job
+  lives in the Installed tab.
+- **The rail is yours to arrange.** It now shows the apps you pin plus whatever
+  is open, instead of every app you have installed. Desk and the Launchpad stay
+  at the top; below them are your pinned apps — Ask and the Marketplace to start —
+  then the apps that are open but not pinned, then Settings. Right-click an app
+  on the rail or in the Launchpad (or press and hold on a phone) to pin, unpin
+  or reorder it. Vela's own tools — Ask, Automations, the Marketplace, Settings and
+  System — are core apps now: they show in the Launchpad under **Vela**, they
+  turn up in search, and they can be pinned like any app. The old **More** menu
+  is gone.
+
+### Added
+
+- **Keyboard shortcuts and phone gestures.** Press **?** (or **Ctrl+/**) for the
+  full list: **Ctrl+K** searches, **Ctrl+Space** opens or closes the Launchpad,
+  **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
+  out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
+  swipe down from its top to close it.
+- **A full-screen Launchpad.** Opening **Apps** now fills the screen with every
+  app over your blurred wallpaper, not a side drawer. A search in the middle
+  filters as you type and Enter opens the first match; **Ctrl+Space**
+  (**Cmd+Space** on a Mac) opens or closes it from anywhere and Escape steps
+  back. Apps that are running come first, then everything installed, then
+  Vela's own tools, and a last tile leads to the Marketplace. Right-click a tile —
+  or press and hold it on a phone — to open it, add its widget to your desk,
+  reach its settings, stop it or remove it.
+
+### Removed
+
+- **The All apps drawer is gone.** Its job — every app in one place — is the
+  Launchpad now, so there is one answer to "which apps do I have" instead of a
+  drawer, a Manage apps page and the Library all showing the same set.
+
 ## 0.1.10 - 2026-09-16
 
 ### Added

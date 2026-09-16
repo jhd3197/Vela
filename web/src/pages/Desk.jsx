@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useBlocker, useNavigate } from 'react-router-dom';
 import {
   ArrowCounterClockwise,
   ArrowClockwise,
+  ArrowSquareOut,
+  ArrowUUpLeft,
   Crop,
+  DotsThreeOutline,
   PaintBrush,
   Plus,
+  Trash,
 } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
@@ -14,6 +18,8 @@ import WorkspacePage from '../components/WorkspacePage.jsx';
 import GlobalSearch from '../components/GlobalSearch.jsx';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
+import ContextMenu from '../components/ui/ContextMenu.jsx';
+import useSwipe from '../hooks/useSwipe.js';
 import DeskGrid from '../desk/grid/DeskGrid.jsx';
 import { DeskDataProvider } from '../desk/DeskDataProvider.jsx';
 import WidgetLibrary from '../desk/WidgetLibrary.jsx';
@@ -21,9 +27,15 @@ import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import useEditingSession from '../desk/editing/useEditingSession.js';
-import { useWidgetTypes } from '../desk/registry.js';
+import { appIdOfType, APP_WIDGET_SIZES, useWidgetTypes } from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
-import { colsOf, MAX_WIDGETS_PER_BOARD, widgetsOf, withWidgets } from '../desk/boards.js';
+import {
+  colsOf,
+  defaultBoards,
+  MAX_WIDGETS_PER_BOARD,
+  widgetsOf,
+  withWidgets,
+} from '../desk/boards.js';
 import { compact, findFreeSpot, nextWidgetId, pushDown } from '../desk/grid/layout.js';
 import { api } from '../api.js';
 import { useResource } from '../hooks/useResource.js';
@@ -39,8 +51,11 @@ const LONG_PRESS_SLOP = 8;
 // only ever draw data Vela actually has; the wallpaper is a real image the
 // user can replace, and the rail beside it is the same rail as everywhere else.
 export default function Desk() {
-  const { apps, pushToast } = useApps();
+  const { apps, openApp, pushToast } = useApps();
+  const navigate = useNavigate();
   const phone = useMediaQuery(PHONE);
+  // On a phone, a swipe up from the bottom edge opens the Launchpad.
+  const swipeUp = useSwipe({ onUp: () => navigate('/apps', { state: { returnTo: '/' } }) });
   const boardKey = phone ? 'phone' : 'desktop';
   const types = useWidgetTypes(apps, AppWidget);
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
@@ -76,9 +91,14 @@ export default function Desk() {
   const [announcement, setAnnouncement] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const arrangeButton = useRef(null);
-  const personaliseButton = useRef(null);
+  // The wallpaper menu (right-click / long-press / the top-right ⋯) and the
+  // reset confirmation. The buttons that used to crowd the search field live
+  // here now, like a desktop's own right-click menu.
+  const [deskMenu, setDeskMenu] = useState(null);
+  const [widgetMenu, setWidgetMenu] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const addButton = useRef(null);
+  const deskMenuButton = useRef(null);
 
   // The wallpaper belongs to the whole shell, not to this page's scroll box:
   // it has to sit behind the rail as well. A body flag is the least invasive
@@ -160,6 +180,78 @@ export default function Desk() {
     pushToast(result.message, 'error');
     return false;
   }, [isDirty, save, draft, reset, leaveEdit, pushToast]);
+
+  // Reset the board being looked at back to the seed Vela ships. Only this
+  // board changes; the other one (phone or desktop) is untouched.
+  const resetDesk = useCallback(async () => {
+    const seed = defaultBoards();
+    const result = await save(withWidgets(boards, boardKey, seed[boardKey].widgets));
+    if (!result.ok) pushToast(result.message || 'The desk changed elsewhere; reloaded.', 'error');
+  }, [save, boards, boardKey, pushToast]);
+
+  // The wallpaper menu, opened from the top-right ⋯ or a right-click / long
+  // press on empty board. Reuses the shared ContextMenu.
+  const deskMenuItems = [
+    { label: 'Add widget', icon: Plus, onSelect: () => setLibrary(true) },
+    {
+      label: 'Arrange desk',
+      icon: Crop,
+      disabled: !loaded || revision === null,
+      onSelect: () => setEdit(true),
+    },
+    { label: 'Personalise', icon: PaintBrush, onSelect: () => setPersonalise(true) },
+    { separator: true },
+    { label: 'Reset desk', icon: ArrowUUpLeft, onSelect: () => setConfirmReset(true) },
+  ];
+  const openDeskMenu = (x, y, opener) => {
+    deskMenuButton.current = opener || null;
+    setDeskMenu({ x, y });
+  };
+
+  // A widget's own right-click menu in view mode: open its app, resize it, or
+  // remove it. Resize and remove save straight away, since view mode has no
+  // Done button.
+  const saveBoardNow = async (nextWidgets) => {
+    const result = await save(withWidgets(boards, boardKey, nextWidgets));
+    if (!result.ok) pushToast(result.message || 'The desk changed elsewhere; reloaded.', 'error');
+  };
+  const resizeWidget = (target, size) => {
+    const [w, h] = APP_WIDGET_SIZES[size];
+    const current = widgetsOf(boards, boardKey);
+    saveBoardNow(
+      compact(
+        current.map((entry) =>
+          entry.i === target.i ? { ...entry, w: Math.min(w, cols), h } : entry,
+        ),
+      ),
+    );
+  };
+  const removeWidget = (target) =>
+    saveBoardNow(compact(widgetsOf(boards, boardKey).filter((entry) => entry.i !== target.i)));
+
+  const widgetMenuItems = (() => {
+    if (!widgetMenu) return [];
+    const target = widgetMenu.widget;
+    const appId = appIdOfType(target.type);
+    const items = [];
+    if (appId)
+      items.push({
+        label: 'Open app',
+        icon: ArrowSquareOut,
+        onSelect: () => openApp(appId, { returnTo: '/' }),
+      });
+    items.push({ label: 'Small', icon: Crop, onSelect: () => resizeWidget(target, 's') });
+    items.push({ label: 'Medium', icon: Crop, onSelect: () => resizeWidget(target, 'm') });
+    items.push({ label: 'Large', icon: Crop, onSelect: () => resizeWidget(target, 'l') });
+    items.push({ separator: true });
+    items.push({
+      label: 'Remove',
+      icon: Trash,
+      danger: true,
+      onSelect: () => removeWidget(target),
+    });
+    return items;
+  })();
 
   // --------------------------------------------------------------- editing
 
@@ -294,8 +386,8 @@ export default function Desk() {
     if (edit || event.pointerType === 'mouse') return;
     const frame = event.target.closest?.('.desk-frame');
     const { clientX, clientY } = event;
-    // On a frame the gesture arranges; on bare wallpaper it personalises —
-    // the same press, on the thing it is about.
+    // On a frame the gesture arranges; on bare wallpaper it opens the wallpaper
+    // menu — the same press, on the thing it is about.
     press.current = {
       x: clientX,
       y: clientY,
@@ -306,7 +398,7 @@ export default function Desk() {
           setSelected(frame.dataset.widget);
           setAnnouncement('Arranging the desk.');
         } else {
-          setPersonalise(true);
+          openDeskMenu(clientX, clientY);
         }
       }, LONG_PRESS_MS),
     };
@@ -331,7 +423,26 @@ export default function Desk() {
   const blocked = blocker.state === 'blocked';
 
   return (
-    <WorkspacePage search={false} className="desk-workspace">
+    <WorkspacePage
+      search={false}
+      className="desk-workspace"
+      actions={
+        edit ? null : (
+          <Button
+            ref={deskMenuButton}
+            size="icon"
+            aria-label="Desk options"
+            aria-haspopup="menu"
+            onClick={(event) => {
+              const box = event.currentTarget.getBoundingClientRect();
+              openDeskMenu(box.right - 210, box.bottom + 6, event.currentTarget);
+            }}
+          >
+            <DotsThreeOutline size={16} weight="fill" aria-hidden="true" />
+          </Button>
+        )
+      }
+    >
       <DeskDataProvider>
         <div
           className={`desk${edit ? ' desk-arranging' : ''}`}
@@ -340,54 +451,39 @@ export default function Desk() {
           onPointerMove={onPointerMove}
           onPointerUp={endPress}
           onPointerCancel={endPress}
+          onContextMenu={(event) => {
+            // Right-click bare wallpaper opens the wallpaper menu, like a
+            // desktop; a widget keeps its own menu.
+            if (edit || event.target.closest?.('.desk-frame')) return;
+            event.preventDefault();
+            openDeskMenu(event.clientX, event.clientY);
+          }}
         >
+          {/* The command surface: one centred field over the wallpaper. This is a
+              deliberate departure from the prototype's left-aligned search. The
+              buttons that used to sit beside it moved to the wallpaper menu. */}
           <div className="desk-top">
-            <GlobalSearch />
-            <div className="desk-top-actions">
-              {edit ? (
-                <>
-                  <Button size="icon" aria-label="Undo" disabled={!canUndo || busy} onClick={undo}>
-                    <ArrowCounterClockwise size={16} aria-hidden="true" />
-                  </Button>
-                  <Button size="icon" aria-label="Redo" disabled={!canRedo || busy} onClick={redo}>
-                    <ArrowClockwise size={16} aria-hidden="true" />
-                  </Button>
-                  <Button ref={addButton} disabled={busy} onClick={() => setLibrary(true)}>
-                    <Plus size={15} aria-hidden="true" />
-                    Add widget
-                  </Button>
-                  <Button disabled={busy} onClick={cancel}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" pending={busy} onClick={done}>
-                    Done
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button ref={addButton} disabled={!loaded} onClick={() => setLibrary(true)}>
-                    <Plus size={15} aria-hidden="true" />
-                    Add widget
-                  </Button>
-                  <Button
-                    ref={arrangeButton}
-                    disabled={!loaded || revision === null}
-                    onClick={() => setEdit(true)}
-                  >
-                    <Crop size={15} aria-hidden="true" />
-                    Arrange desk
-                  </Button>
-                  <Button
-                    ref={personaliseButton}
-                    aria-haspopup="dialog"
-                    onClick={() => setPersonalise(true)}
-                  >
-                    <PaintBrush size={15} aria-hidden="true" />
-                    Personalise
-                  </Button>
-                </>
-              )}
-            </div>
+            <GlobalSearch variant="hero" />
+            {edit && (
+              <div className="desk-top-actions">
+                <Button size="icon" aria-label="Undo" disabled={!canUndo || busy} onClick={undo}>
+                  <ArrowCounterClockwise size={16} aria-hidden="true" />
+                </Button>
+                <Button size="icon" aria-label="Redo" disabled={!canRedo || busy} onClick={redo}>
+                  <ArrowClockwise size={16} aria-hidden="true" />
+                </Button>
+                <Button ref={addButton} disabled={busy} onClick={() => setLibrary(true)}>
+                  <Plus size={15} aria-hidden="true" />
+                  Add widget
+                </Button>
+                <Button disabled={busy} onClick={cancel}>
+                  Cancel
+                </Button>
+                <Button variant="primary" pending={busy} onClick={done}>
+                  Done
+                </Button>
+              </div>
+            )}
           </div>
           <p className="sr-only" role="status" aria-live="polite">
             {announcement}
@@ -404,12 +500,26 @@ export default function Desk() {
             onSelect={setSelected}
             onChange={(next) => setWidgets(next)}
             onWidgetMenu={onWidgetMenu}
+            onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
             empty={
               <p className="desk-empty">
                 Your desk is empty. Use <b>Add widget</b> to put something on it.
               </p>
             }
           />
+          {phone && !edit && (
+            <div
+              className="desk-swipe-up"
+              aria-hidden="true"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                swipeUp.onPointerDown(event);
+              }}
+              onPointerMove={swipeUp.onPointerMove}
+              onPointerUp={swipeUp.onPointerUp}
+              onPointerCancel={swipeUp.onPointerCancel}
+            />
+          )}
         </div>
 
         {library && (
@@ -429,7 +539,7 @@ export default function Desk() {
             onToggleAsk={toggleAsk}
             onClose={() => {
               setPersonalise(false);
-              personaliseButton.current?.focus({ preventScroll: true });
+              deskMenuButton.current?.focus({ preventScroll: true });
             }}
           />
         )}
@@ -446,6 +556,48 @@ export default function Desk() {
           />
         )}
       </DeskDataProvider>
+
+      <ContextMenu
+        open={Boolean(deskMenu)}
+        x={deskMenu?.x || 0}
+        y={deskMenu?.y || 0}
+        items={deskMenuItems}
+        label="Desk options"
+        returnFocusRef={deskMenuButton}
+        onClose={() => setDeskMenu(null)}
+      />
+
+      <ContextMenu
+        open={Boolean(widgetMenu)}
+        x={widgetMenu?.x || 0}
+        y={widgetMenu?.y || 0}
+        items={widgetMenuItems}
+        label="Widget options"
+        onClose={() => setWidgetMenu(null)}
+      />
+
+      <Dialog
+        open={confirmReset}
+        aria-labelledby="desk-reset-title"
+        onClose={() => setConfirmReset(false)}
+      >
+        <h2 id="desk-reset-title">Reset this desk?</h2>
+        <p>
+          This replaces the current layout with the one Vela ships. Your other board is unchanged.
+        </p>
+        <div className="form-actions">
+          <Button
+            variant="primary"
+            onClick={async () => {
+              setConfirmReset(false);
+              await resetDesk();
+            }}
+          >
+            Reset desk
+          </Button>
+          <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
+        </div>
+      </Dialog>
 
       <Dialog
         open={confirmLeave || blocked}

@@ -23,7 +23,43 @@
   opacity: 0.7;
 }
 
-/* ---------- Library catalog cards ---------- */
+/* ---------- Marketplace tabs and catalog cards ---------- */
+
+/* The section tabs get their own margin so they sit above the tab's controls;
+   a smaller inner segmented control filters the Installed tab. */
+.page-inner > .seg[role='tablist'] {
+  align-self: flex-start;
+}
+
+.seg-count {
+  margin-left: 2px;
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.seg-sub {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+/* The featured row leads Discover with a few described apps at a larger size. */
+.featured-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 14px;
+}
+
+.app-card-featured {
+  box-shadow:
+    0 0 0 1px var(--accent-line),
+    var(--shadow-card);
+}
 
 .card-grid {
   display: grid;

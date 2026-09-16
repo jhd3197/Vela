@@ -107,7 +107,9 @@ try {
   const shots = path.join(root, 'docs/screenshots/increment-5');
   await fs.mkdir(shots, { recursive: true });
   // The execution record is a diagnostic: collapsed, and loaded only when asked.
-  await meals.getByRole('button', { name: 'App settings', exact: true }).click();
+  // App settings live in the app window's menu now.
+  await meals.getByRole('button', { name: 'App menu' }).click();
+  await meals.getByRole('menuitem', { name: 'App settings' }).click();
   await appSettings.getByText('Diagnostics', { exact: true }).click();
   await appSettings
     .getByText(/meals → notes · create-note · succeeded/)

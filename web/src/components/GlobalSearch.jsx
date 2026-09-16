@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GearSix, Heartbeat, MagnifyingGlass, Note, Receipt, Sparkle } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
+import { coreApps } from '../navigation.js';
 import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
@@ -103,16 +104,38 @@ function searchAppData(q, limit = 5) {
 
 // Global search: ⌘K palette over apps, settings sections, and mini-app data,
 // all client-side. It lives in the workspace header, not in a separate bar.
-export default function GlobalSearch({ compact = false }) {
+//
+// `variant="hero"` is the centred, larger field the Desk and Launchpad put at
+// the top of the screen. A caller can also drive the query itself (`value` +
+// `onQueryChange`) and take Enter (`onEnter`) so the Launchpad filters its grid
+// live while the same field still opens the ⌘K palette; passing
+// `showResults={false}` then hands the result surface to that page.
+export default function GlobalSearch({
+  compact = false,
+  variant = 'default',
+  value,
+  onQueryChange,
+  onEnter,
+  showResults = true,
+  autoFocus = false,
+}) {
   const { apps } = useApps();
   const navigate = useNavigate();
   const location = useLocation();
   const { openSettings } = useSettingsPopup();
   const developer = useDeveloperTools();
-  const [query, setQuery] = useState(() => sessionStorage.getItem('vela.launcher.query') || '');
+  const controlled = value !== undefined;
+  const [internalQuery, setInternalQuery] = useState(
+    () => sessionStorage.getItem('vela.launcher.query') || '',
+  );
+  const query = controlled ? value : internalQuery;
+  const setQuery = (next) => {
+    if (controlled) onQueryChange?.(next);
+    else setInternalQuery(next);
+  };
   useEffect(() => {
-    sessionStorage.setItem('vela.launcher.query', query);
-  }, [query]);
+    if (!controlled) sessionStorage.setItem('vela.launcher.query', internalQuery);
+  }, [controlled, internalQuery]);
   const [open, setOpen] = useState(false);
   // A compact header (Ask, app workspaces) keeps the same palette behind an
   // icon, so the shortcut and its results never disappear from a screen.
@@ -120,6 +143,10 @@ export default function GlobalSearch({ compact = false }) {
   const inputRef = useRef(null);
   const boxRef = useRef(null);
   const triggerRef = useRef(null);
+
+  useEffect(() => {
+    if (autoFocus) requestAnimationFrame(() => inputRef.current?.focus());
+  }, [autoFocus]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -153,18 +180,23 @@ export default function GlobalSearch({ compact = false }) {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return { apps: [], settings: [], data: [] };
+    if (!q) return { apps: [], core: [], settings: [], data: [] };
     const appHits = (apps || [])
       .filter(
         (a) => a.name.toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q),
       )
       .slice(0, 5);
+    // Vela's own tools rank alongside apps: searching "auto" reaches
+    // Automations, "market" reaches the Library.
+    const coreHits = coreApps(developer)
+      .filter((entry) => entry.label.toLowerCase().includes(q))
+      .slice(0, 4);
     const settingHits = SETTINGS_ENTRIES.filter(
       (s) =>
         (s.developer ? developer : s.whileOff ? !developer : true) &&
         `${s.label} ${s.keywords || ''}`.toLowerCase().includes(q),
     ).slice(0, 3);
-    return { apps: appHits, settings: settingHits, data: searchAppData(q) };
+    return { apps: appHits, core: coreHits, settings: settingHits, data: searchAppData(q) };
   }, [query, apps, developer]);
 
   const go = (to) => {
@@ -185,11 +217,14 @@ export default function GlobalSearch({ compact = false }) {
   };
 
   const hasResults =
-    results.apps.length > 0 || results.settings.length > 0 || results.data.length > 0;
+    results.apps.length > 0 ||
+    results.core.length > 0 ||
+    results.settings.length > 0 ||
+    results.data.length > 0;
 
   const box = (
-    <div className="searchbox" ref={boxRef}>
-      <MagnifyingGlass className="searchbox-icon" size={15} />
+    <div className={`searchbox${variant === 'hero' ? ' searchbox-hero' : ''}`} ref={boxRef}>
+      <MagnifyingGlass className="searchbox-icon" size={variant === 'hero' ? 18 : 15} />
       <input
         ref={inputRef}
         type="search"
@@ -200,10 +235,17 @@ export default function GlobalSearch({ compact = false }) {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && onEnter) {
+            e.preventDefault();
+            setOpen(false);
+            onEnter(query.trim());
+          }
+        }}
         aria-label="Search"
       />
       <kbd className="searchbox-kbd">⌘K</kbd>
-      {open && query.trim() && (
+      {showResults && open && query.trim() && (
         <div className="search-pop" role="listbox">
           {results.apps.map((app) => (
             <button
@@ -213,7 +255,17 @@ export default function GlobalSearch({ compact = false }) {
             >
               <AppIcon app={app} size={26} />
               <span className="search-hit-name">{app.name}</span>
-              <span className="search-hit-hint">{app.installed ? 'Open' : 'In Library'}</span>
+              <span className="search-hit-hint">{app.installed ? 'Open' : 'In Marketplace'}</span>
+            </button>
+          ))}
+          {results.core.map((entry) => (
+            <button key={entry.id} className="search-hit" onClick={() => go(entry.to)}>
+              <AppIcon
+                app={{ id: entry.id, name: entry.label, glyph: entry.icon, color: entry.color }}
+                size={26}
+              />
+              <span className="search-hit-name">{entry.label}</span>
+              <span className="search-hit-hint">Vela</span>
             </button>
           ))}
           {results.data.map((hit, i) => (

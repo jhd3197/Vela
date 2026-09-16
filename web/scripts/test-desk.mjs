@@ -77,13 +77,33 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  const arrange = page.getByRole('button', { name: 'Arrange desk', exact: true });
-  const add = page.getByRole('button', { name: 'Add widget', exact: true });
   const done = page.getByRole('button', { name: 'Done', exact: true });
+  // Arrange desk, Add widget and Personalise moved off the search row into the
+  // top-right "Desk options" ⋯ menu (and the wallpaper right-click). In Arrange
+  // mode, Add widget is a toolbar button. These helpers reach whichever is live.
+  const deskOptions = page.getByRole('button', { name: 'Desk options', exact: true });
+  const menuItem = (name) => page.getByRole('menuitem', { name, exact: true });
+  const arrange = {
+    click: async () => {
+      await deskOptions.click();
+      await menuItem('Arrange desk').click();
+    },
+    waitFor: () => deskOptions.waitFor(),
+  };
+  const add = {
+    click: async () => {
+      const toolbar = page.getByRole('button', { name: 'Add widget', exact: true });
+      if (await toolbar.count()) await toolbar.click();
+      else {
+        await deskOptions.click();
+        await menuItem('Add widget').click();
+      }
+    },
+  };
 
   await page.goto(base + '/');
   await page.locator('.desk-grid').waitFor();
-  assert.deepEqual(await labels(page), ['Clock', 'Your apps', 'Running now', 'Ask']);
+  assert.deepEqual(await labels(page), ['Clock', 'Your apps', 'Running now', 'Needs you', 'Ask']);
 
   // --- add a widget -------------------------------------------------------
   await add.click();
@@ -232,7 +252,7 @@ try {
     await page.setViewportSize(size);
     await page.goto(base + '/');
     await page.locator('.desk-grid').waitFor();
-    await page.getByRole('button', { name: 'Arrange desk', exact: true }).click();
+    await arrange.click();
     await page.getByRole('button', { name: 'Done', exact: true }).waitFor();
     const overflow = await page.evaluate(() => {
       const content = document.querySelector('.workspace-content');
@@ -372,7 +392,7 @@ try {
       names,
       size.phone
         ? ['Clock', 'Needs you', 'Your apps', 'Ask']
-        : ['Clock', 'Your apps', 'Running now', 'Ask'],
+        : ['Clock', 'Your apps', 'Running now', 'Needs you', 'Ask'],
       `the board at ${size.width}x${size.height}`,
     );
     // Nothing is flagged, so "Needs you" says so rather than listing anything.
@@ -399,7 +419,12 @@ try {
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/');
   await page.locator('.desk-grid').waitFor();
-  const personalise = page.getByRole('button', { name: 'Personalise', exact: true });
+  const personalise = {
+    click: async () => {
+      await deskOptions.click();
+      await menuItem('Personalise').click();
+    },
+  };
   await personalise.click();
   const sheet = page.getByRole('dialog', { name: 'Personalise', exact: true });
   await sheet.waitFor();
@@ -450,9 +475,9 @@ try {
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
   assert.equal(
-    await page.evaluate(() => document.activeElement.textContent.trim()),
-    'Personalise',
-    'closing Personalise returns focus to its opener',
+    await page.evaluate(() => document.activeElement.getAttribute('aria-label')),
+    'Desk options',
+    'closing Personalise returns focus to the desk-options control that opened it',
   );
   await page.reload();
   await page.locator('.desk-grid').waitFor();
@@ -482,6 +507,9 @@ try {
       }),
     );
   });
+  // A long press opens the wallpaper menu; Personalise is one of its items.
+  await page.getByRole('menu', { name: 'Desk options' }).waitFor({ timeout: 4000 });
+  await menuItem('Personalise').click();
   await sheet.waitFor({ timeout: 4000 });
   const sheetBox = await sheet.boundingBox();
   assert.ok(

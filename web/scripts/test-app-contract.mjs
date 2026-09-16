@@ -59,7 +59,7 @@ try {
     await page.waitForFunction(
       () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
     );
-    assert.equal(await page.locator('.appview-chrome, .rail, .workspace-header').count(), 0);
+    assert.equal(await page.locator('.appview-chrome, .rail, .app-titlebar').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Vela app menu' }).isVisible(), true);
     await frame.getByRole('textbox', { name: 'Message' }).fill(`Saved from ${viewport.width}`);
     await frame.getByRole('button', { name: 'Send' }).click();
@@ -127,15 +127,18 @@ try {
     );
     await page.getByRole('button', { name: 'Vela app menu' }).click();
     await page.getByRole('button', { name: 'Show compact bar' }).click();
-    // The compact bar is the hub's own header beside the rail, not a second bar.
-    assert.equal(await page.locator('.workspace-header').isVisible(), true);
+    // The compact bar is the app's own title bar beside the rail, not a second
+    // navigation. It carries the app menu, and the rail stays on screen.
+    assert.equal(await page.locator('.app-titlebar').isVisible(), true);
     assert.equal(await page.locator('.rail').count(), 1);
     await page.reload();
-    await page.locator('.workspace-header').waitFor();
-    assert.equal(await page.locator('.workspace-header').isVisible(), true);
-    await page.getByRole('button', { name: 'Hide app bar' }).click();
+    await page.locator('.app-titlebar').waitFor();
+    assert.equal(await page.locator('.app-titlebar').isVisible(), true);
+    // Hide the bar again from the app-window menu, returning to seamless.
+    await page.getByRole('button', { name: 'App menu' }).click();
+    await page.getByRole('menuitem', { name: 'Hide app bar' }).click();
     await page.getByRole('button', { name: 'Vela app menu' }).waitFor();
-    assert.equal(await page.locator('.workspace-header').count(), 0);
+    assert.equal(await page.locator('.app-titlebar').count(), 0);
     await page.goto(`${base}/app/other-app`);
     await page.waitForFunction(
       () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
@@ -149,14 +152,15 @@ try {
     );
     for (const mode of ['compact', 'hub']) {
       await page.goto(`${base}/app/${mode}-fixture`);
-      // Compact and hub both use the shell's contextual header beside the rail.
-      await page.locator('.workspace-header').waitFor();
+      // Compact and hub both give the app its own title bar beside the rail.
+      await page.locator('.app-titlebar').waitFor();
       await page.waitForFunction(
         () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
       );
       assert.equal(await page.locator('.rail').count(), 1);
-      // No duplicate navigation: the workspace has one header, not two.
-      assert.equal(await page.locator('.workspace-header').count(), 1);
+      // No duplicate navigation: one title bar, and no second hub header.
+      assert.equal(await page.locator('.app-titlebar').count(), 1);
+      assert.equal(await page.locator('.workspace-header').count(), 0);
       assert.equal(await page.locator(`.appview-${mode}.appview-hosted`).count(), 1);
       if (viewport.width < 500) {
         const composer = await page
@@ -209,20 +213,44 @@ try {
       'app polling must not remount the workspace iframe',
     );
 
-    // Every hub navigation route participates in the unsaved-work guard.
+    // The title bar names the app, shows its state and a way back, and carries
+    // no search field of its own (the palette is still Ctrl+K).
+    await page.goto(`${base}/app/compact-fixture`);
+    await page.locator('.app-titlebar').waitFor();
+    assert.equal(
+      await page.locator('.app-titlebar').getByRole('button', { name: 'Back' }).count(),
+      1,
+    );
+    // The state pill appears once the app record settles.
+    await page.locator('.app-pill').first().waitFor();
+    assert.equal(await page.locator('.app-titlebar').getByRole('searchbox').count(), 0);
+    // The window menu can pin the app to the rail.
+    await page.getByRole('button', { name: 'App menu' }).click();
+    assert.equal(await page.getByRole('menuitem', { name: 'Pin to rail' }).count(), 1);
+    await page.keyboard.press('Escape');
+
+    // A missing app is a clear dead end that leads back to the Marketplace.
+    await page.goto(`${base}/app/no-such-app`);
+    await page.getByRole('heading', { name: 'App unavailable' }).waitFor();
+    assert.equal(await page.locator('.appview-interstitial a[href="/library"]').count(), 1);
+
+    // Back on a hub app: every hub navigation route participates in the
+    // unsaved-work guard.
+    await page.goto(`${base}/app/hub-fixture`);
+    await page.waitForFunction(
+      () => document.querySelector('iframe') && !document.querySelector('.appview-loading'),
+    );
     await page
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
-    // Manage apps is named in the rail's secondary menu; on a phone that rail
-    // lives inside the navigation drawer.
-    // A hub app keeps the rail on screen at every width, so the same control
-    // opens Manage apps on a phone and on a desktop.
-    const openApps = async () => {
-      await page.locator('.rail').getByRole('button', { name: 'More', exact: true }).click();
-      await page.getByRole('menuitem', { name: 'Manage apps', exact: true }).click();
+    // The Launchpad is a rail destination now. A hub app keeps the rail on
+    // screen at every width, so leaving through the Launchpad link is a
+    // navigation the unsaved-work guard covers on a phone and a desktop alike.
+    const openLaunchpad = async () => {
+      await page.locator('.rail a[href="/apps"]').click();
     };
-    await openApps();
+    await openLaunchpad();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
@@ -238,12 +266,13 @@ try {
         'Guard this draft',
       );
     }
-    await openApps();
+    await openLaunchpad();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
-    await page.getByRole('tab', { name: 'Running', exact: true }).click();
-    await page.getByRole('button', { name: /Chat Fixture.*Running/ }).click();
-    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    // Reopen the running app from the Launchpad to check the back-button guard.
+    await page.locator('.launchpad').waitFor();
+    await page.locator('.launch-tile', { hasText: 'Chat Fixture' }).first().click();
+    await page.waitForURL(`${base}/app/chat-fixture`);
     await page
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
@@ -252,10 +281,7 @@ try {
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/apps`);
-    assert.equal(
-      await page.getByRole('tab', { name: 'Running', exact: true }).getAttribute('aria-selected'),
-      'true',
-    );
+    await page.locator('.launchpad').waitFor();
     await page.goto(`${base}/app/failed-fixture`);
     await page.getByText('Couldn’t open the app', { exact: true }).waitFor({ timeout: 15000 });
     await page.screenshot({ path: path.join(shots, `failed-${viewport.width}.png`) });

@@ -53,6 +53,7 @@ node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
 node web/scripts/test-shared-ui.mjs
+node web/scripts/test-launchpad.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-desk.mjs
@@ -70,13 +71,23 @@ form semantics, field labels, stale responses, retries, and action submission.
 It also verifies one shared engine request across consumers and page changes,
 shared error/retry state, polling cleanup, nested modal focus restoration,
 keyboard containment, and pending Escape/backdrop guards at desktop/phone widths.
+The Launchpad suite uses an isolated Vite fixture with disposable app records to
+check the full-screen app grid: the Open, Apps, Vela and Get more apps sections
+and their contents, an uninstalled app staying out of them, running and
+attention dots, the hero search filtering the grid live with Enter opening the
+first match and a "no match" state, the tile context menu opened by right-click
+and Shift+F10 with focus returned to the tile, Escape leaving, `Ctrl+Space`
+toggling the Launchpad from another route, and no horizontal overflow at 320,
+390, 768 and 1440 pixels. Screenshots go to `docs/screenshots/launchpad/`.
 The rail suite uses an isolated Vite fixture with disposable app records to check
-the narrow rail: an empty installation, many apps, long and duplicate names,
-stable ordering, keyboard focus and selection, the secondary menu's contents and
-focus return, a short window, every page keeping the rail on a phone with no
-hamburger and without covering its content, and an app workspace keeping one
-rail beside itself at 390 and 320 pixels. Screenshots go to
-`docs/screenshots/rail/`.
+the narrow rail: an empty installation with the default pins, many apps, long and
+duplicate names, stable ordering, keyboard focus and selection, pin, unpin and
+reorder from the rail and the app-window menus, the Launchpad as a rail
+destination, no secondary menu or All apps control, the shortcut sheet opening
+with `?` and `Ctrl+1` opening the first pinned app, a short window, every page
+keeping the rail on a phone with no hamburger and without covering its content,
+and an app workspace keeping one rail beside itself at 390 and 320 pixels.
+Screenshots go to `docs/screenshots/rail/`.
 The dashboard suite checks the default destinations at desktop and phone widths
 in both themes, the desk's navigation across reload, Back, rotation and
 scrolling, the seeded board over its wallpaper at six widths, the supported
@@ -152,25 +163,25 @@ because no automated browser suite covers them yet:
    partial text is kept; make one bot fail and confirm only that bot retries.
 7. **Repair** — delete a bot that is in a room and confirm the room refuses to
    run and offers Edit room.
-The automations suite serves a disposable engine with the pinned Notes fixture
-installed and builds an automation the way a person would: the empty state with
-no invented activity, creating one, the step picker offering only vetted steps
-with no reachable Model Context Protocol import, the generated app-action form,
-the permission review with its Allow and Remove controls, a run that creates
-exactly one note in Notes, and 320/390/768/1024/1920 layouts in both themes for
-the list and the editor. It runs the workflow for real when the automation
-runtime is installed and says so when it is not. Screenshots are saved under
-`docs/screenshots/automations/`.
-The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
-Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
-certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the
-built UI with disposable API responses and writes screenshots under
-`docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
-Home Screen installation on a physical iPhone before claiming device acceptance.
-The Python phone-access tests run HTTP and HTTPS listeners on disposable loopback
-ports, verify the generated certificate chain, restrict public bootstrap routes,
-exercise password login and local-token rejection, and check restart/disable.
-They do not change OS certificate trust or expose a test server on real Wi-Fi.
+   The automations suite serves a disposable engine with the pinned Notes fixture
+   installed and builds an automation the way a person would: the empty state with
+   no invented activity, creating one, the step picker offering only vetted steps
+   with no reachable Model Context Protocol import, the generated app-action form,
+   the permission review with its Allow and Remove controls, a run that creates
+   exactly one note in Notes, and 320/390/768/1024/1920 layouts in both themes for
+   the list and the editor. It runs the workflow for real when the automation
+   runtime is installed and says so when it is not. Screenshots are saved under
+   `docs/screenshots/automations/`.
+   The phone setup suite checks the welcome popup, dismissal and Settings shortcut,
+   Wi-Fi enable/disable, local and hosted QR handoffs, iPhone/Android instructions,
+   certificate guidance, clipboard and storage fallback, installed mode and narrow layouts. It uses the
+   built UI with disposable API responses and writes screenshots under
+   `docs/screenshots/phone-setup/`. Browser detection is emulated; verify the QR and
+   Home Screen installation on a physical iPhone before claiming device acceptance.
+   The Python phone-access tests run HTTP and HTTPS listeners on disposable loopback
+   ports, verify the generated certificate chain, restrict public bootstrap routes,
+   exercise password login and local-token rejection, and check restart/disable.
+   They do not change OS certificate trust or expose a test server on real Wi-Fi.
 
 The mobile-layout suite uses an isolated Vite fixture with the real shell,
 composer, dialog and drawer at a phone size that reports a coarse pointer. It
@@ -208,10 +219,10 @@ reproduce a physical keyboard, a browser toolbar that hides as you scroll, or an
 installed Home Screen app. Accept these on hardware, recording the device, OS
 and browser version you used, with equal weight for both:
 
-| Device | Modes |
-| --- | --- |
-| iPhone | Safari tab and Home Screen app |
-| Android | Chrome tab and installed app |
+| Device  | Modes                          |
+| ------- | ------------------------------ |
+| iPhone  | Safari tab and Home Screen app |
+| Android | Chrome tab and installed app   |
 
 On each, exercise: opening the desk in a fresh browser state and reaching a ready
 app in one tap with no menu step; keyboard open, close and dismissal; a long
