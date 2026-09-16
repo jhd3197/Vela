@@ -293,6 +293,14 @@ export const api = {
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>
     request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),
+  backupStats: (options) => request('/api/backups/stats', options),
+  // Restoring replaces live files, so it carries the deliberate header the
+  // engine requires.
+  restoreBackup: (name) =>
+    request(`/api/backups/${encodeURIComponent(name)}/restore`, {
+      method: 'POST',
+      headers: { 'X-Vela-Confirm': 'restore' },
+    }),
 };
 
 const PLATFORM_LABELS = {

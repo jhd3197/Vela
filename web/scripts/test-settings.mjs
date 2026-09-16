@@ -54,6 +54,20 @@ try {
     repairable: false,
     ranAt: '2026-09-16T09:00:00',
   };
+  // Backups: one fixture backup, a schedule that starts off, and a restore
+  // that reports the safety copy it took.
+  let backupList = [
+    { name: '20260916-030000', size: 40960, created_at: '2026-09-16T03:00:00', safety: false },
+  ];
+  let backupSchedule = {
+    enabled: false,
+    time: '03:00',
+    keep: 10,
+    timezone: 'Europe/Madrid',
+    nextRunAt: null,
+  };
+  let restored = null;
+
   let doctorRan = false;
   let doctorRepaired = false;
   let doctorRuns = 0;
@@ -76,6 +90,42 @@ try {
     const url = new URL(route.request().url());
     if (url.hostname !== 'vela.test') return route.abort();
     if (url.pathname.startsWith('/api/')) {
+      if (url.pathname === '/api/backups') return route.fulfill({ json: { backups: backupList } });
+      if (url.pathname === '/api/backups/stats')
+        return route.fulfill({
+          json: {
+            count: backupList.length,
+            totalSize: backupList.reduce((sum, entry) => sum + entry.size, 0),
+            lastSuccessAt: backupList.find((entry) => !entry.safety)?.created_at || null,
+            lastName: backupList.find((entry) => !entry.safety)?.name || null,
+            keep: backupSchedule.keep,
+            schedule: backupSchedule,
+          },
+        });
+      if (url.pathname.endsWith('/restore')) {
+        if (route.request().headers()['x-vela-confirm'] !== 'restore')
+          return route.fulfill({ status: 428, json: { detail: 'Confirm restoring this backup' } });
+        restored = url.pathname.split('/')[3];
+        backupList = [
+          {
+            name: 'pre-restore-20260916-094500',
+            size: 40960,
+            created_at: '2026-09-16T09:45:00',
+            safety: true,
+          },
+          ...backupList,
+        ];
+        return route.fulfill({
+          json: {
+            name: restored,
+            safety: 'pre-restore-20260916-094500',
+            restored: ['settings.json'],
+            stopped: [],
+            restarted: [],
+            failedToRestart: [],
+          },
+        });
+      }
       if (url.pathname === '/api/doctor') return route.fulfill({ json: doctorBody() });
       if (url.pathname === '/api/doctor/run') {
         doctorRan = true;
@@ -93,6 +143,13 @@ try {
           if (failSave)
             return route.fulfill({ status: 500, json: { detail: 'Fixture save failure' } });
           const patch = route.request().postDataJSON();
+          if (patch.backups?.schedule) {
+            backupSchedule = {
+              ...backupSchedule,
+              ...patch.backups.schedule,
+              nextRunAt: patch.backups.schedule.enabled ? '2026-09-17T03:00:00+02:00' : null,
+            };
+          }
           settings = { ...settings, ...patch };
         }
         return route.fulfill({ json: settings });
@@ -109,7 +166,6 @@ try {
         '/api/health': { version: '0.1.0' },
         '/api/platforms': { current: 'windows', supported: ['windows'] },
         '/api/notifications': { notifications: [] },
-        '/api/backups': { backups: [] },
         '/api/ai/status': {
           reachable: true,
           models: ['fixture-model'],
@@ -495,6 +551,54 @@ try {
   );
   await still.close();
 
+  // Backups: what is protected, the schedule, and a restore that asks for the
+  // backup's name before it replaces anything.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('https://vela.test/');
+  await page.goto('https://vela.test/settings#backups');
+  await dialog.locator('#settings-backups').waitFor();
+  await dialog.getByText('Not scheduled').waitFor();
+  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
+
+  // The schedule is off until someone turns it on, and then says when.
+  const scheduleSwitch = dialog.getByRole('switch', { name: 'Back up automatically' });
+  assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'false');
+  assert.equal(await dialog.getByLabel('Backups to keep').count(), 0);
+  await scheduleSwitch.click();
+  await dialog.getByLabel('Backups to keep').waitFor();
+  assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'true');
+  await dialog.getByLabel('Backups to keep').fill('4');
+  await dialog.getByLabel('Backups to keep').blur();
+  await page.waitForFunction(() => !document.body.innerText.includes('Not scheduled'), undefined, {
+    timeout: 5000,
+  });
+  await page.screenshot({ path: path.join(shots, 'settings-backups.png') });
+
+  // Restore asks first, in full, and will not act until the name is typed.
+  await dialog.getByRole('button', { name: 'Restore' }).first().click();
+  const restoreDrawer = page.getByRole('dialog', { name: 'Restore a backup' });
+  await restoreDrawer.waitFor();
+  await restoreDrawer.getByText('everything your apps saved').waitFor();
+  const confirmButton = restoreDrawer.getByRole('button', { name: 'Restore this backup' });
+  assert.equal(await confirmButton.isDisabled(), true, 'the name must be typed first');
+  await restoreDrawer.getByRole('textbox').fill('not-the-name');
+  assert.equal(await confirmButton.isDisabled(), true, 'the wrong name must not enable it');
+  await page.screenshot({ path: path.join(shots, 'settings-restore.png') });
+  await restoreDrawer.getByRole('textbox').fill('20260916-030000');
+  assert.equal(await confirmButton.isDisabled(), false);
+  await confirmButton.click();
+  await restoreDrawer.waitFor({ state: 'detached' });
+  assert.equal(restored, '20260916-030000');
+  // It says where the copy of what it replaced went.
+  await dialog
+    .getByText(/pre-restore-20260916-094500/)
+    .first()
+    .waitFor();
+  // And that copy is listed, marked as one Vela took rather than one you made.
+  await dialog.getByText('taken before a restore').waitFor();
+
+  await page.goto('https://vela.test/');
+
   // Health: opening the section must not start a sweep — thirteen checks
   // should not run because a popup opened. Run now is the deliberate action.
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -543,7 +647,7 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
+    'PASS: settings popup, the backup schedule and a confirmed restore, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();

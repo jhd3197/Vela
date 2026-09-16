@@ -1,6 +1,7 @@
 import Button from '../components/ui/Button.jsx';
 import FormField from '../components/ui/FormField.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
+import Drawer from '../components/ui/Drawer.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -412,25 +413,49 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
 function BackupsSection({ onPendingChange }) {
   const { pushToast } = useApps();
   const [backups, setBackups] = useState(null);
+  const [stats, setStats] = useState(null);
   const [creating, setCreating] = useState(false);
   const [verifying, setVerifying] = useState(null); // name being verified
+  const [restoring, setRestoring] = useState(null); // name being restored
+  const [confirmName, setConfirmName] = useState(''); // typed to confirm
+  const [drawer, setDrawer] = useState(null); // the backup being restored
   const [results, setResults] = useState({}); // name -> { ok, text }
   const [note, setNote] = useState(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const cancelRef = useRef(null);
+
+  const busy = creating || verifying !== null || restoring !== null || savingSchedule;
   useEffect(() => {
-    onPendingChange('backups', creating || verifying !== null);
+    onPendingChange('backups', busy);
     return () => onPendingChange('backups', false);
-  }, [creating, verifying, onPendingChange]);
+  }, [busy, onPendingChange]);
 
   const refresh = () => {
     api
       .getBackups()
       .then((data) => setBackups(data.backups || []))
       .catch(() => setBackups([]));
+    api
+      .backupStats()
+      .then(setStats)
+      .catch(() => setStats(null));
   };
 
   useEffect(() => {
     refresh();
   }, []);
+
+  const schedule = stats?.schedule;
+
+  const saveSchedule = (change) => {
+    setSavingSchedule(true);
+    setNote(null);
+    api
+      .updateSettings({ backups: { schedule: { ...schedule, ...change } } })
+      .then(() => refresh())
+      .catch((err) => setNote({ kind: 'err', text: err.message || 'Could not save the schedule.' }))
+      .finally(() => setSavingSchedule(false));
+  };
 
   const create = () => {
     setCreating(true);
@@ -452,12 +477,13 @@ function BackupsSection({ onPendingChange }) {
       .verifyBackup(name)
       .then((r) => {
         const manifests = r.manifests?.length ?? 0;
+        const files = r.files?.length ?? 0;
         setResults((prev) => ({
           ...prev,
           [name]: r.ok
             ? {
                 ok: true,
-                text: `Restore drill passed — ${r.files} file${r.files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.`,
+                text: `Restore drill passed — ${files} file${files === 1 ? '' : 's'}, ${manifests} app manifest${manifests === 1 ? '' : 's'} checked.`,
               }
             : { ok: false, text: 'Restore drill failed — this backup may not restore cleanly.' },
         }));
@@ -471,62 +497,219 @@ function BackupsSection({ onPendingChange }) {
       .finally(() => setVerifying(null));
   };
 
+  const restore = () => {
+    const name = drawer;
+    setRestoring(name);
+    setNote(null);
+    api
+      .restoreBackup(name)
+      .then((result) => {
+        setDrawer(null);
+        setConfirmName('');
+        pushToast(`Restored ${name}.`, 'success');
+        setNote({
+          kind: 'ok',
+          text:
+            `Restored ${name}. A copy of what it replaced was saved as ${result.safety}.` +
+            (result.failedToRestart?.length
+              ? ` ${result.failedToRestart.join(', ')} did not start again — open it to try.`
+              : ''),
+        });
+        refresh();
+      })
+      .catch((err) => setNote({ kind: 'err', text: err.message || 'Restore failed.' }))
+      .finally(() => setRestoring(null));
+  };
+
   return (
-    <section className="panel" id="settings-backups">
-      <div className="panel-head">
-        <h2>Backups</h2>
-        <Button size="small" variant="primary" disabled={creating} onClick={create}>
-          <Plus size={14} />
-          {creating ? 'Creating…' : 'Create backup'}
-        </Button>
-      </div>
-      <p className="panel-note" style={{ marginBottom: 14 }}>
-        Snapshots of hub state and installed app data. Verify runs a restore drill in an isolated
-        folder — live data is never touched.
-      </p>
-      {backups === null && <p className="panel-note">Checking…</p>}
-      {note && (
-        <p
-          className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
-          role={note.kind === 'err' ? 'alert' : 'status'}
-        >
-          {note.text}
+    <>
+      <section className="panel" id="settings-backups">
+        <div className="panel-head">
+          <h2>Backups</h2>
+          <Button size="small" variant="primary" disabled={busy} onClick={create}>
+            <Plus size={14} />
+            {creating ? 'Creating…' : 'Create backup'}
+          </Button>
+        </div>
+
+        {/* What is protected right now, before anything about how. */}
+        <dl className="fact-grid">
+          <div className="fact">
+            <dt>Last backup</dt>
+            <dd>{stats?.lastSuccessAt ? relTime(stats.lastSuccessAt) : 'Never'}</dd>
+          </div>
+          <div className="fact">
+            <dt>Next backup</dt>
+            <dd>
+              {schedule?.nextRunAt
+                ? new Date(schedule.nextRunAt).toLocaleString(undefined, {
+                    weekday: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Not scheduled'}
+            </dd>
+          </div>
+          <div className="fact">
+            <dt>Kept</dt>
+            <dd>{stats ? `${stats.count} · ${formatBytes(stats.totalSize)}` : '—'}</dd>
+          </div>
+        </dl>
+
+        <p className="panel-note">
+          A backup copies your settings, which apps are installed and what they saved. Logs and
+          wallpapers are not included. Verify runs a restore drill in an isolated folder — your live
+          data is never touched by it.
         </p>
-      )}
-      {backups !== null && backups.length === 0 && (
-        <p className="panel-note">No backups yet. Create the first snapshot.</p>
-      )}
-      {backups !== null && backups.length > 0 && (
-        <ul className="mini-list">
-          {backups.map((b) => {
-            const result = results[b.name];
-            return (
-              <li key={b.name} className="backup-row">
-                <ShieldCheck
-                  size={16}
-                  className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
-                />
-                <span className="backup-main">
-                  <span className="mini-list-name mono">{b.name}</span>
-                  <span className="backup-meta">
-                    {relTime(b.created_at)} · {formatBytes(b.size)}
-                    {result && (
-                      <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
-                        {' '}
-                        — {result.text}
-                      </span>
-                    )}
+
+        {note && (
+          <p
+            className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
+            role={note.kind === 'err' ? 'alert' : 'status'}
+          >
+            {note.text}
+          </p>
+        )}
+
+        {/* The schedule. Off by default: Vela does not start writing copies on
+            a timer until someone asks it to. */}
+        <div className="settings-row">
+          <div>
+            <h3 id="backup-schedule-label">Back up automatically</h3>
+            <p>
+              Once a day, at the time you choose
+              {schedule?.timezone ? `, by this computer's clock (${schedule.timezone})` : ''}. A run
+              missed because Vela was off is not made up later.
+            </p>
+          </div>
+          <button
+            className={`switch${schedule?.enabled ? ' switch-on' : ''}`}
+            role="switch"
+            aria-checked={Boolean(schedule?.enabled)}
+            aria-labelledby="backup-schedule-label"
+            disabled={busy || !schedule}
+            onClick={() => saveSchedule({ enabled: !schedule.enabled })}
+          />
+        </div>
+
+        {schedule?.enabled && (
+          <div className="field-row">
+            <FormField label="At">
+              <input
+                type="time"
+                value={schedule.time}
+                disabled={busy}
+                onChange={(event) => saveSchedule({ time: event.target.value })}
+              />
+            </FormField>
+            <FormField label="Backups to keep" hint="Older ones are removed automatically.">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={schedule.keep}
+                disabled={busy}
+                onChange={(event) => saveSchedule({ keep: Number(event.target.value) })}
+              />
+            </FormField>
+          </div>
+        )}
+
+        {backups === null && <p className="panel-note">Checking…</p>}
+        {backups !== null && backups.length === 0 && (
+          <p className="panel-note">No backups yet. Create the first snapshot.</p>
+        )}
+        {backups !== null && backups.length > 0 && (
+          <ul className="mini-list">
+            {backups.map((b) => {
+              const result = results[b.name];
+              return (
+                <li key={b.name} className="backup-row">
+                  <ShieldCheck
+                    size={16}
+                    className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
+                  />
+                  <span className="backup-main">
+                    <span className="mini-list-name mono">{b.name}</span>
+                    <span className="backup-meta">
+                      {relTime(b.created_at)} · {formatBytes(b.size)}
+                      {b.safety ? ' · taken before a restore' : ''}
+                      {result && (
+                        <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
+                          {' '}
+                          — {result.text}
+                        </span>
+                      )}
+                    </span>
                   </span>
-                </span>
-                <Button size="small" disabled={verifying === b.name} onClick={() => verify(b.name)}>
-                  {verifying === b.name ? 'Verifying…' : 'Verify'}
-                </Button>
-              </li>
-            );
-          })}
+                  <Button size="small" disabled={busy} onClick={() => verify(b.name)}>
+                    {verifying === b.name ? 'Verifying…' : 'Verify'}
+                  </Button>
+                  <Button
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      setConfirmName('');
+                      setDrawer(b.name);
+                    }}
+                  >
+                    Restore
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Restoring replaces live files and stops running apps, so it says so in
+          full and asks for the name to be typed. */}
+      <Drawer
+        open={Boolean(drawer)}
+        onClose={() => setDrawer(null)}
+        pending={restoring !== null}
+        initialFocusRef={cancelRef}
+        aria-label="Restore a backup"
+      >
+        <h2>Restore {drawer}?</h2>
+        <p className="panel-note">This puts back, as they were in that backup:</p>
+        <ul className="panel-note restore-list">
+          <li>your hub settings</li>
+          <li>everything your apps saved</li>
+          <li>which apps are installed, and their versions</li>
         </ul>
-      )}
-    </section>
+        <p className="panel-note">
+          Your logs, wallpapers and chats are left alone. Any app running right now is stopped first
+          and started again afterwards. Before anything is replaced, Vela checks that this backup
+          reads correctly and saves a copy of what it is about to replace — so you can come back
+          from this.
+        </p>
+        <FormField
+          label={`Type ${drawer} to confirm`}
+          hint="Restoring cannot be undone in one click, so it takes the name."
+        >
+          <input
+            value={confirmName}
+            autoComplete="off"
+            disabled={restoring !== null}
+            onChange={(event) => setConfirmName(event.target.value)}
+          />
+        </FormField>
+        <div className="actions">
+          <Button ref={cancelRef} disabled={restoring !== null} onClick={() => setDrawer(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            pending={restoring !== null}
+            disabled={confirmName.trim() !== drawer}
+            onClick={restore}
+          >
+            Restore this backup
+          </Button>
+        </div>
+      </Drawer>
+    </>
   );
 }
 

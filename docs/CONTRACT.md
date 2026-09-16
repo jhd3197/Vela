@@ -459,6 +459,40 @@ managed by the operator; no automatic release-history pruning is implemented.
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
 
+### Backups API details
+
+Hub session only.
+
+- `GET /api/backups` — `{ backups: [{ name, size, created_at, safety }] }`,
+  newest first. `safety` marks a copy taken automatically before a restore.
+- `POST /api/backups` (`201`) — creates one. Two in the same second get a
+  `-2`, `-3` … suffix rather than failing.
+- `POST /api/backups/{name}/verify` — the restore drill, in an isolated temp
+  directory. Live files are never touched.
+- `GET /api/backups/stats` —
+  `{ count, totalSize, lastSuccessAt, lastName, keep, schedule }`, where
+  `schedule` is `{ enabled, time, keep, timezone, nextRunAt, error? }`.
+- `POST /api/backups/{name}/restore` — requires `X-Vela-Confirm: restore`;
+  without it the answer is `428` and nothing changes. Returns
+  `{ name, restored, safety, stopped, restarted, failedToRestart, restored_at }`.
+  A backup that fails its drill is refused with `409` before anything is
+  touched.
+
+The schedule is stored under the `backups` settings key as
+`{ schedule: { enabled, time, keep } }` and validated on `PATCH /api/settings`
+(`422` for a bad time or an out-of-range `keep`). It runs daily at `time` in the
+server's own timezone, using the same arithmetic as automation schedules, so a
+clock change behaves identically for both. There is no catch-up: a run missed
+while Vela was not running does not happen later.
+
+A restore, in order: verify; stop every running *process* app; create a
+`pre-restore-<timestamp>` backup; replace `state.json`, `settings.json`,
+`app-data.sqlite` and the installed `app.json` manifests; start again the apps
+that were stopped. A failure before the replace step leaves everything as it
+was. Logs, wallpapers and chat history are never restored or deleted. Retention
+counts ordinary backups against `keep` and safety copies separately, so backups
+taken after a restore cannot push out the copy that restore made.
+
 ### Errors and support bundle API details
 
 Hub session only. Nothing here leaves the computer.

@@ -17,7 +17,7 @@ from .assistant import Assistant, AssistantError
 from .bots import BUILTIN_BOT_ID, SELECTABLE_TOOLS, BotStore, builtin_profile
 from .conversations import ConversationStore
 from .rooms import Rooms
-from .backups import BackupError, BackupStore
+from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, validate_schedule
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .doctor import Doctor, summarise
@@ -49,7 +49,8 @@ from .phone_access import PhoneAccess
 from .automations import Automations, router as automations_router
 
 
-_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail"}
+_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
+                  "backups"}
 
 
 class ClientError(BaseModel):
@@ -286,7 +287,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # Conversation id -> the task currently answering it, so a reloaded page can
     # stop a run it no longer holds the stream for.
     _live_runs: dict[str, asyncio.Task] = {}
-    backups = BackupStore(config)
+    backups = BackupStore(config, keep=(settings.get("backups") or {}).get(
+        "schedule", {}).get("keep", KEEP_BACKUPS))
     logs = LogStore(config.logs_dir)
     auth = Auth(config)
     storage = AppStorage(config.data_dir / "app-data.sqlite")
@@ -309,6 +311,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # The scheduler runs the sweep daily and once after startup, and announces
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
+    scheduler.attach_backups(backups, settings)
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
@@ -772,6 +775,15 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             if not isinstance(rail["pinned"], list):
                 raise HTTPException(status_code=422, detail="rail.pinned must be a list of ids")
             rail["pinned"] = sanitize_pins(rail["pinned"])
+        # A backup schedule names a time this computer will act on, so it is
+        # checked before it is stored rather than failing quietly at 03:00.
+        backup_settings = update.get("backups")
+        if isinstance(backup_settings, dict) and "schedule" in backup_settings:
+            try:
+                backup_settings["schedule"] = validate_schedule(backup_settings["schedule"])
+            except BackupError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
+            backups.set_keep(backup_settings["schedule"]["keep"])
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:
@@ -1234,6 +1246,27 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             return backups.verify(name)
         except BackupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.get("/api/backups/stats")
+    def backup_stats() -> dict:
+        return {
+            **backups.stats(),
+            "schedule": describe_schedule((settings.get("backups") or {}).get("schedule")),
+        }
+
+    @app.post("/api/backups/{name}/restore")
+    async def restore_backup(name: str, request: Request) -> dict:
+        # Restoring replaces live files and stops running apps. It takes a
+        # deliberate header so no stray link or retry can start one.
+        if request.headers.get("x-vela-confirm") != "restore":
+            raise HTTPException(status_code=428, detail="Confirm restoring this backup")
+        try:
+            return await asyncio.to_thread(
+                backups.restore, name, lifecycle=lifecycle,
+                actor=request_actor(auth, request),
+            )
+        except BackupError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
     # /apps/* is matched before the SPA fallback below; the fallback must
     # never swallow app requests.

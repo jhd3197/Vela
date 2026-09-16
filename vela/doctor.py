@@ -499,10 +499,18 @@ class Doctor:
             return {"status": OK, "detail": f"The newest backup is {newest.get('name', 'unknown')}."}
         age = datetime.now() - created
         when = created.strftime("%d %b %H:%M")
-        if age > timedelta(days=BACKUP_STALE_DAYS):
+        # With a schedule on, "stale" means it missed its window; without one,
+        # a couple of days is the point at which it is worth mentioning.
+        scheduled = False
+        if self._settings is not None:
+            schedule = (self._settings.get("backups") or {}).get("schedule") or {}
+            scheduled = bool(schedule.get("enabled"))
+        window = timedelta(days=1, hours=6) if scheduled else timedelta(days=BACKUP_STALE_DAYS)
+        if age > window:
+            missed = " even though a daily backup is scheduled" if scheduled else ""
             return {
                 "status": WARN,
-                "detail": f"The newest backup is from {when}, {age.days} days ago.",
+                "detail": f"The newest backup is from {when}, {age.days} days ago{missed}.",
             }
         return {"status": OK, "detail": f"Vela last backed itself up on {when}."}
 

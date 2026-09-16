@@ -173,6 +173,39 @@ permissions, starts or stops anything, or affects what Vela allows. It is
 remembered in this browser alone, so your phone does not inherit the choice you
 made on a desktop.
 
+## Back up and restore
+
+**Settings → Backups & storage** keeps recoverable copies of your server. A
+backup holds your hub settings, which apps are installed and their versions,
+and everything your apps saved. It does not hold your logs or your wallpapers.
+
+The top of the section answers the only questions that matter at a glance: when
+the last backup was, when the next one is, and how many are kept.
+
+**Back up automatically** runs one a day at the time you choose, by this
+computer's clock. It is off until you turn it on — Vela does not start writing
+copies on a timer without being asked. A run that is missed because the
+computer was off is not made up later; the next one happens at the usual time.
+Choose how many to keep and Vela removes the older ones for you.
+
+**Verify** runs a restore drill: the backup is copied into a temporary folder
+and checked there. Your live data is never touched by it, so verifying is
+always safe.
+
+**Restore** puts a backup back. Before it changes anything, Vela:
+
+1. verifies the backup, and stops if it does not read correctly;
+2. stops any app running right now, so nothing is writing during the swap;
+3. saves a copy of what it is about to replace.
+
+Then it puts the files back and starts the apps that were running. The copy it
+saved first is listed with your other backups, marked *taken before a restore*,
+so restoring the wrong one is recoverable — restore that copy and you are back
+where you started. Because a restore replaces live data, Vela asks you to type
+the backup's name to confirm.
+
+Your logs, wallpapers and chats are left alone by a restore.
+
 ## Check Vela's health
 
 **Settings → Health** runs a set of checks over this computer and says, in

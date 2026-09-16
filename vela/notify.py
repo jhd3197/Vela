@@ -17,6 +17,9 @@ DIGEST_HOUR = 9
 # The health checks run once shortly after startup, then daily.
 DOCTOR_STARTUP_DELAY_SECONDS = 60
 DOCTOR_INTERVAL_SECONDS = 24 * 60 * 60
+# How often the scheduler looks at the backup schedule. A minute is fine
+# grained enough for a schedule whose smallest unit is a minute.
+BACKUP_TICK_SECONDS = 60
 EVENT_BUFFER_SIZE = 50
 
 
@@ -179,6 +182,12 @@ class NotifyScheduler:
         self._doctor_delay = doctor_delay
         self._doctor_interval = doctor_interval
         self._doctor_task: asyncio.Task | None = None
+        self._backups = None
+        self._backup_settings = None
+        self._backup_interval = BACKUP_TICK_SECONDS
+        # The moment the schedule last named. A run is due once it has passed.
+        self._backup_due: datetime | None = None
+        self._backup_task: asyncio.Task | None = None
         # Check keys already announced. A failure is worth one notification,
         # not one every day until someone fixes it; clearing the check arms it
         # again.
@@ -190,9 +199,11 @@ class NotifyScheduler:
         self._task = asyncio.create_task(self._loop())
         if self._doctor is not None:
             self._doctor_task = asyncio.create_task(self._doctor_loop())
+        if self._backups is not None:
+            self._backup_task = asyncio.create_task(self._backup_loop())
 
     async def stop(self) -> None:
-        for name in ("_task", "_doctor_task"):
+        for name in ("_task", "_doctor_task", "_backup_task"):
             task = getattr(self, name)
             if task is not None:
                 task.cancel()
@@ -205,6 +216,51 @@ class NotifyScheduler:
     def attach_doctor(self, doctor) -> None:
         """Give the scheduler the doctor to sweep with, before `start()`."""
         self._doctor = doctor
+
+    def attach_backups(self, backups, settings) -> None:
+        """Give the scheduler the backup store to run on its schedule."""
+        self._backups = backups
+        self._backup_settings = settings
+
+    async def _backup_loop(self) -> None:
+        from .backups import next_run
+
+        while True:
+            await asyncio.sleep(self._backup_interval)
+            try:
+                schedule = (self._backup_settings.get("backups") or {}).get("schedule")
+                due = next_run(schedule)
+                if due is None:
+                    self._backup_due = None
+                    continue
+                now = datetime.now(due.tzinfo)
+                # `next_run` answers with the next moment from now, so the run
+                # is due when the moment it named last time has passed.
+                if self._backup_due is not None and now >= self._backup_due:
+                    await self.run_backup()
+                self._backup_due = due
+            except Exception:
+                # A failed tick must not end the schedule.
+                pass
+
+    async def run_backup(self) -> dict[str, Any] | None:
+        """One scheduled backup, announcing a failure rather than hiding it."""
+        from .backups import BackupError
+
+        try:
+            made = await asyncio.to_thread(self._backups.create)
+        except BackupError as exc:
+            cfg = self._notifier.config()
+            if cfg["server"] and cfg["topic"]:
+                await self._notifier.publish(
+                    "Vela could not back itself up",
+                    str(exc),
+                    tags=["warning"],
+                    priority=4,
+                    kind="backup",
+                )
+            return None
+        return made
 
     async def _doctor_loop(self) -> None:
         # Wait before the first sweep: startup is the busiest moment on this

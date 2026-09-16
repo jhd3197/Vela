@@ -43,7 +43,7 @@ function useSource(load, intervalMs) {
 
 const loadMetrics = () => api.systemMetrics();
 const loadFlows = () => automationsApi.status();
-const loadBackups = () => api.getBackups();
+const loadBackups = () => api.backupStats();
 const loadAppWidgets = () => api.appWidgets();
 const loadHealth = () => api.getDoctor();
 

@@ -59,6 +59,18 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Backups can run on a schedule, and you can restore one.**
+  **Settings → Backups & storage** now opens with what matters at a glance —
+  when the last backup was, when the next one is, how many are kept — and can
+  run one a day at a time you choose. Automatic backups are off until you turn
+  them on. **Restore** puts a backup back: Vela checks that it reads correctly,
+  stops any running app, saves a copy of what it is about to replace, swaps the
+  files, and starts the apps again. That copy is listed with your backups and
+  marked *taken before a restore*, so restoring the wrong one is recoverable.
+  Because a restore replaces live data, it asks you to type the backup's name.
+  Your logs, wallpapers and chats are never touched by a restore, and the desk's
+  Backups widget now shows when the next one is due.
+
 - **Failures are recorded so you can look at them.** **System → Errors** lists
   what has gone wrong on this computer — errors from the engine and errors the
   dashboard catches in your browser. One failure that keeps happening is one
