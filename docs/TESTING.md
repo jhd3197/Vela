@@ -63,6 +63,7 @@ node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
+node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs
 node web/scripts/test-chat.mjs
@@ -70,6 +71,14 @@ node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
 node web/scripts/test-mobile-layout.mjs
 ```
+
+The Files suite runs against a real engine on a disposable data directory, so
+the only share it touches is the Downloads folder that engine makes for itself.
+It covers the default share, making and renaming a folder, uploading through the
+page's own control, walking into a folder and back, previewing a text file as
+text, deleting to the trash, and — the point of the feature — the share boundary
+refusing `..`, an absolute path, a drive letter and an unknown share without
+naming the real path in the refusal.
 
 Run browser suites sequentially because some use the same fixture server port.
 The shared UI suite uses an isolated Vite fixture without API calls to check
