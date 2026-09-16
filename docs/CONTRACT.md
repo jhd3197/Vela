@@ -817,6 +817,20 @@ restrained 14px card corners), in light and dark.
   box that opens Ask with what was typed). There are two boards: six columns
   above 860px and two below, edited and stored separately, never reflowed into
   each other. Each widget is a labelled region.
+- **Desk widgets and their sources**: `clock` (the browser's clock),
+  `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
+  `system` and `volume` (`GET /api/system/metrics`), `flows`
+  (`/api/automations/status` — `runsToday`, `failuresToday`,
+  `averageDurationMs`, counted since this computer's midnight) and `backups`
+  (`/api/backups`, with **Back up now**). `/api/system/metrics` reports CPU,
+  memory, uptime and a 60-sample CPU history taken every 10 s in memory only,
+  plus one entry per volume the user named in `settings.desk.volumes` and the
+  one Vela's own data sits on. It answers `{"available": false}` when psutil is
+  missing rather than failing, and a volume that is not connected is reported
+  as unreachable rather than dropped. `settings.desk` holds
+  `volumes`, `wallpaper`, `dim` and `labels`; a volume path must be a folder
+  that exists or `PATCH /api/settings` answers 422. Settings › Desk is where
+  volumes are added and removed.
 - **Manage apps** (`/apps`): installed apps as rows leading to the detail
   drawer, with status. Filter tabs: All / Running / Not installed.
 - **Library** (`/library`): catalog cards — icon tile, name, category and

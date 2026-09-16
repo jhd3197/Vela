@@ -223,7 +223,8 @@ export const api = {
   getAiStatus: () => request('/api/ai/status'),
   testNotify: () => request('/api/notify/test', { method: 'POST' }),
   getNotifications: (options) => request('/api/notifications', options),
-  getBackups: () => request('/api/backups'),
+  systemMetrics: (options) => request('/api/system/metrics', options),
+  getBackups: (options) => request('/api/backups', options),
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>
     request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),

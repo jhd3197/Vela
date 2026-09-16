@@ -115,8 +115,14 @@ def main():
                 request('/api/app/storage', 'PUT', {'value': {'messages': []}, 'revision': 0}, app)
                 assert json.loads(request('/api/app/storage', headers=app))['value'] == {'messages': []}
                 check_automations(request, hub)
+                # psutil is imported lazily, so a bundle that failed to collect
+                # it starts fine and only reports available: false here.
+                metrics = json.loads(request('/api/system/metrics', headers=hub))
+                assert metrics['available'], 'Packaged server has no psutil: the desk loses System and Volume'
+                assert metrics['memory']['total'] > 0 and metrics['uptime']['seconds'] >= 0, metrics
                 print('PASS: relocated server starts, serves dashboard/assets, validates and installs an app, '
-                      'serves SDK, stores app data, and runs an automation on its bundled runtime')
+                      'serves SDK, stores app data, reports system metrics, and runs an automation on its '
+                      'bundled runtime')
             except Exception:
                 output.flush()
                 print((work / 'server.log').read_text(encoding='utf-8'))

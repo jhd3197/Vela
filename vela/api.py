@@ -23,6 +23,7 @@ from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
 from .runners import current_platform, get_runner
 from .settings import SettingsStore
+from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
 from .auth import Auth
@@ -39,7 +40,7 @@ from .phone_access import PhoneAccess
 from .automations import Automations, router as automations_router
 
 
-_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config"}
+_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk"}
 
 
 class NotifyPublishRequest(BaseModel):
@@ -253,6 +254,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     settings = SettingsStore(config.settings_file)
     notifier = Notifier(settings)
     scheduler = NotifyScheduler(notifier, registry, config)
+    system_metrics = SystemMetrics(config, settings)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -600,10 +602,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.on_event("startup")
     async def start_scheduler() -> None:
         scheduler.start()
+        system_metrics.start()
 
     @app.on_event("shutdown")
     async def stop_scheduler() -> None:
         await scheduler.stop()
+        await system_metrics.stop()
+
+    @app.get("/api/system/metrics")
+    def system_metrics_snapshot() -> dict:
+        return system_metrics.snapshot()
 
     @app.get("/api/settings")
     def get_settings() -> dict:
@@ -612,6 +620,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.patch("/api/settings")
     def patch_settings(payload: dict[str, Any] = Body(...)) -> dict:
         update = {key: value for key, value in payload.items() if key in _SETTINGS_KEYS}
+        # A desk volume names a real folder on this computer, so it is checked
+        # before it is stored rather than failing later inside a widget.
+        desk = update.get("desk")
+        if isinstance(desk, dict) and "volumes" in desk:
+            try:
+                desk["volumes"] = validate_volumes(desk["volumes"])
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:

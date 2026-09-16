@@ -71,6 +71,9 @@ def main():
         '--distpath', str(output / 'dist'), '--workpath', str(output / 'work'),
         '--specpath', str(output), '--paths', str(ROOT),
         '--hidden-import', 'vela.api', '--collect-submodules', 'uvicorn',
+        # psutil is imported lazily by vela/system_metrics.py, so PyInstaller
+        # cannot see it by following imports.
+        '--hidden-import', 'psutil',
         # Schedules name IANA timezones; Windows has no system database.
         *(['--collect-data', 'tzdata'] if importlib.util.find_spec('tzdata') else []),
         '--add-data', f'{ROOT / "web/dist"}:web/dist',

@@ -4,10 +4,24 @@
 // Photos, Paperless and weather appear in the mockups; none of them has a
 // source on the host, so none of them is here. App-owned widgets arrive
 // through the manifest instead — see `registry.js`.
-import { ChatTeardropDots, Clock, PlayCircle, SquaresFour } from '@phosphor-icons/react';
+import {
+  Archive,
+  ChatTeardropDots,
+  Clock,
+  HardDrives,
+  Lightning,
+  PlayCircle,
+  SquaresFour,
+} from '@phosphor-icons/react';
 import AppsWidget from './widgets/AppsWidget.jsx';
 import AskWidget from './widgets/AskWidget.jsx';
 import RunningWidget from './widgets/RunningWidget.jsx';
+import {
+  BackupsWidget,
+  FlowsWidget,
+  SystemWidget,
+  VolumeWidget,
+} from './widgets/SystemWidgets.jsx';
 import { WidgetClock } from './widgets/primitives.jsx';
 
 export const CORE_WIDGET_TYPES = [
@@ -58,5 +72,57 @@ export const CORE_WIDGET_TYPES = [
     min: [2, 1],
     defaultCfg: {},
     render: AskWidget,
+  },
+  {
+    id: 'system',
+    name: 'System',
+    icon: HardDrives,
+    cat: 'Vela',
+    desc: 'This computer: uptime, CPU over the last few minutes, memory',
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: {},
+    render: SystemWidget,
+  },
+  {
+    id: 'volume',
+    name: 'Volume',
+    icon: HardDrives,
+    cat: 'Vela',
+    desc: 'How full one of your volumes is',
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: { path: '' },
+    options: 'volume',
+    // The board stores a path, so the frame is named after the volume it is
+    // pointed at rather than reading "Volume" three times on one desk.
+    title: (cfg) => cfg.label || '',
+    render: VolumeWidget,
+  },
+  {
+    id: 'flows',
+    name: 'Flows',
+    icon: Lightning,
+    cat: 'Vela',
+    desc: 'Automation runs today, failures and the average run',
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: {},
+    render: FlowsWidget,
+  },
+  {
+    id: 'backups',
+    name: 'Backups',
+    icon: Archive,
+    cat: 'Vela',
+    desc: 'When Vela last backed itself up, and a way to do it now',
+    w: 2,
+    h: 1,
+    min: [1, 1],
+    defaultCfg: {},
+    render: BackupsWidget,
   },
 ];

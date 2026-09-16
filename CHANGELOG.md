@@ -6,6 +6,16 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Desk widgets for your server.** The desk can now show **System** (uptime,
+  CPU over the last few minutes and memory use), **Volume** (how full a folder
+  you choose is, and how much is free), **Flows** (automation runs today,
+  failures and the average run) and **Backups** (when Vela last backed itself
+  up, with **Back up now**). Add the folders you want to watch under
+  Settings › Desk; Vela only reports how full they are. A server that cannot
+  read its own CPU and memory says so instead of showing zeros.
+
 ### Changed
 
 - **Vela opens on a desk.** The home screen is now a board of widgets over a

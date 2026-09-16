@@ -420,6 +420,10 @@ python scripts/test-server-bundle.py
 
 The archive and SHA-256 file appear under `.local/releases/`. The bundle
 contains the Python runtime, backend, SDK/schema snapshots and built dashboard.
+`psutil` (BSD 3-Clause) is bundled for the desk's System and Volume widgets; it
+is imported lazily and collected through an explicit `--hidden-import`, so
+`python scripts/test-server-bundle.py` asserts `/api/system/metrics` reports
+`available: true` rather than letting a bundle without it pass quietly.
 No sibling repositories are required. The existing `__file__`-relative asset
 paths work inside the bundle as described in the
 [PyInstaller runtime documentation](https://pyinstaller.org/en/stable/runtime-information.html).

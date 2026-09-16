@@ -352,12 +352,41 @@ try {
   await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.evaluate(() => localStorage.removeItem('vela-developer-tools'));
 
+  // The desk's own settings: a volume must be a folder that exists, and the
+  // server is the one that decides, so a bad path comes back as its refusal
+  // rather than as something the page guessed.
+  await page.goto(base + '/settings#desk');
+  const desk = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await desk.getByRole('heading', { name: 'Volumes', exact: true }).waitFor();
+  await desk.getByLabel('Folder', { exact: true }).fill('/definitely/not/a/folder');
+  await desk.getByRole('button', { name: 'Add volume', exact: true }).click();
+  await desk.getByRole('alert').filter({ hasText: 'not a folder on this computer' }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // The endpoint the System and Volume widgets read answers for this machine.
+  const metrics = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const response = await fetch('/api/system/metrics', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.ok ? response.json() : { status: response.status };
+  });
+  // Whether this machine has psutil is not the point; that the desk's source
+  // answers instead of erroring is. A server without it must say so in the
+  // payload rather than in a status code.
+  assert.equal(
+    typeof metrics.available,
+    'boolean',
+    `system metrics must answer either way: ${JSON.stringify(metrics)}`,
+  );
+
   await page.goto(base + '/settings#notifications');
   await page.getByLabel('Topic', { exact: true }).fill('local-fixture-topic');
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: six default destinations, the desk board over its wallpaper, the secondary menu, desk navigation without a hamburger across reload/back/rotation/scroll, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources, the developer-tools deep link and field labels' +
+    'PASS: six default destinations, the desk board over its wallpaper, the secondary menu, desk navigation without a hamburger across reload/back/rotation/scroll, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources, the developer-tools deep link, desk volume validation and field labels' +
       (originalCss ? '; computed styles match the original CSS' : ''),
   );
 } finally {

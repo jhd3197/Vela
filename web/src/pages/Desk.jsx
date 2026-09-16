@@ -5,6 +5,7 @@ import { PHONE } from '../breakpoints.js';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import GlobalSearch from '../components/GlobalSearch.jsx';
 import DeskGrid from '../desk/grid/DeskGrid.jsx';
+import { DeskDataProvider } from '../desk/DeskDataProvider.jsx';
 import { useWidgetTypes } from '../desk/registry.js';
 import { colsOf, defaultBoards, repairBoard, widgetsOf } from '../desk/boards.js';
 
@@ -41,19 +42,21 @@ export default function Desk() {
 
   return (
     <WorkspacePage search={false} className="desk-workspace">
-      <div className="desk">
-        <div className="desk-top">
-          <GlobalSearch />
+      <DeskDataProvider>
+        <div className="desk">
+          <div className="desk-top">
+            <GlobalSearch />
+          </div>
+          <DeskGrid
+            widgets={widgets}
+            types={types}
+            cols={cols}
+            rowHeight={phone ? 120 : 150}
+            gap={phone ? 12 : 16}
+            edit={false}
+          />
         </div>
-        <DeskGrid
-          widgets={widgets}
-          types={types}
-          cols={cols}
-          rowHeight={phone ? 120 : 150}
-          gap={phone ? 12 : 16}
-          edit={false}
-        />
-      </div>
+      </DeskDataProvider>
     </WorkspacePage>
   );
 }
