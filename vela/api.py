@@ -4,6 +4,7 @@ import asyncio
 import json
 import tempfile
 import os
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ from .backups import BackupError, BackupStore
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .doctor import Doctor, summarise
+from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
+from .support_bundle import SupportBundle
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
@@ -47,6 +50,16 @@ from .automations import Automations, router as automations_router
 
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail"}
+
+
+class ClientError(BaseModel):
+    """One failure the dashboard caught in the browser."""
+
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(min_length=1, max_length=2000)
+    type: str | None = Field(default=None, max_length=200)
+    stack: str | None = Field(default=None, max_length=20000)
+    url: str | None = Field(default=None, max_length=400)
 
 
 class NotifyPublishRequest(BaseModel):
@@ -290,6 +303,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                               log=lambda message: print(f'[vela] {message}', flush=True))
     doctor = Doctor(config, state=state, registry=registry, settings=settings,
                     backups=backups, assistant=assistant, catalog=catalog)
+    errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
+    support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
+                            errors=errors, doctor=doctor, automations=automations)
     # The scheduler runs the sweep daily and once after startup, and announces
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
@@ -342,6 +358,25 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.exception_handler(LifecycleError)
     async def lifecycle_error(request, exc):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+    @app.exception_handler(Exception)
+    async def record_unhandled(request, exc):
+        # Record it, then answer the way an unhandled error is answered. The
+        # record is a side effect: it must not change what the caller sees, and
+        # a failure to write it must not replace the original failure.
+        try:
+            errors.record(
+                "server",
+                f"{exc}",
+                type_=type(exc).__name__,
+                traceback="".join(
+                    traceback.format_exception(type(exc), exc, exc.__traceback__)
+                ),
+                endpoint=request.url.path,
+            )
+        except Exception:  # noqa: BLE001 - never mask the original failure
+            pass
+        raise exc
 
     @app.get('/api/catalog')
     def catalog_status():
@@ -1087,6 +1122,67 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             # No such check, or nothing registered to repair it.
             raise HTTPException(status_code=422, detail=result.get("detail", "That repair is not available."))
         return result
+
+    # Errors. The dashboard reports its own failures here; app frames are not
+    # hooked, because an app's errors belong to the app.
+    @app.get("/api/errors")
+    def list_errors(source: str = "", resolved: str = "", search: str = "", page: int = 1) -> dict:
+        wanted = None if resolved not in ("true", "false") else resolved == "true"
+        return errors.list(source=source or None, resolved=wanted, search=search or None, page=page)
+
+    @app.get("/api/errors/stats")
+    def error_stats() -> dict:
+        return errors.stats()
+
+    @app.post("/api/errors/client", status_code=202)
+    def report_client_error(payload: ClientError) -> dict:
+        # A render loop that throws every frame must not be able to fill the
+        # database. Over the cap Vela accepts the request and drops the report.
+        if not errors.accept_client_report():
+            return {"recorded": False, "reason": f"more than {CLIENT_LIMIT_PER_MINUTE} a minute"}
+        row = errors.record(
+            "dashboard",
+            payload.message,
+            type_=payload.type,
+            traceback=payload.stack,
+            endpoint=payload.url,
+        )
+        return {"recorded": bool(row)}
+
+    @app.post("/api/errors/{error_id}/resolve")
+    def resolve_error(error_id: int, payload: dict[str, Any] | None = Body(None)) -> dict:
+        resolved = True if payload is None else bool(payload.get("resolved", True))
+        row = errors.resolve(error_id, resolved)
+        if row is None:
+            raise HTTPException(status_code=404, detail="No such error")
+        return row
+
+    @app.delete("/api/errors/{error_id}", status_code=204)
+    def delete_error(error_id: int) -> Response:
+        if not errors.delete(error_id):
+            raise HTTPException(status_code=404, detail="No such error")
+        return Response(status_code=204)
+
+    # Support bundles. Built on this computer, for the user to share
+    # themselves; nothing here sends anything anywhere.
+    @app.get("/api/support-bundle")
+    def list_bundles() -> dict:
+        return {"bundles": support.list()}
+
+    @app.post("/api/support-bundle", status_code=201)
+    async def create_bundle() -> dict:
+        try:
+            return await asyncio.to_thread(support.build)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Could not build the bundle: {exc}")
+
+    @app.get("/api/support-bundle/{name}")
+    def download_bundle(name: str) -> FileResponse:
+        try:
+            path = support.path(name)
+        except (FileNotFoundError, OSError):
+            raise HTTPException(status_code=404, detail="No such bundle")
+        return FileResponse(path, media_type="application/zip", filename=name)
 
     @app.get("/api/logs")
     def list_logs() -> dict:

@@ -52,7 +52,7 @@ try {
 
   // 2. Tabs. Overview is the default and keeps the engine card it always had.
   await page.locator('.seg-opt', { hasText: 'Overview' }).waitFor();
-  assert.deepEqual(await page.locator('.seg-opt').allInnerTexts(), ['Overview', 'Logs']);
+  assert.deepEqual(await page.locator('.seg-opt').allInnerTexts(), ['Overview', 'Logs', 'Errors']);
   await page.locator('.engine-card').waitFor();
   assert.ok((await page.locator('.fact-grid .fact').count()) >= 5);
   await shot('system-overview');
@@ -146,8 +146,57 @@ try {
   await page.waitForFunction(() => window.__clearedLog === 'notes.log');
   await page.getByText('This log is empty.').waitFor();
 
-  // 12. No sideways scrolling at a phone width, with the file list above the
+  // 12. Overview reports what failed recently and links to the tab.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator('.seg-opt', { hasText: 'Overview' }).click();
+  await page.getByText('2 errors in the last 24 hours').waitFor();
+
+  // Building a support bundle says plainly that nothing is sent anywhere.
+  await page.getByText('sends it nowhere').waitFor();
+  await page.getByRole('button', { name: 'Create support bundle' }).click();
+  // The row in the list, not the toast that also names the file.
+  await page.locator('.mini-list-name', { hasText: 'vela-support-20260916-094200.zip' }).waitFor();
+  await shot('system-bundle');
+
+  await page.getByRole('button', { name: 'See them' }).click();
+
+  // 13. The Errors tab: one row per failure, with its repeat count, its source
+  //     and its traceback behind a disclosure.
+  await page.locator('.error-row').first().waitFor();
+  assert.equal(await page.locator('.error-row').count(), 2);
+  assert.deepEqual(await page.locator('.error-head .chip').allInnerTexts(), [
+    'Engine',
+    'Dashboard',
+  ]);
+  await page.getByText('×4').waitFor();
+  assert.equal(await page.locator('.error-trace').count(), 0);
+  await page.getByRole('button', { name: 'Show details' }).click();
+  await page.locator('.error-trace').waitFor();
+  assert.match(await page.locator('.error-trace').innerText(), /lifecycle\.py/);
+  await shot('system-errors');
+
+  // Search narrows the list; resolving moves a row out of Open.
+  await page.getByRole('searchbox', { name: 'Search errors' }).fill('exited');
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 1);
+  await page.getByRole('searchbox', { name: 'Search errors' }).fill('');
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 2);
+
+  await page.locator('.error-row').first().getByRole('button', { name: 'Resolve' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 1);
+  await page.locator('.seg-opt', { hasText: 'Resolved' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 1);
+  await page.getByRole('button', { name: 'Reopen' }).waitFor();
+
+  // Deleting removes it for good.
+  await page.locator('.seg-opt', { hasText: 'All' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 2);
+  await page.locator('.error-row').first().getByRole('button', { name: 'Delete' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.error-row').length === 1);
+
+  // 14. No sideways scrolling at a phone width, with the file list above the
   //     lines rather than beside them.
+  await page.locator('.seg-opt', { hasText: 'Logs' }).click();
+  await page.locator('.logs-layout').waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.logs-file', { hasText: 'server.log' }).first().click();
   await page.locator('.logs-line').first().waitFor();

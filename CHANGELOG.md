@@ -59,6 +59,23 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Failures are recorded so you can look at them.** **System → Errors** lists
+  what has gone wrong on this computer — errors from the engine and errors the
+  dashboard catches in your browser. One failure that keeps happening is one
+  row with a count, not a hundred rows; open a row for its details, resolve it
+  when you have dealt with it, or delete it. A page that fails while drawing
+  now shows an explanation and a Reload button instead of going blank, and the
+  rail stays usable. Vela keeps the last 500 errors or thirty days, whichever
+  comes first, and sends none of it anywhere.
+- **Create a support bundle in one click.** **System → Overview → Create
+  support bundle** writes a single file describing this server — its version
+  and platform, your settings with every password and token replaced, the last
+  health check, which apps are installed, your desk layout, recent errors and
+  the tail of each log. It leaves out everything your apps saved, your chats,
+  your wallpapers and your Vela password. Vela writes it to this computer and
+  sends it nowhere; attaching it to a message is your decision. Bundles are
+  deleted after a week.
+
 - **Vela checks its own health.** **Settings → Health** runs thirteen checks
   over this computer — room left where your data is kept, whether Vela is
   answering on its address, a certificate about to expire, an app it wrongly

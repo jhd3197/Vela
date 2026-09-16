@@ -1217,7 +1217,10 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 </div>
                 <p className="panel-note">
                   App logs and per-app diagnostics live with each app, under App settings. This
-                  shows the server behind them.
+                  shows the server behind them. System › Logs reads the logs Vela writes, System ›
+                  Errors lists what has failed, and{' '}
+                  <Link to="/environments">Create support bundle</Link> packages both into one
+                  redacted file you can share.
                 </p>
                 <dl className="fact-grid">
                   <div className="fact">

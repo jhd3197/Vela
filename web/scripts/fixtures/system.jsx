@@ -46,6 +46,39 @@ const files = {
   'notes.log': ['notes starting', 'notes ready'],
 };
 
+let errorRows = [
+  {
+    id: 1,
+    source: 'server',
+    type: 'RuntimeError',
+    message: 'notes exited while saving',
+    traceback: [
+      'Traceback (most recent call last):',
+      '  File "vela/lifecycle.py", line 88',
+      'RuntimeError: notes exited while saving',
+    ].join('\n'),
+    endpoint: '/api/apps/notes/launch',
+    count: 4,
+    firstSeen: '2026-09-16T08:00:00',
+    lastSeen: '2026-09-16T09:40:00',
+    resolved: false,
+  },
+  {
+    id: 2,
+    source: 'dashboard',
+    type: 'TypeError',
+    message: 'Cannot read properties of undefined',
+    traceback: null,
+    endpoint: '/desk',
+    count: 1,
+    firstSeen: '2026-09-16T09:30:00',
+    lastSeen: '2026-09-16T09:30:00',
+    resolved: false,
+  },
+];
+
+let bundles = [];
+
 const kinds = {
   'server.log': 'server',
   'server.log.1': 'server',
@@ -119,6 +152,44 @@ window.fetch = async (input, init) => {
         rotated: /\.\d+$/.test(name),
       })),
     });
+  }
+
+  if (url.includes('/api/errors/stats')) {
+    const open = errorRows.filter((row) => !row.resolved);
+    return json({ unresolved: open.length, lastDay: open.length, total: errorRows.length });
+  }
+  const resolveMatch = url.match(/\/api\/errors\/(\d+)\/resolve/);
+  if (resolveMatch) {
+    const row = errorRows.find((entry) => entry.id === Number(resolveMatch[1]));
+    if (row) row.resolved = JSON.parse(init.body).resolved;
+    return json(row || {});
+  }
+  const deleteMatch = url.match(/\/api\/errors\/(\d+)$/);
+  if (deleteMatch && method === 'DELETE') {
+    errorRows = errorRows.filter((entry) => entry.id !== Number(deleteMatch[1]));
+    return new Response(null, { status: 204 });
+  }
+  if (url.includes('/api/errors')) {
+    const query = new URL(url, 'http://fixture').searchParams;
+    const wanted = query.get('resolved');
+    const search = (query.get('search') || '').toLowerCase();
+    let rows = errorRows;
+    if (wanted === 'true') rows = rows.filter((row) => row.resolved);
+    if (wanted === 'false') rows = rows.filter((row) => !row.resolved);
+    if (search) rows = rows.filter((row) => row.message.toLowerCase().includes(search));
+    return json({ errors: rows, total: rows.length, page: 1, pageSize: 25 });
+  }
+
+  if (url.includes('/api/support-bundle')) {
+    if (method === 'POST') {
+      bundles.unshift({
+        name: 'vela-support-20260916-094200.zip',
+        size: 20480,
+        created_at: '2026-09-16T09:42:00',
+      });
+      return json(bundles[0], 201);
+    }
+    return json({ bundles });
   }
 
   if (url.includes('/api/apps')) return json({ apps });

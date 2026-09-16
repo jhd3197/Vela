@@ -234,6 +234,33 @@ export const api = {
       body: file,
     }),
   deleteWallpaper: () => request('/api/wallpaper', { method: 'DELETE' }),
+  // Errors the engine recorded, and the dashboard's own reports.
+  getErrors: (query, options) =>
+    request(`/api/errors?${new URLSearchParams(query || {})}`, options),
+  errorStats: (options) => request('/api/errors/stats', options),
+  reportClientError: (value) =>
+    request('/api/errors/client', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    }),
+  resolveError: (id, resolved = true) =>
+    request(`/api/errors/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolved }),
+    }),
+  deleteError: (id) => request(`/api/errors/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Support bundles. Built on this computer; sharing one is the user's move.
+  getSupportBundles: (options) => request('/api/support-bundle', options),
+  createSupportBundle: () => request('/api/support-bundle', { method: 'POST' }),
+  downloadSupportBundle: async (name) => {
+    const response = await hubFetch(`/api/support-bundle/${encodeURIComponent(name)}`);
+    if (!response.ok) throw new ApiError(`Could not download ${name}.`, response.status);
+    return response.blob();
+  },
+
   // Health checks. Reading is cheap and never starts a sweep; `runDoctor` is
   // the deliberate action behind "Run now".
   getDoctor: (options) => request('/api/doctor', options),

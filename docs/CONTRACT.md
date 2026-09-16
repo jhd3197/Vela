@@ -459,6 +459,43 @@ managed by the operator; no automatic release-history pruning is implemented.
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
 
+### Errors and support bundle API details
+
+Hub session only. Nothing here leaves the computer.
+
+- `GET /api/errors?source=&resolved=&search=&page=` —
+  `{ errors: [...], total, page, pageSize }`, newest first. `source` is
+  `server`, `dashboard` or `app`; `resolved` is `true`/`false`.
+- `GET /api/errors/stats` — `{ unresolved, lastDay, total, bySource }`.
+- `POST /api/errors/client` — the dashboard reporting its own failure:
+  `{ message, type?, stack?, url? }`. Answers `202` with
+  `{ recorded }`; over 20 reports a minute the report is accepted and dropped,
+  so a render loop that throws cannot fill the database.
+- `POST /api/errors/{id}/resolve` with `{ resolved }`, and
+  `DELETE /api/errors/{id}` (`204`).
+- `GET /api/support-bundle`, `POST /api/support-bundle` (`201`, returns
+  `{ name, size, created_at }`), `GET /api/support-bundle/{name}` (the zip).
+
+An error is `{ id, fingerprint, source, type, message, traceback, endpoint,
+count, firstSeen, lastSeen, resolved }`. The fingerprint is
+`sha256(source|type|message[:200]|endpoint)`: a repeat of an *unresolved*
+failure raises its `count` instead of adding a row, while a repeat of a
+resolved one starts a new row, because that is news. Retention is 500 rows or
+30 days, whichever comes first.
+
+Unhandled server exceptions are recorded by an exception handler that re-raises,
+so the caller still gets the `500` it would have got. Ordinary `HTTPException`
+answers (a `404`, a `422`) are not errors and are not recorded. App frames are
+not hooked: an app's errors are the app's.
+
+A support bundle contains `README.txt`, `meta.json`, `settings.json`,
+`doctor.json`, `apps.json`, `desk.json`, `errors.json`, `automations.json` and
+`logs/<name>` (the last 500 lines of each). Settings values whose key matches
+`token|secret|pass|key|credential|authorization` are replaced, and all free text
+is scrubbed of `Bearer`/`Basic` tokens, bare JWTs and credential assignments.
+App storage, chat history, wallpapers and the access password are never
+collected. Bundles older than 7 days are pruned. See `SECURITY.md`.
+
 ### Health API details
 
 Hub session only. Reading never starts a sweep, so opening a page costs

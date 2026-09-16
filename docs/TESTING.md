@@ -20,7 +20,7 @@ tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases, launcher behavior, automations, the log
-store and the health checks. Node checks
+store, the health checks, the error record and the support bundle. Node checks
 cover the host bridge, service-worker boundaries, shared request behavior
 (polling, overlapping refreshes, errors, and cleanup) and the automation worker's
 protocol. No sibling checkout is needed.
@@ -105,7 +105,10 @@ warnings and errors marked, search narrowing and highlighting with a "no match"
 state, `/` reaching the search box, the line-count choice, the auto-refresh
 switch, choosing another log, an authenticated download, Clear asking first and
 only emptying the log on confirmation, and no sideways overflow at 390 pixels.
-Screenshots go to `docs/screenshots/system/`.
+It also covers the Errors tab — one row per failure with its repeat count,
+source chips, the traceback behind a disclosure, search, resolve, reopen and
+delete — and building a support bundle from Overview. Screenshots go to
+`docs/screenshots/system/`.
 The desk suite drives the board against a disposable engine: adding a widget
 from the library, moving and resizing it with the keyboard and with a pointer,
 undo and redo, saving and finding the same arrangement after a reload, Cancel

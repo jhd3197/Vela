@@ -240,6 +240,32 @@ Vela keeps 2 MB of its server log five times over, so the logs cannot grow
 without limit. Routine web-request lines are not written at all — the log is
 for what Vela did, not for every time the dashboard asked it a question.
 
+## Get help when something breaks
+
+Vela keeps a record of what has failed on this computer. **System → Errors**
+lists them — turn developer tools on to see System. One failure that keeps
+happening is one row with a count beside it, not a hundred rows, and each row
+says whether it came from the engine, from the dashboard in your browser, or
+from an app. Open a row for its details, mark it **Resolve** when you have
+dealt with it, or **Delete** it. Vela keeps the last 500 errors or thirty days,
+whichever comes first.
+
+None of it is sent anywhere. There is no telemetry in Vela and no crash
+reporting; the record exists so you can look at it.
+
+When you want someone else to look, use **Create support bundle** on
+System → Overview. It writes one file describing this server: its version and
+platform, your settings with every password and token replaced, the last health
+check, which apps are installed, your desk layout, the recent errors and the
+tail of each log. It leaves out everything your apps saved, your chats, your
+wallpapers and your Vela password.
+
+Vela writes the bundle to this computer and sends it nowhere — you attach it
+yourself, to a message or an issue, if and when you choose to. Have a look
+through it first: Vela redacts what it can recognise, but a log line can still
+carry a folder name or an address you would rather not pass on. Bundles are
+deleted after a week.
+
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In

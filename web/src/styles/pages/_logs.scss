@@ -236,3 +236,107 @@
     max-height: 50vh;
   }
 }
+
+/* ---------- Errors (System › Errors) ---------- */
+
+.error-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.error-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+/* A resolved error is history, not a problem. It stays readable but stops
+   competing with the ones that still matter. */
+.error-row-resolved {
+  opacity: 0.62;
+}
+
+.error-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.error-message {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.error-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.error-when {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.error-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.error-toggle {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 4px 0 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.error-trace {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.error-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.chip-server {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.chip-dashboard {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
+}

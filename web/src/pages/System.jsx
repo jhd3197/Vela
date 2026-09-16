@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { formatBytes } from '../api.js';
+import { api, formatBytes } from '../api.js';
+import { useResource } from '../hooks/useResource.js';
 import { useApps, useEngine } from '../store.jsx';
 import { setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AppIcon from '../components/AppIcon.jsx';
@@ -8,6 +9,8 @@ import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import LogViewer from '../components/log-viewer/LogViewer.jsx';
+import ErrorList from '../components/ErrorList.jsx';
+import SupportBundlePanel from '../components/SupportBundlePanel.jsx';
 
 // System: where apps run, what the engine reports, and the record of what
 // happened — the logs now, errors next to them. It is a developer surface, so
@@ -47,10 +50,13 @@ function Locked() {
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'logs', label: 'Logs' },
+  { key: 'errors', label: 'Errors' },
 ];
 
-function Overview({ apps, engine, engineError }) {
+function Overview({ apps, engine, engineError, onShowErrors }) {
   const running = (apps || []).filter((a) => a.running);
+  const load = useCallback((options) => api.errorStats(options), []);
+  const { data: errorStats } = useResource(load);
   return (
     <>
       <section className="panel engine-card">
@@ -93,6 +99,26 @@ function Overview({ apps, engine, engineError }) {
           </dl>
         )}
       </section>
+
+      {errorStats?.lastDay > 0 && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Recent errors</h2>
+            <button type="button" className="btn btn-small" onClick={onShowErrors}>
+              See them
+            </button>
+          </div>
+          <p className="panel-note">
+            {errorStats.lastDay} error{errorStats.lastDay === 1 ? '' : 's'} in the last 24 hours
+            {errorStats.unresolved > errorStats.lastDay
+              ? `, ${errorStats.unresolved} unresolved in total`
+              : ''}
+            .
+          </p>
+        </section>
+      )}
+
+      <SupportBundlePanel />
 
       <section className="panel">
         <div className="panel-head">
@@ -161,11 +187,17 @@ export default function System() {
             </div>
 
             {tab === 'overview' && (
-              <Overview apps={apps} engine={engine} engineError={engineError} />
+              <Overview
+                apps={apps}
+                engine={engine}
+                engineError={engineError}
+                onShowErrors={() => setTab('errors')}
+              />
             )}
             {tab === 'logs' && (
               <LogViewer selected={params.get('log') || ''} onSelect={selectLog} />
             )}
+            {tab === 'errors' && <ErrorList />}
           </>
         )}
       </div>
