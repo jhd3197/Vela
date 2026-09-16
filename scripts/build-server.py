@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from vela import __version__
+from vela.updates import platform_architecture
 import importlib.util
 
 
@@ -104,8 +105,7 @@ def main():
             'https://github.com/jhd3197/Vela/blob/main/docs/DEVELOPMENT.md\n'
             'Vela source remains MIT licensed.\n', encoding='utf-8')
     system = {'Windows': 'windows', 'Darwin': 'macos', 'Linux': 'linux'}[platform.system()]
-    machine = platform.machine().lower()
-    architecture = {'amd64': 'x64', 'x86_64': 'x64', 'aarch64': 'arm64'}.get(machine, machine)
+    architecture = platform_architecture()
     artifacts = ROOT / '.local/releases'
     artifacts.mkdir(parents=True, exist_ok=True)
     name = artifacts / f'vela-server-{__version__}-{system}-{architecture}'

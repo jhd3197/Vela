@@ -100,6 +100,17 @@ def capability() -> str:
     return "tarball"
 
 
+def platform_architecture() -> str:
+    """The architecture name Vela's release assets are built and matched with.
+
+    One definition, shared with `scripts/build-server.py`: the build names the
+    download with it and the updater finds the download by it, so the two must
+    never drift apart.
+    """
+    machine = platform.machine().lower()
+    return {"amd64": "x64", "x86_64": "x64", "aarch64": "arm64"}.get(machine, machine)
+
+
 def platform_asset(assets: list[dict[str, Any]], *, kind: str | None = None) -> dict | None:
     """The release asset this computer should download, or None.
 
@@ -109,8 +120,7 @@ def platform_asset(assets: list[dict[str, Any]], *, kind: str | None = None) -> 
     kind = kind or capability()
     if kind in ("source", "container"):
         return None
-    machine = platform.machine().lower()
-    architecture = {"amd64": "x64", "x86_64": "x64", "aarch64": "arm64"}.get(machine, machine)
+    architecture = platform_architecture()
     if kind == "installer":
         suffix = f"-windows-{architecture}-setup.exe"
     elif kind == "portable":

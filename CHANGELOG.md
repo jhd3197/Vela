@@ -58,6 +58,14 @@ until the release workflow prepares a tested server version.
   System — are core apps now: they show in the Launchpad under **Vela**, they
   turn up in search, and they can be pinned like any app. The old **More** menu
   is gone.
+- **Promoting dev to main now builds the downloads first.** A pull request to
+  `main` runs the release the way the release workflow will: it runs the
+  release script and builds and smoke-tests the server on Windows, Linux and
+  macOS, stopping short of tagging or uploading anything. Release breakage that
+  used to surface only after a merge — a script that fails to start, a download
+  missing for a runner's architecture — now shows on the promotion PR instead.
+  Contributors working on `scripts/` should expect that PR to take longer than
+  a routine `dev` check.
 
 ### Added
 

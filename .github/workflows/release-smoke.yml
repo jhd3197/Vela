@@ -1,0 +1,87 @@
+name: Release Smoke
+
+# Runs the release the way `Release Vela Server` will run it, one PR earlier.
+#
+# That workflow only triggers on a push to `main`, so before this existed its
+# first execution of a change was the real release. Two of them failed there:
+# `release.py` died at import because a script run by path does not have the
+# repository root on `sys.path`, and the update check looked for an x64
+# download on the arm64 macOS runner. Neither was reachable from `Checks`,
+# which never runs `release.py` and builds on ubuntu and windows only.
+#
+# So this builds every platform the release builds, on the promotion PR, and
+# stops short of the two steps that publish anything: nothing is uploaded and
+# no tag is written. A green run here means the release should get through.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: vela-release-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Run the release script
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      date: ${{ steps.release.outputs.date }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # The same command the release runs first, and the one that broke: it
+      # reads the tags and picks the version, changing nothing.
+      - name: Choose the version this promotion would release
+        id: release
+        run: python scripts/release.py prepare
+
+  build:
+    name: Build the downloads
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: python -m pip install -r requirements.txt -r scripts/requirements-build.txt
+      - name: Stamp the same version into every platform build
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_DATE: ${{ needs.prepare.outputs.date }}
+        shell: bash
+        run: python scripts/release.py stamp --version "$RELEASE_VERSION" --date "$RELEASE_DATE"
+      - run: npm --prefix web ci
+      - run: npm --prefix web run build
+      - run: python -m unittest discover -s tests
+      - run: node --test tests/bridge.test.mjs
+      - name: Install the automation runtime the download ships
+        run: python scripts/setup-automation-worker.py
+      - name: Download the pinned Node runtime the download ships
+        run: python scripts/fetch-node-runtime.py
+      - run: python scripts/build-server.py
+      - run: python scripts/test-server-bundle.py
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        run: python scripts/build-windows-installer.py
+      - name: Verify Windows tray, installer and uninstall
+        if: runner.os == 'Windows'
+        run: python scripts/test-windows-distribution.py

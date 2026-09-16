@@ -134,12 +134,19 @@ def check_update_over_http():
     anything is backed up or replaced.
     """
     import hashlib
+    import sys as _sys
+
+    _sys.path.insert(0, str(ROOT))
+    from vela.updates import platform_architecture
 
     with tempfile.TemporaryDirectory(prefix='vela-update-http-') as temporary:
         work = Path(temporary)
         releases = work / 'assets'
         releases.mkdir()
-        asset_name = 'vela-server-9.9.9-windows-x64-setup.exe'
+        # The installer path is forced below, so the fixture is named the way
+        # the updater looks for it on *this* machine: an arm64 runner does not
+        # download an x64 asset.
+        asset_name = f'vela-server-9.9.9-windows-{platform_architecture()}-setup.exe'
         payload = b'a stand-in for a Vela release' * 500
         (releases / asset_name).write_bytes(payload)
         digest = hashlib.sha256(payload).hexdigest()
