@@ -35,7 +35,7 @@ import tarfile
 import threading
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import httpx
@@ -397,7 +397,12 @@ def windows_installer_script(*, pid, setup, updates_dir, relaunch):
     It must outlive this process, so it waits on the pid rather than being a
     child that dies with it, and it relaunches Vela itself: the installer's own
     post-install Run entry is `skipifsilent`, and this install is silent.
+
+    Paths are written with `PureWindowsPath`: a `Path` formats with the
+    separator of the machine it was built on, and this script only ever runs
+    on a Windows one.
     """
+    setup, updates_dir = PureWindowsPath(str(setup)), PureWindowsPath(str(updates_dir))
     wait = 'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul'.format(pid=pid)
     lines = [
         "@echo off",
@@ -427,7 +432,16 @@ def windows_swap_script(*, pid, install_dir, staged, previous, relaunch):
 
     The old folder is moved aside rather than deleted, so a swap that fails
     half-way can be put back — and so a rollback has something to go back to.
+
+    Paths are written with `PureWindowsPath`: a `Path` formats with the
+    separator of the machine it was built on, and this script only ever runs
+    on a Windows one.
     """
+    install_dir, staged, previous = (
+        PureWindowsPath(str(install_dir)),
+        PureWindowsPath(str(staged)),
+        PureWindowsPath(str(previous)),
+    )
     wait = 'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul'.format(pid=pid)
     lines = [
         "@echo off",
