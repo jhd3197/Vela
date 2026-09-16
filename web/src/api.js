@@ -225,6 +225,12 @@ export const api = {
   getNotifications: (options) => request('/api/notifications', options),
   systemMetrics: (options) => request('/api/system/metrics', options),
   appWidgets: (options) => request('/api/widgets', options),
+  // Later: stop showing one app's attention flag on the desk for a while. The
+  // summary is untouched and the app is told nothing.
+  snoozeWidget: (appId, widgetId) =>
+    request(`/api/widgets/${encodeURIComponent(appId)}/${encodeURIComponent(widgetId)}/snooze`, {
+      method: 'POST',
+    }),
   // Open counts behind the Launchpad's Frequent tab. Counted and kept on this
   // computer; recording one is fire-and-forget, so a failure never blocks the
   // app the user asked for.

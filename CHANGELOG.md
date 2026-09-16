@@ -59,6 +59,11 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Deal with what needs you, or put it off.** A row in **Needs you** now shows
+  what the app offered to do about it, and a **Later** that puts that one thing
+  aside for eight hours — it leaves the list and the dot on the rail goes with
+  it. Nothing is dismissed and the app is never told: open it and it shows
+  exactly what it did before. Whatever you put off comes back on its own.
 - **The desk tells you how this server is doing, in one line.** Along the bottom
   of the board: how many apps are running, how many automations ran today,
   anything that needs you, the room left where your data is kept, whether Vela

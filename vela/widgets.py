@@ -192,10 +192,14 @@ def validate_summary(payload: Any) -> dict[str, Any]:
 class Widgets:
     """Published summaries, one row per (app, widget)."""
 
-    def __init__(self, storage, registry, actions=None):
+    def __init__(self, storage, registry, actions=None, snooze=None):
         self._storage = storage
         self._registry = registry
         self._actions = actions
+        # Snoozed summaries are still returned in full — the app's own widget
+        # must not change because the desk was asked to look away — but they
+        # carry the expiry so the desk and the rail can leave them out.
+        self._snooze = snooze
         with storage.connection() as db:
             db.executescript(
                 """
@@ -301,6 +305,7 @@ class Widgets:
         """Every declared widget of every installed app, for the desk and the
         rail's attention dot. One request, not one per app."""
         stored = self._rows()
+        snoozed = self._snooze.active() if self._snooze is not None else {}
         out = []
         granted: dict[str, list[str]] = {}
         for summary in self._registry.list_apps():
@@ -313,6 +318,9 @@ class Widgets:
                     "updatedAt": None,
                 }
                 entry = {**declaration, "appId": app_id, "appName": summary["name"], **record}
+                until = snoozed.get(f"{app_id}/{declaration['id']}")
+                if until:
+                    entry["snoozedUntil"] = until
                 if (record["summary"] or {}).get("actions"):
                     if app_id not in granted:
                         granted[app_id] = self._granted_actions(app_id)

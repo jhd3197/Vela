@@ -139,6 +139,7 @@ export function WidgetStatus({ cells = [] }) {
             <span className="desk-status-name">{cell.name}</span>
             {cell.meta ? <span className="desk-status-meta">{cell.meta}</span> : null}
           </span>
+          {cell.tail ? <span className="desk-status-tail">{cell.tail}</span> : null}
         </li>
       ))}
     </ul>

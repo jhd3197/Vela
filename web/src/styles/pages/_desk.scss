@@ -1010,3 +1010,15 @@ body[data-desk] .desk-grid {
   font-size: 12.5px;
   color: var(--text-dim);
 }
+
+/* Buttons at the end of a Needs you row: the app's own granted actions, and
+   Later. They sit right, wrap under on a narrow widget, and never squeeze the
+   name out of the row. */
+.desk-status-tail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}

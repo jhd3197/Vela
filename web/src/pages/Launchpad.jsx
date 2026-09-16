@@ -89,7 +89,7 @@ export default function Launchpad() {
   const attention = useMemo(() => {
     const ids = new Set();
     for (const entry of summaryData?.widgets || []) {
-      if (entry?.summary?.attention) ids.add(entry.appId);
+      if (entry?.summary?.attention && !entry.snoozedUntil) ids.add(entry.appId);
     }
     return ids;
   }, [summaryData]);

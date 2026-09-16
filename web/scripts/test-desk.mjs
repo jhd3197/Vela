@@ -400,6 +400,57 @@ try {
   await page.locator('.desk-grid').waitFor();
   await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
 
+  // --- Needs you: acting on an item, and putting it aside ------------------
+
+  // The flagged app is listed with the actions it was granted and a Later, and
+  // Later takes it off the desk and takes the rail's dot with it. The summary
+  // itself is untouched, which is why the server still publishes it.
+  const needsYou = page.getByRole('region', { name: 'Needs you', exact: true });
+  await needsYou.waitFor();
+  const flaggedRow = needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' });
+  await flaggedRow.waitFor();
+  await flaggedRow.getByRole('button', { name: 'Later', exact: true }).click();
+  await flaggedRow.waitFor({ state: 'detached' });
+  await page
+    .locator('.rail a[href="/app/widget-fixture"] .rail-dot')
+    .waitFor({ state: 'detached', timeout: 5000 });
+
+  const afterLater = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const all = await (
+      await fetch('/api/widgets', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    const entry = all.widgets.find((w) => w.appId === 'widget-fixture' && w.summary?.attention);
+    return { attention: Boolean(entry), snoozed: Boolean(entry?.snoozedUntil) };
+  });
+  assert.ok(afterLater.attention, 'Later does not clear what the app published');
+  assert.ok(afterLater.snoozed, 'Later marks the summary snoozed for the desk');
+
+  // It survives a reload — this is a setting on the server, not a hidden row.
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await needsYou.waitFor();
+  assert.equal(
+    await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).count(),
+    0,
+    'a snoozed item stays put aside across a reload',
+  );
+
+  // When the snooze runs out it comes back, rather than being dismissed for good.
+  await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    await fetch('/api/widgets/widget-fixture/sync/snooze', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).waitFor();
+  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+
   // Uninstalling takes the summary and the widget with it, rather than leaving
   // a frame that can never render again.
   const removed = await page.evaluate(async () => {

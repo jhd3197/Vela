@@ -13,8 +13,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from datetime import datetime, timedelta, timezone
+
 import test_app_contract as base
 from fastapi.testclient import TestClient
+from vela.snooze import MAX_SNOOZED, SNOOZE_HOURS, SnoozeStore
 from vela.api import create_app
 from vela.config import Config
 from vela.manifest import ManifestError, validate_manifest
@@ -196,6 +199,52 @@ class WidgetApiTests(unittest.TestCase):
         self.assertEqual(listed["widgets"][0]["layout"], "stat")
         del app
 
+    def test_later_marks_a_summary_snoozed_without_changing_it(self):
+        app = self.session()
+        self.client.put(
+            "/api/app/widgets/sync",
+            headers=app,
+            json={"summary": {"attention": True, "caption": "3 waiting"}},
+        )
+
+        def sync_entry():
+            everything = self.client.get("/api/widgets", headers=self.hub).json()["widgets"]
+            return next(
+                w for w in everything if w["appId"] == "chat-fixture" and w["id"] == "sync"
+            )
+
+        self.assertNotIn("snoozedUntil", sync_entry())
+
+        put_aside = self.client.post(
+            "/api/widgets/chat-fixture/sync/snooze", headers=self.hub
+        )
+        self.assertEqual(put_aside.status_code, 200, put_aside.text)
+        entry = sync_entry()
+        # The summary itself is untouched: the app's own widget still shows
+        # exactly what it published. Only the marker is added, for the desk.
+        self.assertEqual(entry["summary"], {"attention": True, "caption": "3 waiting"})
+        self.assertEqual(entry["snoozedUntil"], put_aside.json()["until"])
+        # The app's other widget is not put aside with it.
+        everything = self.client.get("/api/widgets", headers=self.hub).json()["widgets"]
+        queued = next(w for w in everything if w["id"] == "queued")
+        self.assertNotIn("snoozedUntil", queued)
+
+        # Bringing it back clears the marker.
+        woken = self.client.delete("/api/widgets/chat-fixture/sync/snooze", headers=self.hub)
+        self.assertEqual(woken.status_code, 200)
+        self.assertTrue(woken.json()["woken"])
+        self.assertNotIn("snoozedUntil", sync_entry())
+
+    def test_snoozing_needs_a_hub_session(self):
+        app = self.session()
+        self.assertEqual(
+            self.client.post("/api/widgets/chat-fixture/sync/snooze").status_code, 401
+        )
+        self.assertEqual(
+            self.client.post("/api/widgets/chat-fixture/sync/snooze", headers=app).status_code,
+            401,
+        )
+
     def test_publishing_stores_the_summary_and_the_desk_can_read_it(self):
         app = self.session()
         published = self.client.put(
@@ -261,6 +310,82 @@ class WidgetApiTests(unittest.TestCase):
         listed = self.client.get("/api/apps/chat-fixture/widgets", headers=self.hub).json()
         self.assertIsNone(listed["widgets"][0]["summary"])
 
+
+
+class SnoozeTests(unittest.TestCase):
+    """Later: putting an attention flag aside without touching the summary."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="vela-snooze-")
+        self.path = Path(self.temp.name) / "snooze.json"
+        self.store = SnoozeStore(self.path)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_a_snooze_lasts_eight_hours_and_is_listed_until_then(self):
+        result = self.store.snooze("notes", "recent")
+        self.assertEqual(result["appId"], "notes")
+        self.assertEqual(result["widgetId"], "recent")
+        until = datetime.fromisoformat(result["until"])
+        hours = (until - datetime.now(timezone.utc)).total_seconds() / 3600
+        self.assertAlmostEqual(hours, SNOOZE_HOURS, delta=0.1)
+        self.assertEqual(list(self.store.active()), ["notes/recent"])
+
+    def test_an_expired_snooze_comes_back_and_is_cleared_from_the_file(self):
+        gone = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+        self.path.write_text(json.dumps({"notes/recent": gone}), encoding="utf-8")
+        self.assertEqual(self.store.active(), {})
+        # Reading is what tidies it; nothing else has to run.
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), {})
+
+    def test_snoozing_the_same_widget_again_restarts_the_clock(self):
+        soon = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        self.path.write_text(json.dumps({"notes/recent": soon}), encoding="utf-8")
+        again = self.store.snooze("notes", "recent")
+        self.assertGreater(datetime.fromisoformat(again["until"]), datetime.fromisoformat(soon))
+        self.assertEqual(len(self.store.active()), 1)
+
+    def test_two_widgets_of_one_app_are_put_aside_separately(self):
+        self.store.snooze("notes", "recent")
+        self.assertEqual(list(self.store.active()), ["notes/recent"])
+        self.store.snooze("notes", "pinned")
+        self.assertEqual(sorted(self.store.active()), ["notes/pinned", "notes/recent"])
+
+    def test_waking_one_brings_it_back_before_its_time(self):
+        self.store.snooze("notes", "recent")
+        self.assertTrue(self.store.wake("notes", "recent")["woken"])
+        self.assertEqual(self.store.active(), {})
+        # Waking something that was never put aside is not an error.
+        self.assertFalse(self.store.wake("notes", "recent")["woken"])
+
+    def test_uninstalling_an_app_forgets_its_snoozes_and_leaves_others(self):
+        self.store.snooze("notes", "recent")
+        self.store.snooze("health", "today")
+        self.store.forget("notes")
+        self.assertEqual(list(self.store.active()), ["health/today"])
+
+    def test_a_snooze_needs_an_app_and_a_widget(self):
+        for app_id, widget_id in (("", "recent"), ("notes", ""), ("  ", "  ")):
+            with self.subTest(app=app_id, widget=widget_id), self.assertRaises(ValueError):
+                self.store.snooze(app_id, widget_id)
+
+    def test_a_damaged_file_is_treated_as_nothing_put_aside(self):
+        self.path.write_text("{not json", encoding="utf-8")
+        self.assertEqual(self.store.active(), {})
+        self.store.snooze("notes", "recent")
+        self.assertEqual(list(self.store.active()), ["notes/recent"])
+
+    def test_the_file_stops_growing_once_it_is_full(self):
+        until = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        self.path.write_text(
+            json.dumps({f"app{i}/w": until for i in range(MAX_SNOOZED)}), encoding="utf-8"
+        )
+        with self.assertRaises(ValueError):
+            self.store.snooze("one-too-many", "w")
+        # Something already put aside can still be pushed back.
+        self.store.snooze("app0", "w")
+        self.assertEqual(len(self.store.active()), MAX_SNOOZED)
 
 if __name__ == "__main__":
     unittest.main()

@@ -125,6 +125,12 @@ Open-Meteo at most four times an hour and sends nothing else — no account, no
 identifier and nothing about your apps. Turn it off and Vela stops asking
 entirely.
 
+When an app says it needs you, its row on the desk carries whatever it offered
+to do about it and a **Later**. Later puts that one thing aside for eight hours:
+it leaves the Needs you list and the dot on the rail goes with it. Nothing is
+dismissed and the app is not told — open the app and it still shows exactly what
+it did before — and it comes back on its own when the time is up.
+
 Along the bottom of the desk is a single line about this computer: how many apps
 are running, how many automations ran today, anything that needs you, the room
 left where your data is kept, how this server can be reached (**Local**, **LAN

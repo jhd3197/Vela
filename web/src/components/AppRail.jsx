@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   ArrowLineDown,
@@ -104,8 +104,15 @@ export default function AppRail({ onNavigate }) {
   const menuOpener = useRef(null);
 
   const loadSummaries = useCallback((options) => api.appWidgets(options), []);
-  const { data } = useResource(loadSummaries, { intervalMs: 60000 });
+  const { data, refresh: refreshSummaries } = useResource(loadSummaries, { intervalMs: 60000 });
   const summaries = data?.widgets;
+  // Putting an item aside on the desk should take this dot with it, not leave
+  // it on until the next minute's poll.
+  useEffect(() => {
+    const onChanged = () => refreshSummaries();
+    addEventListener('vela:widgets-changed', onChanged);
+    return () => removeEventListener('vela:widgets-changed', onChanged);
+  }, [refreshSummaries]);
   // Settings holds Health, so a failed check is what puts a dot on Settings.
   // Reading the last sweep never starts one.
   const loadHealth = useCallback((options) => api.getDoctor(options), []);
@@ -114,7 +121,8 @@ export default function AppRail({ onNavigate }) {
   const needsAttention = useMemo(() => {
     const ids = new Set();
     for (const entry of summaries || []) {
-      if (entry?.summary?.attention) ids.add(entry.appId);
+      // A snoozed item is put aside on the desk, so the dot goes with it.
+      if (entry?.summary?.attention && !entry.snoozedUntil) ids.add(entry.appId);
     }
     return ids;
   }, [summaries]);

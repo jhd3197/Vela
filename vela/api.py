@@ -24,6 +24,7 @@ from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, 
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
+from .snooze import SnoozeStore
 from .weather import Weather, WeatherError
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
@@ -315,7 +316,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services)
-    widgets = Widgets(storage, registry, actions)
+    snooze = SnoozeStore(config.data_dir / "snooze.json")
+    widgets = Widgets(storage, registry, actions, snooze)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
     updates = UpdateChecker(config, __version__, settings=settings)
@@ -579,6 +581,23 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def all_widgets() -> dict:
         return widgets.all()
 
+    @app.post("/api/widgets/{app_id}/{widget_id}/snooze")
+    def snooze_widget(app_id: str, widget_id: str) -> dict:
+        """Put one widget's attention flag aside for eight hours.
+
+        The summary is untouched and the app is told nothing: this only stops
+        the desk's Needs you list and the rail's dot from showing it until the
+        time is up.
+        """
+        try:
+            return snooze.snooze(app_id, widget_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+    @app.delete("/api/widgets/{app_id}/{widget_id}/snooze")
+    def wake_widget(app_id: str, widget_id: str) -> dict:
+        return snooze.wake(app_id, widget_id)
+
     @app.get("/api/apps/{app_id}/connection")
     def connection_status(app_id: str):
         return connections.status(app_id)
@@ -687,6 +706,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # Removing an app removes the record of having opened it, rather than
         # leaving it to age out of the Frequent window over the next month.
         usage.forget(app_id)
+        snooze.forget(app_id)
         return result
 
     @app.post("/api/apps/{app_id}/launch")

@@ -1196,6 +1196,18 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Needs you actions and Later**: each flagged row carries the summary's
+  `actions` that the user has already granted — they open the app, as the app's
+  own widget does; Vela does not run an app's action on its behalf — and a
+  **Later** button. Later calls
+  `POST /api/widgets/{app}/{widget}/snooze` and puts that one widget aside for
+  eight hours in `<data_dir>/snooze.json`; `DELETE` on the same path brings it
+  back. A snoozed entry is still returned in full by `GET /api/widgets` and is
+  still drawn by the app's own widget — the summary is untouched and the app is
+  told nothing — but it carries `snoozedUntil`, and the desk's Needs you list,
+  the rail's dot and the Launchpad's attention dot leave it out until then. An
+  expired snooze is deleted the next time the file is read, and uninstalling an
+  app forgets its snoozes.
 - **Status strip** (`.desk-statusbar`, desktop only, pinned to the bottom of the
   workspace, hidden while arranging): apps running · flows today · the first
   app whose summary says `attention` · the room left on the volume Vela's data
