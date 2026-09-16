@@ -44,6 +44,40 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     }
   };
 
+  // The weather is the one thing on this sheet that reaches the internet, so it
+  // is turned on by naming a place rather than by a switch alone: without
+  // coordinates there is nothing to ask for, and Vela would rather ask nothing.
+  const [place, setPlace] = useState('');
+  const [locating, setLocating] = useState(false);
+  const weather = desk.weather || {};
+  const located = typeof weather.latitude === 'number' && typeof weather.longitude === 'number';
+
+  const setWeather = (change) => patch({ weather: { ...weather, ...change } });
+
+  const findPlace = async (event) => {
+    event.preventDefault();
+    const typed = place.trim();
+    if (!typed) return;
+    setLocating(true);
+    setNote('');
+    try {
+      const found = await api.locateWeather(typed);
+      await patch({
+        weather: {
+          enabled: true,
+          latitude: found.latitude,
+          longitude: found.longitude,
+          label: found.label,
+        },
+      });
+      setPlace('');
+    } catch (error) {
+      setNote(error.message || 'Could not find that place.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const upload = async (event) => {
     const chosen = event.target.files?.[0];
     event.target.value = '';
@@ -193,6 +227,49 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
               onChange={(event) => onToggleAsk(event.target.checked)}
             />
           </label>
+        </section>
+
+        <section className="personalise-section">
+          <h3 className="section-head">Weather</h3>
+          <label className="personalise-row">
+            <span>
+              Show the weather
+              <small>
+                {located
+                  ? `The temperature for ${weather.label || 'your place'} on the clock widget.`
+                  : 'Name a place below to turn this on.'}
+              </small>
+            </span>
+            <input
+              type="checkbox"
+              checked={Boolean(weather.enabled)}
+              disabled={busy || !located}
+              onChange={(event) => setWeather({ enabled: event.target.checked })}
+            />
+          </label>
+          <form className="personalise-place" onSubmit={findPlace}>
+            <label className="sr-only" htmlFor="personalise-place">
+              Town or city
+            </label>
+            <input
+              id="personalise-place"
+              type="text"
+              className="field"
+              placeholder={located ? weather.label : 'Town or city'}
+              value={place}
+              disabled={busy || locating}
+              onChange={(event) => setPlace(event.target.value)}
+            />
+            <Button type="submit" disabled={busy || locating || !place.trim()}>
+              {locating ? 'Looking…' : 'Find'}
+            </Button>
+          </form>
+          <p className="panel-note">
+            This is the only thing on your desk that leaves this computer. Vela asks Open-Meteo for
+            the temperature at the place you name, at most four times an hour, and sends nothing
+            else — no account, no identifier, and nothing about your apps. The place is looked up
+            once and only its coordinates are kept.
+          </p>
         </section>
 
         {note && (

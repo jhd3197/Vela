@@ -462,6 +462,30 @@ try {
     );
   }
 
+  // --- the status strip ---------------------------------------------------
+
+  // One line along the bottom of the board, drawn from what the server can
+  // actually report. It says how this server can be reached, which on a test
+  // fixture bound to loopback is "Local", and it never shows a placeholder for
+  // something it does not have.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  const strip = page.getByRole('status', { name: 'This server' });
+  await strip.waitFor();
+  const stripText = await strip.innerText();
+  assert.match(stripText, /Local|LAN only|HTTPS/, `connection mode in: ${stripText}`);
+  assert.doesNotMatch(stripText, /undefined|NaN|—/, `the strip invents nothing: ${stripText}`);
+
+  // It is the board's own line, so arranging puts it away rather than leaving
+  // it under a widget being dragged.
+  await arrange.click();
+  await done.waitFor();
+  await strip.waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await arrange.waitFor();
+  await strip.waitFor();
+
   // Personalise: a real setting each time, focus returned on Escape.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/');
@@ -586,6 +610,17 @@ try {
   // server before the switch settles; the widget going away is the signal.
   await sheet.getByLabel('Ask on this board').click();
   await page.getByRole('region', { name: 'Ask', exact: true }).waitFor({ state: 'detached' });
+  // The widget leaves the board as soon as the switch moves, but the point of
+  // this check is that the choice survives a reload — so wait for the server to
+  // have it rather than racing the save.
+  await page.waitForFunction(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const desk = await (
+      await fetch('/api/desk', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    return !desk.boards.desktop.widgets.some((widget) => widget.type === 'ask');
+  });
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
   assert.equal(

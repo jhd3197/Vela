@@ -28,6 +28,8 @@ import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import { firstWidget } from '../desk/addAppWidget.js';
 import { DEFAULT_WALLPAPER, useWallpaperFlags } from '../desk/wallpaper.js';
+import useWeather from '../desk/weather.js';
+import DeskStatus from '../desk/DeskStatus.jsx';
 import useEditingSession from '../desk/editing/useEditingSession.js';
 import {
   appIdOfType,
@@ -129,7 +131,10 @@ export default function Desk() {
   }, [boards, reset]);
 
   // What every widget is told about the desk it is on.
-  const deskContext = useMemo(() => ({ desk, phone }), [desk, phone]);
+  // Weather rides on the desk context so the clock widget can show it without
+  // fetching for itself; it asks for nothing while the switch is off.
+  const weather = useWeather(desk?.weather?.enabled);
+  const deskContext = useMemo(() => ({ desk, phone, weather }), [desk, phone, weather]);
 
   const shown = edit ? draft : boards;
   const cols = colsOf(shown, boardKey);
@@ -544,6 +549,9 @@ export default function Desk() {
               </p>
             }
           />
+          {/* The strip sits under the board rather than over it, so it never
+              covers a widget, and it stays out of the way while arranging. */}
+          {!phone && !edit && <DeskStatus />}
           {phone && !edit && (
             <div
               className="desk-swipe-up"

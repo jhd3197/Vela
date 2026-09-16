@@ -32,6 +32,7 @@ import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 import { hasUpdate } from './Library.jsx';
 import { automationsApi } from '../automationsApi.js';
+import { formatBytes } from '../api.js';
 
 // The tabs, in the order they are shown. Frequent stays hidden until there is
 // enough history for it to say anything true, so a new Vela does not offer a
@@ -189,6 +190,21 @@ export default function Launchpad() {
     [frequentReady],
   );
   const tab = tabs.some((entry) => entry.key === requested) ? requested : 'all';
+
+  // The phone's answer to the desk's status strip: what is running and what
+  // this computer has moved today.
+  const loadMetrics = useCallback((options) => api.systemMetrics(options), []);
+  const { data: metrics } = useResource(loadMetrics, { enabled: phone, intervalMs: 60000 });
+  const serverLine = useMemo(() => {
+    const running = openItems.length;
+    const today = metrics?.network?.today?.total;
+    return [
+      running ? `${running} ${running === 1 ? 'app' : 'apps'} running` : '',
+      today ? `${formatBytes(today)} today` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }, [openItems, metrics]);
 
   const needle = query.trim().toLowerCase();
   const matches = useCallback(
@@ -453,6 +469,14 @@ export default function Launchpad() {
       >
         <div className="launchpad-backdrop" aria-hidden="true" />
         <div className="launchpad-inner">
+          {/* On a phone there is no room for the desk's status strip, so the
+              one line worth carrying over says it here instead. */}
+          {phone && serverLine && (
+            <p className="launchpad-server" role="status">
+              {serverLine}
+            </p>
+          )}
+
           <div className="launchpad-hero">
             <GlobalSearch
               variant="hero"

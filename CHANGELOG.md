@@ -59,6 +59,20 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **The desk tells you how this server is doing, in one line.** Along the bottom
+  of the board: how many apps are running, how many automations ran today,
+  anything that needs you, the room left where your data is kept, whether Vela
+  is reachable only from this computer or from your network, and how much it has
+  sent and received today. On a phone the same line sits at the top of the
+  Launchpad. Vela now keeps a daily total of what this computer moves over the
+  network, on this computer, for thirty days.
+- **The weather, if you want it.** **Personalise → Show the weather** takes the
+  name of a town, looks it up once and puts the temperature on your clock
+  widget. It is off until you turn it on, and the panel says plainly that this
+  is the only thing on your desk that leaves this computer: Vela asks Open-Meteo
+  for a temperature at most four times an hour and sends nothing else — no
+  account, no identifier, and nothing about your apps. Your coordinates are
+  rounded before they are sent, and the place name is never stored.
 - **The Launchpad sorts your apps four ways.** **All** is the grid you know;
   **Frequent** is the twelve you actually open, ranked over the last month;
   **Running** is what is open now; **Updates** is what has a newer version, with

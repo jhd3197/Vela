@@ -164,7 +164,7 @@ export function WidgetList({ rows = [] }) {
  * samples is not interesting, and a widget that re-fetches every second to
  * print a number the browser already knows would be silly.
  */
-export function WidgetClock({ showSeconds = false }) {
+export function WidgetClock({ showSeconds = false, weather = null }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -183,10 +183,20 @@ export function WidgetClock({ showSeconds = false }) {
     month: 'long',
   });
 
+  // The weather line only exists when the user turned it on and the server had
+  // something to say; there is no placeholder for a reading Vela does not have.
+  const reading =
+    weather?.enabled && typeof weather.temperature === 'number'
+      ? [`${weather.temperature} ${weather.unit || '°C'}`, weather.description]
+          .filter(Boolean)
+          .join(' · ')
+      : '';
+
   return (
     <div className="desk-clock">
       <span className="desk-clock-time">{time}</span>
       <span className="desk-clock-date">{date}</span>
+      {reading && <span className="desk-clock-weather">{reading}</span>}
     </div>
   );
 }

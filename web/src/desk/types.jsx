@@ -39,7 +39,9 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
-    render: ({ cfg }) => <WidgetClock showSeconds={cfg.seconds === true} />,
+    render: ({ cfg, ctx }) => (
+      <WidgetClock showSeconds={cfg.seconds === true} weather={ctx?.weather} />
+    ),
   },
   {
     id: 'apps',

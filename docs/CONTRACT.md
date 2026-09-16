@@ -1196,6 +1196,33 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Status strip** (`.desk-statusbar`, desktop only, pinned to the bottom of the
+  workspace, hidden while arranging): apps running · flows today · the first
+  app whose summary says `attention` · the room left on the volume Vela's data
+  sits on · the connection mode · what this computer moved today. It draws only
+  the parts it actually has and does not render at all when it has none. On a
+  phone the Launchpad's header line carries the running count and today's total
+  instead.
+- **Connection mode** (`network.mode` in `GET /api/system/metrics`): `https`
+  when the server was started with a certificate or the Wi-Fi listener is up,
+  `lan` when it is bound wider than loopback or reached through a configured
+  public origin, otherwise `local`. It is read from how the server was actually
+  started, never from a setting, so it cannot claim to be private while
+  listening to the network.
+- **Network today** (`network.today`): `bytesSent`, `bytesRecv` and `total`
+  since local midnight, sampled from `psutil.net_io_counters()` every 10 s and
+  written to `<data_dir>/metrics/net-<date>.json` at most once a minute, 30 days
+  kept. Counters that go backwards (a reboot, an interface reset) are skipped
+  rather than guessed at.
+- **Weather** (`settings.desk.weather`: `enabled`, `latitude`, `longitude`,
+  `label`): the only outbound request the desk makes, off until the user names
+  a place in Personalise. `POST /api/weather/locate` geocodes a typed name once
+  through Open-Meteo and stores the coordinates, not the name;
+  `GET /api/weather` returns the current temperature and the WMO code in words,
+  cached for 15 minutes, and returns `{"enabled": false}` without making any
+  request while the switch is off. Coordinates are rounded to two decimal
+  places before they leave the computer, and nothing else is sent — no key, no
+  account, no identifier. The clock widget shows the reading when there is one.
 - **Dragging an app onto the desk**: an app tile in the desk's **Your apps**
   widget is draggable and carries `application/x-vela-app`. Dropping it on bare
   board adds that app's first declared widget at the cell it landed on, pushing

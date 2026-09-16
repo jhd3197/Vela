@@ -229,6 +229,15 @@ export const api = {
   // computer; recording one is fire-and-forget, so a failure never blocks the
   // app the user asked for.
   usage: (options) => request('/api/usage', options),
+  // The desk's one outbound request, and only while the user has it on. The
+  // server makes it, caches it and answers with nothing at all when it is off.
+  weather: (options) => request('/api/weather', options),
+  locateWeather: (place) =>
+    request('/api/weather/locate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ place }),
+    }),
   recordUsage: (id) => request(`/api/usage/${encodeURIComponent(id)}`, { method: 'POST' }),
   // The image goes up as raw bytes with its type in the header: one picture
   // does not justify a multipart parser on the server.

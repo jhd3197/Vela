@@ -118,6 +118,20 @@ off if you would rather see the picture. **Show app names** switches between nam
 and icons only, and **Ask on this board** adds or removes the Ask widget from
 whichever board you are looking at.
 
+**Show the weather** is the one thing on your desk that uses the internet. Type a
+town or city and press **Find**; Vela looks it up once, keeps the coordinates and
+forgets the name, then shows the temperature on your clock widget. It asks
+Open-Meteo at most four times an hour and sends nothing else — no account, no
+identifier and nothing about your apps. Turn it off and Vela stops asking
+entirely.
+
+Along the bottom of the desk is a single line about this computer: how many apps
+are running, how many automations ran today, anything that needs you, the room
+left where your data is kept, how this server can be reached (**Local**, **LAN
+only** or **HTTPS**) and how much it has sent and received today. It shows only
+the parts Vela can actually report. On a phone the same line appears at the top
+of the Launchpad instead.
+
 On a phone, press and hold an empty part of the wallpaper to open the desk menu,
 then choose Personalise.
 

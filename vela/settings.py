@@ -22,7 +22,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The desk: which volumes it may show, and how it is dressed. `volumes` is
     # a list of {path, label}; it stays empty until the user names one, because
     # Vela does not go looking through the computer's drives on its own.
-    "desk": {"volumes": [], "wallpaper": "choroni", "dim": True, "labels": True},
+    # `weather` is the one thing on the desk that needs the internet, so it is
+    # off until the user turns it on and stores a place. See `vela/weather.py`.
+    "desk": {
+        "volumes": [],
+        "wallpaper": "choroni",
+        "dim": True,
+        "labels": True,
+        "weather": {"enabled": False, "latitude": None, "longitude": None, "label": ""},
+    },
     # The rail: which apps the user pinned to it, in the order they chose.
     # Entries are core-app ids (ask, library, …) or installed-app ids; the
     # dashboard drops any that no longer resolve. Defaults to Ask and the

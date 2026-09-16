@@ -20,20 +20,37 @@ The psutil calls are lifted from ServerKit's `backend/app/services/system_servic
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import platform
 import socket
 import threading
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from .config import write_json_atomic
 
 # How often the sampler records a CPU reading, and how many it keeps. Ten
 # minutes of history at one sample per 10 s is enough for the sparkline on a
 # 2x1 widget and small enough to hold in memory without a store.
 SAMPLE_INTERVAL_SECONDS = 10
 HISTORY_LENGTH = 60
+
+# Network totals are counted in memory and written at most this often: the
+# sampler runs every 10 s, and six writes a minute to say "a few more kilobytes"
+# is a lot of disk for a number nobody reads that fast. A crash costs at most a
+# minute of the day's total.
+NET_FLUSH_SECONDS = 60
+
+# How many daily network files are kept. One small JSON per day, the same
+# window the Launchpad's open counts use.
+NET_KEEP_DAYS = 30
+
+#: Addresses that mean "this computer only".
+LOOPBACK = {"127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1", ""}
 
 
 def _psutil():
@@ -69,13 +86,29 @@ class SystemMetrics:
     process has seen.
     """
 
-    def __init__(self, config, settings, *, interval: int = SAMPLE_INTERVAL_SECONDS):
+    def __init__(
+        self,
+        config,
+        settings,
+        *,
+        interval: int = SAMPLE_INTERVAL_SECONDS,
+        secure: Any = None,
+    ):
         self._config = config
         self._settings = settings
         self._interval = interval
+        # Whether a secure listener is up. Passed in because the certificate
+        # belongs to phone access, which this module has no business importing.
+        self._secure = secure
         self._lock = threading.Lock()
         self._history: deque[tuple[str, float]] = deque(maxlen=HISTORY_LENGTH)
         self._task: asyncio.Task | None = None
+        # Network counters are cumulative since boot, so only the difference
+        # between two readings belongs to today.
+        self._net_last: tuple[int, int] | None = None
+        self._net_day: str | None = None
+        self._net_totals = {"bytes_sent": 0, "bytes_recv": 0}
+        self._net_flushed = 0.0
 
     # ------------------------------------------------------------ sampling --
 
@@ -85,6 +118,8 @@ class SystemMetrics:
             self._task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:
+        with self._lock:
+            self._flush_locked()
         if self._task is not None:
             self._task.cancel()
             try:
@@ -111,6 +146,7 @@ class SystemMetrics:
         psutil = _psutil()
         if psutil is None:
             return None
+        self._sample_network(psutil)
         percent = psutil.cpu_percent(interval=None)
         if percent is None:
             return None
@@ -118,6 +154,116 @@ class SystemMetrics:
         with self._lock:
             self._history.append((stamp, round(float(percent), 1)))
         return float(percent)
+
+    # ------------------------------------------------------------- network --
+
+    @property
+    def _metrics_dir(self) -> Path:
+        return self._config.data_dir / "metrics"
+
+    def _net_path(self, day: str) -> Path:
+        return self._metrics_dir / f"net-{day}.json"
+
+    def _read_day(self, day: str) -> dict[str, int]:
+        """A day's stored totals, so a restart resumes rather than starting over."""
+        try:
+            stored = json.loads(self._net_path(day).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"bytes_sent": 0, "bytes_recv": 0}
+        if not isinstance(stored, dict):
+            return {"bytes_sent": 0, "bytes_recv": 0}
+        out = {}
+        for field in ("bytes_sent", "bytes_recv"):
+            value = stored.get(field)
+            out[field] = int(value) if isinstance(value, int) and value >= 0 else 0
+        return out
+
+    def _flush_locked(self) -> None:
+        if self._net_day is None:
+            return
+        try:
+            self._metrics_dir.mkdir(parents=True, exist_ok=True)
+            write_json_atomic(self._net_path(self._net_day), dict(self._net_totals))
+        except OSError:
+            # A full or read-only disk must not stop the sampler; the number is
+            # a nicety and the next flush will try again.
+            return
+        self._net_flushed = time.time()
+        self._prune_days()
+
+    def _prune_days(self) -> None:
+        cutoff = (date.today() - timedelta(days=NET_KEEP_DAYS)).isoformat()
+        try:
+            for path in self._metrics_dir.glob("net-*.json"):
+                if path.stem[4:] < cutoff:
+                    path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _sample_network(self, psutil) -> None:
+        try:
+            counters = psutil.net_io_counters()
+        except Exception:
+            return
+        if counters is None:
+            return
+        reading = (int(counters.bytes_sent), int(counters.bytes_recv))
+        today = date.today().isoformat()
+        with self._lock:
+            if self._net_day != today:
+                # Midnight, or the first sample of this process. Either way the
+                # day that just ended is written out and the new one starts from
+                # whatever is already stored for it.
+                self._flush_locked()
+                self._net_day = today
+                self._net_totals = self._read_day(today)
+                self._net_last = reading
+                self._flush_locked()
+                return
+            if self._net_last is None:
+                self._net_last = reading
+                return
+            sent = reading[0] - self._net_last[0]
+            recv = reading[1] - self._net_last[1]
+            self._net_last = reading
+            if sent < 0 or recv < 0:
+                # The counters went backwards: a reboot, or an interface reset.
+                # What happened in between is not ours to invent.
+                return
+            self._net_totals["bytes_sent"] += sent
+            self._net_totals["bytes_recv"] += recv
+            if time.time() - self._net_flushed >= NET_FLUSH_SECONDS:
+                self._flush_locked()
+
+    def network_today(self) -> dict[str, Any]:
+        """What this computer has sent and received since local midnight."""
+        today = date.today().isoformat()
+        with self._lock:
+            totals = dict(self._net_totals) if self._net_day == today else self._read_day(today)
+        return {
+            "day": today,
+            "bytesSent": totals["bytes_sent"],
+            "bytesRecv": totals["bytes_recv"],
+            "total": totals["bytes_sent"] + totals["bytes_recv"],
+        }
+
+    def connection_mode(self) -> str:
+        """How this server can be reached: `https`, `lan` or `local`.
+
+        Read from what the server was actually started with rather than from a
+        setting, so it cannot claim to be private while listening to the network.
+        """
+        if os.environ.get("VELA_CERT_FILE"):
+            return "https"
+        try:
+            if self._secure is not None and self._secure():
+                return "https"
+        except Exception:
+            pass
+        if self._config.remote_access:
+            return "lan"
+        host = (os.environ.get("VELA_HOST") or "127.0.0.1").strip().strip("[]").lower()
+        return "local" if host in LOOPBACK else "lan"
 
     def history(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -152,7 +298,13 @@ class SystemMetrics:
         psutil = _psutil()
         if psutil is None:
             # Everything the desk needs to say "this server cannot report it".
-            return {"available": False, "host": platform.node() or "", "disks": [], "history": []}
+            return {
+                "available": False,
+                "host": platform.node() or "",
+                "disks": [],
+                "history": [],
+                "network": {"today": self.network_today(), "mode": self.connection_mode()},
+            }
 
         memory = psutil.virtual_memory()
         boot = psutil.boot_time()
@@ -179,6 +331,7 @@ class SystemMetrics:
             },
             "disks": self._disks(psutil),
             "history": self.history(),
+            "network": {"today": self.network_today(), "mode": self.connection_mode()},
         }
 
     def _disks(self, psutil) -> list[dict[str, Any]]:

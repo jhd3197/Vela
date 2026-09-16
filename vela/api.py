@@ -24,6 +24,7 @@ from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, 
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
+from .weather import Weather, WeatherError
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
 from .support_bundle import SupportBundle
@@ -282,9 +283,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     settings = SettingsStore(config.settings_file)
     notifier = Notifier(settings)
     scheduler = NotifyScheduler(notifier, registry, config)
-    system_metrics = SystemMetrics(config, settings)
+    # The certificate belongs to phone access, so the metrics ask rather than
+    # import: `secure` is read at snapshot time, after `phone_access` exists.
+    system_metrics = SystemMetrics(
+        config, settings, secure=lambda: bool(getattr(app.state, "phone_access", None) and app.state.phone_access.origin)
+    )
     desk = DeskStore(config.data_dir / "desk.json")
     usage = UsageStore(config.data_dir / "usage.json")
+    weather = Weather(settings)
     wallpaper = Wallpaper(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
@@ -779,6 +785,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if (settings.get("desk") or {}).get("wallpaper") == "custom":
             settings.patch({"desk": {"wallpaper": "choroni"}})
         return result
+
+    @app.get("/api/weather")
+    def get_weather() -> dict:
+        """The desk's weather line. Makes no request while the switch is off."""
+        return weather.current()
+
+    @app.post("/api/weather/locate")
+    def locate_weather(payload: dict[str, Any] = Body(...)) -> dict:
+        """Turn a typed place into coordinates, once, so the place is not stored."""
+        try:
+            return weather.locate(str(payload.get("place") or ""))
+        except WeatherError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
 
     @app.get("/api/usage")
     def get_usage() -> dict:
