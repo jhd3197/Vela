@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.10 - 2026-09-16
+
 ### Added
 
 - **Apps can put a summary on your desk.** An app may declare up to four widgets
