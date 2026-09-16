@@ -149,9 +149,9 @@ made on a desktop.
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In
-**Library → Add an app → Connect a website**, enter its name, HTTPS address
+**Marketplace → Add an app → Connect a website**, enter its name, HTTPS address
 and icon color. The
-connection appears in Library, Manage apps and on your desk. Open it to use the service inside
+connection appears in the Marketplace's Installed tab and on your desk. Open it to use the service inside
 Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
 bar above it, always outside the service's frame.
 
@@ -189,14 +189,20 @@ closed, and stop while Vela is not running. See
 
 ## Install and update
 
-Open **Library → Import apps & refresh catalog**. Upload an app release ZIP or
-enter the path of an app folder on the server computer. The package must have
-`app.json` at its root. Review the source, version, permissions and any data
-changes, then confirm the installation. A publisher name in a manifest is not
-proof of a verified publisher.
+The **Marketplace** (in the rail, or "Get more apps" in the Launchpad) has three
+tabs. **Discover** is the apps you do not have yet — browse or search, then
+Install. **Installed** is everything on this computer, including connected web
+apps, where you open an app's details to update or remove it. **Updates**
+gathers the apps with a newer release and can **Update all** at once.
 
-To update, import a newer version with the same app ID. Save work in open app
-views first, then reopen the app after updating. Vela stages the reviewed
+To add an app from a file, open **Marketplace → Add an app**. Upload an app
+release ZIP or enter the path of an app folder on the server computer. The
+package must have `app.json` at its root. Review the source, version,
+permissions and any data changes, then confirm the installation. A publisher
+name in a manifest is not proof of a verified publisher.
+
+To update, use the Updates tab, or import a newer version with the same app ID.
+Save work in open app views first, then reopen the app after updating. Vela stages the reviewed
 package and rejects a stale review if the package or app data changes before
 confirmation. Updating an app does not require rebuilding the server.
 

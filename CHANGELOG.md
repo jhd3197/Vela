@@ -8,12 +8,19 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **The Library is now the Marketplace.** One place — still at the same
+  address — to find, install, update and remove apps, in three tabs. **Discover**
+  shows the apps you do not have yet, led by a small featured row. **Installed**
+  is everything on this computer, connected websites included, where you open an
+  app to update or remove it. **Updates** gathers the apps with a newer release
+  and can update them all at once. The separate Manage apps page is gone; its job
+  lives in the Installed tab.
 - **The rail is yours to arrange.** It now shows the apps you pin plus whatever
   is open, instead of every app you have installed. Desk and the Launchpad stay
-  at the top; below them are your pinned apps — Ask and the Library to start —
+  at the top; below them are your pinned apps — Ask and the Marketplace to start —
   then the apps that are open but not pinned, then Settings. Right-click an app
   on the rail or in the Launchpad (or press and hold on a phone) to pin, unpin
-  or reorder it. Vela's own tools — Ask, Automations, the Library, Settings and
+  or reorder it. Vela's own tools — Ask, Automations, the Marketplace, Settings and
   System — are core apps now: they show in the Launchpad under **Vela**, they
   turn up in search, and they can be pinned like any app. The old **More** menu
   is gone.
@@ -25,7 +32,7 @@ until the release workflow prepares a tested server version.
   filters as you type and Enter opens the first match; **Ctrl+Space**
   (**Cmd+Space** on a Mac) opens or closes it from anywhere and Escape steps
   back. Apps that are running come first, then everything installed, then
-  Vela's own tools, and a last tile leads to the Library. Right-click a tile —
+  Vela's own tools, and a last tile leads to the Marketplace. Right-click a tile —
   or press and hold it on a phone — to open it, add its widget to your desk,
   reach its settings, stop it or remove it.
 
@@ -34,6 +41,8 @@ until the release workflow prepares a tested server version.
 - **The All apps drawer is gone.** Its job — every app in one place — is the
   Launchpad now, so there is one answer to "which apps do I have" instead of a
   drawer, a Manage apps page and the Library all showing the same set.
+
+## 0.1.10 - 2026-09-16
 
 ### Added
 

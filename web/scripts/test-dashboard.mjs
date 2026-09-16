@@ -32,7 +32,7 @@ const pages = [
   ['/', 'Desk', 'rail'],
   ['/ask', 'Ask', 'rail'],
   ['/apps', 'Launchpad', 'rail'],
-  ['/library', 'Library', 'rail'],
+  ['/library', 'Marketplace', 'rail'],
   ['/automations', 'Automations', 'none'],
   ['/settings', 'Settings', 'popup'],
 ];
@@ -286,9 +286,16 @@ try {
   // Real page interactions using the shared header, fields, and empty state.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/library');
-  await page.getByRole('searchbox', { name: 'Search library' }).fill('no-such-fixture');
+  await page.getByRole('searchbox', { name: 'Search the Marketplace' }).fill('no-such-fixture');
   await page.getByRole('heading', { name: 'No matches', exact: true }).waitFor();
-  await page.getByRole('searchbox', { name: 'Search library' }).fill('');
+  await page.getByRole('searchbox', { name: 'Search the Marketplace' }).fill('');
+
+  // The Marketplace's Installed tab is a real URL, reached directly.
+  await page.goto(base + '/library?tab=installed');
+  assert.equal(
+    await page.getByRole('tab', { name: 'Installed' }).getAttribute('aria-selected'),
+    'true',
+  );
 
   // Adding an app offers exactly the sources the server supports. A manifest
   // URL and pasted JSON are not supported and must not be advertised. The

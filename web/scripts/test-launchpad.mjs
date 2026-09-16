@@ -63,7 +63,7 @@ try {
   };
   assert.deepEqual(await sectionTiles('Open'), ['Alpha', 'Health']);
   assert.deepEqual(await sectionTiles('Apps'), ['Alpha', 'Beta', 'Health', 'Notes', 'Zeta']);
-  assert.deepEqual(await sectionTiles('Vela'), ['Ask', 'Library', 'Automations', 'Settings']);
+  assert.deepEqual(await sectionTiles('Vela'), ['Ask', 'Marketplace', 'Automations', 'Settings']);
 
   // An app the user has not installed belongs in the Marketplace, never here.
   assert.equal(await page.getByText('Shoppe', { exact: true }).count(), 0);

@@ -101,7 +101,7 @@ export default function Environments() {
             <section className="panel">
               <div className="panel-head">
                 <h2>Running apps</h2>
-                <Link className="btn btn-small" to="/apps/manage">
+                <Link className="btn btn-small" to="/library?tab=installed">
                   Manage apps
                 </Link>
               </div>

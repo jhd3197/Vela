@@ -9,7 +9,6 @@ import {
 } from '@phosphor-icons/react';
 import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
-import Apps from './pages/Apps.jsx';
 import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
 import Environments from './pages/Environments.jsx';
@@ -51,7 +50,7 @@ export const dashboardPages = [
   },
   {
     to: '/library',
-    label: 'Library',
+    label: 'Marketplace',
     icon: Storefront,
     core: true,
     id: 'library',
@@ -70,15 +69,6 @@ export const dashboardPages = [
     // back button all land on the same automation.
     childPaths: ['/automations/:workflowId'],
     component: Automations,
-  },
-  // Manage apps is retired as a destination: Stage 3 folds it into the
-  // Marketplace. Until then the page stays reachable at its own path so the
-  // old flows keep working and `/apps/manage` has somewhere to land.
-  {
-    to: '/apps/manage',
-    label: 'Manage apps',
-    icon: SquaresFour,
-    component: Apps,
   },
   {
     to: '/environments',

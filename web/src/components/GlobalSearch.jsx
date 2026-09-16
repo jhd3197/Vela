@@ -255,7 +255,7 @@ export default function GlobalSearch({
             >
               <AppIcon app={app} size={26} />
               <span className="search-hit-name">{app.name}</span>
-              <span className="search-hit-hint">{app.installed ? 'Open' : 'In Library'}</span>
+              <span className="search-hit-hint">{app.installed ? 'Open' : 'In Marketplace'}</span>
             </button>
           ))}
           {results.core.map((entry) => (

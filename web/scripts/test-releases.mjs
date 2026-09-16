@@ -69,7 +69,11 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(base + '/library');
-  await page.getByRole('button', { name: 'Install', exact: true }).click();
+  // Discover shows the apps you do not have yet; install Health from its card.
+  await page
+    .locator('.app-card', { hasText: 'Health' })
+    .getByRole('button', { name: 'Install', exact: true })
+    .click();
   const dialog = page.getByRole('dialog', { name: 'Review release', exact: true });
   await dialog.getByText('Health', { exact: false }).first().waitFor();
   assert.equal(await dialog.getByRole('button', { name: 'Install release' }).isEnabled(), false);
@@ -94,8 +98,9 @@ try {
   await page.goto(base + '/app/health');
   await frame.getByRole('tab', { name: 'Habits' }).click();
   await frame.getByText('Keep through release', { exact: true }).waitFor();
-  await page.goto(base + '/library');
-  await page.locator('.app-card-open').filter({ hasText: 'Health' }).click();
+  // An installed app lives in the Installed tab now; open its row for rollback.
+  await page.goto(base + '/library?tab=installed');
+  await page.locator('.group-row').filter({ hasText: 'Health' }).click();
   await page.getByRole('button', { name: 'Review rollback to 1.1.0', exact: true }).click();
   const rollback = page.getByRole('dialog', { name: 'Review rollback', exact: true });
   await rollback.getByRole('checkbox').check();

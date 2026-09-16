@@ -369,7 +369,7 @@ export default function Launchpad() {
             <p className="launch-empty" role="status">
               No apps yet.{' '}
               <button type="button" className="linklike" onClick={() => navigate('/library')}>
-                Open the Library
+                Open the Marketplace
               </button>{' '}
               to add one.
             </p>
@@ -402,7 +402,7 @@ export default function Launchpad() {
                           <PlusCircle size={Math.round(iconSize * 0.5)} />
                         </span>
                       </span>
-                      <span className="launch-label">Library</span>
+                      <span className="launch-label">Marketplace</span>
                     </button>
                   </div>
                 </section>

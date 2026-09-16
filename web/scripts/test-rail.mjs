@@ -83,7 +83,7 @@ try {
   });
   assert.deepEqual(await groupNames('.rail-apps-group[aria-label="Pinned apps"]'), [
     'Ask',
-    'Library',
+    'Marketplace',
   ]);
   const openNames = await groupNames('.rail-apps-open');
   assert.deepEqual(
@@ -138,7 +138,7 @@ try {
     const names = [
       ...document.querySelectorAll('.rail-apps-group[aria-label="Pinned apps"] .rail-tip'),
     ].map((tip) => tip.textContent);
-    return names.indexOf('Gamma') < names.indexOf('Library');
+    return names.indexOf('Gamma') < names.indexOf('Marketplace');
   });
   await pinnedTile('Gamma').click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Unpin from rail' }).click();
@@ -273,7 +273,7 @@ try {
   assert.equal(await page.locator('.rail-section-label').count(), 0);
   assert.deepEqual(await groupNames('.rail-apps-group[aria-label="Pinned apps"]'), [
     'Ask',
-    'Library',
+    'Marketplace',
   ]);
   await shot('rail-idle');
 

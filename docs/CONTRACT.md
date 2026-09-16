@@ -890,7 +890,7 @@ restrained 14px card corners), in light and dark.
   fixed at the top, then the apps the user **pinned** (core tools and installed
   apps alike, in the saved order), a separator, the apps that are **open but not
   pinned** under an **OPEN** label, and Settings — plus, for a remote session,
-  Sign out — at the foot. The default pins are **Ask** and the **Library**.
+  Sign out — at the foot. The default pins are **Ask** and the **Marketplace**.
   There is no "More" menu and no "All apps" control; every other app lives in
   the Launchpad. The OPEN label is absent, not empty, when nothing unpinned is
   running, and a pinned app that is also running stays in the pinned group
@@ -910,7 +910,7 @@ restrained 14px card corners), in light and dark.
   (`Cmd+Space` on a Mac) toggles it from anywhere and Escape returns to the
   previous route. The grid is sectioned **Open** (running apps), **Apps**
   (installed, alphabetical), **Vela** (Vela's own tools) and a final "get more
-  apps" tile leading to the Library. Each tile is a large icon with a label, a
+  apps" tile leading to the Marketplace. Each tile is a large icon with a label, a
   green dot when the app is running and an amber dot when a summary says
   `attention`. Right-click, Shift+F10 or a long press opens a context menu —
   Open, Pin to rail, Add widget to desk (when the app declares widgets), App
@@ -982,15 +982,22 @@ restrained 14px card corners), in light and dark.
   `volumes`, `wallpaper`, `dim` and `labels`; a volume path must be a folder
   that exists or `PATCH /api/settings` answers 422. Settings › Desk is where
   volumes are added and removed.
-- **Manage apps** (`/apps`): installed apps as rows leading to the detail
-  drawer, with status. Filter tabs: All / Running / Not installed.
-- **Library** (`/library`): catalog cards — icon tile, name, category and
-  version, the app's own description, and the one action that applies (Open,
-  Install, or a named update). Search, category chips with counts, a filter for
-  pending updates, and a single "Add an app" dialog offering only supported
-  sources: "Install from file", "Connect a website", and — only while developer
-  tools are on — a folder on the server computer. Manifest URLs and pasted JSON
-  are not supported sources.
+- **Marketplace** (`/library`; labelled Marketplace in the UI, the URL keeps
+  the `library` name): one place to find, install, update and remove apps,
+  replacing the separate Manage apps page. Three tabs ride in `?tab=`:
+  **Discover** (default) shows the apps you do not have yet as catalog cards —
+  icon tile, name, category and version, the app's own description, and an
+  Install action — led by a small featured row of described apps, with search
+  and category chips; installed apps are not repeated here. **Installed** lists
+  everything on this computer (packages and connected web apps) as rows leading
+  to the detail drawer, with an All / Running filter, Open, updates and removal.
+  **Updates** gathers the apps with a newer pinned release and offers **Update
+  all**, which installs each in turn and reports any that fail. The single "Add
+  an app" dialog stays in the header and offers only supported sources: "Install
+  from file", "Connect a website", and — only while developer tools are on — a
+  folder on the server computer. Manifest URLs and pasted JSON are not supported
+  sources. `/apps/manage` is not a route (the backend owns the `/apps/*`
+  namespace); links to the management surface point at `/library?tab=installed`.
 - **Ask** (`/ask`, `/ask/{conversationId}`): a conversation panel with date
   groups, search, archived view and per-conversation rename/archive/delete; a
   contextual header with the conversation title, model and connection state; the
