@@ -44,6 +44,58 @@ test('bridge binds source, opaque origin, protocol, nonce and operation; tokens 
   assert.equal(requests.length, 2);
 });
 
+test('a widget summary is published only with the grant, and never carries the token', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => { listener = callback; };
+  globalThis.removeEventListener = () => {};
+  const messages = [], requests = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  const open = (capabilities) => {
+    messages.length = 0;
+    requests.length = 0;
+    createBridge({ frame: { contentWindow: source },
+      session: { token: 'scoped-secret', installationId: 'installation-one', capabilities },
+      context: { installationId: 'installation-one' },
+      onReady() {}, onDirty() {}, onNavigate() {}, onError() {},
+      fetcher: async (path, options) => { requests.push({ path, options }); return new Response(JSON.stringify({ ok: true })); },
+    });
+    return listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } });
+  };
+  const publish = (id, payload, session) => listener({ source, origin: 'null',
+    data: { type: 'vela:request', protocol: 1, id, session, operation: 'widgets.publish', payload } });
+
+  await open(['storage', 'widgets']);
+  let nonce = messages[0].session;
+  await publish('one', { id: 'sync', summary: { value: '73', unit: 'changes' } }, nonce);
+  assert.equal(requests.at(-1).path, '/api/app/widgets/sync');
+  assert.equal(requests.at(-1).options.method, 'PUT');
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { summary: { value: '73', unit: 'changes' } });
+  // The app's bearer token stays in the host, exactly as for every other call.
+  assert.equal(requests.at(-1).options.headers.Authorization, 'Bearer scoped-secret');
+  assert.equal(JSON.stringify(messages).includes('scoped-secret'), false);
+
+  // Nothing to report yet is a valid thing to say.
+  await publish('two', { id: 'sync' }, nonce);
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { summary: {} });
+
+  // Over the size cap, and unknown fields, are refused before any request.
+  const sent = requests.length;
+  await publish('three', { id: 'sync', summary: { caption: 'x'.repeat(5000) } }, nonce);
+  assert.equal(messages.at(-1).error.status, 413);
+  await publish('four', { id: 'sync', summary: {}, extra: true }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await publish('five', { id: 7, summary: {} }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  assert.equal(requests.length, sent, 'a refused summary never reaches the engine');
+
+  // Without the grant the host refuses it rather than letting the engine do so.
+  await open(['storage']);
+  nonce = messages[0].session;
+  await publish('six', { id: 'sync', summary: { value: '1' } }, nonce);
+  assert.equal(messages.at(-1).error.status, 403);
+  assert.equal(requests.length, 0);
+});
+
 test('hub worker never caches authenticated API traffic and retires old API caches', async () => {
   const { readFile } = await import('node:fs/promises');
   const { runInNewContext } = await import('node:vm');

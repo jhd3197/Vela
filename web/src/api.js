@@ -223,7 +223,18 @@ export const api = {
   getAiStatus: () => request('/api/ai/status'),
   testNotify: () => request('/api/notify/test', { method: 'POST' }),
   getNotifications: (options) => request('/api/notifications', options),
-  getBackups: () => request('/api/backups'),
+  systemMetrics: (options) => request('/api/system/metrics', options),
+  appWidgets: (options) => request('/api/widgets', options),
+  // The image goes up as raw bytes with its type in the header: one picture
+  // does not justify a multipart parser on the server.
+  putWallpaper: (file) =>
+    request('/api/wallpaper', {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    }),
+  deleteWallpaper: () => request('/api/wallpaper', { method: 'DELETE' }),
+  getBackups: (options) => request('/api/backups', options),
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>
     request(`/api/backups/${encodeURIComponent(name)}/verify`, { method: 'POST' }),

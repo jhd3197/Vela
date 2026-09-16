@@ -205,3 +205,67 @@
   color: var(--accent-strong);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+
+/* ---------- open apps ---------- */
+
+/* The apps that are running get their own labelled group above the rest, with
+   an edge marker so the group reads at a glance rather than only on hover. */
+/* Both groups live inside the one scrolling `.rail-apps` column. */
+.rail-apps-group {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.rail-apps-group + .rail-apps-group {
+  margin-top: 8px;
+}
+
+.rail-section-label {
+  flex: none;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+/* The selection marker owns this pseudo-element when the app is also the open
+   destination, so the two never fight over the same 3px of edge. */
+.rail-item-open:not(.rail-item-active)::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 3px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 2px;
+  background: var(--accent-line);
+}
+
+/* An app asks for attention by publishing a summary that says so; nothing else
+   turns this on. */
+.rail-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 2px var(--bg-rail);
+}
+
+body[data-desk] .rail-section-label {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body[data-desk] .rail-item-open:not(.rail-item-active)::before {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+body[data-desk] .rail-dot {
+  box-shadow: 0 0 0 2px rgba(18, 20, 32, 0.75);
+}

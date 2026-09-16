@@ -298,7 +298,7 @@ try {
     .getByRole('dialog', { name: 'Settings', exact: true })
     .getByRole('button', { name: 'Done', exact: true })
     .click();
-  await blocked.page.locator('.rail').getByRole('link', { name: 'Home', exact: true }).click();
+  await blocked.page.locator('.rail').getByRole('link', { name: 'Desk', exact: true }).click();
   assert.equal(await blocked.page.getByRole('dialog').isVisible(), false);
   await blocked.context.close();
   assert.deepEqual(errors, []);

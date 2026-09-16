@@ -6,6 +6,55 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Apps can put a summary on your desk.** An app may declare up to four widgets
+  and publish a short summary for each — a number, a few rows, or how far
+  something has got. Vela draws them itself, always labelled with the app they
+  came from, and nothing the app sends can run. The permission is asked for at
+  install as "Show summaries on your desk" and names the widgets; refuse it and
+  the app works as before. A summary that is out of date says when it was from,
+  one that has not arrived yet offers to open the app, and an app that says
+  something needs you raises a dot on its rail icon. Uninstalling an app removes
+  its summaries. Notes and Health are the first two apps to use this.
+- **Make the desk yours.** **Personalise**, above the board, sets the wallpaper
+  — one of three that ship with Vela, or your own JPEG, PNG or WebP up to 8 MB,
+  kept on your own computer — and whether the wallpaper is dimmed, whether app
+  names show under their icons, and whether Ask sits on the board you are
+  looking at. On a phone, press and hold an empty part of the wallpaper to open
+  it. The phone board now opens on the time, anything that needs you, your apps
+  as an icon grid, and Ask.
+- **Arrange your desk.** Add widgets from a grouped list, move and resize them
+  by dragging or with the arrow keys, duplicate or remove them from each
+  widget's own menu, and undo or redo while you work. **Done** saves the board
+  to your server, so it is the same after a restart and in another browser;
+  **Cancel** puts it back, and leaving with unsaved changes asks first. The
+  desktop and phone boards are saved separately and never rearrange each other.
+  On a phone, press and hold a widget to start arranging.
+- **Desk widgets for your server.** The desk can now show **System** (uptime,
+  CPU over the last few minutes and memory use), **Volume** (how full a folder
+  you choose is, and how much is free), **Flows** (automation runs today,
+  failures and the average run) and **Backups** (when Vela last backed itself
+  up, with **Back up now**). Add the folders you want to watch under
+  Settings › Desk; Vela only reports how full they are. A server that cannot
+  read its own CPU and memory says so instead of showing zeros.
+
+### Changed
+
+- **The rail shows what is open, and All apps holds the rest.** Apps the server
+  is running now sit together at the top of the rail under an OPEN label, above
+  your other apps. A new **All apps** control opens every installed app over
+  whatever page you are on, with a search field, what is running first and each
+  app's version, and one way to add another. Manage apps has a different icon so
+  the rail never shows the same one twice.
+- **Vela opens on a desk.** The home screen is now a board of widgets over a
+  wallpaper instead of a plain app launcher: your apps, the time, what is
+  running and your latest Ask conversation, with the rail beside it. Widgets
+  only show what Vela actually knows, so nothing on the board is a placeholder.
+  The desktop board is six columns wide and the phone board two, each laid out
+  and saved on its own, and both are kept on your server so they are the same
+  after a restart and in another browser.
+
 ## 0.1.9 - 2026-09-15
 
 ### Changed

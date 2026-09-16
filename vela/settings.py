@@ -17,6 +17,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "pass": "",
         "events": {"digest": True, "status_alerts": True},
     },
+    # The desk: which volumes it may show, and how it is dressed. `volumes` is
+    # a list of {path, label}; it stays empty until the user names one, because
+    # Vela does not go looking through the computer's drives on its own.
+    "desk": {"volumes": [], "wallpaper": "lake", "dim": True, "labels": True},
 }
 
 

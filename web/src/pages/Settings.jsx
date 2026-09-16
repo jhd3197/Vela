@@ -13,6 +13,8 @@ import {
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
+  SquaresFour,
+  Trash,
   Palette,
   ChatCircleText,
   Sparkle,
@@ -526,6 +528,113 @@ function BackupsSection({ onPendingChange }) {
   );
 }
 
+// --------------------------------------------------------------------- Desk
+
+// A volume is a folder on this computer that the desk may report the free
+// space of. Vela does not enumerate the machine's drives: nothing appears on
+// the desk that the user did not name here, and the server refuses a path that
+// is not a folder rather than storing it and failing inside a widget later.
+function DeskSection({ settings, onPatched, onPendingChange }) {
+  const volumes = settings?.desk?.volumes || [];
+  const [draft, setDraft] = useState({ path: '', label: '' });
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    onPendingChange('desk', saving);
+    return () => onPendingChange('desk', false);
+  }, [saving, onPendingChange]);
+
+  const save = (next) => {
+    setSaving(true);
+    setNote('');
+    return api
+      .updateSettings({ desk: { volumes: next } })
+      .then(() => {
+        onPatched({ desk: { ...(settings?.desk || {}), volumes: next } });
+        setDraft({ path: '', label: '' });
+      })
+      .catch((error) => setNote(error.message || 'Could not save the volume.'))
+      .finally(() => setSaving(false));
+  };
+
+  const add = (event) => {
+    event.preventDefault();
+    const path = draft.path.trim();
+    if (!path) return;
+    save([...volumes, { path, label: draft.label.trim() }]);
+  };
+
+  return (
+    <section className="panel" id="settings-desk">
+      <div className="panel-head">
+        <h2>Volumes</h2>
+      </div>
+      <p className="panel-note" style={{ marginBottom: 14 }}>
+        Add a folder here to put a Volume widget for it on your desk. Vela only reports how full it
+        is — it does not read what is inside.
+      </p>
+      {volumes.length > 0 && (
+        <ul className="settings-volume-list">
+          {volumes.map((volume) => (
+            <li key={volume.path}>
+              <span className="settings-volume-text">
+                <span>{volume.label || volume.path}</span>
+                <small className="mono">{volume.path}</small>
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Remove ${volume.label || volume.path}`}
+                disabled={saving}
+                onClick={() => save(volumes.filter((entry) => entry.path !== volume.path))}
+              >
+                <Trash size={16} aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="form-grid" onSubmit={add}>
+        <div className="field">
+          <FormField label="Folder">
+            <input
+              id="desk-volume-path"
+              value={draft.path}
+              disabled={saving}
+              placeholder="D:\Media"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
+            />
+          </FormField>
+        </div>
+        <div className="field">
+          <FormField label="Name (optional)">
+            <input
+              id="desk-volume-label"
+              value={draft.label}
+              disabled={saving}
+              placeholder="Media"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
+            />
+          </FormField>
+        </div>
+      </form>
+      {note && (
+        <p className="inline-error" role="alert">
+          {note}
+        </p>
+      )}
+      <div className="form-actions">
+        <Button pending={saving} disabled={!draft.path.trim()} onClick={add}>
+          Add volume
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 // --------------------------------------------------------------------- page
 
 const SECTIONS = [
@@ -535,6 +644,13 @@ const SECTIONS = [
     icon: Info,
     description: 'Your server, your devices, and how much Vela shows.',
     keywords: 'version platform phone install home screen about developer tools logs system',
+  },
+  {
+    id: 'desk',
+    label: 'Desk',
+    icon: SquaresFour,
+    description: 'What your home board is allowed to show.',
+    keywords: 'desk widgets volumes drive disk wallpaper home board',
   },
   {
     id: 'appearance',
@@ -1006,6 +1122,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
               </div>
             </div>
           </section>
+
+          <div hidden={active !== 'desk'}>
+            <DeskSection
+              settings={settings}
+              onPatched={onPatched}
+              onPendingChange={onPendingChange}
+            />
+          </div>
 
           <div hidden={active !== 'ai'}>
             <AiSection

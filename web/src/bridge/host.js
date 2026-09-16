@@ -146,6 +146,23 @@ export function createBridge({
           method: 'POST',
           body: JSON.stringify(payload),
         });
+      } else if (message.operation === 'widgets.publish') {
+        // Declared in the manifest, granted at install, and checked here as
+        // well as by the engine: an app that was never granted widgets should
+        // not be able to make the host send the request at all.
+        if (!(session.capabilities || []).includes('widgets'))
+          throw Object.assign(new Error('Widgets capability was not granted'), { status: 403 });
+        if (
+          Object.keys(payload).some((key) => !['id', 'summary'].includes(key)) ||
+          typeof payload.id !== 'string'
+        )
+          throw new Error('Invalid widget summary');
+        if (JSON.stringify(payload.summary ?? {}).length > 4096)
+          throw Object.assign(new Error('A summary is at most 4096 bytes'), { status: 413 });
+        result = await appFetch(`/api/app/widgets/${encodeURIComponent(payload.id)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ summary: payload.summary ?? {} }),
+        });
       } else if (message.operation === 'navigation.dirty') {
         onDirty({ dirty: payload.dirty === true, canSave: payload.canSave === true });
       } else if (['navigation.return', 'navigation.close'].includes(message.operation)) {

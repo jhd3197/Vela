@@ -1,6 +1,8 @@
 # Hub compatibility fixtures
 
-`chat-fixture/` is a hub-owned bridge test app. `apps.zip` contains frozen
+`chat-fixture/` is a hub-owned bridge test app. `widget-fixture/` is a second
+one that declares desk widgets and publishes a summary through the bridge, so
+the desk's app-widget path is exercised against the real contract. `apps.zip` contains frozen
 pre-split app versions for migration, release and action regression tests;
 `scripts/fixture_apps.py` extracts them to a temporary directory per process.
 `catalog/` pins the Health 1.1.0 release used by browser release tests.

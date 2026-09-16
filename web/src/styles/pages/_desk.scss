@@ -1,0 +1,858 @@
+/* ---------- Desk: a widget board over a wallpaper ---------- */
+
+/* The wallpaper belongs to the whole shell so it also sits behind the rail,
+   which is translucent. The body flag is set by Desk.jsx while the route is
+   mounted and removed on the way out, so no other page inherits it. */
+body[data-desk] {
+  --desk-wallpaper: url('/wallpapers/lake.jpg');
+  /* The mockup overlay: darkest at the rail edge, lifting across the board so
+     widget surfaces stay readable without flattening the image. */
+  --desk-overlay: linear-gradient(
+    100deg,
+    rgba(18, 20, 32, 0.5),
+    rgba(18, 20, 32, 0.14) 40%,
+    rgba(18, 20, 32, 0.06) 62%,
+    rgba(18, 20, 32, 0.34)
+  );
+  --desk-surface: rgba(252, 252, 255, 0.8);
+  --desk-surface-line: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  --desk-on-wall: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme='dark'] body[data-desk] {
+  --desk-surface: rgba(30, 32, 48, 0.72);
+  --desk-surface-line: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --desk-overlay: linear-gradient(
+    100deg,
+    rgba(10, 11, 20, 0.72),
+    rgba(10, 11, 20, 0.42) 40%,
+    rgba(10, 11, 20, 0.34) 62%,
+    rgba(10, 11, 20, 0.6)
+  );
+}
+
+/* `lake` is a bundled photograph; `sage` and `night` are gradients, which cost
+   nothing to ship and stay sharp at any size. `custom` is the user's own image,
+   served from their data directory. */
+body[data-desk][data-desk-wallpaper='sage'] {
+  --desk-wallpaper: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
+}
+
+body[data-desk][data-desk-wallpaper='night'] {
+  --desk-wallpaper: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
+}
+
+body[data-desk][data-desk-wallpaper='custom'] {
+  --desk-wallpaper: url('/api/wallpaper');
+}
+
+/* Dimming is what keeps widget text readable over a bright picture, so turning
+   it off is a real choice rather than a preview. */
+body[data-desk][data-desk-dim='off'] {
+  --desk-overlay: linear-gradient(
+    100deg,
+    rgba(18, 20, 32, 0.24),
+    rgba(18, 20, 32, 0.04) 45%,
+    rgba(18, 20, 32, 0.16)
+  );
+}
+
+body[data-desk] .shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--desk-wallpaper) center / cover no-repeat;
+}
+
+body[data-desk] .shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--desk-overlay);
+}
+
+/* The wallpaper replaces the ambient glow rather than stacking with it. */
+body[data-desk] .ambient-glow {
+  display: none;
+}
+
+body[data-desk] .workspace,
+body[data-desk] .workspace-header {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
+/* The header sits directly on the wallpaper, so its controls take the same
+   on-wallpaper ink as the search field rather than the workspace text colour,
+   which disappears against a bright sky. */
+body[data-desk] .workspace-header .icon-btn {
+  color: var(--desk-on-wall);
+}
+
+body[data-desk] .workspace-header .icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+body[data-desk] .rail {
+  background: rgba(18, 20, 32, 0.52);
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Over the wallpaper the light theme rail ink would vanish, so the controls
+   take the same white as the mockup at every theme. */
+body[data-desk] .rail-item {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+body[data-desk] .rail-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+body[data-desk] .rail-item-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+body[data-desk] .rail-divider {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.desk-workspace .workspace-content {
+  padding: 20px 24px;
+}
+
+.desk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* The search field is the 520px pill from the mockup, over the wallpaper. The
+   right-hand side is where Add widget and Arrange desk land. */
+.desk-top {
+  position: relative;
+  /* The board below is a stacking context of its own, so the search results
+     need this row to sit above it or the first widget would swallow a click. */
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.desk-top .searchbox {
+  flex: 0 1 520px;
+  height: 46px;
+  border-radius: 23px;
+  padding: 0 8px 0 16px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+  border-color: transparent;
+}
+
+.desk-top .searchbox input,
+.desk-top .searchbox-icon,
+.desk-top .searchbox-kbd {
+  color: var(--desk-on-wall);
+}
+
+.desk-top .searchbox input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.desk-top .searchbox-kbd {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: transparent;
+}
+
+.desk-top-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- the board ---------- */
+
+.desk-grid {
+  position: relative;
+  min-height: 0;
+}
+
+.desk-grid > .desk-frame {
+  position: absolute;
+  transition:
+    left 160ms ease,
+    top 160ms ease,
+    width 160ms ease,
+    height 160ms ease;
+}
+
+.desk-grid-dragging > .desk-frame {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-grid > .desk-frame {
+    transition: none;
+  }
+}
+
+.desk-grid-ghost {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+}
+
+.desk-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--desk-surface);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    var(--desk-surface-line),
+    0 12px 30px rgba(18, 20, 32, 0.18);
+}
+
+.desk-frame-edit {
+  cursor: grab;
+}
+
+.desk-frame-selected {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 12px 30px rgba(18, 20, 32, 0.24);
+}
+
+.desk-frame-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  touch-action: none;
+}
+
+.desk-frame-grip {
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.desk-frame-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-frame-actions {
+  position: relative;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.desk-frame-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 150px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm);
+  background: var(--bg-pop);
+  box-shadow: var(--shadow-pop);
+}
+
+.desk-frame-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.desk-frame-menu button:hover {
+  background: var(--bg-field);
+}
+
+.desk-frame-menu button.is-danger {
+  color: var(--red);
+}
+
+.desk-frame-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.desk-frame-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0.6;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--text-faint) 50%,
+    var(--text-faint) 62%,
+    transparent 62%
+  );
+}
+
+/* ---------- widget primitives ---------- */
+
+.desk-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.desk-empty-error {
+  color: var(--red);
+}
+
+.desk-chart {
+  width: 100%;
+  flex: none;
+}
+
+.desk-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.desk-stat-value {
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.desk-stat-unit {
+  margin-left: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.desk-stat-delta,
+.desk-stat-caption {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.desk-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.desk-meter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.desk-meter-track {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.desk-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.desk-status,
+.desk-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.desk-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.desk-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.desk-status-dot[data-state='off'] {
+  background: var(--text-faint);
+}
+
+.desk-status-dot[data-state='bad'] {
+  background: var(--red);
+}
+
+.desk-status-open {
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.desk-status-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.desk-status-name,
+.desk-list-label {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-status-meta,
+.desk-list-detail {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.desk-list-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.desk-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 0;
+}
+
+.desk-clock-time {
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+
+.desk-clock-date {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ---------- the apps widget ---------- */
+
+.desk-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 10px;
+  align-content: start;
+  overflow: auto;
+  min-height: 0;
+}
+
+.desk-tiles .tile-card,
+.desk-tiles .tile-add {
+  padding: 11px;
+  gap: 9px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='dark'] .desk-tiles .tile-card,
+[data-theme='dark'] .desk-tiles .tile-add {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.desk-tiles-bare .tile-card-meta {
+  display: none;
+}
+
+.desk-apps-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.desk-apps-empty p {
+  margin: 0;
+}
+
+/* ---------- the ask widget ---------- */
+
+.desk-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.desk-ask-latest {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desk-ask-open {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.desk-ask-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.desk-ask-line {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.desk-ask-form {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 6px 0 14px;
+  border-radius: 21px;
+  background: var(--bg-inset);
+}
+
+.desk-ask-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: inherit;
+  outline: none;
+}
+
+.desk-ask-send {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* ---------- phone ---------- */
+
+@media (max-width: 860px) {
+  .desk-workspace .workspace-content {
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .desk-top .searchbox {
+    flex: 1 1 100%;
+  }
+
+  /* Arrange mode puts five controls in this row. On a phone they take the
+     whole width and wrap rather than pushing the board sideways. */
+  .desk-top-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .desk-top-actions .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .desk-clock-time {
+    font-size: 38px;
+  }
+
+  /* The phone board's apps widget is an icon grid, four across, with the name
+     under each icon unless the user turned names off. */
+  .desk-tiles-icons {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 6px;
+  }
+
+  .desk-tiles-icons .tile-card,
+  .desk-tiles-icons .tile-add {
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    text-align: center;
+    background: none;
+    box-shadow: none;
+  }
+
+  .desk-tiles-icons .tile-card-meta,
+  .desk-tiles-icons .tile-add-sub {
+    display: none;
+  }
+
+  .desk-tiles-icons .tile-card-text,
+  .desk-tiles-icons .tile-add-name {
+    max-width: 100%;
+    font-size: 11px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ---------- arrange mode ---------- */
+
+/* Arranging is a pointer gesture, so the board must not scroll under the
+   finger that is dragging a widget. */
+.desk-arranging .desk-grid {
+  touch-action: none;
+}
+
+.desk-arranging .desk-frame-body {
+  pointer-events: none;
+}
+
+.desk-frame:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.desk-top-actions .btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.desk-top-actions .btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.desk-top-actions .btn:disabled {
+  opacity: 0.5;
+}
+
+.desk-top-actions .btn-primary {
+  border-color: transparent;
+  background: var(--accent);
+}
+
+/* ---------- the widget library ---------- */
+
+.desk-library-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 24px 0;
+  padding: 0 12px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+  color: var(--text-faint);
+}
+
+.desk-library-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+
+.desk-library-group + .desk-library-group {
+  margin-top: 20px;
+}
+
+.desk-library-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.desk-library-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--bg-field);
+  cursor: pointer;
+}
+
+.desk-library-card:hover {
+  background: var(--accent-soft);
+}
+
+.desk-library-thumb {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.desk-library-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desk-library-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.desk-library-desc {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.desk-library-size {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ---------- app-provided widgets ---------- */
+
+/* A summary always carries the app it came from: the icon opens it, and the
+   widget's own name sits beside the app's. */
+.desk-app-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.desk-app-open {
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.desk-app-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-app-widget {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-app-attention {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+}
+
+.desk-app-actions {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

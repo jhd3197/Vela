@@ -18,13 +18,17 @@ from .conversations import ConversationStore
 from .rooms import Rooms
 from .backups import BackupError, BackupStore
 from .config import Config, load_config
+from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
 from .runners import current_platform, get_runner
 from .settings import SettingsStore
+from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
+from .wallpaper import MAX_WALLPAPER_BYTES, Wallpaper, WallpaperError
+from .widgets import Widgets
 from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
 from .app_services import AppServices
@@ -39,7 +43,7 @@ from .phone_access import PhoneAccess
 from .automations import Automations, router as automations_router
 
 
-_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config"}
+_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk"}
 
 
 class NotifyPublishRequest(BaseModel):
@@ -253,6 +257,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     settings = SettingsStore(config.settings_file)
     notifier = Notifier(settings)
     scheduler = NotifyScheduler(notifier, registry, config)
+    system_metrics = SystemMetrics(config, settings)
+    desk = DeskStore(config.data_dir / "desk.json")
+    wallpaper = Wallpaper(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -274,6 +281,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services)
+    widgets = Widgets(storage, registry, actions)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
 
@@ -491,6 +499,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def upgrade_legacy(app_id: str):
         return lifecycle.upgrade_legacy(app_id)
 
+    @app.put("/api/app/widgets/{widget_id}")
+    def publish_widget(widget_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+        # App session only: an app publishes for itself and nothing else.
+        return widgets.publish(request.state.app_session, widget_id, payload.get("summary"))
+
+    @app.get("/api/apps/{app_id}/widgets")
+    def app_widgets(app_id: str) -> dict:
+        return widgets.for_app(app_id)
+
+    @app.get("/api/widgets")
+    def all_widgets() -> dict:
+        return widgets.all()
+
     @app.get("/api/apps/{app_id}/connection")
     def connection_status(app_id: str):
         return connections.status(app_id)
@@ -600,10 +621,90 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.on_event("startup")
     async def start_scheduler() -> None:
         scheduler.start()
+        system_metrics.start()
 
     @app.on_event("shutdown")
     async def stop_scheduler() -> None:
         await scheduler.stop()
+        await system_metrics.stop()
+
+    @app.get("/api/system/metrics")
+    def system_metrics_snapshot() -> dict:
+        return system_metrics.snapshot()
+
+    def _known_widget_types() -> set[str]:
+        """Core types plus one per widget each installed app declares.
+
+        A board may only name a type that exists right now, so uninstalling an
+        app takes its widgets off the desk instead of leaving a frame that can
+        never render."""
+        known = set(CORE_WIDGET_TYPES)
+        for summary in registry.list_apps():
+            if not summary.get("installed"):
+                continue
+            for declared in summary.get("widgets") or []:
+                widget_id = declared.get("id") if isinstance(declared, dict) else None
+                if isinstance(widget_id, str) and widget_id:
+                    known.add(f"{summary['id']}:{widget_id}")
+        return known
+
+    @app.get("/api/wallpaper")
+    def get_wallpaper():
+        path = wallpaper.path()
+        if path is None:
+            raise HTTPException(status_code=404, detail="No wallpaper is set")
+        # It changes only when the user replaces it, and the page asks for it
+        # again on every desk load, so it is worth caching in the browser.
+        return FileResponse(
+            path,
+            media_type=wallpaper.media_type(path),
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    @app.put("/api/wallpaper")
+    async def put_wallpaper(request: Request):
+        # Raw bytes with the type in the header, the same shape as the release
+        # upload, so the server needs no multipart parser for one picture.
+        try:
+            extension = wallpaper.extension_for(request.headers.get("content-type", ""))
+            content = bytearray()
+            async for chunk in request.stream():
+                content.extend(chunk)
+                if len(content) > MAX_WALLPAPER_BYTES:
+                    raise WallpaperError(413, "A wallpaper is at most 8 MB")
+            result = wallpaper.save(bytes(content), extension)
+        except WallpaperError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        settings.patch({"desk": {"wallpaper": "custom"}})
+        return result
+
+    @app.delete("/api/wallpaper")
+    def delete_wallpaper() -> dict:
+        result = wallpaper.remove()
+        if (settings.get("desk") or {}).get("wallpaper") == "custom":
+            settings.patch({"desk": {"wallpaper": "lake"}})
+        return result
+
+    @app.get("/api/desk")
+    def get_desk() -> dict:
+        return desk.load(_known_widget_types())
+
+    @app.put("/api/desk")
+    def put_desk(payload: dict[str, Any] = Body(...)) -> dict:
+        try:
+            return desk.save(
+                payload.get("boards"), payload.get("revision"), _known_widget_types()
+            )
+        except ValueError as exc:
+            # Someone else saved first. The dashboard reloads and says so
+            # rather than overwriting an arrangement it never saw.
+            raise HTTPException(
+                status_code=409,
+                detail="The desk changed somewhere else.",
+                headers={"X-Vela-Desk-Revision": str(exc.args[0])},
+            )
+        except DeskError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
     @app.get("/api/settings")
     def get_settings() -> dict:
@@ -612,6 +713,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.patch("/api/settings")
     def patch_settings(payload: dict[str, Any] = Body(...)) -> dict:
         update = {key: value for key, value in payload.items() if key in _SETTINGS_KEYS}
+        # A desk volume names a real folder on this computer, so it is checked
+        # before it is stored rather than failing later inside a widget.
+        desk = update.get("desk")
+        if isinstance(desk, dict) and "volumes" in desk:
+            try:
+                desk["volumes"] = validate_volumes(desk["volumes"])
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:

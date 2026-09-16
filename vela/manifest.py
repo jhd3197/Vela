@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from jsonschema import Draft202012Validator
 
+from .widgets import validate_declarations as validate_widget_declarations
+
 SUPPORTED_PLATFORMS = ("posix", "windows", "android")
 PLATFORM_KEYS = SUPPORTED_PLATFORMS + ("web",)
 
@@ -15,7 +17,7 @@ DEFAULT_APP_COLOR = "#9184d9"
 _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _REQUIRED_FIELDS = ("id", "name", "version", "description", "category", "author", "platforms")
-SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions"})
+SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets"})
 _V2_SCHEMA = json.loads((Path(__file__).resolve().parent / "assets/manifest-v2.schema.json").read_text(encoding="utf-8"))
 
 
@@ -68,6 +70,14 @@ class Manifest:
     def capabilities(self) -> list[str]:
         requested = self.raw.get("capabilities", {}) if self.schema_version == 2 else {}
         return sorted((set(requested.get("required", [])) | set(requested.get("optional", []))) & SUPPORTED_CAPABILITIES)
+
+    @property
+    def widgets(self) -> list[dict[str, Any]]:
+        """What this app offers the desk. Declared, not published: the summary
+        itself arrives later over the bridge."""
+        if self.schema_version != 2 or "widgets" not in self.capabilities:
+            return []
+        return list(self.raw.get("widgets", []))
 
     @property
     def unavailable_capabilities(self) -> list[str]:
@@ -141,6 +151,13 @@ def validate_manifest(data: Any, folder: str, path: Path) -> Manifest:
             raise ManifestError(f'{folder}: storage actions require storage')
         if len({item['id'] for item in data.get('actions', [])}) != len(data.get('actions', [])):
             raise ManifestError(f'{folder}: action IDs must be unique')
+        if 'widgets' in data and 'widgets' not in grants:
+            raise ManifestError(f'{folder}: widgets require the widgets capability')
+        if 'widgets' in data:
+            try:
+                validate_widget_declarations(data['widgets'], folder)
+            except ValueError as exc:
+                raise ManifestError(str(exc)) from exc
         bundle = data.get('data', {}).get('legacyBundle')
         if bundle and any(not key.startswith(f"vela.{data['id']}.") for key in bundle['keys'].values()):
             raise ManifestError(f'{folder}: legacy keys must belong to this app')

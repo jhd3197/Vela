@@ -322,6 +322,40 @@ class AutomationApiTests(unittest.TestCase):
                 self.client.get(f'/api/automations/{workflow["id"]}', headers=self.hub).status_code,
                 200)
 
+    def test_status_counts_todays_runs_for_the_desk(self):
+        """The Flows widget reads these three fields, so they are part of the
+        status contract rather than something the page derives from /runs."""
+        status = self.client.get('/api/automations/status', headers=self.hub).json()
+        self.assertEqual(status['runsToday'], 0)
+        self.assertEqual(status['failuresToday'], 0)
+        self.assertIsNone(status['averageDurationMs'])
+
+        workflow = self.create('Counted')
+        self.save(workflow, TEXT_FLOW)
+        now = datetime.now(timezone.utc)
+        rows = [
+            # Queued a minute ago: today, succeeded, two seconds long.
+            ((now - timedelta(minutes=1)).isoformat(), 'succeeded',
+             (now - timedelta(minutes=1)).isoformat(),
+             (now - timedelta(minutes=1) + timedelta(seconds=2)).isoformat()),
+            # Also today, and failed.
+            ((now - timedelta(minutes=2)).isoformat(), 'failed', None, None),
+            # Yesterday: outside the window, so neither count moves.
+            ((now - timedelta(days=1, hours=2)).isoformat(), 'succeeded', None, None),
+        ]
+        store = self.client.app.state.automations.store
+        with store.connection() as db:
+            for index, (queued, state, started, finished) in enumerate(rows):
+                db.execute(
+                    'INSERT INTO runs (id, workflow_id, revision, status, trigger, queued_at, '
+                    'started_at, finished_at) VALUES (?,?,?,?,?,?,?,?)',
+                    (f'run-{index}', workflow['id'], 1, state, 'manual', queued, started, finished))
+
+        status = self.client.get('/api/automations/status', headers=self.hub).json()
+        self.assertEqual(status['runsToday'], 2)
+        self.assertEqual(status['failuresToday'], 1)
+        self.assertEqual(status['averageDurationMs'], 2000)
+
     def test_app_sessions_cannot_reach_automations(self):
         self.install('notes')
         _, session = base.ApiBoundaryTests.session(self, 'notes')

@@ -29,7 +29,7 @@ server.on('error', (error) => {
 // System is absent entirely until Developer tools is on, and is checked
 // separately below.
 const pages = [
-  ['/', 'Home', 'rail'],
+  ['/', 'Desk', 'rail'],
   ['/ask', 'Ask', 'rail'],
   ['/library', 'Library', 'rail'],
   ['/automations', 'Automations', 'more'],
@@ -86,7 +86,7 @@ try {
           assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
           const nav = page.locator('.rail');
           await nav.waitFor();
-          // Home, Ask and Library are shortcuts; the rest are named in the
+          // Desk, Ask and Library are shortcuts; the rest are named in the
           // secondary menu. Settings closes the set.
           assert.equal(await nav.locator('.rail-group a').count(), 3);
           assert.equal(await nav.locator('.rail-foot button').count(), 1);
@@ -206,8 +206,57 @@ try {
     }
   }
 
-  // Home's navigation survives a fresh browser, a reload, Back, a rotation and
-  // a scrolled page, and it never sits on top of the content it navigates.
+  // The desk itself: the seeded board renders host widgets over the wallpaper,
+  // the board narrows to the phone layout below 860px, and the absolutely
+  // positioned frames never push the content sideways at any width.
+  for (const size of [
+    { width: 1366, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto(base + '/');
+    const grid = page.locator('.desk-grid');
+    await grid.waitFor();
+    const phone = size.width <= 860;
+    const names = phone
+      ? ['Clock', 'Needs you', 'Your apps', 'Ask']
+      : ['Clock', 'Your apps', 'Running now', 'Ask'];
+    for (const name of names) {
+      await page.getByRole('region', { name, exact: true }).waitFor();
+    }
+    assert.equal(
+      await grid.locator('.desk-frame').count(),
+      names.length,
+      `the ${phone ? 'phone' : 'desktop'} board at ${size.width}px`,
+    );
+    const box = await page.evaluate(() => {
+      const host = document.querySelector('.desk-grid');
+      const frames = [...host.querySelectorAll('.desk-frame')].map((frame) => {
+        const rect = frame.getBoundingClientRect();
+        return rect.right - host.getBoundingClientRect().right;
+      });
+      return {
+        grid: host.scrollWidth - host.clientWidth,
+        past: Math.max(...frames),
+        wallpaper: getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
+      };
+    });
+    assert.ok(box.grid <= 1, `desk grid overflow at ${size.width}: ${JSON.stringify(box)}`);
+    assert.ok(
+      box.past <= 1,
+      `a widget hangs past the board at ${size.width}: ${JSON.stringify(box)}`,
+    );
+    assert.ok(box.wallpaper.includes('wallpapers/lake.jpg'), `desk wallpaper: ${box.wallpaper}`);
+  }
+  // Leaving the desk takes the wallpaper with it.
+  await page.goto(base + '/library');
+  await page.locator('.rail').waitFor();
+  assert.equal(await page.evaluate(() => document.body.dataset.desk ?? null), null);
+
+  // The desk's navigation survives a fresh browser, a reload, Back, a rotation
+  // and a scrolled page, and it never sits on top of the content it navigates.
   for (const size of [
     { width: 390, height: 844 },
     { width: 844, height: 390 },
@@ -219,7 +268,7 @@ try {
     assert.equal(
       await page.getByRole('button', { name: 'Open navigation' }).count(),
       0,
-      `Home must not need a hamburger at ${size.width}px`,
+      `The desk must not need a hamburger at ${size.width}px`,
     );
     await page.reload();
     await page.locator('.rail').waitFor();
@@ -237,7 +286,7 @@ try {
     assert.ok(geometry.railWidth > 0, `rail hidden at ${size.width}x${size.height}`);
     assert.ok(
       geometry.railRight <= geometry.mainLeft + 1,
-      `the rail must not cover Home at ${size.width}x${size.height}: ${JSON.stringify(geometry)}`,
+      `the rail must not cover the desk at ${size.width}x${size.height}: ${JSON.stringify(geometry)}`,
     );
     await page.locator('.rail').waitFor();
   }
@@ -303,12 +352,41 @@ try {
   await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.evaluate(() => localStorage.removeItem('vela-developer-tools'));
 
+  // The desk's own settings: a volume must be a folder that exists, and the
+  // server is the one that decides, so a bad path comes back as its refusal
+  // rather than as something the page guessed.
+  await page.goto(base + '/settings#desk');
+  const desk = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await desk.getByRole('heading', { name: 'Volumes', exact: true }).waitFor();
+  await desk.getByLabel('Folder', { exact: true }).fill('/definitely/not/a/folder');
+  await desk.getByRole('button', { name: 'Add volume', exact: true }).click();
+  await desk.getByRole('alert').filter({ hasText: 'not a folder on this computer' }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // The endpoint the System and Volume widgets read answers for this machine.
+  const metrics = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const response = await fetch('/api/system/metrics', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.ok ? response.json() : { status: response.status };
+  });
+  // Whether this machine has psutil is not the point; that the desk's source
+  // answers instead of erroring is. A server without it must say so in the
+  // payload rather than in a status code.
+  assert.equal(
+    typeof metrics.available,
+    'boolean',
+    `system metrics must answer either way: ${JSON.stringify(metrics)}`,
+  );
+
   await page.goto(base + '/settings#notifications');
   await page.getByLabel('Topic', { exact: true }).fill('local-fixture-topic');
   assert.equal(await page.getByLabel('Topic', { exact: true }).inputValue(), 'local-fixture-topic');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: six default destinations, the secondary menu, Home navigation without a hamburger across reload/back/rotation/scroll, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources, the developer-tools deep link and field labels' +
+    'PASS: six default destinations, the desk board over its wallpaper, the secondary menu, desk navigation without a hamburger across reload/back/rotation/scroll, light/dark themes, 320/390/768/1024/1366/1920 and short-landscape layouts, library filtering, supported add-app sources, the developer-tools deep link, desk volume validation and field labels' +
       (originalCss ? '; computed styles match the original CSS' : ''),
   );
 } finally {

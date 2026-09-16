@@ -103,10 +103,11 @@ supported. External and headless entries may declare an empty runtime object.
 | --- | --- |
 | `view.surface` | `embedded`, `external` (HTTPS `url` required), `none` |
 | `view.chrome` | Embedded only: `hub`, `compact` (default), `seamless` |
-| `capabilities.required` | `storage`, `connections`, `actions`; any unknown required grant blocks validation |
+| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation |
 | `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities` |
 | `data.schemaVersion` | Positive integer, required when requesting storage |
 | `data.quotaBytes` | 1 KiBâ€“10 MiB; default 1 MiB |
+| `widgets` | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
 
 `hub` renders the normal navigation; `compact` renders an app bar; `seamless`
 renders no bars and retains a 44px-or-larger Vela menu outside the app. That
@@ -273,6 +274,62 @@ each distinct bundle as an imported copy before the user applies it inside Meals
 This is a synchronous app-action broker. It runs no scripts, containers,
 arbitrary network calls or native code. See
 [the Meals and Notes guide](APPS.md#meals-and-notes).
+
+### App-provided desk widgets
+
+An app can offer the desk a small summary of itself. It never renders there:
+the app publishes JSON and the host draws it with its own components, always
+labelled with the app it came from. No app code runs on the desk.
+
+Declaration lives in the manifest, so the user sees it at install:
+
+```json
+"capabilities": { "optional": ["widgets"] },
+"widgets": [
+  { "id": "sync", "name": "Sync", "layout": "stat", "size": "m" },
+  { "id": "queued", "name": "Queued changes", "layout": "list", "size": "l" }
+]
+```
+
+`id` matches `^[a-z][a-z0-9-]{0,31}$` and is unique within the app; at most four
+widgets per app; `layout` is `stat`, `progress`, `list` or `actions`; `size` is
+`s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets` without the capability
+fails validation. The install review shows the capability as "Show summaries on
+your desk" and names the declared widgets.
+
+The published summary is a flat JSON object of at most 4 KB. Every field is
+optional — `{}` is valid and means "nothing to report yet":
+
+```json
+{ "value": "73", "unit": "changes", "delta": "+12", "caption": "queued since 02:14",
+  "progress": 32, "rows": [{ "label": "…", "detail": "…" }],
+  "actions": [{ "action": "sync", "label": "Sync now" }],
+  "attention": true, "expiresAt": "2026-09-16T02:14:00Z" }
+```
+
+`value`, `unit`, `delta`, `caption` and every row and action label are text of at
+most 200 characters; `progress` is 0–100; `rows` holds at most eight
+`{label, detail}` pairs; `actions` at most three, each naming one of the app's
+own actions; `attention` is the boolean the rail's dot reads; `expiresAt` is an
+ISO 8601 timestamp after which the desk marks the summary stale. Nothing nests
+further and nothing is rendered as markup.
+
+| Endpoint | Authorization / behavior |
+| --- | --- |
+| `PUT /api/app/widgets/{widgetId}` | App session with the `widgets` grant; 403 without it, 422 for an undeclared id or an invalid field, 413 over 4 KB |
+| `GET /api/apps/{id}/widgets` | Hub; every widget this app declares, each with its latest summary or `null` |
+| `GET /api/widgets` | Hub; the same for every installed app, plus `grantedActions` where a summary offers actions |
+
+The SDK exposes `Vela.widgets.publish(id, summary)`. Summaries are stored in
+`app-data.sqlite` keyed by app id, replaced rather than accumulated, and deleted
+when the app is uninstalled — unlike app data, which survives for a reinstall.
+The desk merges one widget type per declared widget, named `<appId>:<widgetId>`,
+renders it inside the app card chrome, shows "as of …" once a summary is past
+`expiresAt` or older than an hour, and "Open <app> to update" when there is no
+summary yet. An action is offered only when it appears in that app's granted
+actions; choosing it opens the app, because the engine has no host-initiated
+action path and the desk does not act for the user. Notes and Health are the
+first apps to use this.
 
 An automation is the second kind of caller. It holds no app session and cannot
 declare requests in a manifest, so it authorizes differently while sharing the
@@ -782,14 +839,27 @@ workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
 purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
 restrained 14px card corners), in light and dark.
 
-- **Rail** (desktop, 62px): the Vela mark, then Home and Ask, then a shortcut
-  for every installed app in a stable name order, a separator, Library and a
-  **More** menu naming Automations and Manage apps (and System while developer
-  tools are on), then Settings and — for a remote session — Sign out. The open
+- **Rail** (desktop, 62px): the Vela mark, then Desk, Ask and **All apps**,
+  then the installed apps in two groups — an **OPEN** group of the apps the
+  engine reports running, labelled and edge-marked, above every other installed
+  app — each group in a stable name order, a separator, Library and a **More**
+  menu naming Automations and Manage apps (and System while developer tools are
+  on), then Settings and — for a remote session — Sign out. The OPEN label is
+  absent, not empty, when nothing is running. An app carries an attention dot
+  only when one of its own published widget summaries says `attention`. The open
   destination gets both a raised surface and an edge marker plus `aria-current`;
   every icon is named on hover and keyboard focus. The secondary menu closes on
-  Escape or an outside click and returns focus to its opener. The shortcut
-  region scrolls so the utility controls stay reachable in a short window.
+  Escape or an outside click and returns focus to its opener. Both shortcut
+  groups share one scrolling region so the utility controls stay reachable in a
+  short window.
+- **All apps**: a rail control rather than a destination — it has no route and
+  opens a drawer over whatever page is showing. It holds a search field, a
+  **Running now** row (each app with one line from its own summary caption, or
+  “Running”), the installed apps as a grid with each app's version, and one
+  “Add an app” tile leading to the Library. Choosing an app opens it and
+  closes the drawer; Escape closes it and returns focus to the rail control.
+  Manage apps keeps a different glyph so the rail never shows the same icon
+  twice.
 - **Phone**: there is no bottom bar and no hamburger. Every page keeps the
   rail on screen at every width — beside its content, never over it — so a
   destination or a ready app opens with one tap. A page's own panel slides in
@@ -803,12 +873,58 @@ restrained 14px card corners), in light and dark.
   only while developer tools are on. Missing or still-loading data is neither.
   Pages that show their own `<h1>` do not repeat it in the header; Ask and app
   workspaces do use it.
-- **Home** (`/`): the app launcher. A greeting and the date, then a tile grid of
-  installed apps — each an Open control showing the app's own short purpose —
-  and one "Add an app" tile, with "Add your first app" as the empty state. No
-  engine counters, version strings, system widgets or second catalog promotion;
-  invented activity, recents or favorites are not substitutes for them.
-  Placeholders show while the first app list loads.
+- **Desk** (`/`): the home of Vela is a widget board over the user's wallpaper,
+  with the rail beside it. It replaces the earlier launcher-only Home, and with
+  it the rule that `/` shows no system information: a desk may show what the
+  server actually knows. Widgets are rendered by the host and never invent
+  data — a widget type ships only once a real source for it exists, so weather,
+  Health, Money, Meals, Photos and Paperless are absent rather than mocked.
+  The seeded board is **Your apps** (the tile grid, each tile an Open control
+  showing the app's own short purpose, plus one "Add an app" tile and
+  placeholders while the first list loads), **Clock** (time, weekday and date),
+  **Running now** (the apps the engine reports running, "Nothing running."
+  otherwise) and **Ask** (the newest conversation's title and last line, and a
+  box that opens Ask with what was typed). There are two boards: six columns
+  above 860px and two below, edited and stored separately, never reflowed into
+  each other. Each widget is a labelled region. The seeded phone board is
+  **Clock**, **Needs you** (the apps whose own summaries say `attention`, with
+  “Everything’s running.” when none do), **Your apps** as a four-column icon
+  grid, and **Ask**.
+- **Arranging the desk**: **Add widget** opens a grouped, searchable list of
+  every placeable type — Vela's own first, then one group per app that provides
+  any. **Arrange desk** turns on dragging and resizing, undo and redo
+  (Ctrl+Z / Ctrl+Shift+Z), a per-widget menu with Duplicate, Remove and any
+  options that type has, and keyboard arrangement on a focused frame: arrows
+  move, Shift+arrows resize, Delete removes, each announced through an
+  `aria-live` region. **Done** saves, **Cancel** restores, and navigating away
+  with unsaved changes prompts. A long press enters Arrange mode on a phone.
+  Boards persist in `<data_dir>/desk.json` behind `GET/PUT /api/desk`; a `PUT`
+  built on an older `revision` answers 409 with the current one and the
+  dashboard reloads and says so, and an invalid board answers 422 without
+  storing anything. A board may only name a widget type that exists now, so
+  uninstalling an app removes its widgets rather than leaving dead frames.
+- **Personalise** (a desk control, and a long press on bare wallpaper on a
+  phone): the wallpaper — bundled `lake` (a photograph), `sage` and `night`
+  (gradients), or `custom` — plus **Dim the wallpaper**, **Show app names** and
+  **Ask on this board**, which adds or removes that board's Ask widget and saves
+  immediately. `GET/PUT/DELETE /api/wallpaper` stores one image in the data
+  directory: JPEG, PNG or WebP only, checked against its own header rather than
+  its declared type, at most 8 MB, replaced rather than accumulated, and
+  removing it returns the desk to `lake`.
+- **Desk widgets and their sources**: `clock` (the browser's clock),
+  `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
+  `system` and `volume` (`GET /api/system/metrics`), `flows`
+  (`/api/automations/status` — `runsToday`, `failuresToday`,
+  `averageDurationMs`, counted since this computer's midnight) and `backups`
+  (`/api/backups`, with **Back up now**). `/api/system/metrics` reports CPU,
+  memory, uptime and a 60-sample CPU history taken every 10 s in memory only,
+  plus one entry per volume the user named in `settings.desk.volumes` and the
+  one Vela's own data sits on. It answers `{"available": false}` when psutil is
+  missing rather than failing, and a volume that is not connected is reported
+  as unreachable rather than dropped. `settings.desk` holds
+  `volumes`, `wallpaper`, `dim` and `labels`; a volume path must be a folder
+  that exists or `PATCH /api/settings` answers 422. Settings › Desk is where
+  volumes are added and removed.
 - **Manage apps** (`/apps`): installed apps as rows leading to the detail
   drawer, with status. Filter tabs: All / Running / Not installed.
 - **Library** (`/library`): catalog cards — icon tile, name, category and
@@ -843,7 +959,7 @@ restrained 14px card corners), in light and dark.
   chat preferences save through the settings API; notification connection
   details have an explicit Save action. Switching categories keeps unsaved form
   entries. Existing `/settings#category` links open the matching category over
-  Home, with `#storage` → Backups & storage and `#network`/`#environments` →
+  the desk, with `#storage` → Backups & storage and `#network`/`#environments` →
   Developer tools. General includes phone setup, Home Screen installation and
   the developer-tools switch. Backups can be created and verified through the API.
 - **Developer tools**: one browser-local preference (`vela-developer-tools`),

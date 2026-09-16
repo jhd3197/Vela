@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Widget Fixture</title>
+<script src="_vela/sdk.js"></script>
+<main>
+  <h1>Widget Fixture</h1>
+  <p id="state">Connecting…</p>
+</main>
+<script>
+  // A hub-owned fixture for the desk's app-widget path. It publishes through
+  // the same bridge operation a real app uses, so the suite exercises the
+  // contract rather than a stand-in for it.
+  var state = document.getElementById('state');
+  Vela.ready
+    .then(function () {
+      return Promise.all([
+        Vela.widgets.publish('sync', {
+          value: '73',
+          unit: 'changes',
+          caption: 'queued since 02:14',
+          attention: true,
+        }),
+        Vela.widgets.publish('queued', {
+          rows: [
+            { label: 'Shopping', detail: '2 min ago' },
+            { label: 'Ideas', detail: 'yesterday' },
+          ],
+        }),
+      ]);
+    })
+    .then(function () {
+      state.textContent = 'Published';
+    })
+    .catch(function (error) {
+      state.textContent = error.message;
+    });
+</script>

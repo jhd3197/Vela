@@ -136,6 +136,7 @@ class Registry:
             "connection": manifest.raw.get("connection"),
             "view": manifest.view,
             "capabilities": manifest.capabilities,
+            "widgets": manifest.widgets,
             "unavailableCapabilities": manifest.unavailable_capabilities,
             "isolation": "sandbox" if manifest.schema_version == 2 else "trusted-legacy",
             "name": manifest.name,

@@ -2,14 +2,29 @@
 
 ## Move around Vela
 
-Home is your app launcher: it shows the apps you have installed and one place to
-add another. Choosing an app opens it; if it is stopped, opening it starts it.
+The desk is what Vela opens on. It is a board of widgets over a wallpaper:
+your apps, the time, what is running, and your last conversation with Ask.
+Choosing an app opens it; if it is stopped, opening it starts it. Widgets only
+show things Vela really knows — nothing on the desk is a placeholder.
 
-A narrow rail runs down the left of the dashboard: Home, Ask, a shortcut for
-every installed app, then Library and a **More** menu holding Automations and
-Manage apps. Settings sits at the bottom. Hover or tab to an icon to see its
-name. The open destination is marked on the rail, so you always know where you
-are.
+The board is the same on a wide screen and a phone, laid out differently: six
+columns of widgets on a desktop, two in your hand. Each is remembered on its
+own, so arranging one never rearranges the other.
+
+A narrow rail runs down the left of the dashboard: Desk, Ask, **All apps**, a
+shortcut for every installed app, then Library and a **More** menu holding
+Automations and Manage apps. Settings sits at the bottom. Hover or tab to an
+icon to see its name. The open destination is marked on the rail, so you always
+know where you are.
+
+Apps that are running now sit together at the top of the shortcuts, under a
+small OPEN label, so what is already going is where you look first. When
+nothing is running the label is simply not there.
+
+**All apps** opens a panel over whatever you are doing with everything you have
+installed: what is running, then the full set with each app's version, and one
+way to add another. Search it by name. Escape closes it and puts you back where
+you were.
 
 The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
@@ -20,6 +35,67 @@ asks for a seamless view opens on its own, with a small Vela menu in its
 corner. Either way, if an app has unsaved work, leaving it asks before anything
 is lost. **App settings**, in that bar or in the app's Vela menu, holds the
 app's permissions, its connection, updates and removal.
+
+## Arrange your desk
+
+Choose **Add widget** above the board to see everything Vela can show you.
+Widgets are grouped by who owns them — Vela's own first, then one group per app
+that provides any — and the list only ever offers something Vela can really
+answer for. Picking one puts it in the first free space and switches the board
+into arranging.
+
+While you are arranging, drag a widget by its top bar to move it, or its
+bottom-right corner to resize it. Everything else moves out of the way, and
+widgets float up into any gap above them. Without a mouse, tab to a widget and
+use the arrow keys to move it, Shift and the arrow keys to resize it, and Delete
+to take it off. **Undo** and **Redo**, or Ctrl+Z and Ctrl+Shift+Z, step back and
+forward through what you have done.
+
+The widget's own menu, in its top bar, holds **Duplicate** and **Remove**, and
+the options for the widgets that have any — a Volume widget asks which of your
+volumes it should show.
+
+**Done** saves the board; **Cancel** puts it back the way it was. Leaving the
+desk with changes you have not saved asks first. If the same desk was changed in
+another window, Vela reloads what is really stored and tells you rather than
+overwriting it.
+
+On a phone, press and hold a widget to start arranging. The phone board is a
+separate board: arranging one never rearranges the other.
+
+## Make the desk yours
+
+**Personalise**, above the board, sets what the desk looks like. Pick one of the
+wallpapers Vela ships with, or **Use your own** — a JPEG, PNG or WebP up to 8 MB,
+which stays on your own computer and is never sent anywhere. **Dim the
+wallpaper** keeps widget text readable over a bright picture; turn it off if you
+would rather see the photograph. **Show app names** switches between named tiles
+and icons only, and **Ask on this board** adds or removes the Ask widget from
+whichever board you are looking at.
+
+On a phone, press and hold an empty part of the wallpaper to open Personalise.
+
+## App widgets on the desk
+
+Some apps can show you a line about themselves on your desk. **Add widget**
+groups those under the app's name, beside Vela's own.
+
+An app never draws on your desk. It sends Vela a short summary — a number, a
+few rows, how far something has got — and Vela draws it, always with the app's
+name and icon on it. Nothing an app sends can run, and nothing can be longer
+than a few lines. If an app has not sent anything yet, the widget says so and
+offers to open it. If what it sent is more than an hour old, or the app said it
+would go out of date, Vela shows when it was from instead of pretending it is
+current.
+
+An app has to ask for this when you install it: the permission reads **Show
+summaries on your desk**, and names the widgets it wants to offer. Refuse it and
+the app works exactly as before, with nothing on your desk. Uninstalling an app
+takes its summaries with it.
+
+When an app says something needs you, a small dot appears on its rail icon.
+Only the app can set that — Vela never decides on an app's behalf that
+something is wrong.
 
 ## On a phone
 
@@ -64,7 +140,7 @@ made on a desktop.
 Run your web service first, using ServerKit, Docker or its own installer. In
 **Library → Add an app → Connect a website**, enter its name, HTTPS address
 and icon color. The
-connection appears in Library, Manage apps and Home. Open it to use the service inside
+connection appears in Library, Manage apps and on your desk. Open it to use the service inside
 Vela, with **Edit connection**, **Reload web app** and **Open in browser** in the
 bar above it, always outside the service's frame.
 

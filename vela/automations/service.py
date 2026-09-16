@@ -124,6 +124,23 @@ class Automations:
             'worker': self.worker.info.as_dict() if self.worker.info else None,
             'running': self.worker.running,
             'notifications': self.effects.notification_destination(),
+            **self.today(),
+        }
+
+    def today(self) -> dict:
+        """Run counts since this computer's midnight, for the desk's Flows widget.
+
+        'Today' is the user's day, not UTC: a run at 23:00 local should still be
+        today's run at 23:30. `queued_at` is stored in UTC, so local midnight is
+        converted before it is compared.
+        """
+        midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        stats = self.store.run_statistics(midnight.astimezone(timezone.utc).isoformat())
+        average = stats.get('averageSeconds')
+        return {
+            'runsToday': stats.get('total', 0),
+            'failuresToday': stats.get('failed', 0),
+            'averageDurationMs': None if average is None else int(round(average * 1000)),
         }
 
     # ------------------------------------------------------------- catalog --
