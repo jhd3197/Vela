@@ -41,11 +41,16 @@ The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
 button to reach them.
 
-Apps open beside the rail, with their name in the bar above them; an app that
-asks for a seamless view opens on its own, with a small Vela menu in its
-corner. Either way, if an app has unsaved work, leaving it asks before anything
-is lost. **App settings**, in that bar or in the app's Vela menu, holds the
-app's permissions, its connection, updates and removal.
+Apps open beside the rail with a title bar of their own: a back arrow to where
+you opened the app from, its name and whether it is running, and a **⋯** menu to
+pin it to the rail, add its widget to your desk, reach its settings, reload it,
+open it in a new tab, stop it or close it. While an app is starting you see it
+over a dimmed background; if it never answers, Vela says so and offers to reload
+or stop it. An app that asks for a seamless view opens on its own instead, with
+a small Vela menu in its corner that holds the same actions. Either way, if an
+app has unsaved work, leaving it asks before anything is lost. **App settings**,
+in the title-bar menu or the Vela menu, holds the app's permissions, its
+connection, updates and removal.
 
 ## Arrange your desk
 

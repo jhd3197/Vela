@@ -33,7 +33,9 @@ class ContractTests(unittest.TestCase):
         self.assertEqual({manifest.id for manifest in legacy}, {"hello-vela", "system-info", "finance"})
         for manifest in legacy:
             self.assertEqual(manifest.schema_version, 1)
-            self.assertEqual(manifest.view, {"surface": "embedded", "chrome": "compact"})
+            self.assertEqual(
+                manifest.view, {"surface": "embedded", "chrome": "compact", "appearance": "auto"}
+            )
             self.assertEqual(manifest.capabilities, [])
 
     def test_v2_defaults_and_explicit_runtime(self):
@@ -49,6 +51,26 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(manifest.active_runtime("windows"), "process")
         self.assertEqual(manifest.runtimes("windows"), ["web", "process"])
         self.assertFalse(manifest.supports("posix"))
+
+    def test_view_appearance_defaults_and_validates(self):
+        # Absent: the window chrome follows the hub theme.
+        base = copy.deepcopy(FIXTURE)
+        self.assertEqual(
+            validate_manifest(base, "chat-fixture", Path("chat-fixture")).view["appearance"],
+            "auto",
+        )
+        # A declared value is kept.
+        dark = copy.deepcopy(FIXTURE)
+        dark["view"]["appearance"] = "dark"
+        self.assertEqual(
+            validate_manifest(dark, "chat-fixture", Path("chat-fixture")).view["appearance"],
+            "dark",
+        )
+        # Anything outside the enum fails closed.
+        bad = copy.deepcopy(FIXTURE)
+        bad["view"]["appearance"] = "sepia"
+        with self.assertRaises(ManifestError):
+            validate_manifest(bad, "chat-fixture", Path("chat-fixture"))
 
     def test_unsupported_fields_versions_and_paths_fail(self):
         variants = [

@@ -103,16 +103,22 @@ supported. External and headless entries may declare an empty runtime object.
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
 | `view.surface`          | `embedded`, `external` (HTTPS `url` required), `none`                                          |
 | `view.chrome`           | Embedded only: `hub`, `compact` (default), `seamless`                                          |
+| `view.appearance`       | Optional: `light`, `dark`, `auto` (default); the theme of the app's window title bar           |
 | `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation   |
 | `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities`                       |
 | `data.schemaVersion`    | Positive integer, required when requesting storage                                             |
 | `data.quotaBytes`       | 1 KiBâ€“10 MiB; default 1 MiB                                                                  |
 | `widgets`               | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
 
-`hub` renders the normal navigation; `compact` renders an app bar; `seamless`
-renders no bars and retains a 44px-or-larger Vela menu outside the app. That
-menu can return, close, show the compact bar, or stop a managed process. A user
-compact preference persists per app. Failed loading retains host controls.
+`hub` and `compact` both give the app a **title bar** of its own beside the
+rail (see the app-window bullet under Frontend Expectations); `seamless` renders
+no bars and retains a 44px-or-larger Vela menu outside the app. The seamless
+menu can return, close, show the compact bar (which is that title bar), pin the
+app, add its widget to the desk, reach App settings, or stop a managed process.
+`view.appearance: "dark"` draws the title bar in the dark tokens whatever the
+hub theme is, so a dark app is not topped by a light strip; it does not change
+the `theme` reported to the app. A user compact preference persists per app.
+Failed loading retains host controls.
 The host reports viewport dimensions, insets and its control rectangle to the
 SDK; apps should avoid that rectangle. `viewport.width`/`height` are the frame's
 own box, `visualHeight` is how much of that box is on screen, and `insets` are
@@ -928,8 +934,20 @@ restrained 14px card corners), in light and dark.
   reported: the header shows a “Can’t connect to Vela” notice with Retry only
   when the engine resource has actually failed, and the server address badge
   only while developer tools are on. Missing or still-loading data is neither.
-  Pages that show their own `<h1>` do not repeat it in the header; Ask and app
-  workspaces do use it.
+  Pages that show their own `<h1>` do not repeat it in the header; Ask uses it.
+- **App window** (`/app/{id}`, hub and compact chrome): the workspace is topped
+  by the app's own **title bar** instead of the contextual header — a back
+  control to where the app was opened from (else Desk), the app icon and name, a
+  state pill (Running / Starting / Stopped / Not supported), a thin progress
+  line while the frame loads, up to two of the app's granted quick actions, the
+  notifications bell, and a `⋯` menu (Pin/Unpin, Add widget to desk, App
+  settings, Reload app, Open in new tab, Stop app, Close). It has no search
+  field; `Ctrl+K` still opens the palette. While the frame connects, the app is
+  shown centred over a dimmed ground; after a 10-second timeout that becomes
+  "This app did not respond" with Reload and Stop. A missing app shows "App
+  unavailable" with a Marketplace link. `view.appearance: "dark"` draws the bar
+  in the dark tokens under any hub theme. Seamless apps keep their floating Vela
+  menu instead, extended with Pin and Add widget.
 - **Desk** (`/`): the home of Vela is a widget board over the user's wallpaper,
   with the rail beside it. It replaces the earlier launcher-only Home, and with
   it the rule that `/` shows no system information: a desk may show what the

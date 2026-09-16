@@ -172,12 +172,147 @@
 }
 .appview-loading {
   position: absolute;
-  top: 76px;
-  align-self: center;
-  padding: 12px 20px;
-  background: var(--bg);
-  border-radius: 8px;
+  inset: 0;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+  background: rgba(18, 20, 32, 0.62);
+  backdrop-filter: blur(6px);
+}
+.appview-loading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.appview-loading p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+.appview-loading-actions {
+  display: flex;
+  gap: 8px;
+}
+.appview-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  animation: appview-spin 0.8s linear infinite;
+}
+@keyframes appview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- App title bar (hosted app window chrome) ---------- */
+
+.app-titlebar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  min-height: 48px;
+  position: relative;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-titlebar-back {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.app-titlebar-back:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.app-titlebar-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-titlebar-side {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-titlebar-progress {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  width: 40%;
+  background: var(--accent);
+  animation: app-titlebar-load 1.1s ease-in-out infinite;
+}
+
+@keyframes app-titlebar-load {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.app-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--bg-inset);
+  color: var(--text-dim);
+}
+
+.app-pill-running {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.app-pill-starting {
+  background: rgba(216, 138, 46, 0.14);
+  color: #b5771f;
+}
+
+.app-pill-unsupported,
+.app-pill-unavailable {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* A dark app keeps a dark bar whatever the hub theme is, so it is not topped by
+   a light strip. The bar carries `data-theme="dark"`, which re-defines the
+   tokens its own controls read. */
+.app-titlebar-dark {
+  background: #1b1e2e;
+  border-bottom-color: color-mix(in srgb, #e9e9ed 14%, transparent);
 }
 .appview-failure {
   position: absolute;

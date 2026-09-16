@@ -128,6 +128,14 @@
           ],
           "default": "compact"
         },
+        "appearance": {
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
+          "default": "auto"
+        },
         "url": {
           "type": "string",
           "pattern": "^https://[^/\\s]+"

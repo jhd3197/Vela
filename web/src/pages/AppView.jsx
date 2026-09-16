@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
+import AppTitleBar from '../components/AppTitleBar.jsx';
 import Shell from '../components/Shell.jsx';
-import WorkspacePage from '../components/WorkspacePage.jsx';
+import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 import AppDataMigration from '../components/AppDataMigration.jsx';
 import AppConnection from '../components/AppConnection.jsx';
 import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
@@ -30,12 +32,14 @@ export default function AppView() {
 function Workspace({ id, retry }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { apps, busyIds, openApp, openingId, runAction } = useApps();
+  const { apps, busyIds, openApp, openingId, runAction, pushToast, pinned, pinApp, unpinApp } =
+    useApps();
   const { status } = useAppStatus(id);
   const summary = apps?.find((item) => item.id === id);
   const app = summary && { ...summary, ...status };
   const isolated = summary?.schemaVersion === 2;
   const surface = summary?.view?.surface || 'embedded';
+  const appearance = summary?.view?.appearance || 'auto';
   const running = Boolean(app?.running && app?.url && surface === 'embedded');
   const [compact, setCompact] = useState(
     () => localStorage.getItem(`vela.chrome.${id}`) === 'compact',
@@ -85,6 +89,36 @@ function Workspace({ id, retry }) {
   };
   const leaveRef = useRef(requestLeave);
   leaveRef.current = requestLeave;
+
+  // While the frame connects, the window shows the app centred over a dimmed
+  // ground; if `vela:ready` never arrives, a timeout turns that into a plain
+  // "did not respond" with a way to reload or stop.
+  const loading = running && isolated && !ready && !error;
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setTimedOut(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setTimedOut(true), 10000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const pillState = missing
+    ? 'unavailable'
+    : !app
+      ? null
+      : !app.supported
+        ? 'unsupported'
+        : openingId === id || loading
+          ? 'starting'
+          : app.running && running
+            ? 'running'
+            : app.installed
+              ? 'stopped'
+              : null;
+
+  const canStop = Boolean(app?.running && isProcessApp(app));
 
   // The frame's own box, and how much of it the browser is not showing. Host
   // offsets are in the host's coordinate space, so they are converted here
@@ -232,9 +266,29 @@ function Workspace({ id, retry }) {
       setSaving(false);
     }
   };
+  const titleBar = (
+    <AppTitleBar
+      app={app}
+      state={pillState}
+      loading={loading}
+      appearance={appearance}
+      onBack={requestLeave}
+      onClose={requestLeave}
+      pinned={pinned.includes(id)}
+      onPin={() => pinApp(id)}
+      onUnpin={() => unpinApp(id)}
+      canAddWidget={Boolean(firstWidget(app))}
+      onAddWidget={() => addAppWidgetToDesk(app, pushToast)}
+      onAppSettings={app?.installed ? () => setSettingsOpen(true) : undefined}
+      onHideBar={requestedMode === 'seamless' && !missing ? toggleCompact : undefined}
+      onReload={retry}
+      onOpenNewTab={() => window.open(`/apps/${id}/`, '_blank', 'noopener')}
+      canStop={canStop}
+      onStop={() => runAction(id, 'stop')}
+    />
+  );
   // Everything but `seamless` is hosted by the shell: the rail names and selects
-  // the app and the contextual header carries its controls, so no second app
-  // bar is drawn above the frame.
+  // the app; the title bar above the frame carries the app's own controls.
   const hosted = mode !== 'seamless';
   const content = (
     <div className={`appview appview-${mode}${hosted ? ' appview-hosted' : ''}`}>
@@ -256,6 +310,25 @@ function Workspace({ id, retry }) {
               <button onClick={requestLeave}>Return to apps</button>
               <button onClick={requestLeave}>Close app view</button>
               <button onClick={toggleCompact}>Show compact bar</button>
+              <button
+                onClick={() => {
+                  setMenu(false);
+                  if (pinned.includes(id)) unpinApp(id);
+                  else pinApp(id);
+                }}
+              >
+                {pinned.includes(id) ? 'Unpin from rail' : 'Pin to rail'}
+              </button>
+              {firstWidget(app) && (
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    addAppWidgetToDesk(app, pushToast);
+                  }}
+                >
+                  Add widget to desk
+                </button>
+              )}
               {app?.installed && (
                 <button
                   onClick={() => {
@@ -280,9 +353,13 @@ function Workspace({ id, retry }) {
       {app?.installed && <PermissionNotice app={app} onReview={() => setSettingsOpen(true)} />}
       {apps !== null && !app && (
         <div className="appview-interstitial">
-          <h2>App not found</h2>
+          <h2>App unavailable</h2>
+          <p>This app is not on this computer.</p>
+          <Link className="btn btn-primary" to="/library">
+            Open the Marketplace
+          </Link>
           <button className="btn" onClick={requestLeave}>
-            Back to Apps
+            Back
           </button>
         </div>
       )}
@@ -328,9 +405,30 @@ function Workspace({ id, retry }) {
           <p>This app has no visual workspace.</p>
         </div>
       )}
-      {running && isolated && !ready && !error && (
+      {loading && (
         <div className="appview-loading" role="status">
-          Connecting to {app.name}…
+          {app && <AppIcon app={app} size={56} />}
+          {timedOut ? (
+            <>
+              <h2>This app did not respond</h2>
+              <p>{app?.name} has not finished loading.</p>
+              <div className="appview-loading-actions">
+                <button className="btn btn-primary" onClick={retry}>
+                  Reload
+                </button>
+                {canStop && (
+                  <button className="btn" onClick={() => runAction(id, 'stop')}>
+                    Stop
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="appview-spinner" aria-hidden="true" />
+              <p>Opening {app?.name}…</p>
+            </>
+          )}
         </div>
       )}
       {error && (
@@ -409,36 +507,22 @@ function Workspace({ id, retry }) {
     </div>
   );
   if (!hosted) return content;
-  // The rail already names and selects the open app, so the hosted workspace
-  // uses the contextual header instead of a second app bar. The rail stays on
-  // screen at phone widths too, so switching apps is one tap away while the
-  // app's own panes change beneath. A seamless app that was asked to show the
-  // bar can hide it again from here.
+  // The rail already names and selects the open app; the hosted workspace gives
+  // it a real title bar of its own — back, identity, state, its actions and a
+  // window menu — instead of a second contextual header. The rail stays on
+  // screen at phone widths, so switching apps is one tap away while the app's
+  // own panes change beneath. A seamless app asked to show the bar can hide it
+  // again from the window menu.
   return (
     <Shell>
-      <WorkspacePage
-        scroll={false}
-        className="app-workspace"
-        title={app?.name || (missing ? 'App unavailable' : 'App')}
-        subtitle={app?.description || undefined}
-        lead={app ? <AppIcon app={app} size={26} /> : null}
-        actions={
-          <>
-            {requestedMode === 'seamless' && !missing && (
-              <button className="btn btn-small" onClick={toggleCompact}>
-                Hide app bar
-              </button>
-            )}
-            {app?.installed && (
-              <button className="btn btn-small" onClick={() => setSettingsOpen(true)}>
-                App settings
-              </button>
-            )}
-          </>
-        }
+      <div
+        className={`workspace-main app-workspace app-workspace-${mode}${
+          appearance === 'dark' ? ' app-workspace-dark' : ''
+        }`}
       >
-        {content}
-      </WorkspacePage>
+        {titleBar}
+        <main className="workspace-content workspace-content-fixed">{content}</main>
+      </div>
     </Shell>
   );
 }

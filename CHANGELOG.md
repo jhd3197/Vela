@@ -8,6 +8,15 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Apps open in a real window.** An app you open now has its own title bar: a
+  back arrow to where you came from, its name and whether it is running, and a
+  **⋯** menu to pin it to the rail, add its widget to your desk, reach its
+  settings, reload it, open it in a new tab, stop it or close it — no more second
+  search box above the app. While an app is starting you see it over a dimmed
+  background, and if it never answers Vela says so and offers to reload or stop
+  it. Opening an app that is no longer installed leads back to the Marketplace.
+  An app can ask (with `view.appearance`) for its title bar to stay dark so a
+  dark app is not topped by a light strip.
 - **The Library is now the Marketplace.** One place — still at the same
   address — to find, install, update and remove apps, in three tabs. **Discover**
   shows the apps you do not have yet, led by a small featured row. **Installed**

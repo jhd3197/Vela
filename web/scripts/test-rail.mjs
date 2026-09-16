@@ -220,7 +220,7 @@ try {
   await noOverflow('home phone');
   await page.locator('.rail-apps a[href="/app/gamma"]').click();
   await page.locator('.appview').waitFor();
-  await page.locator('.app-workspace .workspace-header').waitFor();
+  await page.locator('.app-workspace .app-titlebar').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Back to Apps' }).count(), 0);
 
   // The pinned Library selects like any other page from a phone.
@@ -236,7 +236,7 @@ try {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(base);
     await page.locator('.rail-apps a[href="/app/workspace"]').click();
-    await page.locator('.app-workspace .workspace-header').waitFor();
+    await page.locator('.app-workspace .app-titlebar').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
     assert.equal(
@@ -261,8 +261,19 @@ try {
     await page.locator('.rail-apps a[href="/app/standalone"]').click();
     await page.locator('.appview-compact.appview-hosted').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
-    assert.equal(await page.locator('.workspace-header').count(), 1);
+    assert.equal(await page.locator('.app-titlebar').count(), 1);
   }
+
+  // Pin an app from its own window menu; it joins the rail's pinned group.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(base);
+  await page.locator('.rail-apps a[href="/app/workspace"]').click();
+  await page.locator('.app-titlebar').waitFor();
+  await page.getByRole('button', { name: 'App menu' }).click();
+  await page.getByRole('menuitem', { name: 'Pin to rail' }).click();
+  await page
+    .locator('.rail-apps-group[aria-label="Pinned apps"] a[href="/app/workspace"]')
+    .waitFor();
 
   // With nothing running the OPEN group is absent rather than empty, and only
   // the pinned tools remain in the app region.

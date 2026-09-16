@@ -28,10 +28,7 @@ import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import Button from '../components/ui/Button.jsx';
 import { useSettingsPopup } from '../components/SettingsProvider.jsx';
-import { deskApi } from '../desk/useDeskBoards.js';
-import { widgetsOf, withWidgets, colsOf } from '../desk/boards.js';
-import { compact, findFreeSpot, nextWidgetId } from '../desk/grid/layout.js';
-import { appWidgetTypeId, APP_WIDGET_SIZES } from '../desk/registry.js';
+import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 
 // The desk's wallpaper preferences also dress the Launchpad, which floats over
 // the same blurred picture. Reading them here keeps the two surfaces in step
@@ -40,12 +37,6 @@ function useDeskPrefs() {
   const load = useCallback((options) => api.getSettings(options), []);
   const { data } = useResource(load);
   return data?.desk || { wallpaper: 'lake', dim: true };
-}
-
-// The first widget an app declares, if any — what "Add widget to desk" places.
-function firstWidget(app) {
-  const declared = Array.isArray(app?.widgets) ? app.widgets[0] : null;
-  return declared && typeof declared.id === 'string' ? declared : null;
 }
 
 // The full-screen app grid. Every installed app, Vela's own tools, and a way to
@@ -152,35 +143,7 @@ export default function Launchpad() {
 
   // --------------------------------------------------------------- the menu
 
-  const addWidgetToDesk = useCallback(
-    async (app) => {
-      const declared = firstWidget(app);
-      if (!declared) return;
-      try {
-        const payload = await deskApi.load();
-        const boards = payload.boards;
-        const key = 'desktop';
-        const current = widgetsOf(boards, key);
-        const cols = colsOf(boards, key);
-        const [w, h] = APP_WIDGET_SIZES[declared.size] || APP_WIDGET_SIZES.m;
-        const width = Math.min(w, cols);
-        const placed = {
-          i: nextWidgetId(current),
-          type: appWidgetTypeId(app.id, declared.id),
-          ...findFreeSpot(current, width, h, cols),
-          w: width,
-          h,
-          cfg: {},
-        };
-        const next = withWidgets(boards, key, compact([...current, placed]));
-        await deskApi.save(payload.revision, next);
-        pushToast(`Added ${app.name} to your desk.`, 'success');
-      } catch (error) {
-        pushToast(error.message || 'Could not add the widget.', 'error');
-      }
-    },
-    [pushToast],
-  );
+  const addWidgetToDesk = useCallback((app) => addAppWidgetToDesk(app, pushToast), [pushToast]);
 
   const menuItems = useMemo(() => {
     if (!menu) return [];
