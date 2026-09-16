@@ -220,7 +220,8 @@
   /* The floating bell takes the top strip, so the search starts, and sticks,
      just below it. */
   .launchpad-inner {
-    padding: calc(56px + env(safe-area-inset-top, 0px)) 16px calc(48px + env(safe-area-inset-bottom, 0px));
+    padding: calc(56px + env(safe-area-inset-top, 0px)) 16px
+      calc(48px + env(safe-area-inset-bottom, 0px));
     gap: 20px;
   }
 

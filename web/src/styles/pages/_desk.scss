@@ -717,7 +717,8 @@ body[data-desk] .rail-divider {
 
 @media (max-width: 860px) {
   .desk-workspace .workspace-content {
-    padding: calc(70px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom));
+    padding: calc(70px + env(safe-area-inset-top, 0px)) 14px
+      calc(14px + env(safe-area-inset-bottom));
   }
 
   .desk-top .searchbox {
