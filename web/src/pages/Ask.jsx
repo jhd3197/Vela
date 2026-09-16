@@ -32,6 +32,7 @@ import {
   streamChat,
   updateConversation,
 } from '../chatApi.js';
+import { api } from '../api.js';
 import {
   createBot,
   deleteBot,
@@ -255,6 +256,23 @@ export default function Ask() {
   const [aiFailed, setAiFailed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [params, setParams] = useSearchParams();
+
+  // Ask greets by name when the user gave one. It is read here rather than
+  // threaded through the shell, and the greeting simply drops the name when
+  // there is none rather than inventing "there".
+  const [displayName, setDisplayName] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getSettings()
+      .then((data) => {
+        if (!cancelled) setDisplayName(data?.identity?.displayName || '');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [messages, setMessages] = useState([]);
   const [title, setTitle] = useState('New conversation');
@@ -1088,7 +1106,11 @@ export default function Ask() {
                     <Sparkle size={28} />
                   </div>
                   <span className="chat-eyebrow">Your server, in conversation</span>
-                  <h2>What should I look into?</h2>
+                  <h2>
+                    {displayName
+                      ? `What should I look into, ${displayName}?`
+                      : 'What should I look into?'}
+                  </h2>
                   <p>
                     Check on your apps, make sense of a log, or find out why something stopped.
                     Mention an app with @ to get specific.

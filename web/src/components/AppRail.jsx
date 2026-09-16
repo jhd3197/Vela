@@ -117,6 +117,16 @@ export default function AppRail({ onNavigate }) {
   // Reading the last sweep never starts one.
   const loadHealth = useCallback((options) => api.getDoctor(options), []);
   const { data: health } = useResource(loadHealth, { intervalMs: 120000 });
+  // Who this server belongs to. The avatar is the one place the rail says it,
+  // so it reads the setting rather than being handed a prop through the shell.
+  const loadIdentity = useCallback((options) => api.getSettings(options), []);
+  const { data: settingsData, refresh: refreshIdentity } = useResource(loadIdentity);
+  const identity = settingsData?.identity || {};
+  useEffect(() => {
+    const onChanged = () => refreshIdentity();
+    addEventListener('vela:identity-changed', onChanged);
+    return () => removeEventListener('vela:identity-changed', onChanged);
+  }, [refreshIdentity]);
   const healthFailing = (health?.checks || []).some((check) => check.status === 'fail');
   const needsAttention = useMemo(() => {
     const ids = new Set();
@@ -293,6 +303,31 @@ export default function AppRail({ onNavigate }) {
             ) : null}
           </button>
         ))}
+        {/* The foot avatar: who this is. It opens the same Settings popup the
+            gear does, on General, where the two names are edited. Without a
+            name there is nothing true to draw, so it is not drawn. */}
+        {identity.initial ? (
+          <button
+            type="button"
+            className="rail-item rail-avatar-item"
+            aria-haspopup="dialog"
+            aria-label={`${identity.displayName || 'You'}${
+              identity.serverName ? ` · ${identity.serverName}` : ''
+            } — open General settings`}
+            onClick={() => {
+              onNavigate?.();
+              openSettings('general');
+            }}
+          >
+            <span className="rail-avatar" aria-hidden="true">
+              {identity.initial}
+            </span>
+            <span className="rail-tip">
+              {identity.displayName || 'You'}
+              {identity.serverName ? ` · ${identity.serverName}` : ''}
+            </span>
+          </button>
+        ) : null}
         {remote && (
           <button
             type="button"

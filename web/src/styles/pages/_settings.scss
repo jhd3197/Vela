@@ -1,0 +1,19 @@
+/* The two name fields in General, stacked so each keeps its own label. */
+.settings-row-stack {
+  align-items: flex-start;
+}
+
+.identity-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 240px;
+}
+
+.identity-fields .field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}

@@ -946,6 +946,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [pendingSections, setPendingSections] = useState({});
+  // The two names, edited as a draft and saved together: typing a name one
+  // letter at a time should not write the file eight times, and the avatar
+  // should not change letter while the name is half typed.
+  const [identityDraft, setIdentityDraft] = useState({ displayName: '', serverName: '' });
+  const [identitySaved, setIdentitySaved] = useState({ displayName: '', serverName: '' });
+  const identityChanged =
+    identityDraft.displayName !== identitySaved.displayName ||
+    identityDraft.serverName !== identitySaved.serverName;
   const onPendingChange = useCallback((section, pending) => {
     setPendingSections((previous) => ({ ...previous, [section]: pending }));
   }, []);
@@ -955,6 +963,29 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
     backRef.current = back;
     setSubScreen(Boolean(back));
   }, []);
+  const saveIdentity = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const saved = await api.updateSettings({ identity: identityDraft });
+      const identity = {
+        displayName: saved.identity?.displayName || '',
+        serverName: saved.identity?.serverName || '',
+      };
+      setSettings(saved);
+      setIdentityDraft(identity);
+      setIdentitySaved(identity);
+      // The rail draws the avatar from this setting, so it is told rather than
+      // left with the old letter until something else makes it re-read.
+      dispatchEvent(new Event('vela:identity-changed'));
+      pushToast('Saved.', 'success');
+    } catch (error) {
+      setSaveError(error.message || 'Could not save those names.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pending = saving || Object.values(pendingSections).some(Boolean);
   const locked = active === 'developer' && !developer;
 
@@ -967,6 +998,12 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
       .getSettings()
       .then((s) => {
         setSettings(s);
+        const identity = {
+          displayName: s.identity?.displayName || '',
+          serverName: s.identity?.serverName || '',
+        };
+        setIdentityDraft(identity);
+        setIdentitySaved(identity);
         if (s.theme === 'dark' || s.theme === 'light') setThemeState(s.theme);
       })
       .catch(() => setLoadError(true));
@@ -1201,6 +1238,61 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
           <section className="panel" id="settings-general" hidden={active !== 'general'}>
             <div className="panel-head">
               <h2>General</h2>
+            </div>
+            {/* What this server is called and who it belongs to. Both are
+                labels: the address Vela answers on is further down this page,
+                and naming the server here changes nothing about the network. */}
+            <div className="settings-row settings-row-stack">
+              <div>
+                <h3 id="identity-label">Your name and this server's</h3>
+                <p>
+                  Vela greets you by name and shows the server's name on the desk. The server name
+                  is a label, not the address this computer answers on.
+                </p>
+              </div>
+              <div className="identity-fields" role="group" aria-labelledby="identity-label">
+                <label className="field-label" htmlFor="identity-display">
+                  Your name
+                  <input
+                    id="identity-display"
+                    type="text"
+                    className="field"
+                    maxLength={60}
+                    value={identityDraft.displayName}
+                    disabled={pending}
+                    placeholder="Marco"
+                    onChange={(event) =>
+                      setIdentityDraft((draft) => ({
+                        ...draft,
+                        displayName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="field-label" htmlFor="identity-server">
+                  Server name
+                  <input
+                    id="identity-server"
+                    type="text"
+                    className="field"
+                    maxLength={60}
+                    value={identityDraft.serverName}
+                    disabled={pending}
+                    placeholder="vela.marco.house"
+                    onChange={(event) =>
+                      setIdentityDraft((draft) => ({
+                        ...draft,
+                        serverName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <div className="form-actions">
+                  <Button disabled={pending || !identityChanged} onClick={saveIdentity}>
+                    Save names
+                  </Button>
+                </div>
+              </div>
             </div>
             <div className="settings-row">
               <div>

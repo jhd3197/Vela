@@ -59,6 +59,12 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Give your server a name, and yourself one.** Vela now asks what to call you
+  and what to call this computer, once, when you first open it — both optional,
+  both changeable in **Settings → General**. Your initial sits at the bottom of
+  the rail and opens straight to those settings, the server's name heads the
+  Launchpad on a phone, and Ask greets you by name. The server name is a label
+  only: it does not change the address Vela answers on.
 - **Deal with what needs you, or put it off.** A row in **Needs you** now shows
   what the app offered to do about it, and a **Later** that puts that one thing
   aside for eight hours — it leaves the list and the dot on the rail goes with

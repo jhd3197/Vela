@@ -66,6 +66,11 @@ export default function Launchpad() {
   const { openSettings } = useSettingsPopup();
   const phone = useMediaQuery(PHONE);
   const desk = useDeskPrefs();
+  // What this computer is called, if the user named it. The Launchpad says it
+  // at the top on a phone, where the desk's status strip cannot fit.
+  const loadSettings = useCallback((options) => api.getSettings(options), []);
+  const { data: settingsData } = useResource(loadSettings);
+  const serverName = settingsData?.identity?.serverName || '';
 
   // The wallpaper flags are set the same way the desk sets them, so the shell
   // draws the picture and the rail takes its on-wallpaper ink.
@@ -199,12 +204,13 @@ export default function Launchpad() {
     const running = openItems.length;
     const today = metrics?.network?.today?.total;
     return [
+      serverName,
       running ? `${running} ${running === 1 ? 'app' : 'apps'} running` : '',
       today ? `${formatBytes(today)} today` : '',
     ]
       .filter(Boolean)
       .join(' · ');
-  }, [openItems, metrics]);
+  }, [serverName, openItems, metrics]);
 
   const needle = query.trim().toLowerCase();
   const matches = useCallback(

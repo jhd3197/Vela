@@ -199,6 +199,15 @@ try {
             };
           }
           settings = { ...settings, ...patch };
+          // The engine derives the avatar letter from the display name rather
+          // than accepting one, so the fixture has to as well or the rail would
+          // never draw it here.
+          if (patch.identity) {
+            const identity = { ...settings.identity };
+            const source = identity.displayName || identity.serverName || '';
+            const letter = [...source].find((character) => /[\p{L}\p{N}]/u.test(character)) || '';
+            settings = { ...settings, identity: { ...identity, initial: letter.toUpperCase() } };
+          }
         }
         return route.fulfill({ json: settings });
       }
@@ -249,7 +258,7 @@ try {
   await page.goto('https://vela.test/ask');
   const composer = page.locator('textarea');
   await composer.fill('Keep this unfinished question');
-  const opener = page.locator('.rail').getByRole('button', { name: 'Settings' });
+  const opener = page.locator('.rail').getByRole('button', { name: 'Settings', exact: true });
   await opener.click();
   await dialog.waitFor();
   assert.equal(new URL(page.url()).pathname, '/ask');
@@ -325,7 +334,7 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
   // The rail has no secondary "More" menu; Settings opens from the foot.
   assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 0);
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor();
   assert.equal(
     await dialog.getByRole('button', { name: 'Developer tools', exact: true }).count(),
@@ -336,6 +345,28 @@ try {
     .getByRole('navigation')
     .getByRole('button', { name: 'General', exact: true })
     .click();
+  // The two names. They save together on Save names, not on every keystroke,
+  // and the button stays disabled until something actually changed.
+  const saveNames = dialog.getByRole('button', { name: 'Save names', exact: true });
+  assert.equal(await saveNames.isDisabled(), true, 'nothing to save yet');
+  await dialog.getByLabel('Your name', { exact: true }).fill('Marco');
+  await dialog.getByLabel('Server name', { exact: true }).fill('vela.marco.house');
+  assert.equal(await saveNames.isDisabled(), false);
+  await saveNames.click();
+  await page.waitForFunction(async () => {
+    const response = await fetch('/api/settings');
+    if (!response.ok) return false;
+    const stored = (await response.json()).identity || {};
+    return stored.displayName === 'Marco' && stored.initial === 'M';
+  });
+  // The rail draws the letter as soon as the names are saved, not on its next
+  // poll, and names who it belongs to.
+  const railAvatar = page.locator('.rail-avatar-item');
+  await railAvatar.waitFor();
+  assert.equal(await railAvatar.locator('.rail-avatar').innerText(), 'M');
+  assert.match(await railAvatar.getAttribute('aria-label'), /Marco · vela\.marco\.house/);
+  assert.equal(await saveNames.isDisabled(), true, 'saved, so nothing left to save');
+
   const devSwitch = dialog.getByRole('group', { name: 'Show developer tools' });
   assert.equal(
     await devSwitch.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'),
@@ -352,7 +383,7 @@ try {
 
   // The choice survives a reload, and another tab on the same origin follows.
   await page.reload();
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
   await dialog.getByText('/fixture/data', { exact: true }).waitFor();
   const second = await context.newPage();
@@ -386,7 +417,7 @@ try {
     };
   });
   await sealed.goto('https://vela.test/');
-  await sealed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await sealed.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const sealedDialog = sealed.getByRole('dialog', { name: 'Settings', exact: true });
   await sealedDialog
     .getByRole('navigation')
@@ -410,7 +441,7 @@ try {
     await page.setViewportSize({ width, height: 700 });
     // The rail stays beside Ask on a phone, so Settings is reached from it; the
     // unsent question stays mounted behind the whole journey.
-    await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+    await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
     await dialog.waitFor();
     // Ordinary entry lands on the category list, and the list covers the
     // workspace edge to edge with no popup gap around it.
@@ -493,7 +524,7 @@ try {
   const crossing = page.locator('textarea');
   await crossing.fill('A draft that must survive the crossover');
   await page.setViewportSize({ width: 390, height: 780 });
-  await page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor();
   await dialog
     .getByRole('navigation')
@@ -545,7 +576,7 @@ try {
   const zoomed = await context.newPage();
   await zoomed.goto('https://vela.test/');
   await zoomed.setViewportSize({ width: 720, height: 450 });
-  await zoomed.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await zoomed.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const zoomedDialog = zoomed.getByRole('dialog', { name: 'Settings', exact: true });
   await zoomedDialog.waitFor();
   assert.ok(await zoomedDialog.evaluate((el) => el.classList.contains('settings-screen')));
@@ -556,7 +587,7 @@ try {
   await still.emulateMedia({ reducedMotion: 'reduce' });
   await still.setViewportSize({ width: 390, height: 780 });
   await still.goto('https://vela.test/');
-  await still.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  await still.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
   const stillDialog = still.getByRole('dialog', { name: 'Settings', exact: true });
   await stillDialog
     .getByRole('navigation')

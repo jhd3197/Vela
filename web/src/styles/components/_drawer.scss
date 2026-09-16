@@ -331,3 +331,20 @@
   flex: 1;
   min-width: 0;
 }
+
+/* The two names asked once on first run, above the phone handoff. */
+.welcome-names {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 0 0 20px;
+  text-align: left;
+}
+
+.welcome-names .field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}

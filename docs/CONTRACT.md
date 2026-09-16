@@ -1196,6 +1196,18 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Identity** (`settings.identity`: `serverName`, `displayName`, `initial`):
+  two labels the user chose. `serverName` is what the desk and the Launchpad
+  call this computer, not the address it answers on — naming it changes nothing
+  about how the server listens. `initial` is derived from the display name (or
+  the server name) on read and is never accepted from a caller, so no two
+  surfaces can show a different letter for the same person; a patch offering
+  one is refused, as is an unknown field, a non-string, or a name over 60
+  characters. Both are asked once on first run, both may be left blank, and
+  both are edited in Settings › General. The rail's foot draws a 34px avatar
+  with the initial, labelled "<displayName> · <serverName>", opening Settings ›
+  General; with no name there is no avatar rather than a placeholder letter.
+  Ask greets by display name when there is one.
 - **Needs you actions and Later**: each flagged row carries the summary's
   `actions` that the user has already granted — they open the app, as the app's
   own widget does; Vela does not run an app's action on its behalf — and a

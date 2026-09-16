@@ -35,7 +35,7 @@ from .manifest import SUPPORTED_PLATFORMS
 from .notify import Notifier, NotifyError, NotifyScheduler
 from .registry import Registry
 from .runners import current_platform, get_runner
-from .settings import SettingsStore, sanitize_pins
+from .settings import SettingsStore, normalize_identity, sanitize_pins
 from .system_metrics import SystemMetrics, validate_volumes
 from .state import StateStore
 from .webapps import mount_webapps
@@ -60,7 +60,7 @@ from .automations import Automations, router as automations_router
 LOG = logging.getLogger(__name__)
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
-                  "backups", "updates"}
+                  "backups", "updates", "identity"}
 
 
 class ClientError(BaseModel):
@@ -865,6 +865,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if isinstance(desk, dict) and "volumes" in desk:
             try:
                 desk["volumes"] = validate_volumes(desk["volumes"])
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
+        # The avatar letter follows the display name rather than being sent, so
+        # an identity patch is normalised before it is stored.
+        if "identity" in update:
+            try:
+                update["identity"] = normalize_identity(update["identity"])
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
         # Rail pins are a list of app ids; store the shape, not the meaning —

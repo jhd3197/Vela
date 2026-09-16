@@ -125,6 +125,13 @@ Open-Meteo at most four times an hour and sends nothing else — no account, no
 identifier and nothing about your apps. Turn it off and Vela stops asking
 entirely.
 
+Vela asks for two names the first time you open it: what it should call you,
+and what to call this computer. Both can be left blank and both are changed
+later in **Settings → General**. Your initial appears at the bottom of the rail,
+the server's name at the top of the Launchpad on a phone, and Ask greets you by
+name. The server name is a label — it is not the address this computer answers
+on, and changing it changes nothing about how Vela is reached.
+
 When an app says it needs you, its row on the desk carries whatever it offered
 to do about it and a **Later**. Later puts that one thing aside for eight hours:
 it leaves the Needs you list and the dot on the rail goes with it. Nothing is
