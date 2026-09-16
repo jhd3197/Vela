@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.11 - 2026-09-16
+
 ### Changed
 
 - **The desk is a desktop now.** The search sits in the middle of the wallpaper
