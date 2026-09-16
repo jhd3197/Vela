@@ -54,6 +54,11 @@ until the release workflow prepares a tested server version.
   The desktop board is six columns wide and the phone board two, each laid out
   and saved on its own, and both are kept on your server so they are the same
   after a restart and in another browser.
+
+## 0.1.9 - 2026-09-15
+
+### Changed
+
 - **The app rail stays on screen on a phone.** Every dashboard page, including
   an open app, now keeps the rail of destinations and installed apps beside its
   content at phone widths, so switching apps or pages is one tap away. The
