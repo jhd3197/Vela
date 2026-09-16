@@ -1,12 +1,14 @@
 // One keyboard-shortcut owner for the whole shell. A single keydown listener
-// on `window` drives the OS-level shortcuts (open the Launchpad, later the
-// shortcut sheet and the pinned-app keys) so no page has to grow its own
-// global handler. The listener ignores editable targets — inputs, textareas,
-// selects and contenteditable — so a shortcut never fires while someone is
-// typing, and it cannot see keys pressed inside an app's iframe because those
-// events are delivered to the frame's own document, not to this window.
-import { useEffect } from 'react';
+// on `window` drives the OS-level shortcuts so no page has to grow its own
+// global handler. Plain-key shortcuts are ignored while an editable target has
+// focus (inputs, textareas, selects, contenteditable), and the listener cannot
+// see keys pressed inside an app's iframe because those events go to the
+// frame's own document, not this window.
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useApps } from './store.jsx';
+import { coreById, isCoreId } from './navigation.js';
+import { useSettingsPopup } from './components/SettingsProvider.jsx';
 
 const LAUNCHPAD = '/apps';
 
@@ -25,9 +27,8 @@ function isEditable(target) {
   return Boolean(target.isContentEditable);
 }
 
-// Ctrl+Space (Cmd+Space on a Mac) toggles the Launchpad from anywhere. Space
-// is `event.code === 'Space'`, which is stable across layouts and does not
-// depend on the key producing a printable character.
+// Ctrl+Space (Cmd+Space on a Mac) toggles the Launchpad. Space is
+// `event.code === 'Space'`, stable across layouts.
 function isLaunchpadToggle(event) {
   const withModifier = event.ctrlKey || event.metaKey;
   return withModifier && !event.altKey && !event.shiftKey && event.code === 'Space';
@@ -36,8 +37,24 @@ function isLaunchpadToggle(event) {
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { pinned, openApp } = useApps();
+  const { openSettings } = useSettingsPopup();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
+    const openPinned = (index) => {
+      const id = pinned[index];
+      if (!id) return;
+      if (isCoreId(id)) {
+        const entry = coreById(id);
+        if (!entry) return;
+        if (entry.popup) openSettings();
+        else navigate(entry.to, { state: { returnTo: location.pathname + location.search } });
+      } else {
+        openApp(id, { returnTo: location.pathname + location.search });
+      }
+    };
+
     const onKey = (event) => {
       if (event.defaultPrevented) return;
       // The Launchpad toggle is a deliberate modifier chord, so it works even
@@ -45,18 +62,36 @@ export function useGlobalShortcuts() {
       if (isLaunchpadToggle(event)) {
         event.preventDefault();
         const here = location.pathname + location.search;
-        if (location.pathname === LAUNCHPAD) {
-          navigate(launchpadReturnTo());
-        } else {
+        if (location.pathname === LAUNCHPAD) navigate(launchpadReturnTo());
+        else {
           launchpadReturn = here;
           navigate(LAUNCHPAD, { state: { returnTo: here } });
         }
         return;
       }
-      // Plain-key shortcuts (added in later stages) must not fire while typing.
+      // Ctrl+1..9 opens the matching pinned app; a modifier chord, so it fires
+      // whatever has focus.
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && /^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        openPinned(Number(event.key) - 1);
+        return;
+      }
+      // Ctrl+/ opens the shortcut sheet from anywhere.
+      if ((event.ctrlKey || event.metaKey) && event.key === '/') {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+      // The remaining shortcuts are plain keys, so they yield to a field.
       if (isEditable(event.target)) return;
+      if (event.key === '?') {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate, location.pathname, location.search]);
+  }, [navigate, location.pathname, location.search, pinned, openApp, openSettings]);
+
+  return { shortcutsOpen, closeShortcuts: () => setShortcutsOpen(false) };
 }

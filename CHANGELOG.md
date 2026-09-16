@@ -44,6 +44,11 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Keyboard shortcuts and phone gestures.** Press **?** (or **Ctrl+/**) for the
+  full list: **Ctrl+K** searches, **Ctrl+Space** opens or closes the Launchpad,
+  **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
+  out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
+  swipe down from its top to close it.
 - **A full-screen Launchpad.** Opening **Apps** now fills the screen with every
   app over your blurred wallpaper, not a side drawer. A search in the middle
   filters as you type and Enter opens the first match; **Ctrl+Space**

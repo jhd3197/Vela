@@ -41,6 +41,11 @@ The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
 button to reach them.
 
+From a keyboard: **Ctrl+K** searches, **Ctrl+Space** opens or closes the
+Launchpad, **Ctrl+1** to **Ctrl+9** open the pinned apps by their place on the
+rail, **Esc** backs out of the Launchpad, a menu or a dialog, and **?** (or
+**Ctrl+/**) shows the whole list.
+
 Apps open beside the rail with a title bar of their own: a back arrow to where
 you opened the app from, its name and whether it is running, and a **⋯** menu to
 pin it to the rail, add its widget to your desk, reach its settings, reload it,
@@ -124,6 +129,13 @@ Only the app can set that — Vela never decides on an app's behalf that
 something is wrong.
 
 ## On a phone
+
+The rail stays down the side at every width — there is no bottom bar and no
+hamburger — so an app or a destination is always one tap away. Swipe up from the
+bottom edge of the desk to open the Launchpad, and swipe down from the top of
+the Launchpad to close it again. Press and hold an app tile, a rail icon, a
+widget or the bare wallpaper for the same menus a right-click gives on a
+computer.
 
 Vela is meant to be used from a phone as well as a computer. Tapping a field
 does not zoom the page and leave it zoomed, and when the keyboard opens the box

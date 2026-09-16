@@ -678,6 +678,18 @@ body[data-desk] .rail-divider {
     gap: 14px 6px;
   }
 
+  /* A thin catcher along the bottom edge: swiping up from here opens the
+     Launchpad without stealing the board's own scroll. */
+  .desk-swipe-up {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(24px + env(safe-area-inset-bottom, 0px));
+    z-index: 15;
+    touch-action: none;
+  }
+
   .desk-tiles-icons .tile-card-text,
   .desk-tiles-icons .tile-add-name {
     font-size: 11px;

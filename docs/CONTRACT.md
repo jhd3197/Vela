@@ -927,7 +927,14 @@ restrained 14px card corners), in light and dark.
   rail on screen at every width — beside its content, never over it — so a
   destination or a ready app opens with one tap. A page's own panel slides in
   from the left edge beside the rail: Ask puts its conversation list there, so
-  apps and conversations are one gesture away from the chat.
+  apps and conversations are one gesture away from the chat. A swipe up from the
+  desk's bottom edge opens the Launchpad; a swipe down from the top closes it;
+  press-and-hold raises the same context menus a right-click gives.
+- **Shortcuts**: one window keydown listener owns the OS-level keys —
+  `Ctrl+K`/`⌘K` search, `Ctrl+Space`/`⌘Space` toggle the Launchpad, `Ctrl+1`..
+  `Ctrl+9` open the pinned apps in rail order, `Esc` backs out, and `?` or
+  `Ctrl+/` opens the shortcut sheet. Modifier chords fire even in a field; plain
+  keys yield to editable targets and never reach an app's iframe.
 - **Workspace**: an optional context panel, a contextual header and the content
   surface. The header carries the ⌘K search palette (apps, settings entries and
   same-origin mini-app data) and the notification bell. A healthy server is not

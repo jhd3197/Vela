@@ -5,6 +5,7 @@ import Toasts from './Toasts.jsx';
 import WelcomeSetup from './WelcomeSetup.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import { useGlobalShortcuts } from '../shortcuts.js';
+import ShortcutSheet from './ui/ShortcutSheet.jsx';
 
 // The outer shell: one persistent rail beside the workspace. The rail stays on
 // screen at every width, including phones, so every destination and every
@@ -19,7 +20,7 @@ export default function Shell({ children }) {
   const hasChildren = Boolean(children);
   // One shell is mounted at a time (the routed pages, or an app workspace that
   // renders its own), so the global shortcut listener is owned here.
-  useGlobalShortcuts();
+  const { shortcutsOpen, closeShortcuts } = useGlobalShortcuts();
 
   return (
     <div className="shell">
@@ -28,6 +29,7 @@ export default function Shell({ children }) {
       <div className="workspace">{children || <Outlet />}</div>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
+      <ShortcutSheet open={shortcutsOpen} onClose={closeShortcuts} />
       {!hasChildren && !settingsOpen && <WelcomeSetup key={location.key} />}
     </div>
   );

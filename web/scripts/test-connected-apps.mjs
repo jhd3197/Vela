@@ -242,7 +242,7 @@ try {
       0,
     );
     await page.goto(appUrl);
-    await page.getByRole('heading', { name: 'App not found' }).waitFor();
+    await page.getByRole('heading', { name: 'App unavailable' }).waitFor();
     await context.close();
   }
   assert.ok(requests.length > 0);

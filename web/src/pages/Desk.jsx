@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useBlocker, useNavigate } from 'react-router-dom';
 import {
   ArrowCounterClockwise,
   ArrowClockwise,
@@ -19,6 +19,7 @@ import GlobalSearch from '../components/GlobalSearch.jsx';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
+import useSwipe from '../hooks/useSwipe.js';
 import DeskGrid from '../desk/grid/DeskGrid.jsx';
 import { DeskDataProvider } from '../desk/DeskDataProvider.jsx';
 import WidgetLibrary from '../desk/WidgetLibrary.jsx';
@@ -51,7 +52,10 @@ const LONG_PRESS_SLOP = 8;
 // user can replace, and the rail beside it is the same rail as everywhere else.
 export default function Desk() {
   const { apps, openApp, pushToast } = useApps();
+  const navigate = useNavigate();
   const phone = useMediaQuery(PHONE);
+  // On a phone, a swipe up from the bottom edge opens the Launchpad.
+  const swipeUp = useSwipe({ onUp: () => navigate('/apps', { state: { returnTo: '/' } }) });
   const boardKey = phone ? 'phone' : 'desktop';
   const types = useWidgetTypes(apps, AppWidget);
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
@@ -503,6 +507,19 @@ export default function Desk() {
               </p>
             }
           />
+          {phone && !edit && (
+            <div
+              className="desk-swipe-up"
+              aria-hidden="true"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                swipeUp.onPointerDown(event);
+              }}
+              onPointerMove={swipeUp.onPointerMove}
+              onPointerUp={swipeUp.onPointerUp}
+              onPointerCancel={swipeUp.onPointerCancel}
+            />
+          )}
         </div>
 
         {library && (

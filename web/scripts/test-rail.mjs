@@ -275,6 +275,20 @@ try {
     .locator('.rail-apps-group[aria-label="Pinned apps"] a[href="/app/workspace"]')
     .waitFor();
 
+  // The shortcut sheet opens with ? and closes with Escape.
+  await page.goto(base);
+  await page.locator('.rail').waitFor();
+  await page.locator('h1').first().click();
+  await page.keyboard.press('Shift+Slash');
+  await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).waitFor({ state: 'detached' });
+  // Ctrl+1 opens the first pinned app — Ask — which then reads as selected.
+  await page.keyboard.press('Control+1');
+  await page.waitForFunction(
+    () => document.querySelector('.rail a[href="/ask"]')?.getAttribute('aria-current') === 'page',
+  );
+
   // With nothing running the OPEN group is absent rather than empty, and only
   // the pinned tools remain in the app region.
   await page.setViewportSize({ width: 1366, height: 900 });

@@ -16,6 +16,7 @@ import { useResource } from '../hooks/useResource.js';
 import { useDeveloperTools } from '../developer.js';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import useLongPress from '../hooks/useLongPress.js';
+import useSwipe from '../hooks/useSwipe.js';
 import { PHONE } from '../breakpoints.js';
 import { coreApps } from '../navigation.js';
 import { launchpadReturnTo } from '../shortcuts.js';
@@ -247,6 +248,15 @@ export default function Launchpad() {
     }
   };
 
+  // On a phone, a swipe down from the top closes the Launchpad — but only when
+  // the grid is already scrolled to the top, so a normal scroll is untouched.
+  const swipeDown = useSwipe({
+    onDown: () => {
+      const content = document.querySelector('.launchpad-workspace .workspace-content');
+      if (!content || content.scrollTop <= 2) navigate(launchpadReturnTo());
+    },
+  });
+
   const longPress = useLongPress(({ x, y, target }) => {
     const tile = target.closest?.('.launch-tile');
     if (!tile) return;
@@ -297,6 +307,10 @@ export default function Launchpad() {
     <WorkspacePage search={false} scroll className="launchpad-workspace">
       <div
         className="launchpad"
+        onPointerDown={phone ? swipeDown.onPointerDown : undefined}
+        onPointerMove={phone ? swipeDown.onPointerMove : undefined}
+        onPointerUp={phone ? swipeDown.onPointerUp : undefined}
+        onPointerCancel={phone ? swipeDown.onPointerCancel : undefined}
         onKeyDown={(event) => {
           // Escape leaves the Launchpad the way it was opened — back to the
           // route the user came from. The context menu owns Escape while it is
