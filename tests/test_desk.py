@@ -109,7 +109,10 @@ class StoreTests(unittest.TestCase):
             self.store.save(stale, 0, KNOWN)
         # The conflict carries the revision the caller should reload from.
         self.assertEqual(raised.exception.args[0], 1)
-        self.assertEqual(len(self.store.load(KNOWN)["boards"]["desktop"]["widgets"]), 4)
+        self.assertEqual(
+            len(self.store.load(KNOWN)["boards"]["desktop"]["widgets"]),
+            len(default_boards()["desktop"]["widgets"]),
+        )
 
     def test_a_damaged_board_is_repaired_rather_than_thrown_away(self):
         self.path.write_text(

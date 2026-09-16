@@ -24,11 +24,16 @@ export function defaultBoards() {
     version: BOARD_VERSION,
     desktop: {
       cols: DESKTOP_COLS,
+      // A board that fills the width with no gaps: the time and what is running
+      // down the left, the app grid and Ask filling the rest, and the things
+      // that need you filling the bottom-left. Only widgets that always have
+      // something real to show are seeded — volumes and the like are opt-in.
       widgets: [
         widget('w1', 'clock', 0, 0, 2, 1),
         widget('w2', 'apps', 2, 0, 4, 2),
         widget('w3', 'running', 0, 1, 2, 1),
-        widget('w4', 'ask', 0, 2, 2, 2),
+        widget('w4', 'needs-you', 0, 2, 2, 2),
+        widget('w5', 'ask', 2, 2, 4, 2),
       ],
     },
     phone: {

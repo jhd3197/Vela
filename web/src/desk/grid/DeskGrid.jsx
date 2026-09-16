@@ -34,6 +34,7 @@ export default function DeskGrid({
   onChange,
   ctx,
   onWidgetMenu,
+  onViewMenu,
   empty = null,
 }) {
   const hostRef = useRef(null);
@@ -195,6 +196,7 @@ export default function DeskGrid({
             selected={selectedId === widget.i}
             onSelect={onSelect}
             onMenu={onWidgetMenu}
+            onViewMenu={onViewMenu}
             onDragStart={(event, target) => beginGesture(event, target, 'move')}
             onResizeStart={(event, target) => beginGesture(event, target, 'resize')}
             style={frameStyle(widget)}

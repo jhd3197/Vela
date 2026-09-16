@@ -5,7 +5,7 @@
 // add another. Nothing here is invented — an app with no description says
 // nothing rather than filling the line with activity Vela does not have.
 import { Link } from 'react-router-dom';
-import { Plus } from '@phosphor-icons/react';
+import { SquaresFour } from '@phosphor-icons/react';
 import AppIcon from '../../components/AppIcon.jsx';
 import { useApps } from '../../store.jsx';
 
@@ -61,12 +61,10 @@ export default function AppsWidget({ cfg = {}, ctx }) {
     );
   }
 
+  // Both boards show the apps as a labelled icon grid now — no cramped rows.
+  // "Open all" leads to the Launchpad, where the whole set and its actions live.
   return (
-    <div
-      className={`tiles-grid desk-tiles${labels ? '' : ' desk-tiles-bare'}${
-        phone ? ' desk-tiles-icons' : ''
-      }`}
-    >
+    <div className={`tiles-grid desk-tiles desk-tiles-icons${labels ? '' : ' desk-tiles-bare'}`}>
       {installed.map((app) => {
         const meta = appDetail(app);
         const busy = openingId === app.id;
@@ -79,7 +77,7 @@ export default function AppsWidget({ cfg = {}, ctx }) {
             aria-label={`Open ${app.name}`}
             onClick={() => openApp(app.id, { returnTo: '/' })}
           >
-            <AppIcon app={app} size={phone ? 52 : 40} />
+            <AppIcon app={app} size={phone ? 52 : 56} />
             <span className="tile-card-text">
               <span className="tile-card-name">{app.name}</span>
               <span className="tile-card-meta">{busy ? `Opening ${app.name}…` : meta}</span>
@@ -87,10 +85,10 @@ export default function AppsWidget({ cfg = {}, ctx }) {
           </button>
         );
       })}
-      <Link to="/library" className="tile-add">
-        <Plus size={20} aria-hidden="true" />
-        <span className="tile-add-name">Add an app</span>
-        <span className="tile-add-sub">From the Library</span>
+      <Link to="/apps" className="tile-add">
+        <SquaresFour size={20} aria-hidden="true" />
+        <span className="tile-add-name">Open all</span>
+        <span className="tile-add-sub">In the Launchpad</span>
       </Link>
     </div>
   );

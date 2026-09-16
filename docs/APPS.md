@@ -52,13 +52,22 @@ app has unsaved work, leaving it asks before anything is lost. **App settings**,
 in the title-bar menu or the Vela menu, holds the app's permissions, its
 connection, updates and removal.
 
+The desk opens with a single search field centred over the wallpaper — start
+typing to reach an app, a note, a setting or Ask. The desk's own controls live
+in the **⋯** menu at the top-right (next to the bell), or a **right-click** — a
+long press on a phone — anywhere on the wallpaper: **Add widget**, **Arrange
+desk**, **Personalise** and **Reset desk**, which puts the board being looked at
+back to the one Vela ships (your other board is left alone).
+
 ## Arrange your desk
 
-Choose **Add widget** above the board to see everything Vela can show you.
+Choose **Add widget** from the desk menu to see everything Vela can show you.
 Widgets are grouped by who owns them — Vela's own first, then one group per app
 that provides any — and the list only ever offers something Vela can really
 answer for. Picking one puts it in the first free space and switches the board
-into arranging.
+into arranging. Right-click a widget for its own quick menu — open its app,
+resize it small, medium or large, or remove it — without arranging the whole
+board.
 
 While you are arranging, drag a widget by its top bar to move it, or its
 bottom-right corner to resize it. Everything else moves out of the way, and
@@ -81,7 +90,7 @@ separate board: arranging one never rearranges the other.
 
 ## Make the desk yours
 
-**Personalise**, above the board, sets what the desk looks like. Pick one of the
+**Personalise**, in the desk menu, sets what the desk looks like. Pick one of the
 wallpapers Vela ships with, or **Use your own** — a JPEG, PNG or WebP up to 8 MB,
 which stays on your own computer and is never sent anywhere. **Dim the
 wallpaper** keeps widget text readable over a bright picture; turn it off if you
@@ -89,7 +98,8 @@ would rather see the photograph. **Show app names** switches between named tiles
 and icons only, and **Ask on this board** adds or removes the Ask widget from
 whichever board you are looking at.
 
-On a phone, press and hold an empty part of the wallpaper to open Personalise.
+On a phone, press and hold an empty part of the wallpaper to open the desk menu,
+then choose Personalise.
 
 ## App widgets on the desk
 

@@ -131,7 +131,14 @@ export default function ContextMenu({
             className={`context-menu-item${item.danger ? ' is-danger' : ''}`}
             disabled={item.disabled}
             onClick={() => {
+              // Return focus to the opener before running the action, so a
+              // dialog the action opens records the opener and lands focus back
+              // there on close.
+              const back = returnFocusRef?.current;
               onClose?.();
+              if (back?.isConnected && typeof back.focus === 'function') {
+                back.focus({ preventScroll: true });
+              }
               item.onSelect?.();
             }}
           >

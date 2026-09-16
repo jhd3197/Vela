@@ -8,6 +8,14 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **The desk is a desktop now.** The search sits in the middle of the wallpaper
+  where a launcher's does, and the buttons that used to crowd it moved into a
+  **⋯** menu at the top-right and a **right-click** (long press on a phone) on
+  the wallpaper: Add widget, Arrange desk, Personalise, and **Reset desk** to
+  put a board back the way Vela ships it. Right-click a widget for its own
+  quick menu — open its app, resize it, or remove it — without arranging the
+  whole board. A fresh desk fills the screen with no bare gaps, and your apps
+  show as a labelled icon grid with **Open all** leading to the Launchpad.
 - **Apps open in a real window.** An app you open now has its own title bar: a
   back arrow to where you came from, its name and whether it is running, and a
   **⋯** menu to pin it to the rail, add its widget to your desk, reach its
