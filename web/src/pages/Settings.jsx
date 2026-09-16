@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   ArrowCircleUp,
   Stethoscope,
+  Folder,
   SquaresFour,
   Trash,
   Palette,
@@ -822,6 +823,144 @@ function DeskSection({ settings, onPatched, onPendingChange }) {
   );
 }
 
+// Files: the folders the Files app may show. This is the only place a share is
+// named, and the server refuses a path that is not a folder rather than storing
+// it and failing inside the app later. Vela's own data folder is refused
+// outright: browsing it would be a way to delete every app's data at once.
+function FilesSection({ settings, onPatched, onPendingChange }) {
+  const shares = settings?.files?.shares || [];
+  const [draft, setDraft] = useState({ path: '', label: '', writable: true });
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    onPendingChange('files', saving);
+    return () => onPendingChange('files', false);
+  }, [saving, onPendingChange]);
+
+  const save = (next) => {
+    setSaving(true);
+    setNote('');
+    return api
+      .updateSettings({ files: { shares: next } })
+      .then(() => {
+        onPatched({ files: { ...(settings?.files || {}), shares: next } });
+        setDraft({ path: '', label: '', writable: true });
+      })
+      .catch((error) => setNote(error.message || 'Could not save that share.'))
+      .finally(() => setSaving(false));
+  };
+
+  const add = (event) => {
+    event.preventDefault();
+    const path = draft.path.trim();
+    if (!path) return;
+    const label = draft.label.trim();
+    // An id the user never has to think about, from the label or the folder.
+    const base = (
+      label ||
+      path
+        .replace(/[\\/]+$/, '')
+        .split(/[\\/]/)
+        .pop() ||
+      'share'
+    )
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40);
+    let id = base || 'share';
+    let n = 2;
+    while (shares.some((entry) => entry.id === id)) id = `${base}-${n++}`;
+    save([...shares, { id, path, label, writable: draft.writable }]);
+  };
+
+  return (
+    <section className="panel" id="settings-files">
+      <div className="panel-head">
+        <h2>Files</h2>
+      </div>
+      <p className="panel-note" style={{ marginBottom: 14 }}>
+        Add a folder here and the Files app can show it. Nothing outside these folders is ever
+        served, and Vela's own data folder cannot be added. Deleting from Files moves things to a
+        trash that is cleared after 30 days.
+      </p>
+      {shares.length > 0 && (
+        <ul className="settings-volume-list">
+          {shares.map((share) => (
+            <li key={share.id}>
+              <span className="settings-volume-text">
+                <span>
+                  {share.label || share.path}
+                  {share.writable ? '' : ' · read-only'}
+                </span>
+                <small className="mono">{share.path}</small>
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Remove ${share.label || share.path}`}
+                disabled={saving}
+                onClick={() => save(shares.filter((entry) => entry.id !== share.id))}
+              >
+                <Trash size={16} aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="form-grid" onSubmit={add}>
+        <div className="field">
+          <FormField label="Folder">
+            <input
+              id="files-share-path"
+              value={draft.path}
+              disabled={saving}
+              placeholder="D:\Documents"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
+            />
+          </FormField>
+        </div>
+        <div className="field">
+          <FormField label="Name (optional)">
+            <input
+              id="files-share-label"
+              value={draft.label}
+              disabled={saving}
+              placeholder="Documents"
+              autoComplete="off"
+              onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
+            />
+          </FormField>
+        </div>
+      </form>
+      <label className="personalise-row">
+        <span>
+          Let Vela change this folder
+          <small>Off means you can look and download, but not add, rename or delete.</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={draft.writable}
+          disabled={saving}
+          onChange={(event) => setDraft((prev) => ({ ...prev, writable: event.target.checked }))}
+        />
+      </label>
+      {note && (
+        <p className="inline-error" role="alert">
+          {note}
+        </p>
+      )}
+      <div className="form-actions">
+        <Button pending={saving} disabled={!draft.path.trim()} onClick={add}>
+          Add share
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 // --------------------------------------------------------------------- page
 
 const SECTIONS = [
@@ -838,6 +977,13 @@ const SECTIONS = [
     icon: SquaresFour,
     description: 'What your home board is allowed to show.',
     keywords: 'desk widgets volumes drive disk wallpaper home board',
+  },
+  {
+    id: 'files',
+    label: 'Files',
+    icon: Folder,
+    description: 'The folders the Files app may show.',
+    keywords: 'files shares folders browse downloads trash upload share read-only',
   },
   {
     id: 'appearance',
@@ -1418,6 +1564,14 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
 
           <div hidden={active !== 'desk'}>
             <DeskSection
+              settings={settings}
+              onPatched={onPatched}
+              onPendingChange={onPendingChange}
+            />
+          </div>
+
+          <div hidden={active !== 'files'}>
+            <FilesSection
               settings={settings}
               onPatched={onPatched}
               onPendingChange={onPendingChange}

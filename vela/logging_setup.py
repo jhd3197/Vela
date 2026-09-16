@@ -35,6 +35,9 @@ AUDIT_EVENTS = (
     "restore",
     "repair",
     "clear-log",
+    # Anything that changes a file in a share: upload, rename, move, delete,
+    # mkdir. A file the user cannot find should be traceable to who moved it.
+    "files",
 )
 
 _configured: list[logging.Handler] = []

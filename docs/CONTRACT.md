@@ -1196,6 +1196,29 @@ restrained 14px card corners), in light and dark.
   dashboard reloads and says so, and an invalid board answers 422 without
   storing anything. A board may only name a widget type that exists now, so
   uninstalling an app removes its widgets rather than leaving dead frames.
+- **Files** (`/files`, a core app): browses the folders named in
+  `settings.files.shares` (`id`, `label`, `path`, `writable`), managed in
+  Settings › Files and defaulting to one `Downloads` share under
+  `<data_dir>/shares/downloads`. **A path is served only when it resolves
+  inside a configured share.** Every route names a share id and a path relative
+  to it, and there is deliberately no route that accepts a whole path; `..`, an
+  absolute path, a drive letter, a UNC path and a symlink pointing out of the
+  share are all refused by the same check, and a refusal never names the real
+  path. Vela's own data directory cannot be configured as a share.
+  `GET /api/files` lists the shares, each marked `reachable`;
+  `GET /api/files/{share}?path=` lists a folder (name, path, kind, size,
+  modified, folders first), capped at 5000 entries with `truncated` when there
+  are more; `GET /api/files/{share}/download?path=` sends a file, as an
+  attachment unless `inline` is asked for and the kind is one a browser renders
+  — an SVG is never inline, because it is an image that can carry script;
+  `POST …/folder`, `…/rename`, `…/move` and `DELETE /api/files/{share}?path=`
+  change things, and `POST …/upload?path=&name=` streams one file of at most
+  2 GB. A read-only share refuses every change. Deletes move to
+  `<data_dir>/trash`, listed by `GET /api/files-trash` and cleared after 30
+  days. Every change is written to `audit.log` as a `files` event. The engine
+  authenticates by header, so the dashboard fetches a file with the session and
+  hands the browser a blob rather than linking at `/api/…` directly, and a text
+  preview is shown as text rather than rendered.
 - **Identity** (`settings.identity`: `serverName`, `displayName`, `initial`):
   two labels the user chose. `serverName` is what the desk and the Launchpad
   call this computer, not the address it answers on — naming it changes nothing

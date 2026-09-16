@@ -59,6 +59,15 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Files: browse the folders you share with Vela.** A new app in the Launchpad
+  shows the folders you name in **Settings → Files** — and only those. Make
+  folders, rename things, drop files in to upload them, preview pictures, PDFs,
+  sound, video and text, and switch between a list and a grid. A share can be
+  marked read-only, so you can look without being able to change anything.
+  Deleting moves things to a trash Vela clears after 30 days rather than
+  removing them, and every change is written to Vela's audit log. Vela starts
+  with a Downloads folder of its own; its own data folder can never be shared,
+  and nothing outside a share is ever served.
 - **Give your server a name, and yourself one.** Vela now asks what to call you
   and what to call this computer, once, when you first open it — both optional,
   both changeable in **Settings → General**. Your initial sits at the bottom of

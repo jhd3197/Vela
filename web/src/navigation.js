@@ -1,5 +1,6 @@
 import {
   ChatCircleText,
+  Folder,
   GearSix,
   HardDrives,
   HouseSimple,
@@ -12,6 +13,7 @@ import Ask from './pages/Ask.jsx';
 import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
 import System from './pages/System.jsx';
+import Files from './pages/Files.jsx';
 import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
@@ -69,6 +71,15 @@ export const dashboardPages = [
     // back button all land on the same automation.
     childPaths: ['/automations/:workflowId'],
     component: Automations,
+  },
+  {
+    to: '/files',
+    label: 'Files',
+    icon: Folder,
+    core: true,
+    id: 'files',
+    color: '#2f8fd0',
+    component: Files,
   },
   {
     to: '/environments',

@@ -31,6 +31,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "labels": True,
         "weather": {"enabled": False, "latitude": None, "longitude": None, "label": ""},
     },
+    # The folders the Files app may browse. Empty means the default Downloads
+    # share under the data directory; nothing outside a share is ever served.
+    "files": {"shares": []},
     # Who this server belongs to and what it is called. Both are labels the
     # user chose: `serverName` is what the desk and the Launchpad call this
     # computer, not the address it answers on (that is in Settings > General).

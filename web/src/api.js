@@ -234,6 +234,57 @@ export const api = {
   // Open counts behind the Launchpad's Frequent tab. Counted and kept on this
   // computer; recording one is fire-and-forget, so a failure never blocks the
   // app the user asked for.
+  // Files: every call names a share by id and a path relative to it. There is
+  // deliberately no call that takes a whole path.
+  fileShares: (options) => request('/api/files', options),
+  listFiles: (share, path = '', options) =>
+    request(`/api/files/${encodeURIComponent(share)}?path=${encodeURIComponent(path)}`, options),
+  // A file's bytes, fetched with the hub token and handed back as a blob URL.
+  // The engine authenticates by header only, so an `<img src>` or a plain link
+  // pointing at `/api/...` would be refused; the caller revokes the URL when it
+  // is finished with it.
+  fileBlobUrl: async (share, path, { inline = false } = {}) => {
+    const response = await hubFetch(
+      `/api/files/${encodeURIComponent(share)}/download?path=${encodeURIComponent(path)}${
+        inline ? '&inline=true' : ''
+      }`,
+    );
+    if (!response.ok) {
+      let detail = `Request failed (${response.status})`;
+      try {
+        const body = await response.json();
+        if (body && typeof body.detail === 'string') detail = body.detail;
+      } catch {
+        // Non-JSON error body; keep the status-based message.
+      }
+      throw new ApiError(detail, response.status);
+    }
+    return URL.createObjectURL(await response.blob());
+  },
+  createFolder: (share, path, name) =>
+    request(`/api/files/${encodeURIComponent(share)}/folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    }),
+  renameFile: (share, path, name) =>
+    request(`/api/files/${encodeURIComponent(share)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    }),
+  deleteFile: (share, path) =>
+    request(`/api/files/${encodeURIComponent(share)}?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE',
+    }),
+  uploadFile: (share, path, file) =>
+    request(
+      `/api/files/${encodeURIComponent(share)}/upload?path=${encodeURIComponent(
+        path,
+      )}&name=${encodeURIComponent(file.name)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file },
+    ),
+
   usage: (options) => request('/api/usage', options),
   // The desk's one outbound request, and only while the user has it on. The
   // server makes it, caches it and answers with nothing at all when it is off.

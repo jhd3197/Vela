@@ -125,6 +125,24 @@ Open-Meteo at most four times an hour and sends nothing else — no account, no
 identifier and nothing about your apps. Turn it off and Vela stops asking
 entirely.
 
+## Files
+
+**Files** shows the folders you told Vela it may show, and nothing else. Add one
+in **Settings → Files**: give it a folder and a name, and say whether Vela may
+change it — leave that off and you can look and download but not add, rename or
+delete. Vela starts with a **Downloads** folder of its own. Vela's own data
+folder cannot be added.
+
+Inside a share you can make folders, rename things, upload by dropping files
+onto the list, and switch between a list and a grid. Pictures, video, sound,
+PDFs and text open in a preview; a text file is shown as text, never run.
+Deleting moves things to a trash that Vela clears after 30 days, so a mistake is
+recoverable for a month. Every change is written to Vela's audit log.
+
+Nothing outside a share is ever served. A folder on a drive that is not plugged
+in is listed and marked unavailable rather than hidden, so you can see why it is
+not working.
+
 Vela asks for two names the first time you open it: what it should call you,
 and what to call this computer. Both can be left blank and both are changed
 later in **Settings → General**. Your initial appears at the bottom of the rail,

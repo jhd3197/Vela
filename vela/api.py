@@ -24,6 +24,7 @@ from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, 
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
+from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
 from .snooze import SnoozeStore
 from .weather import Weather, WeatherError
 from .doctor import Doctor, summarise
@@ -60,7 +61,7 @@ from .automations import Automations, router as automations_router
 LOG = logging.getLogger(__name__)
 
 _SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
-                  "backups", "updates", "identity"}
+                  "backups", "updates", "identity", "files"}
 
 
 class ClientError(BaseModel):
@@ -292,6 +293,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     desk = DeskStore(config.data_dir / "desk.json")
     usage = UsageStore(config.data_dir / "usage.json")
     weather = Weather(settings)
+    files = Files(config, settings)
     wallpaper = Wallpaper(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
@@ -806,6 +808,113 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             settings.patch({"desk": {"wallpaper": "choroni"}})
         return result
 
+    # ---- files ---------------------------------------------------------
+    #
+    # Every route here names a share by id and a path relative to it, and
+    # `files.resolve` is the only thing that turns those into a real path. There
+    # is deliberately no route that accepts a whole path.
+
+    def _files_error(exc: FileError):
+        return HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @app.get("/api/files")
+    def list_shares() -> dict:
+        return {"shares": files.shares(), "trashDays": TRASH_DAYS, "maxUpload": MAX_UPLOAD_BYTES}
+
+    @app.get("/api/files/{share_id}")
+    def list_share(share_id: str, path: str = "") -> dict:
+        try:
+            return files.list(share_id, path)
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.get("/api/files/{share_id}/download")
+    def download_file(share_id: str, path: str = "", inline: bool = False):
+        try:
+            target, kind = files.open_file(share_id, path)
+        except FileError as exc:
+            raise _files_error(exc)
+        # Everything is sent as a download unless the browser asked to show it
+        # and it is a type a browser renders without running anything. An SVG is
+        # an image that can carry script, so it is never shown inline.
+        showable = inline and kind in {"image", "video", "audio", "pdf", "text"}
+        if showable and target.suffix.lower() == ".svg":
+            showable = False
+        return FileResponse(
+            target,
+            filename=target.name,
+            content_disposition_type="inline" if showable else "attachment",
+        )
+
+    @app.post("/api/files/{share_id}/folder")
+    def create_folder(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
+        try:
+            return files.mkdir(
+                share_id,
+                str(payload.get("path") or ""),
+                str(payload.get("name") or ""),
+                actor=request_actor(auth, request),
+            )
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.post("/api/files/{share_id}/rename")
+    def rename_entry(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
+        try:
+            return files.rename(
+                share_id,
+                str(payload.get("path") or ""),
+                str(payload.get("name") or ""),
+                actor=request_actor(auth, request),
+            )
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.post("/api/files/{share_id}/move")
+    def move_entry(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
+        try:
+            return files.move(
+                share_id,
+                str(payload.get("path") or ""),
+                str(payload.get("into") or ""),
+                actor=request_actor(auth, request),
+            )
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.delete("/api/files/{share_id}")
+    def delete_entry(share_id: str, request: Request, path: str = "") -> dict:
+        try:
+            return files.delete(share_id, path, actor=request_actor(auth, request))
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.post("/api/files/{share_id}/upload")
+    async def upload_file(share_id: str, request: Request, path: str = "", name: str = "") -> dict:
+        """Stream one upload into a share.
+
+        The body is the file's bytes and the name rides in the query, which
+        keeps a 2 GB upload out of a multipart parser and lets the size cap be
+        enforced chunk by chunk rather than after the fact.
+        """
+        actor = request_actor(auth, request)
+        collected: list[bytes] = []
+        total = 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail="That file is larger than 2 GB.")
+            collected.append(chunk)
+        try:
+            return files.save_upload(share_id, path, name, collected, actor=actor)
+        except FileError as exc:
+            raise _files_error(exc)
+
+    @app.get("/api/files-trash")
+    def list_trash() -> dict:
+        files.sweep_trash()
+        return files.trash()
+
     @app.get("/api/weather")
     def get_weather() -> dict:
         """The desk's weather line. Makes no request while the switch is off."""
@@ -872,6 +981,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if "identity" in update:
             try:
                 update["identity"] = normalize_identity(update["identity"])
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
+        # A share names a folder on this computer, so it is checked before it is
+        # stored rather than failing later inside the Files app.
+        share_update = update.get("files")
+        if isinstance(share_update, dict) and "shares" in share_update:
+            try:
+                share_update["shares"] = validate_shares(share_update["shares"], config.data_dir)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
         # Rail pins are a list of app ids; store the shape, not the meaning —
