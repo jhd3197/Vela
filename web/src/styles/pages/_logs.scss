@@ -1,0 +1,238 @@
+/* ---------- Logs (System › Logs) ----------
+   The `logs-*` class names come from ServerKit's log viewer; the rules are
+   Vela's, built on the same tokens as every other panel so the viewer reads as
+   part of the dashboard in both themes. */
+
+.logs-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.logs-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+
+.logs-group-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.logs-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logs-file {
+  appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.logs-file:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.logs-file-active {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+/* A rotated copy is the same log, older. Indenting says so without a second
+   heading for every file. */
+.logs-file-rotated .logs-file-name {
+  padding-left: 12px;
+  color: var(--text-faint);
+}
+
+.logs-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logs-file-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-viewer {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.logs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logs-search {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.logs-toolbar-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.logs-lines-choice,
+.logs-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logs-lines-choice select {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.logs-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.logs-status {
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-content {
+  /* The lines scroll, not the page: the toolbar and the file list stay put
+     while someone reads back through a long log. */
+  overflow: auto;
+  overscroll-behavior: contain;
+  max-height: min(60vh, 560px);
+  background: var(--bg-inset);
+}
+
+.logs-content:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -2px;
+}
+
+.logs-content-empty {
+  padding: 18px 12px;
+  max-height: none;
+}
+
+.logs-lines {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.logs-line {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.logs-line-number {
+  flex-shrink: 0;
+  min-width: 3ch;
+  text-align: right;
+  color: var(--text-faint);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-line-text {
+  min-width: 0;
+  /* Long tracebacks wrap rather than pushing the page sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.logs-line-text mark {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: 3px;
+}
+
+.logs-line-error .logs-line-text,
+.logs-line-fatal .logs-line-text {
+  color: var(--red);
+}
+
+.logs-line-fatal {
+  background: var(--red-soft);
+}
+
+.logs-line-warn .logs-line-text {
+  color: color-mix(in srgb, var(--red) 45%, var(--text));
+}
+
+.logs-line-debug .logs-line-text {
+  color: var(--text-faint);
+}
+
+/* One column on a phone: the file list above the lines it chooses between. */
+@media (max-width: 720px) {
+  .logs-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .logs-sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+  }
+
+  .logs-toolbar-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .logs-content {
+    max-height: 50vh;
+  }
+}

@@ -173,6 +173,38 @@ permissions, starts or stops anything, or affects what Vela allows. It is
 remembered in this browser alone, so your phone does not inherit the choice you
 made on a desktop.
 
+## See what the server is doing
+
+**System → Logs** shows the logs Vela writes on this computer, so you do not
+need a file manager or a terminal to read them. Turn developer tools on first;
+System is one of the things that switch reveals.
+
+The list on the left groups the files by what wrote them: **Server** is Vela's
+own log, **Activity** records the actions taken on this server — installing,
+launching, stopping, backing up and restoring — each marked as done from this
+computer or over Wi-Fi, and **Apps** has one file per app that runs as its own
+process. Older rotated copies sit under the log they came from. Automation runs
+keep their own history, so System links to it instead of repeating it.
+
+Choose a log to read its most recent lines. You can:
+
+- **Search it.** Type in the box to keep only the lines that contain your text.
+  Wrap the text in slashes — `/error|timeout/` — for a pattern search.
+- **Show more or fewer lines**, from 50 up to 1000.
+- **Follow it live.** Turn **Auto-refresh** on and the newest lines appear as
+  they are written. Scroll up to read back and it stops following; scroll to
+  the bottom and it resumes.
+- **Download it** to send to someone, or **Clear** it to empty a log that has
+  grown noisy. Clearing asks first, deletes only that file's current contents,
+  and leaves the rotated copies alone. Vela keeps writing to the same file
+  afterwards.
+
+Press `/` to jump to the search box and `End` to jump to the newest line.
+
+Vela keeps 2 MB of its server log five times over, so the logs cannot grow
+without limit. Routine web-request lines are not written at all — the log is
+for what Vela did, not for every time the dashboard asked it a question.
+
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In

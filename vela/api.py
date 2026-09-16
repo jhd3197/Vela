@@ -33,6 +33,8 @@ from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
 from .app_services import AppServices
 from .lifecycle import Lifecycle, LifecycleError
+from .logging_setup import request_actor
+from .logs import DEFAULT_LINES, LogError, LogStore
 from .connections import Connections
 from .catalog import Catalog
 from .releases import Releases
@@ -271,6 +273,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # stop a run it no longer holds the stream for.
     _live_runs: dict[str, asyncio.Task] = {}
     backups = BackupStore(config)
+    logs = LogStore(config.logs_dir)
     auth = Auth(config)
     storage = AppStorage(config.data_dir / "app-data.sqlite")
     connected_apps = ConnectedApps(storage)
@@ -1057,6 +1060,42 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store"},
         )
+
+    # Logs. The hub session is the gate (the auth middleware rejects anything
+    # else on /api/*); "Show developer tools" decides what this browser shows,
+    # never what a request may do, so it is not re-checked here.
+    @app.get("/api/logs")
+    def list_logs() -> dict:
+        return {"logs": logs.files()}
+
+    @app.get("/api/logs/{name}")
+    def read_log(name: str, lines: int = DEFAULT_LINES, from_end: bool = True,
+                 pattern: str = "") -> dict:
+        try:
+            if pattern:
+                return logs.search(name, pattern, lines=lines)
+            return logs.read(name, lines=lines, from_end=from_end)
+        except LogError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.get("/api/logs/{name}/download")
+    def download_log(name: str) -> FileResponse:
+        try:
+            path = logs.path(name)
+        except LogError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return FileResponse(path, media_type="text/plain", filename=name)
+
+    @app.delete("/api/logs/{name}")
+    def clear_log(name: str, request: Request) -> dict:
+        # Clearing a log destroys evidence, so it takes a deliberate header
+        # rather than a bare DELETE a stray link could produce.
+        if request.headers.get("x-vela-confirm") != "clear":
+            raise HTTPException(status_code=428, detail="Confirm clearing this log")
+        try:
+            return logs.clear(name, actor=request_actor(auth, request))
+        except LogError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
 
     @app.get("/api/backups")
     def list_backups() -> dict:

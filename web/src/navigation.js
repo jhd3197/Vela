@@ -11,7 +11,7 @@ import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
 import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
-import Environments from './pages/Environments.jsx';
+import System from './pages/System.jsx';
 import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
@@ -78,7 +78,7 @@ export const dashboardPages = [
     id: 'system',
     color: '#21a377',
     developer: true,
-    component: Environments,
+    component: System,
   },
   {
     to: '/settings',

@@ -3,13 +3,14 @@ import ctypes
 from ctypes import wintypes
 import hashlib
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 import subprocess
 import sys
 import threading
 import webbrowser
+
+from .logging_setup import SERVER_LOG, configure_logging, teardown_logging
 
 LOG = logging.getLogger(__name__)
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -141,11 +142,8 @@ def run_tray(factory, dashboard_url, config, host, port):
                 'Vela Server', 0x40)
             return
         application = WindowsMutex(APP_MUTEX)
-        log_path = config.logs_dir / 'server.log'
-        handler = RotatingFileHandler(log_path, maxBytes=2_000_000, backupCount=2, encoding='utf-8')
-        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
-        logging.getLogger().addHandler(handler)
-        logging.getLogger().setLevel(logging.INFO)
+        log_path = config.logs_dir / SERVER_LOG
+        configure_logging(config)
         controller = ServerController(factory)
         icon = None
 
@@ -203,8 +201,7 @@ def run_tray(factory, dashboard_url, config, host, port):
                 controller.stop()
                 if controller.thread:
                     controller.thread.join()
-                logging.getLogger().removeHandler(handler)
-                handler.close()
+                teardown_logging()
     finally:
         instance.close()
         if application:

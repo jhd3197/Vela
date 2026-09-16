@@ -234,6 +234,27 @@ export const api = {
       body: file,
     }),
   deleteWallpaper: () => request('/api/wallpaper', { method: 'DELETE' }),
+  // Logs. `pattern` switches the read into a search; a `/…/` pattern is a
+  // regular expression, anything else a case-insensitive substring.
+  getLogs: (options) => request('/api/logs', options),
+  readLog: (name, { lines = 200, fromEnd = true, pattern = '' } = {}, options) => {
+    const query = new URLSearchParams({ lines: String(lines), from_end: String(fromEnd) });
+    if (pattern) query.set('pattern', pattern);
+    return request(`/api/logs/${encodeURIComponent(name)}?${query}`, options);
+  },
+  clearLog: (name) =>
+    request(`/api/logs/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      headers: { 'X-Vela-Confirm': 'clear' },
+    }),
+  // The download carries the hub token like every other call, so it cannot be
+  // a bare link: fetch the bytes and hand the browser a blob to save.
+  downloadLog: async (name) => {
+    const response = await hubFetch(`/api/logs/${encodeURIComponent(name)}/download`);
+    if (!response.ok) throw new ApiError(`Could not download ${name}.`, response.status);
+    return response.blob();
+  },
+
   getBackups: (options) => request('/api/backups', options),
   createBackup: () => request('/api/backups', { method: 'POST' }),
   verifyBackup: (name) =>

@@ -8,6 +8,12 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **The server log is readable again.** Vela no longer records a line for every
+  request the dashboard makes, so its log holds what Vela did rather than
+  thousands of routine polls. Both ways of starting Vela — the tray on Windows
+  and `python -m vela` in a terminal — now write the same log, where before
+  only the tray kept one, and it keeps five 2 MB files instead of three.
+
 - **The desk is a desktop now.** The search sits in the middle of the wallpaper
   where a launcher's does, and the buttons that used to crowd it moved into a
   **⋯** menu at the top-right and a **right-click** (long press on a phone) on
@@ -49,6 +55,19 @@ until the release workflow prepares a tested server version.
   **Ctrl+1**–**Ctrl+9** open the pinned apps in rail order, and **Esc** backs
   out. On a phone, swipe up from the bottom of the desk to open the Launchpad and
   swipe down from its top to close it.
+- **Read the server's logs from the dashboard.** **System → Logs** shows the
+  logs Vela writes on this computer — its own server log, a record of the
+  actions taken on the server, and one log per app that runs as its own
+  process — so you no longer need a file manager or a terminal to read them.
+  Pick a log to see its newest lines, search it (wrap the text in slashes for a
+  pattern), show 50 to 1000 lines, follow it live with auto-refresh, download
+  it to share, or clear one that has grown noisy after a confirmation. `/`
+  jumps to the search box and `End` to the newest line. System is now split
+  into Overview and Logs tabs; both stay behind the developer-tools switch.
+- **A record of what was done to this server.** Installing, launching,
+  stopping, backing up, restoring and repairing are written to an activity log
+  with whether they were done from this computer or over Wi-Fi.
+
 - **A full-screen Launchpad.** Opening **Apps** now fills the screen with every
   app over your blurred wallpaper, not a side drawer. A search in the middle
   filters as you type and Enter opens the first match; **Ctrl+Space**

@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 import uvicorn
 from .config import load_config
 from .access import set_password
+from .logging_setup import configure_logging
 
 
 class BrowserServer(uvicorn.Server):
@@ -78,6 +79,9 @@ def main() -> None:
         run_tray(lambda ready: BrowserServer(server_config, dashboard_url if open_browser else None, ready),
                  dashboard_url, config, args.host, args.port)
     else:
+        # The console server writes the same server.log the tray does, so the
+        # dashboard can show it however Vela was started.
+        configure_logging(config)
         print('Keep this window open. Press Ctrl+C to stop Vela.')
         BrowserServer(server_config, dashboard_url if open_browser else None).run()
 

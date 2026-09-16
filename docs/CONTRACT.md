@@ -459,6 +459,36 @@ managed by the operator; no automatic release-history pruning is implemented.
 `endpoint` is the local engine address as configured â€” currently hardcoded to
 `http://127.0.0.1:7700`.
 
+### Logs API details
+
+All four routes need the hub session and refuse anything that is not a plain
+file name inside the data directory's `logs/`. "Show developer tools" decides
+what the dashboard shows, never what a request may do, so it is not a
+server-side check.
+
+- `GET /api/logs` — `{ "logs": [{ name, kind, size, modified, base, rotated }] }`.
+  `kind` is `server`, `audit`, `worker` or `app`; `base` is the log a rotated
+  file belongs to (`server.log` for `server.log.1`).
+- `GET /api/logs/{name}?lines=&from_end=&pattern=` —
+  `{ name, lines: [...], total, truncated }`. Without `pattern` this tails
+  (`from_end=true`, the default) or heads the file. With one it searches: a
+  case-insensitive substring, or a regular expression when the pattern is
+  wrapped in `/…/`. `total` counts every line or every match, so `truncated`
+  says whether more exist than were returned. At most 5000 lines per request.
+- `GET /api/logs/{name}/download` — the whole file as `text/plain`, as an
+  attachment. It carries the hub token like any other call, so the dashboard
+  fetches it rather than linking to it.
+- `DELETE /api/logs/{name}` — truncates the file in place, so the running
+  handler keeps writing to it, and records the action in `audit.log`. Requires
+  `X-Vela-Confirm: clear`; without the header the answer is `428` and nothing
+  is deleted. Rotated copies are not touched.
+
+Vela writes `server.log` (2 MB × 5, shared by the console server and the tray),
+`audit.log` (install, uninstall, launch, stop, update, backup, restore, repair
+and log clearing, each with `actor=local` or `actor=remote`), and one
+`<app-id>.log` per process app. `httpx` and `httpcore` log at `WARNING`, so a
+request line no longer appears for every poll.
+
 ## Data Directory
 
 Default: `~/.vela/` (overridable with env var `VELA_DATA_DIR`).
@@ -1039,9 +1069,14 @@ restrained 14px card corners), in light and dark.
 - **System** (`/environments`): a developer destination. With developer tools
   off the route stays valid and explains itself, offering an explicit "Enable
   developer tools" action and a way back; visiting never enables it. With them
-  on: the Local Engine card from `GET /api/engine` — status dot and Running
-  pill, endpoint, applications installed, storage used, data directory — plus
-  the running apps.
+  on it has tabs, the active one in `?tab=`: **Overview** (the default) shows
+  the Local Engine card from `GET /api/engine` — status dot and Running pill,
+  endpoint, applications installed, storage used, data directory — plus the
+  running apps; **Logs** (`?tab=logs`, the open file in `?log=`) lists the
+  files Vela wrote, grouped by what wrote them with rotated copies under their
+  base, and shows one of them with a line count, search, auto-refresh,
+  Download and a confirmed Clear. Automation runs are linked to their own
+  viewer rather than duplicated here.
 - **Settings**: a popup over the current screen with searchable categories for
   General, Appearance, Chat & privacy, Local AI, Notifications, Backups &
   storage, and Developer tools while that preference is on. Theme previews and

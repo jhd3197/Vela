@@ -56,6 +56,7 @@ node web/scripts/test-shared-ui.mjs
 node web/scripts/test-launchpad.mjs
 node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
+node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs
@@ -95,6 +96,15 @@ add-app sources, Settings › Desk refusing a folder that does not exist, and th
 `/environments` deep link explaining itself and offering an explicit enable
 action while developer tools are off. It saves screenshots under
 `docs/screenshots/shared-foundations/`.
+The system suite uses an isolated Vite fixture with disposable log files to
+check System: developer tools off explaining itself with no logs shown, the
+Overview and Logs tabs with the engine card, the file list grouped by what
+wrote each log with a rotated copy under its base, the newest lines with
+warnings and errors marked, search narrowing and highlighting with a "no match"
+state, `/` reaching the search box, the line-count choice, the auto-refresh
+switch, choosing another log, an authenticated download, Clear asking first and
+only emptying the log on confirmation, and no sideways overflow at 390 pixels.
+Screenshots go to `docs/screenshots/system/`.
 The desk suite drives the board against a disposable engine: adding a widget
 from the library, moving and resizing it with the keyboard and with a pointer,
 undo and redo, saving and finding the same arrangement after a reload, Cancel
