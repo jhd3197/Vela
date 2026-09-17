@@ -1,26 +1,26 @@
-"""The desk's saved boards (`<data_dir>/desk.json`).
+"""What a desk's boards may contain.
 
-Two boards live here: `desktop` (six columns) and `phone` (two). They are
-edited and stored separately and are never reflowed into one another — an
-arrangement the user chose for a 1440px screen is not the arrangement they want
-in their hand.
+Two boards: `desktop` (six columns) and `phone` (two). They are edited and
+stored separately and are never reflowed into one another — an arrangement the
+user chose for a 1440px screen is not the arrangement they want in their hand.
 
-The validate / seed / repair-on-read shape follows ServerKit's
-`dashboard_service.py` (MIT, same owner). The geometry rules are the same ones
-`web/src/desk/grid/layout.js` implements in the browser: a widget is a
-rectangle on a fixed column grid, it fits inside the board, and no two overlap.
-The server is authoritative — a board that reaches this file by any other route
-than the dashboard still has to be renderable.
+The boards themselves belong to a desktop and are stored by `vela/desktops/`.
+This module is the authority on their geometry, and on nothing else: the
+`validate` / `seed` / `repair-on-read` shape below is what both the PUT path and
+the read path call.
+
+The shape follows ServerKit's `dashboard_service.py` (MIT, same owner). The
+geometry rules are the same ones `web/src/desk/grid/layout.js` implements in the
+browser: a widget is a rectangle on a fixed column grid, it fits inside the
+board, and no two overlap. The server is authoritative — a board that reaches
+these functions by any other route than the dashboard still has to be
+renderable.
 """
 
 from __future__ import annotations
 
 import json
-import threading
-from pathlib import Path
 from typing import Any
-
-from .config import write_json_atomic
 
 BOARD_VERSION = 1
 #: Columns per board, and the only board names there are.
@@ -104,8 +104,8 @@ def validate_widgets(widgets: Any, cols: int, known_types: set[str]) -> list[dic
     """Check one board's widgets, raising DeskError with a usable reason.
 
     This is the PUT path: the dashboard sends what it drew, and anything that
-    would not draw again is refused rather than stored. `_repair` is the read
-    path, which is allowed to be lenient because the alternative there is a
+    would not draw again is refused rather than stored. `repair_widgets` is the
+    read path, which is allowed to be lenient because the alternative there is a
     blank desk.
     """
     if not isinstance(widgets, list):
@@ -146,7 +146,7 @@ def validate_widgets(widgets: Any, cols: int, known_types: set[str]) -> list[dic
     return out
 
 
-def _repair(widgets: Any, cols: int, known_types: set[str]) -> list[dict[str, Any]]:
+def repair_widgets(widgets: Any, cols: int, known_types: set[str]) -> list[dict[str, Any]]:
     """Make a stored board renderable, dropping only what cannot be drawn.
 
     A widget whose type is gone (its app was uninstalled) is removed; one that
@@ -190,76 +190,3 @@ def _repair(widgets: Any, cols: int, known_types: set[str]) -> list[dict[str, An
             entry["y"] += 1
         placed.append(entry)
     return placed
-
-
-class DeskStore:
-    """desk.json: the two boards plus a revision for optimistic concurrency."""
-
-    def __init__(self, path: Path):
-        self._path = path
-        self._lock = threading.Lock()
-
-    def _read(self) -> dict[str, Any]:
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
-        return data if isinstance(data, dict) else {}
-
-    def _write(self, data: dict[str, Any]) -> None:
-        # Atomic, and keeps the previous board as desk.json.bak so an
-        # unreadable file is something the doctor can put back.
-        write_json_atomic(self._path, data)
-
-    def load(self, known_types: set[str]) -> dict[str, Any]:
-        """The stored boards, repaired, seeding the defaults when absent."""
-        stored = self._read()
-        if not stored:
-            return {"revision": 0, "boards": default_boards()}
-        revision = stored.get("revision")
-        if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
-            revision = 0
-        boards: dict[str, Any] = {"version": BOARD_VERSION}
-        raw = stored.get("boards")
-        raw = raw if isinstance(raw, dict) else {}
-        seeded = default_boards()
-        for key, cols in BOARD_COLS.items():
-            board = raw.get(key)
-            if not isinstance(board, dict) or not isinstance(board.get("widgets"), list):
-                # A board that is missing entirely is seeded; one that is merely
-                # damaged is repaired. Only the absent case gets defaults back,
-                # so "I removed every widget" stays removed.
-                boards[key] = seeded[key]
-                continue
-            boards[key] = {
-                "cols": cols,
-                "widgets": _repair(board["widgets"], cols, known_types),
-            }
-        return {"revision": revision, "boards": boards}
-
-    def save(self, boards: Any, revision: Any, known_types: set[str]) -> dict[str, Any]:
-        """Validate and store both boards. Raises DeskError, or ValueError on a
-        stale revision so the API can answer 409 rather than 422."""
-        if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
-            raise DeskError("revision must be a whole number")
-        if not isinstance(boards, dict):
-            raise DeskError("boards must be an object")
-        checked: dict[str, Any] = {"version": BOARD_VERSION}
-        for key, cols in BOARD_COLS.items():
-            board = boards.get(key)
-            if not isinstance(board, dict):
-                raise DeskError(f"the {key} board is missing")
-            checked[key] = {
-                "cols": cols,
-                "widgets": validate_widgets(board.get("widgets"), cols, known_types),
-            }
-        with self._lock:
-            current = self._read()
-            stored_revision = current.get("revision")
-            if not isinstance(stored_revision, int) or isinstance(stored_revision, bool):
-                stored_revision = 0
-            if revision != stored_revision:
-                raise ValueError(stored_revision)
-            payload = {"revision": stored_revision + 1, "boards": checked}
-            self._write(payload)
-        return payload

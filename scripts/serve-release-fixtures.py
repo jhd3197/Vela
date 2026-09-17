@@ -1,4 +1,10 @@
-"""Disposable engine that installs Health exclusively through its pinned release."""
+"""Disposable engine that installs Health exclusively through its pinned release.
+
+    python scripts/serve-release-fixtures.py [port]
+
+The port is an argument so two browser suites can each have their own engine on
+their own disposable data directory instead of taking turns on one fixed port.
+"""
 import os
 import sys
 import tempfile
@@ -12,4 +18,5 @@ with tempfile.TemporaryDirectory(prefix='vela-release-browser-') as temporary:
     import uvicorn
     config = Config(Path(temporary) / 'data', Path(temporary) / 'empty', ROOT / 'web/dist', catalog_source=str(ROOT / 'tests/fixtures/catalog/index.json'))
     config.ensure_dirs()
-    uvicorn.run(create_app(config), host='127.0.0.1', port=17715, log_level='warning')
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 17715
+    uvicorn.run(create_app(config), host='127.0.0.1', port=port, log_level='warning')

@@ -54,6 +54,10 @@ desktop.ini
 # the registry, committing it is what makes a release build reproducible.
 /scripts/automation-worker/provenance.json
 
+# Browser worker dependency tree and the record of the browser build it uses.
+# `package-lock.json` is committed for the same reason as the automation worker's.
+/scripts/browser-worker/provenance.json
+
 # Scratch / playground
 playground.py
 scratch.*

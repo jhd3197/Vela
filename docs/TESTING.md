@@ -18,6 +18,42 @@ iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
 tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
+`web/scripts/test-desktops.mjs` covers the dashboard side against a real engine
+on its own port: the migrated desk as Desktop 1, a second workspace with its own
+board and wallpaper, the selection staying on the device that made it, a direct
+`/desktops/<id>` link and one that names nothing, the menu from the keyboard
+with focus returning, a rename that lost its race, deleting a desktop leaving
+the apps installed, and All apps drawing over the desk without unmounting it.
+
+`test_agent_permissions.py` covers what an agent may change: an unclassified
+operation being unavailable, an agent session that cannot reach the dashboard or
+an unclassified app route, reading needing only that the desktop allows the app,
+every change needing a grant however it arrives, a grant that covers one exact
+request not covering a different one, restoring needing its own grant rather
+than riding on write, an action needing both the app's declared permission and
+the agent's, a policy change taking every grant and session with it, a grant not
+surviving the app being reinstalled, and — run a dozen times — a revocation
+racing a live write with one answer: a refusal that changed nothing or a success
+that happened.
+
+`test_desktop_views.py` covers open views and layouts: a view bound to the
+installation it opened against and not inherited by a reinstall, opening the
+same app twice bringing one window forward, a second window when one is asked
+for, the same app open in two desktops as two views, owner surfaces refusing
+anything outside their closed list, bounded window geometry, a view remembering
+a route and not a page dump, a layout saved against its revision, a closed split
+member leaving an explicit empty pane, and closing a view leaving the app
+installed with its data intact. `tests/desktop-window-state.test.mjs` checks the
+geometry without a browser.
+
+`test_desktops.py` and `test_desktop_migrations.py` cover the desktop service:
+creating, renaming and deleting a workspace, per-concern revisions, that
+`/api/desk` and the scoped board route agree about one board and one revision,
+that each desktop keeps its own picture and two desktops sharing a photo store
+it once, that deleting a desktop leaves installed app data alone, and that the
+desk migration is lossless, idempotent and produces exactly one Desktop 1 even
+when interrupted between copying the wallpaper and committing the row.
+
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases, launcher behavior, automations, the log
 store, the health checks, the error record, the support bundle, backups
@@ -41,6 +77,16 @@ it they skip with a reason rather than failing. Install it with
 process over its real protocol, including its watchdog: a force-killed Vela must
 not leave the runtime running.
 
+`tests/agent-boundary.test.mjs` covers the agent desktop runtime. Its policy and
+protocol checks always run. The rest drives a real Chromium: the gateway path
+limit, the owner API refused from navigation and from `fetch`, another local
+service refused over navigation, `fetch` and WebSocket, a redirect out of the
+boundary, a popup aimed outside it, a service worker that never takes over, two
+desktops with separate cookies, a view that keeps working with nothing watching
+it, a real captured frame, and a browser lost mid-command. Without the browser
+installed that half skips with a reason; install it with
+`python scripts/setup-browser-worker.py`.
+
 ## Browser acceptance
 
 After building the dashboard, make Playwright available in `web/` and install
@@ -63,6 +109,7 @@ node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
+node web/scripts/test-desktops.mjs
 node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs

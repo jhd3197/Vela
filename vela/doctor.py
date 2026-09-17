@@ -517,9 +517,11 @@ class Doctor:
         return {"status": OK, "detail": f"Vela last backed itself up on {when}."}
 
     def _settings_files(self) -> list[Path]:
+        # The desk moved into `desktops.sqlite`, which is checked by the
+        # backup drill rather than here: this check is about the JSON files
+        # that keep a `.bak` beside them.
         return [
             self._config.settings_file,
-            self._config.data_dir / "desk.json",
             self._config.state_file,
         ]
 
@@ -537,7 +539,7 @@ class Doctor:
     def _check_settings(self) -> dict[str, Any]:
         broken = self._broken_settings()
         if not broken:
-            return {"status": OK, "detail": "Your settings, desk and app state all read correctly."}
+            return {"status": OK, "detail": "Your settings and app state both read correctly."}
         names = ", ".join(path.name for path in broken)
         recoverable = [path for path in broken if path.with_suffix(path.suffix + ".bak").is_file()]
         detail = f"{names} could not be read, so Vela fell back to its defaults."

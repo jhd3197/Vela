@@ -244,13 +244,26 @@ try {
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
       .fill('Guard this draft');
-    // The Launchpad is a rail destination now. A hub app keeps the rail on
-    // screen at every width, so leaving through the Launchpad link is a
-    // navigation the unsaved-work guard covers on a phone and a desktop alike.
-    const openLaunchpad = async () => {
-      await page.locator('.rail a[href="/apps"]').click();
+    // Looking for another app is not leaving this one: All apps opens over the
+    // page, so the app stays mounted and the draft is still in it afterwards.
+    await page.locator('.rail').getByRole('button', { name: 'All apps' }).click();
+    await page.locator('.apps-overlay .launchpad').waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'All apps does not leave the app');
+    await page.keyboard.press('Escape');
+    await page.locator('.apps-overlay').waitFor({ state: 'detached' });
+    assert.ok(page.url().endsWith('/app/hub-fixture'));
+    assert.equal(
+      await page.frameLocator('iframe').getByRole('textbox', { name: 'Message' }).inputValue(),
+      'Guard this draft',
+    );
+
+    // A hub app keeps the rail on screen at every width, so leaving through a
+    // rail link is a navigation the unsaved-work guard covers on a phone and a
+    // desktop alike.
+    const leaveByRail = async () => {
+      await page.locator('.rail a[href="/library"]').click();
     };
-    await openLaunchpad();
+    await leaveByRail();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.ok(page.url().endsWith('/app/hub-fixture'));
@@ -258,7 +271,7 @@ try {
       // The rail a hub app keeps on a phone is a navigation control like any
       // other: leaving through it asks about the unsaved draft first.
       assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
-      await page.locator('.rail a[href="/library"]').click();
+      await leaveByRail();
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       assert.ok(page.url().endsWith('/app/hub-fixture'));
       assert.equal(
@@ -266,11 +279,12 @@ try {
         'Guard this draft',
       );
     }
-    await openLaunchpad();
+    await leaveByRail();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
-    await page.waitForURL(`${base}/apps`);
-    // Reopen the running app from the Launchpad to check the back-button guard.
-    await page.locator('.launchpad').waitFor();
+    await page.waitForURL(`${base}/library`);
+    // Reopen the running app from All apps to check the back-button guard.
+    await page.locator('.rail').getByRole('button', { name: 'All apps' }).click();
+    await page.locator('.apps-overlay .launchpad').waitFor();
     await page.locator('.launch-tile', { hasText: 'Chat Fixture' }).first().click();
     await page.waitForURL(`${base}/app/chat-fixture`);
     await page
@@ -280,8 +294,7 @@ try {
     await page.goBack();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
-    await page.waitForURL(`${base}/apps`);
-    await page.locator('.launchpad').waitFor();
+    await page.waitForURL(`${base}/library`);
     await page.goto(`${base}/app/failed-fixture`);
     await page.getByText('Couldn’t open the app', { exact: true }).waitFor({ timeout: 15000 });
     await page.screenshot({ path: path.join(shots, `failed-${viewport.width}.png`) });

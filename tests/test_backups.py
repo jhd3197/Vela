@@ -116,6 +116,23 @@ class StoreTests(unittest.TestCase):
         manifest["description"] = marker
         (app_dir / "app.json").write_text(json.dumps(manifest), encoding="utf-8")
 
+    def write_desktops(self, name):
+        """A desktops file the way the service writes one."""
+        from vela.desktops.store import DesktopStore
+
+        path = self.config.data_dir / "desktops.sqlite"
+        store = DesktopStore(path)
+        existing = store.list()
+        if existing:
+            store.rename(existing[0]["id"], name, existing[0]["revision"])
+        else:
+            store.create(name, boards={"desktop": [], "phone": []})
+
+    def read_desktop_name(self):
+        from vela.desktops.store import DesktopStore
+
+        return DesktopStore(self.config.data_dir / "desktops.sqlite").list()[0]["name"]
+
     def read_marker(self):
         return json.loads(self.config.settings_file.read_text(encoding="utf-8"))["theme"]
 
@@ -125,6 +142,31 @@ class StoreTests(unittest.TestCase):
             return json.loads(connection.execute("SELECT value FROM documents").fetchone()[0])["note"]
         finally:
             connection.close()
+
+    def test_a_restore_brings_back_how_the_desk_was_arranged(self):
+        # Appearance and boards used to live in settings.json. They live in
+        # desktops.sqlite now, and a restore that stopped bringing the wallpaper
+        # back would be a regression nobody asked for.
+        self.write_desktops("Before")
+        made = self.store.create()
+        self.write_desktops("After")
+        self.assertEqual(self.read_desktop_name(), "After")
+
+        result = self.store.restore(made["name"])
+
+        self.assertIn("desktops.sqlite", result["restored"])
+        self.assertEqual(self.read_desktop_name(), "Before")
+
+    def test_a_damaged_desktops_file_fails_the_drill_rather_than_being_restored(self):
+        self.write_desktops("Before")
+        made = self.store.create()
+        copy = self.store._dir / made["name"] / "desktops.sqlite"
+        copy.write_bytes(b"this is not a database")
+
+        drill = self.store.verify(made["name"])
+        self.assertFalse(drill["ok"])
+        with self.assertRaises(BackupError):
+            self.store.restore(made["name"])
 
     def test_a_backup_restores_the_settings_state_and_app_data_it_captured(self):
         made = self.store.create()

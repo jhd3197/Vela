@@ -192,10 +192,12 @@ def validate_summary(payload: Any) -> dict[str, Any]:
 class Widgets:
     """Published summaries, one row per (app, widget)."""
 
-    def __init__(self, storage, registry, actions=None, snooze=None):
+    def __init__(self, storage, registry, actions=None, snooze=None, guard=None):
         self._storage = storage
         self._registry = registry
         self._actions = actions
+        # What has to be true for this caller to publish. None for a person.
+        self._guard = guard or (lambda *args, **kwargs: None)
         # Snoozed summaries are still returned in full — the app's own widget
         # must not change because the desk was asked to look away — but they
         # carry the expiry so the desk and the rail can leave them out.
@@ -225,8 +227,14 @@ class Widgets:
         if widget_id not in declared:
             raise WidgetError(422, f"{app_id} does not declare a widget called {widget_id!r}")
         summary = validate_summary(payload)
+        # Publishing puts a line on the owner's desk. An agent doing it needs to
+        # have been allowed to; a person doing it is using their own desk.
+        authorize = self._guard(session, "publish", scope={"widget": widget_id})
         updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with self._storage.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if authorize is not None:
+                authorize(db)
             db.execute(
                 "INSERT OR REPLACE INTO widget_summaries VALUES (?, ?, ?, ?)",
                 (app_id, widget_id, json.dumps(summary), updated_at),

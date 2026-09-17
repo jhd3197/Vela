@@ -23,10 +23,32 @@ No additional release notes were provided.
   here. Download this release the way you installed Vela originally — the
   installer, the portable zip or the archive — and from then on Vela can update
   itself.
-- **Settings, desk and app-state files keep a spare copy.** Each time Vela
-  writes one it keeps the previous good version beside it, so a file that will
-  no longer read can be put back from Settings → Health instead of falling
-  back to defaults.
+- **Settings and app-state files keep a spare copy.** Each time Vela writes one
+  it keeps the previous good version beside it, so a file that will no longer
+  read can be put back from Settings → Health instead of falling back to
+  defaults. Your desk is no longer one of these files — it lives with your
+  desktops now and is covered by backups instead.
+- **Apps can open in a window on your desk.** Right-click an app in All apps
+  and choose **Open in a window**. It gets a title bar with three controls that
+  do three different things: **minimize** puts it away and nothing else — the
+  app keeps running and whatever you had typed is still there when you bring it
+  back from the rail; **maximize** fills the desk; **close** is the only one
+  that ends the window, and the only one that asks about unsaved work. Windows
+  can be moved and resized, they stay where you left them, and each desktop
+  keeps its own. Opening an app the ordinary way still fills the screen.
+
+- **The rail names what is open.** Windows on the desktop you are looking at
+  appear in the rail under **Open**, showing which one is selected and which are
+  minimized. A window whose app was reinstalled says it needs reopening rather
+  than pretending to still be connected.
+
+- **All apps opens over what you were doing.** The app grid used to be a page,
+  so going to look for an app left the one you had open. It is now a layer over
+  the current page: the app underneath stays exactly as it was, with whatever
+  you had typed still in it, and Escape or the rail puts you back. The rail
+  entry is called **All apps** now; Ctrl+Space (Cmd+Space) and the `/apps` link
+  both still open it.
+
 - **The server log is readable again.** Vela no longer records a line for every
   request the dashboard makes, so its log holds what Vela did rather than
   thousands of routine polls. Both ways of starting Vela — the tray on Windows
@@ -42,8 +64,8 @@ No additional release notes were provided.
   whole board. A fresh desk fills the screen with no bare gaps, and your apps
   show as a labelled icon grid with **Open all** leading to the Launchpad.
   The desk and the Launchpad no longer draw a blurred bar across the top of
-  the wallpaper: the notification bell and the **⋯** menu float in their
-  usual top-right corner and the page runs the full height behind them.
+  the wallpaper: the search, the notification bell and the **⋯** menu share
+  one line at the top, and the page runs the full height behind them.
 - **Apps open in a real window.** An app you open now has its own title bar: a
   back arrow to where you came from, its name and whether it is running, and a
   **⋯** menu to pin it to the rail, add its widget to your desk, reach its
@@ -78,7 +100,27 @@ No additional release notes were provided.
   Contributors working on `scripts/` should expect that PR to take longer than
   a routine `dev` check.
 
+### Fixed
+
+- **The rail avatar draws properly.** Its stylesheet was never loaded, so the
+  letter standing for whoever the server belongs to appeared unstyled.
+
 ### Added
+
+- **Your desk is a desktop you can have more than one of.** The desk you have
+  becomes **Desktop 1** with every widget, both the wide and the phone
+  arrangement, and its wallpaper exactly where they were; nothing is asked of
+  you and the old `desk.json` is left untouched. You can now keep up to 16 of
+  them, each with its own widgets and its own picture, and each one is a
+  workspace rather than a copy: your apps and everything they have saved stay
+  shared, so deleting a desktop never deletes a note. Backups now carry your
+  desktops, so restoring one brings back how your desk was arranged. The
+  A **desktops button in the rail** names the one you are looking at and
+  switches between them, with New, Rename and Delete in the same menu. Which
+  one you are on belongs to the device you are on: choosing Desktop 2 on your
+  laptop leaves your phone where it was. Each one keeps its own widgets, its own
+  wallpaper, its own dimming and its own labels. `/desktops/<id>` is a link
+  straight to one.
 
 - **Files: browse the folders you share with Vela.** A new app in the Launchpad
   shows the folders you name in **Settings → Files** — and only those. Make

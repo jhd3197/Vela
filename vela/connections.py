@@ -32,8 +32,10 @@ def validate_endpoint(endpoint):
 
 
 class Connections:
-    def __init__(self, registry, storage, transport=None):
+    def __init__(self, registry, storage, transport=None, guard=None):
         self.registry, self.storage, self.transport = registry, storage, transport
+        # What has to be true for this caller to reach out. None for a person.
+        self.guard = guard or (lambda *args, **kwargs: None)
         with storage.connection() as db:
             db.execute("CREATE TABLE IF NOT EXISTS connections (identity TEXT PRIMARY KEY, provider TEXT NOT NULL, endpoint TEXT NOT NULL, checked_at TEXT NOT NULL)")
 
@@ -122,6 +124,14 @@ class Connections:
         manifest = self.registry.get(session["app_id"])
         if "connections" not in session["capabilities"] or not manifest or operation not in manifest.raw.get("connection", {}).get("operations", []):
             raise AppServiceError(403, "Operation is not granted")
+        # An agent needs a grant for this, and the check happens before the
+        # request leaves rather than around it. A call to another service cannot
+        # be rolled back, so "checked, then dispatched" is the honest shape here
+        # and the outcome of a lost response stays unknown rather than failed.
+        authorize = self.guard(session, "connection", scope={"operation": operation})
+        if authorize is not None:
+            with self.storage.connection() as db:
+                authorize(db)
         binding = self._binding(session["installationId"])
         if not binding:
             raise AppServiceError(409, "Connect an existing Ollama server from the app's Vela settings")

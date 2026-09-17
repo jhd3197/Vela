@@ -70,24 +70,33 @@ function useDailyTick(active) {
 
 // The wallpaper flags that select the picture. Kept apart from the `desk` flag
 // so the Desk page, which owns that flag for its own reasons, can share this.
+//
+// `desk.customUrl` is where this desktop's own image is served from. It is a
+// CSS variable rather than a rule because each desktop has its own picture at
+// its own address, which a stylesheet cannot know.
 export function useWallpaperFlags(desk) {
   const choice = desk?.wallpaper || DEFAULT_WALLPAPER;
   useDailyTick(choice === 'daily');
   const { id, tone } = resolveWallpaper(desk);
   const dim = desk?.dim === false ? 'off' : 'on';
+  const customUrl = desk?.customUrl || null;
   useEffect(() => {
     document.body.dataset.deskWallpaper = id;
     document.body.dataset.deskChoice = choice;
     document.body.dataset.deskDim = dim;
     if (tone) document.body.dataset.deskTone = tone;
     else delete document.body.dataset.deskTone;
+    if (customUrl)
+      document.body.style.setProperty('--desk-wallpaper-custom', `url('${customUrl}')`);
+    else document.body.style.removeProperty('--desk-wallpaper-custom');
     return () => {
       delete document.body.dataset.deskWallpaper;
       delete document.body.dataset.deskChoice;
       delete document.body.dataset.deskDim;
       delete document.body.dataset.deskTone;
+      document.body.style.removeProperty('--desk-wallpaper-custom');
     };
-  }, [id, choice, dim, tone]);
+  }, [id, choice, dim, tone, customUrl]);
 }
 
 // The wallpaper belongs to the whole shell, not to one page: it sits behind the

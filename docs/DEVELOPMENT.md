@@ -403,6 +403,248 @@ adds it and the worker to the bundle, and says which of the two is missing if a
 build would ship without automations. It adds roughly 80 MiB to the installed
 size and about 30 MiB to a download.
 
+## Desktops
+
+A desktop is a persistent workspace: a name, an appearance, and the desk's two
+responsive boards. `desktop` and `phone` are two layouts of *one* workspace, not
+two workspaces — that distinction is why `vela/desktops/` sits above
+`vela/desk.py` rather than replacing it. (`vela/desktop.py`, singular, is the
+Windows tray and is unrelated.)
+
+| Location | Responsibility |
+| --- | --- |
+| `desktops/models.py` | What may be stored: ids, names, appearance references, bounds |
+| `desktops/store.py` | `desktops.sqlite`: desktops, boards, appearance, wallpaper assets |
+| `desktops/migration.py` | Turning the existing `desk.json` into Desktop 1, exactly once |
+| `desktops/service.py` | The rules: board validation and repair, asset reference counting, deletion |
+| `desktops/api.py` | `/api/desktops`, hub-authenticated like every other `/api` route |
+
+Board geometry is not re-implemented. `vela/desk.py` still decides what a board
+may contain: `validate_widgets` on the way in, `repair_widgets` on the way out.
+
+### One desk, two names for it
+
+`/api/desk`, the `desk` appearance keys in `/api/settings`, and `/api/wallpaper`
+are the first desktop under their original names. They are aliases, not a second
+store: same rows, same revision, same 409 with `X-Vela-Desk-Revision`. Keep it
+that way — two writable copies of one board is how an arrangement gets lost.
+
+Revisions are per concern. Renaming a desktop, arranging it and changing its
+wallpaper each have their own, so two people doing unrelated things in the same
+workspace both succeed.
+
+### Migration
+
+It runs once, on the way up, and is lossless: both boards, every widget id and
+position, the chosen wallpaper and the uploaded image. `desk.json` and the old
+`wallpaper.*` file are left where they are.
+
+A widget whose type no longer exists is *not* dropped during migration —
+unknown types are dropped when a board is read, which is where that decision has
+always been. The order is deliberate: the image is copied and verified first,
+outside any transaction, into a file named after its own SHA-256; then one
+transaction writes the desktop, its boards, its appearance and the marker
+together. A crash before the commit leaves an orphan file that the next run
+either reuses or sweeps. It never leaves two Desktop 1s.
+
+### Wallpaper assets
+
+Uploaded images live in `desktop-assets/<sha256><ext>`. Addressing them by
+content is what lets two desktops draw the same photo without two copies, and
+stops one of them deleting it from under the other. `cleanup_assets()` removes
+files nothing references and rows whose file is gone; it runs at start-up and
+after anything that can drop a reference.
+
+`desktops.sqlite` is in `BACKED_UP_FILES` because appearance used to live in
+`settings.json` and a restore that stopped bringing the wallpaper back would be
+a regression. The image files are not backed up — they never were — so a
+restored desktop whose picture is missing falls back to a painted one.
+
+### Views and windows
+
+A **view** is what is open on a desktop. It is the identity that survives being
+minimized, maximized, moved between panes and restored; the app process it talks
+to has its own, shorter, life. Keeping those apart is the point: minimizing a
+window must not end a session, and closing one must not stop an app another
+desktop is also showing.
+
+| Table | Holds |
+| --- | --- |
+| `desktop_views` | What is open: kind, app and installation, owner surface or URL, title, who opened it, and the small navigation state it may remember |
+| `desktop_view_presentation` | Where the window is: bounds, restore bounds, minimized, stacking |
+| `desktop_layout` | One arrangement per desktop: floating, maximized or split, its panes, the divider and the selected view |
+
+Four kinds of view. `app` and `web` are things an agent can be pointed at;
+`host` and `agent` are the owner's own controls and are marked
+`agentViewable: false` at the service boundary rather than in every caller. A
+`host` view names one of a closed list of surfaces — one that could name any
+path would be a way to put the owner's dashboard, and its credentials, inside
+something that is not the owner's dashboard.
+
+**Installation binding.** An `app` view records the installation identity it
+opened against, and `available` is computed by comparing that to the current one
+on every read. That is deliberately not a hook at uninstall time: a hook is
+something a future code path can forget to call, and a window pointing at a
+replaced installation is exactly what must never be treated as still bound.
+
+**Revisions.** Only `PUT /layout` carries one. Opening a window, moving it and
+selecting it happen constantly, and charging them against the layout revision
+would make every click conflict with a drag somebody else was finishing.
+
+`web/src/desktops/window-state.js` is the geometry, with no React, no DOM and no
+fetch in it — because it is the part that has to keep being right after someone
+rotates a tablet, zooms to 200% or opens a layout saved on a monitor they no
+longer own, and `tests/desktop-window-state.test.mjs` can ask it all of those
+questions in milliseconds instead of only in a browser at one size.
+
+`DesktopViewHost` draws the windows over the desk, `WindowFrame` is the chrome,
+`AppWindow` is what goes inside an app window, and `useDesktopViews` keeps a
+fast local copy of the server's records: a window follows the pointer at the
+refresh rate and the write happens once, on a trailing edge, because a gesture
+that emitted a request per frame would be a request storm.
+
+`web/src/desktops/view-lifecycle.js` owns one app view's session and bridge and
+the end of both. The full-screen app page and the desktop's windows share it;
+two copies of "open a session, attach a bridge, revoke on the way out" would be
+two places for the revoke to be forgotten.
+
+### What an agent is allowed to change
+
+Vela already had three kinds of caller — the owner at the dashboard, an app in
+its iframe, an automation running a reviewed workflow. An agent is a fourth, and
+deliberately none of the others. It is not the owner, because owner
+authentication is what approves things and an agent approving its own effects
+would make approval meaningless. It is not an ordinary app session either: that
+one carries everything a manifest declares, for an hour, and an agent gets only
+what one run on one desktop needs, for minutes.
+
+| Location | Responsibility |
+| --- | --- |
+| `desktops/principals.py` | What an agent session is, and how any code holding a session asks whether a person or a run is behind it |
+| `desktops/effects.py` | Every `/api/app` operation, classified; and the vocabulary for how an effect ended |
+| `desktops/policy.py` | What a desktop allows: apps, sites, approval mode, granted actions, budgets |
+| `desktops/grants.py` | What has actually been allowed, stored beside the app data it authorizes changes to |
+| `desktops/gateway.py` | The coarse check, run on every app-scoped request before a handler sees it |
+
+**Classification is a list, and the default is no.** `effects.OPERATIONS` maps
+each `(method, path)` under `/api/app` to an operation and an effect class. A
+route nobody classified has no class, so there is nothing to grant, so the
+gateway refuses it. That is the point of the list being a list: a route added
+without a thought about agents is refused rather than waved through.
+
+**Grants live in `app-data.sqlite`, not in `desktops.sqlite`.** Not where they
+conceptually belong — where they can be checked. A grant is read inside the
+transaction that writes the effect it authorizes, so revoking it and committing
+the effect contend for one SQLite write lock and one of them wins outright.
+Storing them with the desktop would have meant two databases, two transactions
+and a window between them, and "we check, then we write" is not a sentence worth
+having here. `tests/test_agent_permissions.py` races the two a dozen times and
+asserts the invariant: a refusal changed nothing, a success happened.
+
+**Every service that can change something takes a `guard`.** `AppServices`,
+`Actions`, `Widgets` and `Connections` are constructed with
+`Desktops.effect_guard`. It returns `None` for a person and, for an agent, a
+callable that service runs inside its own write transaction. That is why a
+clicked Save in an agent's window follows the same rule as a tool call: both are
+the same route, the same session and the same check. `AppStorage.write` and
+`snapshot` grew an `authorize` hook for this.
+
+The one boundary that cannot work that way is a connection: a request to another
+service cannot be rolled back, so the check happens before dispatch and a lost
+response stays `unknown` rather than becoming `failed`.
+
+**Changing a policy revokes everything issued under it** — every grant row and
+every agent session for that desktop. Narrowing what an agent may do has to take
+effect now, not when something is next re-checked, and the only way to mean that
+is to remove the authority rather than mark it stale. Deleting a desktop and
+stopping a run do the same.
+
+Grants name the installation identity and the manifest fingerprint they were
+reviewed against, so updating or reinstalling an app does not hand the new one a
+decision somebody made about the old one. A grant carrying a request digest
+covers that exact request and nothing else.
+
+### The dashboard side
+
+`web/src/desktops/` owns which workspace the browser is looking at.
+
+| Location | Responsibility |
+| --- | --- |
+| `desktopsApi.js` | The scoped routes. Every call names a desktop, so a caller cannot forget which one |
+| `DesktopsProvider.jsx` | The list, the selection and the appearance, above the routes |
+| `DesktopSwitcher.jsx` | The rail entry and its menu, plus create/rename/delete |
+| `DesktopRoute.jsx` | `/desktops/:id` — selects that desktop and shows the ordinary desk |
+| `AppsOverlay.jsx` | All apps, drawn over the current page rather than replacing it |
+
+The selection lives in `localStorage`, not on the server. A phone and a laptop
+are two viewers of one server, and one of them choosing Desktop 2 must not move
+the other. It is re-resolved against the list on every load, so an id deleted
+elsewhere falls back to the first desktop instead of showing an empty board.
+
+The desk waits for its own board before drawing anything. Showing the seeded
+default first and then rearranging it would be wrong on every desk but a brand
+new one, and the board now takes one request longer to arrive because the page
+has to know which desktop it is for.
+
+All apps follows `SettingsProvider`: `/apps` still works as a link and a
+bookmark, and the rail entry opens the overlay in place. While it is up, the
+workspace behind is marked `inert` and `aria-hidden` — its own search field must
+not be the second searchbox a screen reader finds — and the rail stays live
+because it is how you leave.
+
+## Agent desktop runtime
+
+Agent desktops render their app views in a managed Chromium that Vela starts and
+stops, in `scripts/browser-worker/`. The parts that exist today are the ones the
+rest of the feature has to be able to rely on: the stdio protocol, the network
+boundary and the browser session that applies it.
+
+| Location | Responsibility |
+| --- | --- |
+| `scripts/browser-worker/src/protocol.mjs` | The versioned stdio envelope and the identities a command must carry |
+| `scripts/browser-worker/src/network-policy.mjs` | What a desktop may reach: the Vela gateway and the owner's approved sites, nothing else |
+| `scripts/browser-worker/src/session.mjs` | One desktop's browser: its context, its views and the policy applied to every transport |
+| `tests/agent-boundary.test.mjs` | The boundary, checked against a real browser rather than a mocked policy |
+
+### Set up the runtime
+
+```bash
+python scripts/setup-browser-worker.py
+```
+
+This installs the pinned `playwright-core` and the Chromium build that version
+expects, then writes `scripts/browser-worker/provenance.json` recording both.
+`--check` reports what is installed without changing anything; `--skip-browser`
+installs the package alone and leaves the runtime unavailable. Downloading a
+browser is a deliberate setup step, never something a running task does.
+
+Sessions launch the full Chromium (`channel: 'chromium'`), not the headless
+shell the runtime would otherwise pick: the agent's screen is the same screen a
+human takes over, so it has to render through the same engine. Chromium's own
+sandbox stays on — a platform that cannot run it is reported unavailable rather
+than launched with the sandbox disabled.
+
+### Where the boundary is enforced
+
+A separate browser context per desktop separates cookies, storage and input. It
+is not a sandbox for hostile code, so the network boundary is enforced
+separately and in more than one place, because no single hook covers every
+transport:
+
+- `context.route` screens documents, subresources, redirects and `fetch`.
+- `context.routeWebSocket` screens handshakes, which `route` does not see.
+- A `framenavigated` guard catches a navigation that arrived some other way.
+- Service workers are blocked, because a worker sits between the page and the
+  screened network.
+- `response.serverAddr()` is re-checked against the policy, because a URL cannot
+  tell you that an approved hostname resolves to a private address.
+
+Loopback is denied except for the one gateway origin, under the path prefixes
+Vela publishes for it; the owner API is not one of them. The check understands
+the spellings that hide a private address — `2130706433`, `0x7f000001`, `127.1`,
+`[::ffff:127.0.0.1]`, `169.254.169.254` — because a denial that only matches
+dotted quads is not a denial.
+
 ## Container build
 
 The root `Dockerfile` builds the dashboard with Node.js 22 and packages it with

@@ -90,8 +90,10 @@ body[data-desk][data-desk-wallpaper='night'] {
   --desk-wallpaper: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
 }
 
+/* Each desktop has its own picture at its own address, which a stylesheet
+   cannot know, so `wallpaper.js` sets the variable while the desk is mounted. */
 body[data-desk][data-desk-wallpaper='custom'] {
-  --desk-wallpaper: url('/api/wallpaper');
+  --desk-wallpaper: var(--desk-wallpaper-custom, none);
 }
 
 /* Dimming is what keeps widget text readable over a bright picture, so turning
@@ -191,9 +193,11 @@ body[data-desk] .rail-divider {
   background: rgba(255, 255, 255, 0.22);
 }
 
-/* The floating controls take the top strip, so the desk starts below them. */
+/* The floating controls and the search share one 56px line: the header band
+   is 56px tall with its icons centred, so the 48px search field starts 4px
+   down to sit on the same centre. */
 .desk-workspace .workspace-content {
-  padding: calc(76px + env(safe-area-inset-top, 0px)) 24px 20px;
+  padding: calc(4px + env(safe-area-inset-top, 0px)) 24px 20px;
 }
 
 .desk {
@@ -216,7 +220,6 @@ body[data-desk] .rail-divider {
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 4px;
 }
 
 .desk-top .searchbox {
@@ -716,9 +719,14 @@ body[data-desk] .rail-divider {
 /* ---------- phone ---------- */
 
 @media (max-width: 860px) {
+  /* The bell and ⋯ float at the right of the same line, so the search keeps
+     clear of them. */
   .desk-workspace .workspace-content {
-    padding: calc(70px + env(safe-area-inset-top, 0px)) 14px
-      calc(14px + env(safe-area-inset-bottom));
+    padding: calc(4px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .desk-top {
+    padding-right: 84px;
   }
 
   .desk-top .searchbox {

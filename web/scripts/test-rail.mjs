@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 
 // Rail and workspace navigation, checked against disposable app records in an
 // isolated fixture. It never contacts a Vela server or a user's installed apps.
-// The rail is Desk and the Launchpad at the top, then the apps the user pinned
+// The rail is Desk and All apps at the top, then the apps the user pinned
 // (Ask and the Library by default), a divider, the apps that are open but not
 // pinned, and Settings at the foot.
 const web = fileURLToPath(new URL('..', import.meta.url));
@@ -55,12 +55,13 @@ try {
       );
 
   // An empty installation still exposes the fixed destinations and the default
-  // pins: Desk and the Launchpad above, Ask and the Library pinned, Settings
-  // at the foot. No secondary "More" menu and no "All apps" drawer control.
+  // pins: Desk and All apps above, Ask and the Library pinned, Settings
+  // at the foot. No secondary "More" menu, and exactly one way to All apps —
+  // the rail's own entry, which opens it over the page rather than navigating.
   await page.goto(`${base}?apps=empty`);
   await page.locator('.rail').waitFor();
   await page.locator('.rail-apps-group').first().waitFor();
-  assert.deepEqual(await groupNames('.rail-group'), ['Desk', 'Launchpad']);
+  assert.deepEqual(await groupNames('.rail-group'), ['Desk', 'All apps']);
   assert.deepEqual(
     await page
       .locator('.rail-apps-group[aria-label="Pinned apps"] a')
@@ -69,7 +70,15 @@ try {
   );
   assert.equal(await page.locator('.rail-apps-open').count(), 0, 'nothing is open');
   assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 1);
+  assert.equal(
+    await page
+      .locator('.rail-group')
+      .getByRole('button', { name: 'All apps', exact: true })
+      .count(),
+    1,
+    'All apps is a rail entry, not a second drawer control',
+  );
   // Settings, then the avatar for whoever this Vela belongs to.
   assert.equal(await page.locator('.rail-foot button').count(), 2);
   const avatar = page.locator('.rail-avatar-item');
@@ -124,8 +133,8 @@ try {
   assert.equal(openNames.filter((name) => name === 'Duplicate').length, 1);
   assert.equal(
     await page.locator('.rail-apps-open .rail-section-label').innerText(),
-    'OPEN',
-    'the running group is labelled',
+    'RUNNING',
+    'running processes are labelled as that, not as what is open on this desktop',
   );
   const railWidth = await page.locator('.rail').evaluate((el) => el.getBoundingClientRect().width);
   assert.equal(Math.round(railWidth), 62);

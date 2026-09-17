@@ -10,7 +10,6 @@ import {
 } from '@phosphor-icons/react';
 import Desk from './pages/Desk.jsx';
 import Ask from './pages/Ask.jsx';
-import Launchpad from './pages/Launchpad.jsx';
 import Library from './pages/Library.jsx';
 import System from './pages/System.jsx';
 import Files from './pages/Files.jsx';
@@ -27,17 +26,20 @@ import Automations from './pages/Automations.jsx';
 // either way. `color` tints its icon tile in the Nocturne accent family.
 export const dashboardPages = [
   { to: '/', label: 'Desk', end: true, icon: HouseSimple, rail: 'primary', component: Desk },
-  // The Launchpad: a full-screen grid of every app over the blurred wallpaper.
-  // It replaces the All apps drawer and the old Manage apps page as the one
-  // place that answers "which apps do I have".
+  // All Apps: a grid of every app over the blurred wallpaper. It replaces the
+  // All apps drawer and the old Manage apps page as the one place that answers
+  // "which apps do I have". It is an overlay rather than a page — looking for
+  // an app does not leave what you were doing — so the route renders the desk
+  // and `AppsOverlayProvider` draws the grid over it. See `overlay: true`.
   {
     to: '/apps',
-    label: 'Launchpad',
+    label: 'All apps',
     icon: SquaresFour,
     rail: 'primary',
     railOrder: 2,
     end: true,
-    component: Launchpad,
+    overlay: true,
+    component: Desk,
   },
   {
     to: '/ask',
