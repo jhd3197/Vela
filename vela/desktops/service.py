@@ -762,6 +762,36 @@ class Desktops:
             "scope": scope,
         }
 
+        return self.require_or_ask(
+            binding,
+            policy=policy,
+            app_name=manifest.name,
+            view_id=principal.view_id,
+            proposal=proposal,
+            scope=scope,
+            note=note,
+            current=self._current_document(session) if effect == "write" else None,
+        )
+
+    def require_or_ask(
+        self,
+        binding: dict[str, Any],
+        *,
+        policy: dict[str, Any],
+        app_name: str,
+        view_id: str | None,
+        proposal: Any = None,
+        scope: dict[str, Any] | None = None,
+        note: str | None = None,
+        current: Any = None,
+    ):
+        """One rule for "may this happen", wherever the effect came from.
+
+        Returns the callable an effect's own transaction runs before it commits.
+        Used by `effect_guard` for anything reaching the bridge, and by the tool
+        surface for a named action a run invokes directly — two doors into the
+        same decision, which is exactly why the decision lives in one place.
+        """
         # Read once, outside the transaction, only to decide whether this needs
         # asking. It is never what authorizes anything: the check that counts
         # runs below, inside the write's own transaction.
@@ -777,7 +807,7 @@ class Desktops:
         # The owner's standing answer, from the setup screen: in `granted` mode
         # the named actions they listed do not ask again. Only those — the mode
         # is not "allow everything", and nothing else consults this list.
-        if effect == "action" and granted_action(
+        if binding["effect"] == "action" and granted_action(
             policy, (scope or {}).get("app"), (scope or {}).get("action")
         ):
             return lambda db: None
@@ -787,23 +817,23 @@ class Desktops:
         from ..agent_runs.approvals import ApprovalPending, summarize
 
         summary = summarize(
-            effect,
-            app_name=manifest.name,
-            current=self._current_document(session) if effect == "write" else None,
+            binding["effect"],
+            app_name=app_name,
+            current=current,
             proposal=proposal,
             scope=scope,
             note=note,
         )
         record = self.approvals.request(
-            desktop_id=principal.desktop_id,
-            run_id=principal.run_id,
-            view_id=principal.view_id,
-            effect=effect,
-            app_id=app_id,
-            app_name=manifest.name,
+            desktop_id=binding["desktop_id"],
+            run_id=binding["run_id"],
+            view_id=view_id,
+            effect=binding["effect"],
+            app_id=binding["app_id"],
+            app_name=app_name,
             installation_id=binding["installation_id"],
             contract=binding["contract"],
-            request_digest=request_digest or "",
+            request_digest=binding["request_digest"] or "",
             scope=scope,
             summary=summary,
         )

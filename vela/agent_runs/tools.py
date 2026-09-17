@@ -33,6 +33,7 @@ from ..app_storage import AppServiceError
 from ..desktops.models import DesktopError
 from ..desktops.policy import allows_app, allows_site
 from ..desktops.runtime import RuntimeUnavailable, WorkerRefused
+from .approvals import ApprovalPending
 from .observations import ObservationLog, StalledError
 
 #: The declared surface, in the order a task tends to need it. The model adapter
@@ -108,7 +109,7 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "name": "desktop.wait",
         "summary": "Wait for one named condition, for a bounded time.",
         "arguments": {
-            "viewId": "string",
+            "viewId": "string, optional — defaults to the selected view",
             "condition": "{type: 'ready'|'text'|'idle', text?}",
             "timeoutMs": "number, at most 15000",
         },
@@ -129,7 +130,11 @@ TOOLS: tuple[dict[str, Any], ...] = (
     {
         "name": "task.finish",
         "summary": "Report the task done, with what was actually changed.",
-        "arguments": {"summary": "string", "evidence": "array of short strings"},
+        "arguments": {
+            "summary": "string, what you did or found",
+            "changed": "true only if you actually changed something; false if you only read",
+            "evidence": "array of short strings",
+        },
         "changes": False,
     },
 )
@@ -221,6 +226,10 @@ class AgentTools:
             return await handler(desktop_id, arguments, run_id=run_id, actor_id=actor_id or run_id)
         except ToolError:
             raise
+        except ApprovalPending:
+            # Travels up untouched. A question is not a tool failure, and the
+            # supervisor is what knows how to wait for an answer.
+            raise
         except StalledError as exc:
             raise ToolError("no_progress", exc.detail) from exc
         except DesktopError as exc:
@@ -263,7 +272,15 @@ class AgentTools:
         app_id = _string(arguments.get("appId"), "appId", 64)
         policy = self.desktops.store.policy(desktop_id)
         if not allows_app(policy, app_id):
-            raise ToolError("not_allowed", f"This desktop is not allowed to use {app_id}.")
+            # Say what *is* allowed. A model asked for "Notes" when the id is
+            # "notes" can fix that from this sentence; "no" on its own leaves it
+            # guessing, and a real run showed it guessing at a website next.
+            allowed = ", ".join(policy.get("apps") or []) or "nothing yet"
+            raise ToolError(
+                "not_allowed",
+                f"This desktop is not allowed to use {app_id}. It may use: {allowed}. "
+                "Apps are named by their id, in lower case.",
+            )
         view = self.desktops.open_view(desktop_id, "app", {"appId": app_id}, opened_by="agent")
         if not view["available"]:
             raise ToolError("view_unavailable", f"{app_id} is not installed on this computer.")
@@ -284,7 +301,12 @@ class AgentTools:
         origin = f"{parsed.scheme}://{parsed.netloc}"
         policy = self.desktops.store.policy(desktop_id)
         if not allows_site(policy, origin):
-            raise ToolError("not_allowed", f"{origin} is not one of this desktop's approved sites.")
+            approved = ", ".join(rule["origin"] for rule in policy.get("sites") or [])
+            raise ToolError(
+                "not_allowed",
+                f"{origin} is not one of this desktop's approved sites. "
+                + (f"It may open: {approved}." if approved else "No sites are approved."),
+            )
         view = self.desktops.open_view(desktop_id, "web", {"url": url}, opened_by="agent")
         await self.desktops.open_in_browser(desktop_id, self.desktops.store.view(view["id"]))
         self.desktops.select_view(desktop_id, view["id"])
@@ -371,7 +393,10 @@ class AgentTools:
         return await self._act(desktop_id, view, action, run_id=run_id, expected="scroll the view")
 
     async def _desktop_wait(self, desktop_id, arguments, *, run_id, actor_id):
-        view = self._view(desktop_id, arguments.get("viewId"))
+        # Waiting touches nothing, so it may leave the window unsaid and mean
+        # the one in front. Clicking may not: a click on "whatever is selected"
+        # is the ambiguity this surface exists to remove.
+        view = self._view(desktop_id, arguments.get("viewId"), allow_default=True)
         condition = arguments.get("condition")
         if not isinstance(condition, dict) or condition.get("type") not in ("ready", "text", "idle"):
             raise ToolError(
@@ -468,30 +493,45 @@ class AgentTools:
         scope = {"app": app_id, "action": action_id}
 
         def authorize(target_manifest, target_identity):
-            # Bound to this installation and this exact manifest, so reinstalling
-            # or updating the app stops the grant matching rather than carrying
-            # an old approval onto new code.
+            # The same rule an app's own click follows, reached from the other
+            # door. Bound to this installation and this exact manifest, so
+            # reinstalling or updating the app stops it matching rather than
+            # carrying an old approval onto new code — and, with no grant, it
+            # opens the owner's question instead of refusing outright.
+            check = self.desktops.require_or_ask(
+                {
+                    "desktop_id": desktop_id,
+                    "effect": "action",
+                    "app_id": app_id,
+                    "installation_id": target_identity,
+                    "contract": fingerprint(target_manifest),
+                    "run_id": run_id,
+                    "request_digest": digest,
+                    "scope": scope,
+                },
+                policy=policy,
+                app_name=target_manifest.name,
+                view_id=None,
+                proposal=value,
+                scope=scope,
+            )
             with self.desktops.grants.storage.connection() as db:
-                self.desktops.grants.require(
-                    db,
-                    desktop_id=desktop_id,
-                    effect="action",
-                    app_id=app_id,
-                    installation_id=target_identity,
-                    contract=fingerprint(target_manifest),
-                    run_id=run_id,
-                    request_digest=digest,
-                    scope=scope,
-                    detail=(
-                        f"This desktop has not been allowed to run {app_id}'s "
-                        f"{action_id} with these values."
-                    ),
-                )
+                check(db)
 
         try:
             result = actions.invoke_for_agent(
                 f"{desktop_id}:{run_id}", app_id, action_id, value, request_key, authorize
             )
+        except ApprovalPending as exc:
+            # Not a failure. The supervisor waits on it and tries the same call
+            # again once there is an answer, so the run pauses at the boundary
+            # rather than deciding the change was refused.
+            self.log.note_action(
+                desktop_id, run_id, tool="app.invoke_action", target=f"{app_id}.{action_id}",
+                expected="run this named action", outcome="not_dispatched",
+                result={"awaiting": exc.record["requestId"]},
+            )
+            raise
         except AppServiceError as exc:
             self.log.note_action(
                 desktop_id, run_id, tool="app.invoke_action", target=f"{app_id}.{action_id}",
@@ -522,6 +562,12 @@ class AgentTools:
         if not isinstance(evidence, list) or len(evidence) > MAX_EVIDENCE:
             raise ToolError("protocol_error", f"Evidence is a list of at most {MAX_EVIDENCE} notes.")
         notes = [_string(item, "evidence", 300) for item in evidence]
+        # A claim, kept separate from the receipts it is checked against. Absent
+        # means "do not claim anything", which is different from claiming
+        # nothing changed and is treated as the safer of the two.
+        claimed = arguments.get("changed")
+        if isinstance(claimed, str):
+            claimed = claimed.strip().lower() in ("true", "yes", "1")
         self.log.note_action(
             desktop_id, run_id, tool="task.finish", expected="finish the task",
             result={"summary": summary}, outcome="committed",
@@ -529,6 +575,7 @@ class AgentTools:
         return {
             "proposed": True,
             "summary": summary,
+            "changed": claimed if isinstance(claimed, bool) else None,
             "evidence": notes,
             "actions": self.log.evidence(desktop_id, run_id),
         }
@@ -545,6 +592,7 @@ class AgentTools:
         self.desktops.agent_runtime_for(desktop_id)
         state = self.desktops.views(desktop_id)
         views = state["views"]
+        open_now = [item["id"] for item in views if item["agentViewable"]]
         if view_id is None and allow_default:
             selected = state["layout"].get("selectedView")
             view = next((item for item in views if item["id"] == selected), None)
@@ -553,10 +601,23 @@ class AgentTools:
             if view is None:
                 raise ToolError("no_view", "Nothing is open on this desktop yet.")
         else:
+            # Say which windows exist. A refusal that only says "viewId is
+            # required" is one a run can repeat forever, and a real evaluation
+            # showed a model doing exactly that.
+            if not isinstance(view_id, str) or not view_id.strip():
+                raise ToolError(
+                    "no_view",
+                    "This needs the id of a window. Open now: "
+                    + (", ".join(open_now) if open_now else "nothing"),
+                )
             view_id = _string(view_id, "viewId", 64)
             view = next((item for item in views if item["id"] == view_id), None)
             if view is None:
-                raise ToolError("no_view", "That window is not open on this desktop.")
+                raise ToolError(
+                    "no_view",
+                    f"{view_id} is not a window on this desktop. Open now: "
+                    + (", ".join(open_now) if open_now else "nothing"),
+                )
         if not view["agentViewable"]:
             raise ToolError("not_allowed", "That window is one of the owner's, not the agent's.")
         if not view["available"]:

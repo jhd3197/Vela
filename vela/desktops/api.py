@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..app_storage import AppServiceError
 from ..desk import DeskError
 from ..wallpaper import MAX_WALLPAPER_BYTES, WallpaperError
 from .models import MAX_NAME, DesktopConflict, DesktopError
@@ -100,6 +101,20 @@ class IssueGrant(BaseModel):
     seconds: int = Field(default=3600, ge=1, le=86400)
 
 
+class SubmitTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    instruction: str = Field(min_length=1, max_length=4000)
+    #: The caller's own id for this submission, so a retried request joins the
+    #: queue once. A double-tapped button is not two tasks.
+    clientRequestId: str | None = Field(default=None, max_length=100)
+    model: str | None = Field(default=None, max_length=120)
+
+
+class ControlTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str = Field(pattern=r"^(pause|resume|stop)$")
+
+
 class ResolveApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
     decision: str = Field(pattern=r"^(approve|deny)$")
@@ -141,7 +156,13 @@ def conflict(exc: DesktopConflict) -> HTTPException:
     )
 
 
-def router(desktops) -> APIRouter:
+def router(desktops, *, runs=None) -> APIRouter:
+    """The desktop routes, and — when a run service exists — its task routes.
+
+    `runs` is optional so the desktop surface can be mounted on its own; without
+    it the task routes answer 503 rather than being absent, which is easier to
+    diagnose than a 404 that looks like a typo.
+    """
     api = APIRouter(prefix="/api/desktops", tags=["desktops"])
 
     def _fail(exc: DesktopError) -> HTTPException:
@@ -182,9 +203,14 @@ def router(desktops) -> APIRouter:
     @api.delete("/{desktop_id}")
     def delete_desktop(desktop_id: str) -> dict:
         try:
-            return desktops.delete(desktop_id)
+            result = desktops.delete(desktop_id)
         except DesktopError as exc:
             raise _fail(exc)
+        # Its tasks go with it. A run record naming a workspace that no longer
+        # exists is a record nobody can act on.
+        if runs is not None:
+            runs.forget_desktop(desktop_id)
+        return result
 
     @api.get("/{desktop_id}/boards")
     def get_boards(desktop_id: str) -> dict:
@@ -422,6 +448,65 @@ def router(desktops) -> APIRouter:
     def delete_wallpaper(desktop_id: str) -> dict:
         try:
             return desktops.remove_wallpaper(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # ------------------------------------------------------------- tasks --
+
+    def _runs():
+        if runs is None:
+            raise HTTPException(status_code=503, detail="Agent tasks are not available yet.")
+        return runs
+
+    @api.post("/{desktop_id}/tasks", status_code=202)
+    async def submit_task(desktop_id: str, payload: SubmitTask) -> dict:
+        """Queue one instruction. 202: accepted, not finished.
+
+        The task is the server's from here. Closing this page, losing the
+        network or switching desktops does not touch it.
+        """
+        try:
+            return await _runs().submit(desktop_id, payload.model_dump())
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.get("/{desktop_id}/tasks")
+    def list_tasks(desktop_id: str, limit: int = 50, offset: int = 0) -> dict:
+        try:
+            return _runs().list(desktop_id, limit=limit, offset=offset)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.get("/{desktop_id}/tasks/{run_id}")
+    def get_task(desktop_id: str, run_id: str) -> dict:
+        try:
+            return _runs().get(desktop_id, run_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.post("/{desktop_id}/tasks/{run_id}/control")
+    async def control_task(desktop_id: str, run_id: str, payload: ControlTask) -> dict:
+        try:
+            return await _runs().control(desktop_id, run_id, payload.action)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.get("/{desktop_id}/events")
+    def read_events(desktop_id: str, after: int = 0, limit: int = 200) -> dict:
+        """Everything after a cursor the viewer already has.
+
+        Polled rather than streamed for now: a numbered stream with a cursor
+        recovers from a dropped connection on its own, and adding a transport
+        that needs its own authentication is Phase 10's work, not this one's.
+        """
+        try:
+            return _runs().events(desktop_id, after=after, limit=limit)
         except DesktopError as exc:
             raise _fail(exc)
 

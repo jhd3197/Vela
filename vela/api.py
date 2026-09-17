@@ -24,6 +24,7 @@ from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, 
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError
 from .desktops import Desktops, DesktopConflict, DesktopError, Gateway, router as desktops_router
+from .agent_runs.service import AgentRuns
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
 from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
 from .snooze import SnoozeStore
@@ -353,6 +354,12 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # its own caller identity and its own grant check. Attached here because the
     # action service is built from services that are built from desktops.
     desktops.actions = actions
+    # Tasks an agent desktop carries out. Created after actions because a run
+    # invoking a named action goes through that service.
+    agent_runs = AgentRuns(
+        desktops, config.data_dir, settings=settings,
+        log=lambda message: print(f'[vela] {message}', flush=True),
+    )
     snooze = SnoozeStore(config.data_dir / "snooze.json")
     widgets = Widgets(storage, registry, actions, snooze, guard=guard)
     automations = Automations(config, registry, actions, notifier, settings,
@@ -377,8 +384,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     app.middleware("http")(auth.middleware)
     app.include_router(automations_router(automations))
     app.state.automations = automations
-    app.include_router(desktops_router(desktops))
+    app.include_router(desktops_router(desktops, runs=agent_runs))
     app.state.desktops = desktops
+    app.state.agent_runs = agent_runs
+    # Say plainly what a restart did to work that was in flight, rather than
+    # leaving a row that claims to still be running.
+    for note in [agent_runs.prepare()]:
+        if note["interrupted"]:
+            LOG.info("desktops: %s task(s) were interrupted by a restart", note["interrupted"])
     # Import the existing desk before anything can read a desktop, and sweep
     # wallpaper files a crash may have left unreferenced.
     _desktop_migration = desktops.prepare()
@@ -852,6 +865,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def stop_scheduler() -> None:
         await scheduler.stop()
         await system_metrics.stop()
+        # Tasks first, then the browser they were working in: a run that is
+        # still dispatching into a closing browser is the one thing worse than a
+        # run that stops.
+        await agent_runs.stop()
         # A browser left running with nobody to stop it is the thing the
         # worker's own watchdog is a backstop for; this is the ordinary path.
         await desktops.stop_runtime()
@@ -1173,6 +1190,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:
             conversations.purge()
+            # The same meaning for agent tasks: transcripts, events and results
+            # go, and anything still running continues in the volatile mode the
+            # documentation describes rather than quietly writing on.
+            agent_runs.purge()
         return {"ok": True}
 
     @app.post("/api/notify/test")

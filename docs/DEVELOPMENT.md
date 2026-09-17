@@ -831,6 +831,77 @@ an explicitly scoped "and next time too" — and the one-off is bound to the exa
 request digest while the scoped one deliberately is not. They are different
 decisions and never the same button.
 
+### Tasks the server carries out
+
+`vela/agent_runs/supervisor.py` holds the loop, and it holds the `asyncio.Task`
+that runs it. That ownership is the point: closing the dashboard, losing the
+network or switching desktops does not touch a run. The HTTP handlers observe.
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/supervisor.py` | The queue, the loop, control transitions and the completion check |
+| `vela/agent_runs/store.py` | Runs and numbered events on disk, and what a restart does to them |
+| `vela/agent_runs/budget.py` | Steps, model requests, working time, no-progress and output bounds |
+| `vela/agent_runs/model.py` | The Ollama adapter, its capability checks and the system prompt |
+| `vela/agent_runs/service.py` | What the API calls |
+| `scripts/evaluate-agent-model.py` | A real model against a real browser, reported per attempt |
+
+**The loop.** Ask the model for one typed step, check the name against the
+declared surface, dispatch it, compare the result with what was claimed. A tool
+refusing is a normal part of that: the refusal goes back as a tool message with
+its reason, because a model told "that control is gone, observe again" can do
+something useful and a model told nothing repeats itself.
+
+**Budgets stop time when the run is not working.** `activeSeconds` is measured
+in explicit intervals, so waiting for an approval or for a pause costs the run
+nothing. Charging a person's thinking time against a task's budget would mean a
+slow human ends a task. Steps, model requests and a run of fruitless steps are
+counted separately, and each limit ends the run with a sentence naming it.
+
+**A restart is honest about what it interrupted.** `RunStore.reconcile()` runs
+on the way up and moves every nonterminal row to `interrupted`, because a row
+saying `running` in a database with no loop behind it is a lie. Queued work
+stays queued and waits for the person: resuming from a stored instruction would
+mean repeating real-world effects nobody re-approved.
+
+**Approvals pause the run rather than failing it.** A tool that raises
+`ApprovalPending` moves the run to `waiting_approval`, suspends the budget,
+releases the model slot and polls. On approval the *same* call is dispatched
+again — the same decision, finally allowed to happen. On a denial or an expiry
+the reason goes back to the model as a tool result and the run continues.
+
+**Fair scheduling.** Two runs at once across the server, one model request at a
+time. Ask is deliberately not behind that semaphore: a person waiting for a
+reply must never queue behind an agent's hundredth step.
+
+**Completion is checked against receipts, not prose.** `task.finish` takes a
+`changed` boolean; if it claims a change and no committed effect backs it, the
+finish is refused with a reason, and after three refusals the run ends rather
+than spending its whole budget saying the same thing. The `changed` recorded in
+the result always comes from the receipts, so a summary that reads like a change
+sits beside a flag that says otherwise.
+
+An earlier version of that check looked for words like "created" in the summary.
+A real evaluation run showed why that is wrong: a model reporting "no notes have
+been created" was refused for a change it was explicitly saying it had not made,
+and repeated itself until the step budget ended the task. Prose is not a claim.
+
+### Evaluating a model
+
+Deterministic fixtures establish that the machinery is correct. They say nothing
+about whether a given model can decide what to do, which differs by model and by
+machine. That question has its own script:
+
+```bash
+python scripts/evaluate-agent-model.py --model qwen3:8b --attempts 5 --json report.json
+```
+
+It starts a Vela on a disposable data directory, installs the Notes fixture,
+converts a desktop and gives the model small tasks through the ordinary API,
+then reports per attempt with the failure type. `claimed_but_not_done` is its own
+outcome and not a success: the check is what the desktop looks like afterwards,
+not what the run said about it. Nothing it does touches an installed Vela.
+
 ### For app developers
 
 Nothing about an app changes for Phase 6. An app running in an agent's window is

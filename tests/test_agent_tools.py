@@ -30,6 +30,7 @@ import test_app_contract as base
 import uvicorn
 from scripts.fixture_apps import APPS as FIXTURE_APPS
 from vela.agent_runs.observations import NO_PROGRESS_LIMIT, ObservationLog, StalledError, fingerprint
+from vela.agent_runs.approvals import ApprovalPending
 from vela.agent_runs.tools import TOOLS, TOOL_NAMES, ToolError
 from vela.api import create_app
 from vela.config import Config
@@ -437,9 +438,15 @@ class AgentToolTests(unittest.TestCase):
         )
         self.assertEqual(self.notes(), [], "clicking through the app is not a way around a grant")
 
-    def test_a_named_action_without_a_grant_changes_nothing(self):
+    def test_a_named_action_without_a_grant_becomes_a_question(self):
+        """Not a refusal — the owner's question, with nothing written meanwhile.
+
+        The same rule an app's own click follows, reached through the tool. The
+        supervisor is what waits on it; here what matters is that the data is
+        untouched while it does.
+        """
         self.enable()
-        with self.assertRaises(ToolError) as caught:
+        with self.assertRaises(ApprovalPending) as caught:
             self.call(
                 "app.invoke_action",
                 {
@@ -449,8 +456,11 @@ class AgentToolTests(unittest.TestCase):
                     "requestKey": "k1",
                 },
             )
-        self.assertEqual(caught.exception.code, "not_allowed")
-        self.assertEqual(self.notes(), [], "a refused action leaves the data alone")
+        asked = caught.exception.record
+        self.assertEqual(asked["effect"], "action")
+        self.assertEqual(asked["scope"], {"app": "notes", "action": "create-note"})
+        self.assertIn("create-note", asked["summary"]["headline"])
+        self.assertEqual(self.notes(), [], "an unanswered question leaves the data alone")
 
     def test_a_named_action_with_a_grant_is_written_once(self):
         self.enable()
@@ -484,7 +494,7 @@ class AgentToolTests(unittest.TestCase):
     def test_a_grant_for_one_change_does_not_authorise_a_different_one(self):
         self.enable()
         self.grant_action({"title": "Milk", "body": "two litres"})
-        with self.assertRaises(ToolError) as caught:
+        with self.assertRaises(ApprovalPending):
             self.call(
                 "app.invoke_action",
                 {
@@ -494,8 +504,7 @@ class AgentToolTests(unittest.TestCase):
                     "requestKey": "k2",
                 },
             )
-        self.assertEqual(caught.exception.code, "not_allowed")
-        self.assertEqual(self.notes(), [])
+        self.assertEqual(self.notes(), [], "a grant for one change asks about a different one")
 
     def test_revoking_before_the_call_stops_it(self):
         self.enable()
@@ -504,7 +513,7 @@ class AgentToolTests(unittest.TestCase):
         self.client.delete(
             f"/api/desktops/{self.desktop}/grants/{grant['id']}", headers=self.hub
         )
-        with self.assertRaises(ToolError):
+        with self.assertRaises(ApprovalPending):
             self.call(
                 "app.invoke_action",
                 {
@@ -514,7 +523,7 @@ class AgentToolTests(unittest.TestCase):
                     "requestKey": "k3",
                 },
             )
-        self.assertEqual(self.notes(), [])
+        self.assertEqual(self.notes(), [], "a revoked grant is no grant")
 
     # ---- finishing
 

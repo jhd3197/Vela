@@ -66,6 +66,26 @@ runs only with a grant bound to that exact request — replaying the same reques
 key returns the first answer instead of writing twice. Its pure-Python half —
 the no-progress rule and the bounded evidence record — needs no browser.
 
+`test_agent_runs.py` covers the supervisor with a scripted model and a
+recording tool surface, so it is about the loop rather than about Chromium: a
+task running to a result with nobody watching, ordered events readable from a
+cursor, one task at a time per desktop, a queued task cancelled without ever
+starting, a running one stopped mid-dispatch, each budget ending the run with a
+sentence naming it, a tool refusal reaching the model rather than being
+swallowed, an unknown tool name never reaching anything, a model without tool
+support refused before a window opens, and an approval pausing the run and then
+dispatching the *same* call once it is answered. Its API half exercises the
+routes against the real store: submission deduplicated by request id, a personal
+desktop taking no tasks, a task belonging to its desktop, deleting a desktop
+taking its tasks, and turning history off removing what was kept.
+
+Say plainly what that suite does not establish. The model is a fixture, so it
+proves the machinery and nothing about whether a real model can decide what to
+do. That has its own script — see
+[evaluating a model](DEVELOPMENT.md#evaluating-a-model) — which runs a real model
+against a real browser and reports per attempt. Recorded results belong in a
+progress note with the model, the machine and the failure types as they were.
+
 `test_approvals.py` covers changes that wait for a person. Its first half is
 the sentence somebody decides from: a secret-looking field described and never
 repeated, a long value clipped, a change too large to list saying how much

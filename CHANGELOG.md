@@ -97,6 +97,27 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **A desktop can carry out a task while you do something else.** Give an agent
+  desktop an instruction and Vela works on it on the server: you can close the
+  dashboard, switch to another desktop or shut the browser, and the task carries
+  on. It runs inside the limits the desktop's settings give it — how many steps,
+  how long, how many times it may ask the model — and when it reaches one it
+  stops and says which. Time spent waiting for you to approve something is not
+  charged against it. Pause, resume and stop are yours; stopping ends what has
+  not happened yet and never pretends to undo what has.
+
+  What a task reports is checked against what it actually did. A summary that
+  claims a change with nothing to show for it is refused, and every result
+  records whether anything really changed — read from the receipts, not from the
+  wording. Vela never restarts a task by itself: if the server stops mid-task it
+  says the task was interrupted and leaves anything queued for you to start.
+
+  **Not every model can do this.** A task needs a model that supports tool
+  calling, and Vela checks before opening anything rather than failing halfway
+  through. Beyond that, models differ a great deal in whether they can actually
+  work an app, and a bigger model is not automatically better at it. See
+  [evaluating a model](docs/DEVELOPMENT.md#evaluating-a-model).
+
 - **A change can wait for you to say yes.** When an app running on an agent's
   desktop tries to save something the desktop was not already allowed to save,
   the change becomes a question rather than a failure. Nothing is written while
