@@ -22,6 +22,8 @@ export default function AgentSetup({ desktop, onReady }) {
   const [chosen, setChosen] = useState('');
   const [allowed, setAllowed] = useState([]);
   const [sites, setSites] = useState('');
+  const [siteEffects, setSiteEffects] = useState('read');
+  const [rememberSessions, setRememberSessions] = useState(false);
   const [approvals, setApprovals] = useState('ask');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -49,6 +51,10 @@ export default function AgentSetup({ desktop, onReady }) {
       .then((policy) => {
         setAllowed(policy.apps || []);
         setSites((policy.sites || []).map((rule) => rule.origin).join('\n'));
+        setSiteEffects(
+          (policy.sites || []).some((rule) => rule.effects === 'ask') ? 'ask' : 'read',
+        );
+        setRememberSessions(Boolean(policy.rememberSessions));
         setApprovals(policy.approvals || 'ask');
       })
       .catch(() => {});
@@ -87,9 +93,10 @@ export default function AgentSetup({ desktop, onReady }) {
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean)
-          .map((origin) => ({ origin, includeSubdomains: false })),
+          .map((origin) => ({ origin, includeSubdomains: false, effects: siteEffects })),
         approvals,
         actionScopes: [],
+        rememberSessions,
       });
       const result = await desktopsApi.enableAgent(desktop.id);
       setNotes(result.notes || []);
@@ -179,6 +186,48 @@ export default function AgentSetup({ desktop, onReady }) {
           placeholder="https://example.com"
         />
       </FormField>
+
+      {/* Opening a site and acting on one are two different decisions, so they
+          are two questions. The default is the narrower one. */}
+      <fieldset className="agent-allowed" disabled={!sites.trim()}>
+        <legend>On those websites</legend>
+        <label className="agent-choice">
+          <input
+            type="radio"
+            name="site-effects"
+            checked={siteEffects === 'read'}
+            onChange={() => setSiteEffects('read')}
+          />
+          <span>
+            <strong>Reading only.</strong> It can browse and read. Signing in, sending a form or
+            anything else that would change something there stops and asks you to take over.
+          </span>
+        </label>
+        <label className="agent-choice">
+          <input
+            type="radio"
+            name="site-effects"
+            checked={siteEffects === 'ask'}
+            onChange={() => setSiteEffects('ask')}
+          />
+          <span>
+            <strong>Ask me before it sends anything.</strong> You see what is being sent — the
+            address and the field names, never the values — and allow that one request.
+          </span>
+        </label>
+        <label className="agent-choice">
+          <input
+            type="checkbox"
+            checked={rememberSessions}
+            onChange={(event) => setRememberSessions(event.target.checked)}
+          />
+          <span>
+            <strong>Keep website sign-ins on this desktop.</strong> Off by default: a signed-in
+            session is kept only for this desktop, never taken from your own browser, and you can
+            erase it in one action.
+          </span>
+        </label>
+      </fieldset>
 
       <fieldset className="agent-allowed">
         <legend>Changes</legend>

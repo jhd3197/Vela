@@ -97,6 +97,39 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **An agent desktop can use a website, and bring a file back.** Approving a
+  site is two decisions now, so the setup asks two questions. **Reading only**
+  is the default: it can browse, and signing in, sending a form or anything else
+  that would change something there stops and asks you to take over. **Ask me
+  before it sends anything** holds the request before it leaves your computer and
+  shows you what it is — the address, the method and the *names* of the fields,
+  never the values, because a prompt gets screenshotted. Saying yes allows that
+  exact request and nothing else. Requests Vela cannot describe honestly are not
+  offered as a question at all; they ask for a person.
+
+  Signing in is yours. Vela will not attempt one and will not try to get past a
+  challenge meant to tell people from programs — it stops, says so, and hands you
+  the window. A desktop forgets website sign-ins when its browser closes unless
+  you turn on keeping them, and what is kept belongs to that desktop alone: two
+  agent desktops are never signed in as each other, your own browser's profile is
+  never read, and **Erase** clears both the file and the browser that is open.
+
+  Files go through your own picker. The agent is told which files exist and can
+  attach one to a page that asks for one; there is no tool that takes a path, so
+  there is nothing to point elsewhere. Anything it downloads from an approved
+  site appears in the same list with where it came from. Up to 25 MB for a file
+  you add, 100 MB for a download and 250 MB for one task, shown before a transfer
+  rather than discovered by one failing. A file is stored under a name Vela
+  generated, nothing is extracted and nothing is run.
+
+  **If something was sent and no answer came back, Vela says so.** The task ends
+  with *Outcome unknown*, the Files panel shows what went out, and nothing sends
+  it again until you say you have checked. One honest limit: when a connection
+  dies before any reply, the browser itself may resend below anything Vela can
+  intercept, so the site may have received it more than once — which is exactly
+  why checking is a person's job and not a retry. See
+  [agent desktops](docs/AGENT-DESKTOPS.md).
+
 - **Watch what the agent is doing, and take the keyboard when you want it.**
   The Agent window shows the actual screen the agent is working on. Watching is
   watching: clicking the picture does nothing. **Take over** stops the agent

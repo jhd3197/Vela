@@ -32,6 +32,12 @@ KEEP_BACKUPS = 10
 #: bringing the wallpaper back. The uploaded images themselves are not here:
 #: they never were, and a desktop whose picture is missing falls back to a
 #: painted one rather than failing.
+#:
+#: An allowlist rather than an exclusion list, which is what keeps two things
+#: out by construction: an agent desktop's staged files, which are a
+#: half-finished transfer rather than somebody's documents, and its kept website
+#: sign-ins, which are the nearest thing in the data directory to a password. A
+#: backup is not a copy of a browser session.
 BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.sqlite")
 
 #: The SQLite databases a backup copies through the engine rather than the file

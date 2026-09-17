@@ -17,6 +17,7 @@ import re
 from typing import Any
 
 from .models import DesktopError
+from .site_policy import SITE_EFFECT_MODES
 
 #: How changes are handled. `ask` pauses at every effect for the owner; `granted`
 #: additionally allows the specific action scopes listed below without asking
@@ -46,6 +47,7 @@ def empty_policy() -> dict[str, Any]:
         "approvals": "ask",
         "actionScopes": [],
         "budget": dict(DEFAULT_BUDGET),
+        "rememberSessions": False,
     }
 
 
@@ -87,6 +89,11 @@ def validate_policy(value: Any) -> dict[str, Any]:
 
     out["budget"] = _budget(value.get("budget"))
 
+    # Whether a website login survives the browser being closed. Off by design:
+    # a signed-in session that outlives the task is a credential sitting on the
+    # disk, and turning it on is a decision somebody makes once, deliberately.
+    out["rememberSessions"] = bool(value.get("rememberSessions"))
+
     # An action scope for an app the desktop does not allow is a contradiction,
     # and storing it would leave a permission that reappears the moment somebody
     # adds the app back.
@@ -112,6 +119,11 @@ def _site(entry: Any) -> dict[str, Any]:
     rule = {"origin": entry} if isinstance(entry, str) else entry
     if not isinstance(rule, dict):
         raise DesktopError(422, "An approved site is an origin.")
+    effects = rule.get("effects", "read")
+    if effects not in SITE_EFFECT_MODES:
+        raise DesktopError(
+            422, "A site is either read-only for the agent, or one where changes are asked about."
+        )
     origin = rule.get("origin")
     if not isinstance(origin, str) or not origin.startswith(("http://", "https://")):
         raise DesktopError(422, "An approved site needs an http or https origin.")
@@ -121,7 +133,14 @@ def _site(entry: Any) -> dict[str, Any]:
     trimmed = origin.rstrip("/")
     if trimmed.count("/") != 2:
         raise DesktopError(422, "An approved site is an origin, not a page.")
-    return {"origin": trimmed.lower(), "includeSubdomains": bool(rule.get("includeSubdomains"))}
+    return {
+        "origin": trimmed.lower(),
+        "includeSubdomains": bool(rule.get("includeSubdomains")),
+        # What the agent may cause on this site, as opposed to what it may read.
+        # `read` is the default because approving a site to look at is not the
+        # same decision as approving it to act on somebody's behalf.
+        "effects": effects,
+    }
 
 
 def _scope(entry: Any) -> dict[str, Any]:
@@ -158,19 +177,29 @@ def allows_app(policy: dict[str, Any], app_id: str) -> bool:
     return app_id in (policy.get("apps") or [])
 
 
-def allows_site(policy: dict[str, Any], origin: str) -> bool:
-    """Whether an origin is approved. Compared as an origin, not as text."""
+def site_rule(policy: dict[str, Any], origin: str) -> dict[str, Any] | None:
+    """The rule an origin matched, or None. Compared as an origin, not as text.
+
+    Returning the rule rather than a boolean is what lets the effect decision
+    and the navigation decision read the same row: whether a site may be opened
+    and what may be done on it are two answers from one place.
+    """
     if not isinstance(origin, str):
-        return False
+        return None
     target = origin.rstrip("/").lower()
     for rule in policy.get("sites") or []:
         if target == rule["origin"]:
-            return True
-        if rule["includeSubdomains"]:
+            return rule
+        if rule.get("includeSubdomains"):
             scheme, _, host = rule["origin"].partition("://")
             if target.startswith(f"{scheme}://") and target.endswith(f".{host}"):
-                return True
-    return False
+                return rule
+    return None
+
+
+def allows_site(policy: dict[str, Any], origin: str) -> bool:
+    """Whether an origin is approved at all."""
+    return site_rule(policy, origin) is not None
 
 
 def granted_action(policy: dict[str, Any], app_id: str, action_id: str) -> bool:

@@ -13,7 +13,11 @@ second copy with its own revision.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import json
+import os
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -24,7 +28,8 @@ from .effects import EFFECTFUL
 from .grants import Grants
 from .principals import agent_of
 from .migration import migrate
-from .policy import empty_policy, granted_action, validate_policy
+from .policy import empty_policy, granted_action, site_rule, validate_policy
+from . import site_policy
 from .runtime import BrowserRuntime, RuntimeUnavailable, availability as runtime_availability
 from .store import new_id as new_runtime_session_id
 from .models import (
@@ -112,7 +117,32 @@ class Desktops:
         # The managed browser. Created now, started only when a desktop needs
         # one: a server with no agent desktops should cost nothing.
         self._log = log or (lambda message: None)
-        self.runtime = BrowserRuntime(data_dir / "agent-frames", log=self._log)
+        # Files a task was given and files it came back with. Built here because
+        # the browser needs the staging directory before it starts.
+        from ..agent_runs.artifacts import Artifacts
+
+        self.artifacts = Artifacts(data_dir)
+        self.runtime = BrowserRuntime(
+            data_dir / "agent-frames",
+            downloads_dir=self.artifacts.downloads_dir(),
+            log=self._log,
+        )
+        # Deciding about a website request needs the policy, the grants and the
+        # run. The runtime knows about a pipe; this knows about authority.
+        self.runtime.on_effect_request = self.decide_site_effect
+        self.runtime.on_view_notice = self.note_view_notice
+        #: Requests that went out and whose answer never arrived, by desktop.
+        #: An entry here is not a failure — it is the reason the same submission
+        #: is never quietly sent a second time.
+        self._uncertain: dict[str, dict[str, Any]] = {}
+        #: Tasks, attached after construction the way actions are. Deciding
+        #: about a site request has to name the run it belongs to.
+        self.runs = None
+        #: Notices already recorded. The worker both pushes one and keeps it for
+        #: the next result, so both arrive and only the first counts.
+        self._seen_notices: set[str] = set()
+        #: desktop id -> the browser lifetime a site grant is bound to.
+        self._runtime_sessions: dict[str, str] = {}
         # The one origin the managed browser may talk to. Everything else on
         # this computer, including the rest of Vela, is off the list.
         self._origin = origin.rstrip("/")
@@ -203,9 +233,14 @@ class Desktops:
         # Authority first: after the rows are gone there is nothing left to say
         # which grants belonged to this desktop.
         self.revoke_desktop(desktop_id)
+        # Staged transfers and a remembered sign-in go with the workspace. An
+        # installed app's own documents are not here and are not touched.
+        files = self.artifacts.forget_desktop(desktop_id)
+        self.drop_session_file(desktop_id)
+        self._uncertain.pop(desktop_id, None)
         self.store.delete(desktop_id)
         removed = self.cleanup_assets()
-        return {"ok": True, "removedAssets": removed}
+        return {"ok": True, "removedAssets": removed, "removedFiles": files}
 
     # ---------------------------------------------------------- boards --
 
@@ -315,7 +350,15 @@ class Desktops:
         return {
             "gatewayOrigin": self._origin,
             "gatewayPathPrefixes": prefixes,
-            "sites": policy.get("sites") or [],
+            "sites": [
+                {**rule, "effects": site_policy.effects_mode(rule)}
+                for rule in policy.get("sites") or []
+            ],
+            # Off unless this server was started to run the site fixtures. It
+            # lets an *approved* origin be on this machine and does nothing
+            # else; the rest of loopback and the whole local network stay
+            # refused. `docs/TESTING.md` says when to set it.
+            "allowPrivateSites": bool(os.environ.get("VELA_BROWSER_ALLOW_PRIVATE_SITES")),
         }
 
     async def enable_agent(self, desktop_id: str) -> dict[str, Any]:
@@ -343,7 +386,13 @@ class Desktops:
         try:
             await self.runtime.start()
             session_id = new_runtime_session_id()
-            await self.runtime.open_desktop(desktop_id, session_id, self.gateway_policy(desktop_id))
+            await self.runtime.open_desktop(
+                desktop_id,
+                session_id,
+                self.gateway_policy(desktop_id),
+                storage_state=self.remembered_session(desktop_id),
+            )
+            self._runtime_sessions[desktop_id] = session_id
             started = True
             moved, notes = await self._convert_views(desktop_id)
             self.store.set_kind(desktop_id, "agent")
@@ -365,6 +414,8 @@ class Desktops:
         desktop_id = validate_id(desktop_id)
         self.store.get(desktop_id)
         self.revoke_desktop(desktop_id, reason="the agent was turned off")
+        self._runtime_sessions.pop(desktop_id, None)
+        self._uncertain.pop(desktop_id, None)
         try:
             await self.runtime.close_desktop(desktop_id)
         except RuntimeUnavailable:
@@ -497,6 +548,348 @@ class Desktops:
             "appName": manifest.name,
             "appUrl": f"{self._origin}/apps/{view['appId']}/",
         }
+
+    # ------------------------------------------------- website effects --
+
+    async def decide_site_effect(self, desktop_id: Any, request: Any) -> dict[str, Any]:
+        """Whether a request an approved website would receive may be sent.
+
+        Called by the browser with the request held. Three answers, and every
+        path reaches one: send it, a question is open, or this one needs a
+        person. Nothing has been sent while this is deciding, which is what
+        makes "no" and "not yet" both safe.
+
+        The narrowest honest claim is the one made here. Vela does not decide
+        that a site is harmless because the method is GET; it decides that it
+        will not *cause* what it cannot describe, describes what it can, and
+        binds the owner's answer to that exact description.
+        """
+        try:
+            desktop_id = validate_id(desktop_id)
+            desktop = self.store.get(desktop_id)
+        except DesktopError:
+            return {"decision": "person", "detail": "That desktop is gone."}
+        if desktop["kind"] != "agent":
+            return {"decision": "person", "detail": "This desktop is not running an agent."}
+
+        policy = self.store.policy(desktop_id)
+        effect = site_policy.classify(request)
+        rule = site_rule(policy, effect.origin)
+        if rule is None:
+            # The network boundary should already have refused this. Saying no
+            # twice costs nothing; saying yes because the first check was
+            # assumed to have happened is how a boundary stops being one.
+            return {"decision": "person", "detail": "That site is not approved on this desktop."}
+
+        if effect.kind == "read":
+            return {"decision": "allow"}
+
+        pending = self._uncertain.get(desktop_id, {}).get(effect.digest)
+        if pending is not None:
+            # It went out once and nobody can say what became of it. Sending it
+            # again is how one order becomes two, so this stops here until a
+            # person says what happened.
+            return {
+                "decision": "person",
+                "detail": (
+                    "This was already sent once and Vela never saw the answer. Check "
+                    "whether it went through before sending it again."
+                ),
+            }
+
+        verdict = site_policy.decide(rule, effect)
+        if verdict == "person":
+            return {"decision": "person", "detail": effect.reason}
+
+        run = self._active_run(desktop_id)
+        binding = {
+            "desktop_id": desktop_id,
+            "effect": "submit",
+            "app_id": site_policy.principal(rule["origin"]),
+            # This browser lifetime. A new browser is a new session on the site,
+            # so an answer given for the old one does not carry over.
+            "installation_id": self._runtime_session_id(desktop_id),
+            "contract": site_policy.contract(rule, policy.get("revision") or 0),
+            "run_id": run["id"] if run else None,
+            "request_digest": effect.digest,
+            "scope": {"site": rule["origin"], "method": effect.method, "path": effect.path},
+        }
+        try:
+            authorize = self.require_or_ask(
+                binding,
+                policy=policy,
+                app_name=rule["origin"],
+                view_id=request.get("viewId") if isinstance(request, dict) else None,
+                scope=binding["scope"],
+                summary=site_policy.summarize(effect),
+            )
+            with self.grants.storage.connection() as db:
+                authorize(db)
+        except Exception as exc:  # noqa: BLE001 - every outcome is an answer
+            from ..agent_runs.approvals import ApprovalPending
+
+            if isinstance(exc, ApprovalPending):
+                return {
+                    "decision": "ask",
+                    "requestId": exc.record["requestId"],
+                    "detail": "Waiting for you to say whether this may be sent.",
+                }
+            self._log(f"could not decide about a site request: {exc}")
+            return {"decision": "person", "detail": getattr(exc, "detail", str(exc))}
+        return {"decision": "allow"}
+
+    def _active_run(self, desktop_id: str):
+        if self.runs is None:
+            return None
+        try:
+            return self.runs.store.active(desktop_id)
+        except Exception:  # noqa: BLE001 - a missing run is not this decision's problem
+            return None
+
+    def _runtime_session_id(self, desktop_id: str) -> str:
+        """This browser lifetime, as the thing a site grant is bound to.
+
+        The browser is the closest thing a website has to an installation: close
+        it and the cookies, the storage and the half-finished form are gone, and
+        an answer given about that session should go with it.
+        """
+        return self._runtime_sessions.get(desktop_id) or "no-session"
+
+    # --------------------------------------------------- what happened --
+
+    def note_view_notice(self, desktop_id: Any, notice: Any) -> None:
+        """Something that happened to a view without an action causing it.
+
+        Pushed by the worker as it happens, and also collected with the next
+        result. Both paths land here, and this is idempotent, because a download
+        recorded twice would be a file counted twice against a quota.
+        """
+        try:
+            self.collect_notices(validate_id(desktop_id), [notice])
+        except Exception as exc:  # noqa: BLE001 - never the caller's problem
+            self._log(f"could not record what happened on a desktop: {exc}")
+
+    def collect_notices(
+        self, desktop_id: str, notices: Any, *, run_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Turn what the browser reported into records, once each.
+
+        Returns what a run should be told: the artifacts a download produced and
+        the attention states that need a person. What it does not return is the
+        staged path, which is Vela's and never leaves it.
+        """
+        out: list[dict[str, Any]] = []
+        for notice in notices if isinstance(notices, list) else []:
+            if not isinstance(notice, dict):
+                continue
+            key = self._notice_key(desktop_id, notice)
+            if key in self._seen_notices:
+                continue
+            self._seen_notices.add(key)
+            if len(self._seen_notices) > 2000:
+                self._seen_notices.clear()
+                self._seen_notices.add(key)
+            kind = notice.get("type")
+            if kind == "download":
+                out.append(self._ingest_download(desktop_id, notice, run_id=run_id))
+            elif kind == "effect_uncertain":
+                self._uncertain.setdefault(desktop_id, {})[notice.get("digest") or key] = {
+                    "url": notice.get("url"),
+                    "method": notice.get("method"),
+                    "at": time.time(),
+                }
+                out.append(
+                    {
+                        "attention": "outcome_unknown",
+                        "detail": (
+                            f"{notice.get('method')} {notice.get('url')} was sent and no "
+                            "answer arrived. Vela cannot say whether it went through, and "
+                            "will not send it again on its own."
+                        ),
+                    }
+                )
+            elif kind in ("effect_needs_person", "file_chooser_cancelled", "download_refused",
+                          "download_failed", "dialog", "effect_pending"):
+                out.append({"attention": kind, "detail": _notice_detail(notice)})
+        return out
+
+    def _notice_key(self, desktop_id: str, notice: dict[str, Any]) -> str:
+        parts = [
+            desktop_id,
+            str(notice.get("type")),
+            str(notice.get("path") or notice.get("digest") or notice.get("url") or ""),
+            str(notice.get("at") or ""),
+            str(notice.get("message") or "")[:80],
+        ]
+        return "|".join(parts)
+
+    def _ingest_download(
+        self, desktop_id: str, notice: dict[str, Any], *, run_id: str | None
+    ) -> dict[str, Any]:
+        from ..agent_runs.artifacts import ArtifactError, envelope
+
+        try:
+            record = self.artifacts.ingest_download(
+                desktop_id,
+                Path(str(notice.get("path") or "")),
+                name=notice.get("name"),
+                run_id=run_id or (self._active_run(desktop_id) or {}).get("id"),
+                origin=_origin_of(notice.get("url")),
+                view_id=notice.get("viewId"),
+            )
+        except ArtifactError as exc:
+            return {"attention": "download_refused", "detail": exc.detail}
+        except OSError as exc:
+            return {"attention": "download_failed", "detail": str(exc)}
+        return {"file": envelope(record)}
+
+    def uncertain(self, desktop_id: str) -> list[dict[str, Any]]:
+        """Submissions that went out and whose answer never arrived."""
+        return [
+            {"digest": digest, **record}
+            for digest, record in (self._uncertain.get(validate_id(desktop_id)) or {}).items()
+        ]
+
+    def resolve_uncertain(self, desktop_id: str, digest: Any = None) -> dict[str, Any]:
+        """The owner saying what became of one, or of all of them.
+
+        Deliberately an owner action and never an automatic one. The only thing
+        that can establish what happened on somebody else's server is somebody
+        looking, and a timer is not somebody looking.
+        """
+        desktop_id = validate_id(desktop_id)
+        held = self._uncertain.get(desktop_id) or {}
+        if digest is None:
+            self._uncertain.pop(desktop_id, None)
+            return {"cleared": len(held)}
+        if str(digest) not in held:
+            raise DesktopError(404, "There is nothing waiting to be checked under that name.")
+        held.pop(str(digest))
+        return {"cleared": 1}
+
+    # ------------------------------------------------- website sessions --
+
+    def sessions_dir(self) -> Path:
+        path = self.data_dir / "desktop-sessions"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _session_file(self, desktop_id: str) -> Path:
+        return self.sessions_dir() / f"{desktop_id}.json"
+
+    def remembered_session(self, desktop_id: str) -> dict[str, Any] | None:
+        """A signed-in state saved for this desktop, if the owner kept one."""
+        if not (self.store.policy(desktop_id).get("rememberSessions")):
+            return None
+        try:
+            return json.loads(self._session_file(desktop_id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def session_state(self, desktop_id: str) -> dict[str, Any]:
+        """What is being kept for this desktop, in numbers rather than contents.
+
+        A count of cookies and the sites they belong to. Never the cookies: a
+        route that could read them back would be a route that turns a browser
+        session into something anything with the owner's token could take away.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        policy = self.store.policy(desktop_id)
+        path = self._session_file(desktop_id)
+        saved = None
+        cookies = 0
+        origins: list[str] = []
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            saved = path.stat().st_mtime
+            cookies = len(document.get("cookies") or [])
+            origins = sorted(
+                {str(entry.get("origin")) for entry in (document.get("origins") or []) if entry}
+            )[:32]
+        except (OSError, ValueError):
+            pass
+        return {
+            "desktopId": desktop_id,
+            "allowed": bool(policy.get("rememberSessions")),
+            "remembered": saved is not None,
+            "savedAt": saved,
+            "cookies": cookies,
+            "origins": origins,
+        }
+
+    async def remember_session(self, desktop_id: str) -> dict[str, Any]:
+        """Keep this desktop's signed-in websites for the next browser.
+
+        Only when the desktop's own settings allow it, only for this desktop,
+        and never by importing anything from the person's own browser. What is
+        saved is what this managed browser has, and erasing it is one action.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.agent_runtime_for(desktop_id)
+        if not self.store.policy(desktop_id).get("rememberSessions"):
+            raise DesktopError(
+                409,
+                "This desktop is set to forget website sign-ins. Turn that on in its "
+                "settings first.",
+            )
+        try:
+            result = await self.runtime.command(
+                "session.storage", desktopId=desktop_id, timeout=30.0
+            )
+        except RuntimeUnavailable as exc:
+            raise DesktopError(503, str(exc)) from exc
+        document = result.get("storageState")
+        if not isinstance(document, dict):
+            raise DesktopError(502, "The browser did not return anything to keep.")
+        path = self._session_file(desktop_id)
+        path.write_text(
+            json.dumps(document, separators=(",", ":")), encoding="utf-8"
+        )
+        _owner_only(path)
+        return self.session_state(desktop_id)
+
+    async def forget_session(self, desktop_id: str) -> dict[str, Any]:
+        """Erase what was kept, and clear it out of the browser that is open.
+
+        Both halves, and both awaited. Either on its own leaves somebody signed
+        in: a file with no browser comes back next time, and a browser with no
+        file stays signed in until it closes. Reporting "erased" while a live
+        context still holds the cookies would be the worse of the two.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        self.drop_session_file(desktop_id)
+        cleared = False
+        if self.runtime.running and desktop_id in self.runtime.desktops:
+            with contextlib.suppress(RuntimeUnavailable):
+                await self.runtime.command("session.forget", desktopId=desktop_id, timeout=20.0)
+                cleared = True
+        return {"desktopId": desktop_id, "remembered": False, "browserCleared": cleared}
+
+    def drop_session_file(self, desktop_id: str) -> None:
+        """Remove the stored sign-in. Used on its own when there is no browser
+        left to clear — deleting the desktop, for one."""
+        self._session_file(validate_id(desktop_id)).unlink(missing_ok=True)
+
+    # ------------------------------------------------------- staged files --
+
+    def resolve_artifacts(self, desktop_id: str, artifact_ids: Any) -> list[tuple[str, dict]]:
+        """Turn artifact ids into the files Vela stored them as.
+
+        The one place an id becomes a path, inside Vela, against a record Vela
+        wrote. Nothing the model or a page said is ever treated as a location on
+        this computer, and the path never travels back to either of them.
+        """
+        desktop_id = validate_id(desktop_id)
+        ids = [str(value) for value in (artifact_ids or [])][:5]
+        if not ids:
+            raise DesktopError(422, "Say which file to attach.")
+        resolved = []
+        for artifact_id in ids:
+            path, record = self.artifacts.file(desktop_id, artifact_id)
+            resolved.append((str(path), record))
+        return resolved
 
     # ---------------------------------------------------------- policy --
 
@@ -784,6 +1177,7 @@ class Desktops:
         scope: dict[str, Any] | None = None,
         note: str | None = None,
         current: Any = None,
+        summary: dict[str, Any] | None = None,
     ):
         """One rule for "may this happen", wherever the effect came from.
 
@@ -816,14 +1210,18 @@ class Desktops:
         # from the request itself — never from anything the agent said about it.
         from ..agent_runs.approvals import ApprovalPending, summarize
 
-        summary = summarize(
-            binding["effect"],
-            app_name=app_name,
-            current=current,
-            proposal=proposal,
-            scope=scope,
-            note=note,
-        )
+        # A caller that already built the sentence passes it. A website request
+        # is described from its method, its address and its field names, which
+        # is not a shape `summarize` knows or should learn.
+        if summary is None:
+            summary = summarize(
+                binding["effect"],
+                app_name=app_name,
+                current=current,
+                proposal=proposal,
+                scope=scope,
+                note=note,
+            )
         record = self.approvals.request(
             desktop_id=binding["desktop_id"],
             run_id=binding["run_id"],
@@ -1147,3 +1545,44 @@ class Desktops:
                     path.unlink(missing_ok=True)
                     removed += 1
         return removed
+
+
+def _origin_of(url: Any) -> str | None:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(str(url or ""))
+    return f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else None
+
+
+def _notice_detail(notice: dict[str, Any]) -> str:
+    """One sentence about something that happened, in words a person reads."""
+    kind = notice.get("type")
+    if kind == "effect_needs_person":
+        return (
+            f"{notice.get('method')} {notice.get('url')} was not sent: "
+            + (notice.get("detail") or "this one needs a person at the keyboard.")
+        )
+    if kind == "effect_pending":
+        return f"{notice.get('method')} {notice.get('url')} is waiting for you to allow it."
+    if kind == "dialog":
+        return f"The page opened a {notice.get('kind')} box: {notice.get('message')}"
+    if kind == "file_chooser_cancelled":
+        return "The page asked for a file that nobody had chosen, so nothing was given to it."
+    if kind == "download_refused":
+        return f"A download was refused: {notice.get('detail') or 'it is outside what Vela accepts'}."
+    if kind == "download_failed":
+        return f"A download did not finish: {notice.get('detail') or 'it was interrupted'}."
+    return str(notice.get("detail") or kind or "something happened")
+
+
+def _owner_only(path: Path) -> None:
+    """Take the group and world bits off, where a platform has them.
+
+    A saved sign-in is the nearest thing in this directory to a password. On
+    Windows the data directory's own permissions are what protects it, and
+    `chmod` there is a no-op rather than a false reassurance.
+    """
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass

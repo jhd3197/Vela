@@ -171,6 +171,9 @@ export async function resolveTarget(record, ref, { expect = {} } = {}) {
         name,
         disabled: Boolean(node.disabled || node.getAttribute('aria-disabled') === 'true'),
         hidden: style.visibility === 'hidden' || style.display === 'none',
+        acceptsFiles:
+          node.tagName === 'INPUT' &&
+          (node.getAttribute('type') || '').toLowerCase() === 'file',
         editable:
           node.isContentEditable ||
           node.tagName === 'TEXTAREA' ||
@@ -206,6 +209,9 @@ export async function resolveTarget(record, ref, { expect = {} } = {}) {
   if (expect.editable && !now.editable) {
     await refuse(`${ref} is not a field you can type into`, 'protocol_error');
   }
+  if (expect.file && !now.acceptsFiles) {
+    await refuse(`${ref} is not a field you can attach a file to`, 'protocol_error');
+  }
   return { element, described, state: now, frameIndex };
 }
 
@@ -223,4 +229,17 @@ function sameName(current, described) {
 function clip(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > 60 ? text.slice(0, 60) + '…' : text;
+}
+
+/**
+ * Put files into a file field.
+ *
+ * The paths come from Vela, which generated them when it staged the artifacts.
+ * Nothing a page or a model said reaches this: an agent names an artifact id,
+ * Vela turns that into the file it stored under a name it chose, and the field
+ * receives that. There is no way from here to a path somebody supplied.
+ */
+export async function attachFiles(element, paths) {
+  await element.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+  await element.setInputFiles(paths, { timeout: 15_000 });
 }

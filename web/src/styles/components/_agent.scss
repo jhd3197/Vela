@@ -420,3 +420,104 @@
     pointer-events: none;
   }
 }
+
+/* ------------------------------------------------ files and sessions -- */
+
+/* The owner's file picker, and the two questions that belong beside it: what
+   this desktop keeps signed in, and whether anything went out unanswered. */
+.task-files {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+
+  h3 {
+    font-size: 14.5px;
+  }
+
+  h4 {
+    font-size: 13px;
+    margin: 14px 0 4px;
+  }
+
+  /* The real input is never shown. The button in front of it is, because a
+     browser's own file control cannot be made to match anything around it. */
+  input[type='file'] {
+    block-size: 1px;
+    clip-path: inset(50%);
+    inline-size: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+  }
+}
+
+.file-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+
+  li {
+    align-items: center;
+    background: var(--bg-inset);
+    border-radius: var(--radius-sm);
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 8px 10px;
+  }
+
+  a {
+    display: block;
+    font-size: 13.5px;
+  }
+
+  small {
+    color: var(--text-dim);
+    display: block;
+    font-size: 12px;
+  }
+}
+
+/* A submission nobody could confirm. Deliberately loud and deliberately
+   without a "try again": only a person can establish what happened. */
+.task-unresolved {
+  background: var(--bg-inset);
+  border: 1px solid var(--warning, var(--border));
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  padding: 10px 12px;
+
+  p {
+    font-size: 13px;
+    margin: 0 0 8px;
+  }
+
+  ul {
+    display: grid;
+    gap: 6px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  span {
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.session-keeping {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 6px;
+}

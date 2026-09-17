@@ -184,7 +184,12 @@ export function isPrivateHost(hostname) {
  * origins; `includeSubdomains` is per rule and off by default, because
  * "example.com" is a decision about example.com.
  */
-export function createPolicy({ gatewayOrigin, gatewayPathPrefixes = ['/'], sites = [] } = {}) {
+export function createPolicy({
+  gatewayOrigin,
+  gatewayPathPrefixes = ['/'],
+  sites = [],
+  allowPrivateSites = false,
+} = {}) {
   const gateway = gatewayOrigin ? normalizeOrigin(gatewayOrigin) : null;
   const prefixes = gatewayPathPrefixes.map((prefix) => {
     const text = String(prefix);
@@ -197,9 +202,49 @@ export function createPolicy({ gatewayOrigin, gatewayPathPrefixes = ['/'], sites
       origin,
       host: new URL(origin).hostname.toLowerCase(),
       includeSubdomains: Boolean(rule.includeSubdomains),
+      // What the agent may cause here, as opposed to what it may read. The
+      // worker does not decide this; it carries it so a request can be
+      // classified without a round trip for the ones that need none.
+      effects: rule.effects === 'ask' ? 'ask' : 'read',
     };
   });
-  return { gateway, gatewayPathPrefixes: prefixes, sites: approved };
+  return {
+    gateway,
+    gatewayPathPrefixes: prefixes,
+    sites: approved,
+    // A test seam, and deliberately a narrow one: it lets an approved origin be
+    // on this machine, and does nothing else. Everything unapproved, including
+    // the rest of loopback and the whole local network, is refused exactly as
+    // before. Vela sets it only when its own environment says a fixture site is
+    // running; a normal server never does.
+    allowPrivateSites: Boolean(allowPrivateSites),
+  };
+}
+
+/**
+ * The approved-site rule a URL matches, or null.
+ *
+ * Separate from `decide` because two questions are asked of the same rule: may
+ * this be requested at all, and what may be caused here. One lookup, so the two
+ * answers cannot come from different rows.
+ */
+export function siteRuleFor(rawUrl, policy) {
+  let url;
+  try {
+    url = new URL(String(rawUrl));
+  } catch {
+    return null;
+  }
+  const origin = webOrigin(url);
+  for (const site of policy.sites || []) {
+    if (origin === site.origin) return site;
+    if (site.includeSubdomains) {
+      const host = url.hostname.toLowerCase();
+      const sameScheme = origin.startsWith(`${new URL(site.origin).protocol}//`);
+      if (sameScheme && host.endsWith(`.${site.host}`)) return site;
+    }
+  }
+  return null;
 }
 
 /**
@@ -236,21 +281,25 @@ export function decide(rawUrl, policy) {
     };
   }
 
-  if (isPrivateHost(url.hostname)) {
+  // The rule is looked up before the private-address refusal so that refusal
+  // can say which of the two applies. An origin nobody approved is refused for
+  // being unapproved whether or not it is also private.
+  const site = siteRuleFor(rawUrl, policy);
+
+  if (isPrivateHost(url.hostname) && !(site && policy.allowPrivateSites)) {
     // Everything else on this machine and this LAN, including the metadata
     // address, whatever spelling it arrives in.
     return { allowed: false, reason: 'private_network_denied', target: origin };
   }
 
-  for (const site of policy.sites) {
-    if (origin === site.origin) return { allowed: true, reason: 'approved_site', target: origin };
-    if (site.includeSubdomains) {
-      const host = url.hostname.toLowerCase();
-      const sameScheme = origin.startsWith(`${new URL(site.origin).protocol}//`);
-      if (sameScheme && host.endsWith(`.${site.host}`)) {
-        return { allowed: true, reason: 'approved_subdomain', target: origin };
-      }
-    }
+  if (site) {
+    const exact = origin === site.origin;
+    return {
+      allowed: true,
+      reason: exact ? 'approved_site' : 'approved_subdomain',
+      target: origin,
+      site,
+    };
   }
 
   return { allowed: false, reason: 'site_not_approved', target: origin };
@@ -275,6 +324,9 @@ export function checkServerAddress(rawUrl, ipAddress, policy) {
     return { allowed: true, reason: 'gateway' };
   }
   if (isPrivateHost(ipAddress)) {
+    if (policy.allowPrivateSites && siteRuleFor(rawUrl, policy)) {
+      return { allowed: true, reason: 'approved_private_site' };
+    }
     return { allowed: false, reason: 'private_address_resolved' };
   }
   return { allowed: true, reason: 'public_address' };

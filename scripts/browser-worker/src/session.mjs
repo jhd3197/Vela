@@ -13,10 +13,13 @@
  * cannot enforce is left unavailable instead of approximated.
  */
 
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, statSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { chromium } from 'playwright-core';
-import { checkServerAddress, decide } from './network-policy.mjs';
+import { checkServerAddress, decide, siteRuleFor } from './network-policy.mjs';
+import { describeRequest, needsDecision } from './site-effects.mjs';
 import { composeObservation, DOM_VERSION_SCRIPT, LIMITS, observePage } from './observe.mjs';
 import {
   afterState,
@@ -32,10 +35,25 @@ import {
   typeInto,
   waitFor,
 } from './input.mjs';
-import { Observations, resolveTarget } from './targets.mjs';
+import { attachFiles, Observations, resolveTarget } from './targets.mjs';
 
 /** The agent's screen. Explicit, because an observation records the size it saw. */
 export const DEFAULT_VIEWPORT = Object.freeze({ width: 1280, height: 800 });
+
+/**
+ * How long a paused request waits for Vela's answer before it is abandoned.
+ *
+ * Abandoning means aborting, which means nothing was sent — a certain outcome,
+ * not an unknown one. A longer wait would hold a socket open on somebody else's
+ * server while a person decided, and that is not a decision to make for them.
+ */
+const DECISION_TIMEOUT_MS = 20_000;
+
+/** Largest file the browser may finish downloading, matching Vela's own limit. */
+const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+
+/** Most finished downloads one session holds before Vela has collected them. */
+const MAX_PENDING_DOWNLOADS = 20;
 
 /**
  * Whether the pinned browser build is actually on this machine.
@@ -74,13 +92,29 @@ export class DesktopSession {
    * @param {string} options.runtimeSessionId   this browser lifetime
    * @param {object} options.policy             from `createPolicy`
    * @param {(event: object) => void} options.onEvent  boundary and view events
+   * @param {(request: object) => Promise<object>} options.onDecide  ask Vela
+   *   about a request that would change something on an approved site
+   * @param {string|null} options.downloadsDir  the one directory a finished
+   *   download may be written to, chosen and owned by Vela
+   * @param {object|null} options.storageState  a remembered signed-in session
    */
-  constructor({ desktopId, runtimeSessionId, policy, onEvent = () => {} }) {
+  constructor({
+    desktopId,
+    runtimeSessionId,
+    policy,
+    onEvent = () => {},
+    onDecide = null,
+    downloadsDir = null,
+    storageState = null,
+  }) {
     this.desktopId = desktopId;
     this.runtimeSessionId = runtimeSessionId;
     this.controlEpoch = 0;
     this.policy = policy;
     this.onEvent = onEvent;
+    this.onDecide = onDecide;
+    this.downloadsDir = downloadsDir;
+    this.storageStateIn = storageState;
     this.browser = null;
     this.context = null;
     /** @type {Map<string, import('playwright-core').Page>} */
@@ -88,6 +122,42 @@ export class DesktopSession {
     this.denials = [];
     // One observation per view, and the element handles that belong to it.
     this.observations = new Observations();
+    /**
+     * Things that happened *to* a view rather than because of an action: a
+     * finished download, a refused submission, a dialog the page opened, a
+     * request whose answer never arrived. Drained into the next result the host
+     * asks for, so a task learns about them in the same breath as what it did.
+     */
+    this.notices = [];
+    /**
+     * Files staged for one file field, set immediately before the click that
+     * opens the chooser. Anything else the page asks for is cancelled: a page
+     * that can open a file dialog whenever it likes is a page that can read
+     * whatever the person clicks next.
+     */
+    this.pendingFiles = null;
+    /**
+     * Requests this session allowed and that have not settled yet. Keyed by the
+     * browser's own request object, so an answer is matched to the thing it is
+     * an answer to rather than to a URL that may repeat.
+     */
+    this.inFlight = new Map();
+    /**
+     * Bodies that went out and were never answered.
+     *
+     * A later attempt at the same body is refused here rather than asked about
+     * again: sending something twice when nobody can say whether the first one
+     * arrived is the mistake this whole path exists to avoid.
+     *
+     * **What this cannot cover.** Chromium retransmits a request itself when the
+     * connection dies before any response byte arrives, at a layer below route
+     * interception — the handler is consulted once and the server can receive
+     * two. Measured, not assumed: `tests/agent-web.test.mjs` demonstrates it.
+     * Nothing in a browser can prevent that, which is precisely why an
+     * unanswered submission is reported as an *unknown outcome* that a person
+     * has to check, rather than as a failure that could be retried.
+     */
+    this.uncertainDigests = new Set();
   }
 
   async start({ headless = true, executablePath } = {}) {
@@ -107,8 +177,16 @@ export class DesktopSession {
       // Service workers escape route interception, so they are off until a
       // tested policy covers them. Phase 0 proves this rather than assuming it.
       serviceWorkers: 'block',
-      acceptDownloads: false,
+      // On, and bounded. A download is how a task brings a file back, and the
+      // alternative - a page that silently fails to save anything - is a task
+      // that reports success with nothing behind it. Where it lands, how big it
+      // may be and what it is called are all decided here, not by the site.
+      acceptDownloads: true,
       javaScriptEnabled: true,
+      // A remembered sign-in for this desktop, when the owner asked for one.
+      // Never the person's own browser profile: Vela does not read one and has
+      // no way to be pointed at one.
+      ...(this.storageStateIn ? { storageState: this.storageStateIn } : {}),
     });
     // Host inspection code, installed before any document runs, in every frame.
     // All it does is count mutations; it is what lets an action notice that the
@@ -118,23 +196,162 @@ export class DesktopSession {
     // WebSocket handshakes do not pass through `route`, so they get their own
     // pass over the same policy. A transport we cannot screen stays disabled.
     await this.context.routeWebSocket('**/*', (ws) => this.#screenSocket(ws));
+    this.#watch();
     return { version: this.browser.version(), viewport: { ...DEFAULT_VIEWPORT } };
   }
 
   /** Every request in this context passes here, whatever started it. */
   async #screen(route, request) {
     const verdict = decide(request.url(), this.policy);
-    if (verdict.allowed) {
+    if (!verdict.allowed) {
+      this.#deny({
+        stage: 'request',
+        resourceType: request.resourceType(),
+        url: request.url(),
+        reason: verdict.reason,
+      });
+      await route.abort('blockedbyclient');
+      return;
+    }
+    // The gateway is Vela's own surface and already enforces every effect it
+    // exposes, inside the transaction that writes. Asking about it here would be
+    // a second, weaker check in front of the real one.
+    if (!verdict.site || !needsDecision(request)) {
       await route.continue();
       return;
     }
-    this.#deny({
-      stage: 'request',
-      resourceType: request.resourceType(),
-      url: request.url(),
-      reason: verdict.reason,
-    });
-    await route.abort('blockedbyclient');
+    await this.#screenEffect(route, request, verdict.site);
+  }
+
+  /**
+   * A request that would change something on an approved site.
+   *
+   * Paused here, described, and sent to Vela for a decision. Three answers:
+   * send it, refuse it, or say that this one needs a person. Nothing is sent
+   * while the question is open, so a refusal is a certainty rather than a race.
+   */
+  async #screenEffect(route, request, site) {
+    const described = describeRequest(request, { viewId: this.#viewOf(request) });
+    if (described.bodyDigest && this.uncertainDigests.has(described.bodyDigest)) {
+      this.#notice({
+        type: 'effect_needs_person',
+        viewId: described.viewId,
+        method: described.method,
+        url: described.url,
+        origin: site.origin,
+        detail:
+          'this was already sent once and never answered; sending it again is a decision for a person',
+      });
+      await route.abort('blockedbyclient');
+      return;
+    }
+    let decision = { decision: 'person', detail: 'Vela did not answer in time.' };
+    if (this.onDecide) {
+      try {
+        decision = await withTimeout(this.onDecide(described), DECISION_TIMEOUT_MS, decision);
+      } catch (error) {
+        decision = { decision: 'person', detail: safeDetail(error) };
+      }
+    }
+
+    if (decision.decision !== 'allow') {
+      this.#notice({
+        type: decision.decision === 'ask' ? 'effect_pending' : 'effect_needs_person',
+        viewId: described.viewId,
+        method: described.method,
+        url: described.url,
+        origin: site.origin,
+        detail: decision.detail || null,
+        requestId: decision.requestId || null,
+      });
+      // Aborted, so nothing left this computer. That is the point: a question
+      // that is still open has caused nothing, and answering it later is the
+      // same request being made again rather than one being un-paused.
+      await route.abort('blockedbyclient');
+      return;
+    }
+
+    // Allowed, and sent by the browser itself rather than re-issued here. A
+    // worker that rebuilt the request would have to rebuild a body it cannot
+    // read - a file upload is held by the browser as a stream - and would send
+    // something subtly different from what was described and approved.
+    //
+    // What that costs is knowing the outcome directly, so the outcome is watched
+    // instead: `#watch` below turns "it finished" and "it never answered" into
+    // two different notices, which is the distinction that stops one order
+    // becoming two.
+    this.inFlight.set(request, { described, origin: site.origin });
+    await route.continue();
+  }
+
+  /**
+   * What became of a request that was allowed to go out.
+   *
+   * Attached to the context once, at start, and consulted only for requests
+   * this session explicitly allowed. `finished` is an answer. `failed` is not a
+   * failure: the request left this computer and nobody can say what the other
+   * end did with it, which is a different and more careful thing to report.
+   */
+  #watch() {
+    const settle = async (request, outcome) => {
+      const held = this.inFlight.get(request);
+      if (!held) return;
+      this.inFlight.delete(request);
+      if (outcome === 'finished') {
+        const response = await request.response().catch(() => null);
+        this.#notice({
+          type: 'effect_sent',
+          viewId: held.described.viewId,
+          method: held.described.method,
+          url: held.described.url,
+          origin: held.origin,
+          status: response ? response.status() : null,
+        });
+        return;
+      }
+      if (held.described.bodyDigest) this.uncertainDigests.add(held.described.bodyDigest);
+      this.#notice({
+        type: 'effect_uncertain',
+        viewId: held.described.viewId,
+        method: held.described.method,
+        url: held.described.url,
+        origin: held.origin,
+        digest: held.described.bodyDigest || held.described.url,
+        detail: 'the connection ended before an answer arrived',
+      });
+    };
+    this.context.on('requestfinished', (request) => settle(request, 'finished'));
+    this.context.on('requestfailed', (request) => settle(request, 'failed'));
+  }
+
+  /** Which of this session's views a request belongs to, where that is knowable. */
+  #viewOf(request) {
+    const frame = typeof request.frame === 'function' ? request.frame() : null;
+    const page = frame && typeof frame.page === 'function' ? frame.page() : null;
+    if (!page) return null;
+    for (const [viewId, candidate] of this.views) {
+      if (candidate === page) return viewId;
+    }
+    return null;
+  }
+
+  /**
+   * Something that happened to a view rather than because of an action.
+   *
+   * Kept until the host collects it. Bounded, because a page that opened a
+   * dialog in a loop would otherwise be a page that filled this process.
+   */
+  #notice(record) {
+    this.notices.push({ ...record, at: Date.now() });
+    if (this.notices.length > 100) this.notices.shift();
+    this.onEvent({ type: 'view_notice', desktopId: this.desktopId, ...record });
+  }
+
+  /** Everything that has happened since the host last asked. */
+  takeNotices() {
+    const taken = this.notices;
+    this.notices = [];
+    return taken;
   }
 
   /** The same decision for a WebSocket handshake. */
@@ -228,6 +445,114 @@ export class DesktopSession {
         page.goto('about:blank').catch(() => {});
       }
     });
+
+    // A dialog blocks the page until something answers it, and an agent cannot
+    // see one. Dismissed, and recorded: a confirm nobody answered is why a task
+    // would otherwise sit looking at a page that never changes.
+    page.on('dialog', async (dialog) => {
+      const message = String(dialog.message() || '').replace(/\s+/g, ' ').slice(0, 300);
+      this.#notice({
+        type: 'dialog',
+        viewId,
+        kind: dialog.type(),
+        message,
+      });
+      await dialog.dismiss().catch(() => {});
+    });
+
+    // A page that opens a file chooser gets one only when Vela staged a file
+    // for this exact interaction. Anything else is cancelled: a chooser the
+    // agent did not ask for is a page reaching for whatever it can get.
+    page.on('filechooser', async (chooser) => {
+      const staged = this.pendingFiles;
+      this.pendingFiles = null;
+      if (!staged || staged.viewId !== viewId) {
+        this.#notice({ type: 'file_chooser_cancelled', viewId });
+        await chooser.setFiles([]).catch(() => {});
+        return;
+      }
+      await chooser.setFiles(staged.paths).catch(() => {});
+    });
+
+    page.on('download', (download) => {
+      this.#receive(viewId, download).catch((error) => {
+        this.#notice({ type: 'download_failed', viewId, detail: safeDetail(error) });
+      });
+    });
+
+    // A navigation that never produced a page - a certificate the browser would
+    // not accept, a host that stopped answering - is an attention state rather
+    // than a silent blank window.
+    page.on('pageerror', () => {});
+  }
+
+  /**
+   * A file the controlled browser finished downloading.
+   *
+   * Written under a name Vela generated, in the one directory Vela gave this
+   * worker, and only if it is within the size limit. Nothing is extracted,
+   * nothing is opened, and the name the site suggested is carried as a label
+   * rather than used as a path.
+   */
+  async #receive(viewId, download) {
+    if (!this.downloadsDir) {
+      this.#notice({ type: 'download_refused', viewId, detail: 'downloads are not available' });
+      await download.cancel().catch(() => {});
+      return;
+    }
+    const suggested = String(download.suggestedFilename() || 'download').slice(0, 200);
+    const staged = join(this.downloadsDir, `${createHash('sha256')
+      .update(`${this.runtimeSessionId}:${viewId}:${suggested}:${Date.now()}:${Math.random()}`)
+      .digest('hex')
+      .slice(0, 32)}.part`);
+    try {
+      await download.saveAs(staged);
+    } catch (error) {
+      // A download that was interrupted has no complete file behind it, and a
+      // partial file handed on as a result is worse than no result.
+      this.#notice({ type: 'download_failed', viewId, detail: safeDetail(error) });
+      await download.delete().catch(() => {});
+      return;
+    }
+    let size = 0;
+    try {
+      size = statSync(staged).size;
+    } catch (error) {
+      this.#notice({ type: 'download_failed', viewId, detail: safeDetail(error) });
+      return;
+    }
+    if (size > MAX_DOWNLOAD_BYTES || size === 0) {
+      try {
+        unlinkSync(staged);
+      } catch {
+        /* Already gone is the state this wanted. */
+      }
+      this.#notice({
+        type: 'download_refused',
+        viewId,
+        name: suggested,
+        bytes: size,
+        detail: size === 0 ? 'the file arrived empty' : 'the file is larger than Vela accepts',
+      });
+      return;
+    }
+    if (this.notices.filter((notice) => notice.type === 'download').length >= MAX_PENDING_DOWNLOADS) {
+      try {
+        unlinkSync(staged);
+      } catch {
+        /* Already gone is the state this wanted. */
+      }
+      this.#notice({ type: 'download_refused', viewId, name: suggested, detail: 'too many downloads are waiting to be collected' });
+      return;
+    }
+    this.#notice({
+      type: 'download',
+      viewId,
+      name: suggested,
+      path: staged,
+      bytes: size,
+      url: download.url(),
+    });
   }
 
   /** Stop a view whose approved hostname turned out to resolve somewhere private. */
@@ -285,6 +610,26 @@ export class DesktopSession {
     return page;
   }
 
+  /**
+   * This desktop's signed-in state, for the owner who asked to keep it.
+   *
+   * Cookies and origin storage, as Chromium has them now. It leaves the worker
+   * only because the owner turned remembering on, and Vela is what decides
+   * where it goes and when it is erased.
+   */
+  async storageState() {
+    if (!this.context) throw new SessionError('this desktop has no browser session', 'runtime_unavailable');
+    return this.context.storageState();
+  }
+
+  /** Forget every cookie and every origin's storage, now, without restarting. */
+  async clearStorage() {
+    if (!this.context) return { cleared: false };
+    await this.context.clearCookies();
+    await this.context.clearPermissions();
+    return { cleared: true };
+  }
+
   #viewportOf(page) {
     return page.viewportSize() || { ...DEFAULT_VIEWPORT };
   }
@@ -318,6 +663,10 @@ export class DesktopSession {
     return {
       ...observation,
       revision: record.revision,
+      // Collected here as well as after an action: a task that waits and then
+      // looks should learn that its download finished, not find out three steps
+      // later because nothing it did happened to drain the list.
+      notices: this.takeNotices(),
       view: {
         viewId,
         desktopId: this.desktopId,
@@ -394,6 +743,39 @@ export class DesktopSession {
         const key = checkKey(action.key);
         await pressKey(page, key);
         acted = { kind, key };
+      } else if (kind === 'attach') {
+        // The paths came from Vela's artifact store, which generated them. The
+        // agent named an artifact id; it has never seen a path and cannot
+        // supply one.
+        const paths = Array.isArray(action.paths) ? action.paths.map(String).slice(0, 5) : [];
+        if (!paths.length) throw new SessionError('nothing was staged to attach', 'protocol_error');
+        target = await resolveTarget(record, action.ref, {});
+        if (target.state.acceptsFiles) {
+          // A real file field. Filled directly, which is what a person dragging
+          // a file onto it amounts to.
+          await attachFiles(target.element, paths);
+          acted = { kind, via: 'field', ref: action.ref, files: paths.length, name: target.described.name };
+        } else {
+          // A button that opens a chooser. The files are staged for exactly one
+          // chooser, the button is clicked, and the handler consumes them. If no
+          // chooser appears the staging is dropped rather than left armed for
+          // whatever the page asks for next.
+          this.pendingFiles = { viewId, paths };
+          await clickElement(target.element, {});
+          const consumed = await waitFor(
+            page,
+            { type: 'idle' },
+            Math.min(checkTimeout(action.timeoutMs ?? 5000), 10_000),
+          ).then(() => this.pendingFiles === null);
+          if (!consumed) {
+            this.pendingFiles = null;
+            throw new SessionError(
+              `${action.ref} did not ask for a file`,
+              'view_not_ready',
+            );
+          }
+          acted = { kind, via: 'chooser', ref: action.ref, files: paths.length, name: target.described.name };
+        }
       } else if (kind === 'wait') {
         const result = await waitFor(page, action.condition, checkTimeout(action.timeoutMs));
         acted = { kind, condition: action.condition?.type, ...result };
@@ -415,6 +797,10 @@ export class DesktopSession {
         changed: after.domVersion !== null && after.domVersion !== record.domVersion,
         navigated: after.url !== record.url,
       },
+      // What the click set off besides changing the page: a download that
+      // finished, a submission that is waiting for an answer, a dialog. A task
+      // that had to guess at these would guess wrong.
+      notices: this.takeNotices(),
       observationSpent: kind !== 'wait',
     };
   }
@@ -510,4 +896,31 @@ export class DesktopSession {
     this.context = null;
     this.browser = null;
   }
+}
+
+/**
+ * A promise with a deadline, resolving to a fallback rather than throwing.
+ *
+ * Used where the absence of an answer has to mean something specific and safe.
+ * A rejected promise here would become an exception inside a route handler, and
+ * a route handler that throws leaves a request in an undefined state.
+ */
+async function withTimeout(promise, ms, fallback) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** One line from an error, with no stack and no path in it. */
+function safeDetail(error) {
+  const text = error && error.message ? String(error.message) : String(error ?? 'unknown error');
+  return text.replace(/\s+/g, ' ').slice(0, 300);
 }

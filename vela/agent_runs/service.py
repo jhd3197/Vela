@@ -39,6 +39,10 @@ class AgentRuns:
         # answers to "who has control".
         self.viewer = Viewer(desktops, self)
         self.supervisor.leases = self.viewer.leases
+        # Deciding whether a website request may be sent has to name the run it
+        # belongs to, and that decision is made inside the desktop service where
+        # the policy and the grants are.
+        desktops.runs = self
         self._log = log or (lambda message: None)
 
     def prepare(self) -> dict[str, Any]:
@@ -197,6 +201,21 @@ class AgentRuns:
     def forget_desktop(self, desktop_id: str) -> None:
         self.store.forget_desktop(desktop_id)
         self.viewer.forget_desktop(desktop_id)
+
+    def files(self, desktop_id: str, *, run_id: str | None = None) -> dict[str, Any]:
+        """The files this desktop holds, and how much room is left.
+
+        The limits go out with the list rather than being discovered by a
+        transfer failing: an interface that can say "up to 25 MB" before
+        somebody picks a file is one that does not waste their time.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.desktops.store.get(desktop_id)
+        return {
+            "files": self.desktops.artifacts.list(desktop_id, run_id=run_id),
+            "limits": self.desktops.artifacts.limits(desktop_id, run_id),
+            "unresolved": self.desktops.uncertain(desktop_id),
+        }
 
     def purge(self) -> int:
         """Called when history is turned off. A deletion, not a preference."""

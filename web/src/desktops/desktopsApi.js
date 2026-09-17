@@ -122,6 +122,32 @@ export const desktopsApi = {
   releaseControl: (id, leaseId) =>
     request(`${scope(id)}/takeover/${encodeURIComponent(leaseId)}`, { method: 'DELETE' }),
 
+  // ---- files and website sessions
+  //
+  // The file picker lives in the dashboard. An agent is told which files exist
+  // and can attach one by id; it never opens a picker and never names a path.
+  files: (id, options) => request(`${scope(id)}/files`, options),
+  addFile: (id, file) =>
+    request(`${scope(id)}/files`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        // The name travels in a header because it is a label, not a path: the
+        // bytes are stored under a name Vela generates either way.
+        'X-Vela-Filename': encodeURIComponent(file.name || 'file').replace(/%20/g, ' '),
+      },
+      body: file,
+    }),
+  removeFile: (id, fileId) =>
+    request(`${scope(id)}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' }),
+  fileUrl: (id, fileId) => `${scope(id)}/files/${encodeURIComponent(fileId)}`,
+  clearUnresolved: (id, digest) =>
+    request(`${scope(id)}/files?digest=${encodeURIComponent(digest)}`, { method: 'DELETE' }),
+
+  websiteSession: (id, options) => request(`${scope(id)}/session`, options),
+  keepWebsiteSession: (id) => request(`${scope(id)}/session`, { method: 'POST' }),
+  eraseWebsiteSession: (id) => request(`${scope(id)}/session`, { method: 'DELETE' }),
+
   approvals: (id, options) => request(`${scope(id)}/approvals`, options),
   resolveApproval: (id, requestId, body) =>
     request(`${scope(id)}/approvals/${encodeURIComponent(requestId)}`, json('POST', body)),

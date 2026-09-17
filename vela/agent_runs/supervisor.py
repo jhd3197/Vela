@@ -389,11 +389,28 @@ class Supervisor:
                     )
 
             if outcome.get("terminal"):
+                state = outcome["terminal"]
+                detail = outcome.get("detail")
+                unresolved = self.desktops.uncertain(desktop_id)
+                if state == "succeeded" and unresolved:
+                    # Something went out to a website and no answer came back.
+                    # A task that ended with one of those outstanding did not
+                    # succeed as far as anybody can establish, and saying it did
+                    # is how the same thing gets sent twice.
+                    state = "outcome_unknown"
+                    detail = (
+                        (detail or "")
+                        + " One request to a website was sent and never answered, so Vela "
+                        "cannot say whether it went through. Check before repeating it."
+                    ).strip()
                 return self._finish(
-                    run_id, desktop_id, outcome["terminal"],
-                    detail=outcome.get("detail"),
+                    run_id, desktop_id, state,
+                    detail=detail,
                     result=outcome.get("result"),
-                    outcome=outcome.get("effect_outcome", "committed"),
+                    outcome=(
+                        "unknown" if state == "outcome_unknown"
+                        else outcome.get("effect_outcome", "committed")
+                    ),
                     budget=budget,
                 )
 
@@ -426,6 +443,29 @@ class Supervisor:
         lines.append(
             "Windows already open: " + (", ".join(open_now) if open_now else "none") + "."
         )
+        # Files this desktop has, by id, because `desktop.attach_file` takes one
+        # and there is deliberately no tool that lists a directory.
+        try:
+            files = self.desktops.artifacts.list(desktop_id, limit=12)
+        except Exception:  # noqa: BLE001 - not having files is not a problem
+            files = []
+        if files:
+            lines.append(
+                "Files you can attach, by id: "
+                + ", ".join(f"{item['id']} ({item['name']})" for item in files)
+                + "."
+            )
+        for rule in policy.get("sites") or []:
+            if (rule.get("effects") or "read") != "ask":
+                continue
+            lines.append(
+                f"Sending anything to {rule['origin']} needs the owner's approval first."
+            )
+        if sites and all((rule.get("effects") or "read") == "read" for rule in policy.get("sites") or []):
+            lines.append(
+                "You may read those websites. Signing in, submitting a form or anything "
+                "else that changes something there needs a person: call task.needs_person."
+            )
         if policy.get("approvals") == "ask":
             lines.append(
                 "Changes to app data need the owner's approval, which you will be told "
@@ -445,6 +485,17 @@ class Supervisor:
         except ApprovalPending as pending:
             answered = await self._wait_for_approval(run_id, desktop_id, pending.record, budget)
             if answered["state"] == "approved":
+                if getattr(pending, "observation_spent", False):
+                    # The click that raised this already touched the page, so
+                    # repeating the exact call would act on a screen that has
+                    # moved. Allowed now, and the run looks again first.
+                    detail = "That is allowed now. Look at the window again and do it."
+                    return {
+                        "ok": True,
+                        "progressed": True,
+                        "detail": detail,
+                        "message": {"approved": True, "detail": detail},
+                    }
                 # The same call again, now with a grant behind it. Not a new
                 # decision — the same one, finally allowed to happen.
                 return await self._dispatch(run_id, desktop_id, name, arguments, budget)
@@ -472,6 +523,44 @@ class Supervisor:
             return {"ok": False, "progressed": False, "detail": exc.detail,
                     "message": {"error": "failed", "detail": exc.detail}}
 
+        if name == "task.needs_person":
+            # Not a failure and not a result. The task stops where it is, the
+            # person is told what it needs, and it carries on from a fresh look
+            # when they say so — which is the same path a pause takes.
+            self._control[run_id] = "pause"
+            self.emit(
+                desktop_id,
+                "task.attention",
+                {
+                    "runId": run_id,
+                    "reason": result["reason"],
+                    "detail": result["detail"],
+                    "viewId": result.get("viewId"),
+                },
+                run_id=run_id,
+            )
+            with contextlib.suppress(Exception):
+                workspace = self.desktops.store.get(desktop_id)["name"]
+                self.announce(
+                    f"{workspace}: this needs you",
+                    result["detail"][:400],
+                    tags=["question"],
+                    priority=4,
+                )
+            detail = result["detail"]
+            return {
+                "ok": True,
+                "progressed": True,
+                "detail": detail,
+                "message": {
+                    "handedBack": True,
+                    "detail": (
+                        "The owner has been asked to take over. You are paused until they "
+                        "say carry on, and you must look at the window again before acting."
+                    ),
+                },
+            }
+
         if name == "task.finish":
             verdict = self._verify(desktop_id, run_id, result)
             return {
@@ -483,6 +572,29 @@ class Supervisor:
                 "terminal": "succeeded" if verdict["accepted"] else None,
                 "effect_outcome": "committed" if verdict["accepted"] else "not_dispatched",
             }
+
+        # Things that happened around the step rather than because of it: a
+        # download that finished, a submission held at the boundary, a dialog the
+        # page opened. The model is told in the tool result; the person is told
+        # here, because a task that quietly stopped being able to send something
+        # is exactly what somebody watching needs to know about.
+        for happening in result.get("happened") or []:
+            if happening.get("attention"):
+                self.emit(
+                    desktop_id,
+                    "task.attention",
+                    {
+                        "runId": run_id,
+                        "reason": "blocked",
+                        "detail": happening["detail"],
+                        "source": happening["attention"],
+                    },
+                    run_id=run_id,
+                )
+            elif happening.get("file"):
+                self.emit(
+                    desktop_id, "task.file", {"runId": run_id, **happening["file"]}, run_id=run_id
+                )
 
         return {
             "ok": True,

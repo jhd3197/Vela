@@ -114,6 +114,50 @@ do. That has its own script — see
 against a real browser and reports per attempt. Recorded results belong in a
 progress note with the model, the machine and the failure types as they were.
 
+`agent-web.test.mjs` covers websites, files and sessions in a real browser,
+against a disposable fixture site. The half that needs no browser checks the
+describing: field names come out of a form body and values never do, a body in a
+shape nothing understands is described as nothing rather than guessed at, and
+only an unsafe method is asked about. The browser half is where the claims are:
+a submission to a read-only site never reaching the fixture at all, a submission
+under review being described by its shape while its values stay out of what Vela
+is told, an allowed one being sent once and reporting its status, a redirect off
+the approved site being refused like any other hop, a download landing under a
+generated name inside the directory Vela owns — from a site suggesting
+`../../report.csv` — an oversized one refused with nothing left staged, a file
+reaching a page only through a path Vela chose, a dialog dismissed and recorded
+instead of blocking the page, two desktops not being signed in as each other,
+and a kept sign-in being what the next browser starts with until it is erased.
+
+One of its tests records a limitation rather than a guarantee. When a connection
+dies before any response byte arrives, Chromium retransmits the request below
+route interception: Vela is asked once and the site can receive it twice. The
+test asserts that measured behaviour, that Vela records the outcome as unknown,
+and that a second attempt through the page or the agent is refused.
+
+The fixture site runs on loopback, which the network policy refuses. The worker
+policy takes `allowPrivateSites`, which lets an origin that is *already approved*
+be on this machine and changes nothing else — the rest of loopback and the whole
+local network stay refused, and the suite asserts that. A server passes it only
+when `VELA_BROWSER_ALLOW_PRIVATE_SITES` is set in its environment, which is for
+running site fixtures and nothing else.
+
+`test_site_policy.py` is the decision on its own, with no browser: a site rule
+stored before effect modes existed reading as read-only, an effect mode nobody
+defined being refused rather than guessed, a file upload described as one instead
+of as an empty form, and an approval's binding changing when the method, the
+address, a field name, the body or whether Vela could read the body changes.
+
+`test_artifacts.py` covers the files. Its store half checks that a name from a
+website becomes a label and never a location, that an executable extension is not
+one a file is stored under, that an oversized upload is refused while it is being
+written and leaves nothing behind, that a download is only accepted from the
+directory Vela handed the worker, that an expired artifact is gone rather than
+old, and that an id from one desktop is worth nothing on another. Its API half
+checks that the bytes come back as a download behind owner authentication with
+`no-store` and `nosniff`, and that deleting a desktop takes its staged files and
+leaves the installed apps exactly as they were.
+
 `test_approvals.py` covers changes that wait for a person. Its first half is
 the sentence somebody decides from: a secret-looking field described and never
 repeated, a long value clipped, a change too large to list saying how much

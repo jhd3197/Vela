@@ -72,6 +72,26 @@ class ToolSurfaceTests(unittest.TestCase):
             self.assertNotIn("fetch", name)
         self.assertEqual(len(set(TOOL_NAMES)), len(TOOL_NAMES))
 
+    def test_no_tool_takes_a_path_or_a_directory(self):
+        # Files reach a page by artifact id. A tool that accepted a path would
+        # be a tool that could name anything on this computer, and the staging
+        # area, the quotas and the generated names would all be beside the
+        # point.
+        for tool in TOOLS:
+            declared = " ".join(str(key) for key in tool["arguments"]).lower()
+            for word in ("path", "directory", "folder", "filename"):
+                self.assertNotIn(word, declared, tool["name"])
+        attach = next(tool for tool in TOOLS if tool["name"] == "desktop.attach_file")
+        self.assertIn("artifactId", attach["arguments"])
+
+    def test_handing_back_to_a_person_is_a_tool_rather_than_a_failure(self):
+        # A sign-in Vela will not attempt and a challenge meant to tell people
+        # from programs are both honest stopping points. Having a tool for them
+        # is what stops a run grinding through its budget instead.
+        hand_back = next(tool for tool in TOOLS if tool["name"] == "task.needs_person")
+        self.assertFalse(hand_back["changes"])
+        self.assertIn("reason", hand_back["arguments"])
+
     def test_every_tool_says_whether_it_changes_anything(self):
         for tool in TOOLS:
             self.assertIn("summary", tool, tool["name"])
@@ -310,6 +330,50 @@ class AgentToolTests(unittest.TestCase):
         with self.assertRaises(ToolError) as caught:
             self.call("desktop.open_app", {"appId": "meals"})
         self.assertEqual(caught.exception.code, "not_allowed")
+
+    def test_a_reason_nobody_defined_is_not_a_reason(self):
+        self.enable()
+        with self.assertRaises(ToolError) as caught:
+            self.call("task.needs_person", {"reason": "because", "detail": "please help"})
+        self.assertEqual(caught.exception.code, "protocol_error")
+        self.assertIn("login", caught.exception.detail)
+
+    def test_handing_back_names_the_window_it_is_about(self):
+        self.enable()
+        view_id, _ = self.open_notes()
+        result = self.call(
+            "task.needs_person",
+            {"reason": "login", "detail": "Sign in and then say carry on.", "viewId": view_id},
+        )
+        self.assertTrue(result["handedBack"])
+        self.assertEqual(result["viewId"], view_id)
+        self.assertEqual(result["reason"], "login")
+
+    def test_a_file_id_from_another_desktop_attaches_nothing(self):
+        self.enable()
+        view_id, observation = self.open_notes()
+        other = self.client.post(
+            "/api/desktops", headers=self.hub, json={"name": "Elsewhere"}
+        ).json()
+        staged = self.client.post(
+            f"/api/desktops/{other['id']}/files",
+            headers={**self.hub, "Content-Type": "text/plain", "X-Vela-Filename": "theirs.txt"},
+            content=b"not this desktop's",
+        ).json()
+        try:
+            with self.assertRaises(ToolError) as caught:
+                self.call(
+                    "desktop.attach_file",
+                    {
+                        "viewId": view_id,
+                        "observationId": observation["observationId"],
+                        "ref": observation["page"]["controls"][0]["ref"],
+                        "artifactId": staged["id"],
+                    },
+                )
+            self.assertEqual(caught.exception.code, "not_found")
+        finally:
+            self.client.delete(f"/api/desktops/{other['id']}", headers=self.hub)
 
     def test_a_site_nobody_approved_is_refused_before_a_window_exists(self):
         self.enable(apps=["notes"])

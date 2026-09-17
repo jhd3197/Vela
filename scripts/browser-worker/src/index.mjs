@@ -73,6 +73,51 @@ function sessionFor(desktopId) {
 /** Where captured frames are handed over. Vela passes the directory it owns. */
 let framesDir = null;
 
+/**
+ * Where a finished download is written. Vela passes the directory it owns, and
+ * this worker has no other writable location: a download that arrived before
+ * Vela said where to put one is cancelled rather than landing somewhere.
+ */
+let downloadsDir = null;
+
+/* ------------------------------------------------------------- decisions -- */
+
+/**
+ * Questions this worker is waiting on Vela to answer.
+ *
+ * A request that would change something on an approved site is held here while
+ * Vela decides. The worker never decides: it describes the request and waits,
+ * and a question with no answer times out into "a person has to do this", which
+ * causes nothing.
+ */
+const decisions = new Map();
+let askCounter = 0;
+
+function askVela(desktopId, request) {
+  askCounter += 1;
+  const askId = `a${askCounter}`;
+  return new Promise((resolve) => {
+    decisions.set(askId, resolve);
+    try {
+      send({ type: 'effect_requested', askId, desktopId, request });
+    } catch (error) {
+      decisions.delete(askId);
+      resolve({ decision: 'person', detail: safeMessage(error) });
+    }
+  });
+}
+
+function answerVela(message) {
+  const resolve = decisions.get(message.askId);
+  if (!resolve) return;
+  decisions.delete(message.askId);
+  resolve({
+    decision: ['allow', 'ask', 'person'].includes(message.decision) ? message.decision : 'person',
+    detail: typeof message.detail === 'string' ? message.detail.slice(0, 300) : null,
+    requestId: typeof message.requestId === 'string' ? message.requestId : null,
+  });
+}
+
 /* -------------------------------------------------------------- commands -- */
 
 const COMMANDS = {
@@ -89,7 +134,17 @@ const COMMANDS = {
       desktopId,
       runtimeSessionId,
       policy: createPolicy(policy || {}),
-      onEvent: (event) => send({ type: 'error', code: 'network_denied', desktopId, detail: event }),
+      downloadsDir,
+      // A remembered sign-in, when the owner asked Vela to keep one. Vela holds
+      // it; the worker only receives it for the lifetime of this browser.
+      storageState: command.storageState || null,
+      onEvent: (event) =>
+        send(
+          event.type === 'view_notice'
+            ? { type: 'observation', desktopId, notice: event }
+            : { type: 'error', code: 'network_denied', desktopId, detail: event },
+        ),
+      onDecide: (request) => askVela(desktopId, request),
     });
     const info = await session.start({ headless: true });
     sessions.set(desktopId, session);
@@ -184,6 +239,24 @@ const COMMANDS = {
     };
   },
 
+  /** Everything that happened to this desktop's views since Vela last asked. */
+  async 'session.notices'(command) {
+    const session = sessionFor(command.desktopId);
+    return { notices: session.takeNotices() };
+  },
+
+  /** This desktop's signed-in state, for an owner who asked to keep it. */
+  async 'session.storage'(command) {
+    const session = sessionFor(command.desktopId);
+    return { storageState: await session.storageState() };
+  },
+
+  /** Forget every cookie and every origin's storage, without restarting. */
+  async 'session.forget'(command) {
+    const session = sessionFor(command.desktopId);
+    return session.clearStorage();
+  },
+
   /** A new control generation. Commands issued under the old one stop working. */
   async 'control.take'(command) {
     const session = sessionFor(command.desktopId);
@@ -264,6 +337,10 @@ const read = createLineReader(
       runCommand(message);
       return;
     }
+    if (message.type === 'effect_result') {
+      answerVela(message);
+      return;
+    }
     send({ type: 'error', code: 'protocol_error', detail: `unexpected message ${message.type}` });
   },
   (detail, code) => send({ type: 'error', code: code || 'protocol_error', detail }),
@@ -286,10 +363,14 @@ setInterval(() => {
 
 /* ------------------------------------------------------------------ start -- */
 
-const [, , framesArgument] = process.argv;
+const [, , framesArgument, downloadsArgument] = process.argv;
 if (framesArgument) {
   framesDir = framesArgument;
   if (!existsSync(framesDir)) mkdirSync(framesDir, { recursive: true });
+}
+if (downloadsArgument) {
+  downloadsDir = downloadsArgument;
+  if (!existsSync(downloadsDir)) mkdirSync(downloadsDir, { recursive: true });
 }
 
 const availability = browserAvailability();

@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..agent_runs.artifacts import MAX_UPLOAD_BYTES as MAX_ARTIFACT_UPLOAD
 from ..app_storage import AppServiceError
 from ..desk import DeskError
 from ..wallpaper import MAX_WALLPAPER_BYTES, WallpaperError
@@ -550,6 +551,121 @@ def router(desktops, *, runs=None) -> APIRouter:
         """Give control back. The task stays paused until you say carry on."""
         try:
             return _runs().viewer.release(desktop_id, lease_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # ------------------------------------------------------------- files --
+
+    @api.get("/{desktop_id}/files")
+    def list_files(desktop_id: str, runId: str | None = None) -> dict:
+        """What this desktop was given, what it came back with, and the limits."""
+        try:
+            return _runs().files(desktop_id, run_id=runId)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.post("/{desktop_id}/files", status_code=201)
+    async def add_file(desktop_id: str, request: Request) -> dict:
+        """A file the owner chose, staged for a task to attach.
+
+        Streamed with a cap rather than read whole: the limit has to bound what
+        is written, not describe what was. The name is a label — the bytes are
+        stored under one Vela generated.
+        """
+        name = request.headers.get("x-vela-filename") or "file"
+        media_type = (request.headers.get("content-type") or "").split(";")[0].strip()
+        run_id = request.headers.get("x-vela-run") or None
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > MAX_ARTIFACT_UPLOAD:
+            raise HTTPException(status_code=413, detail="That file is too large to attach.")
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > MAX_ARTIFACT_UPLOAD:
+                raise HTTPException(status_code=413, detail="That file is too large to attach.")
+        try:
+            desktops.store.get(desktop_id)
+            return desktops.artifacts.accept_upload(
+                desktop_id, [bytes(body)], name=name, media_type=media_type, run_id=run_id
+            )
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.get("/{desktop_id}/files/{artifact_id}")
+    def read_file(desktop_id: str, artifact_id: str):
+        """The bytes, behind owner authentication, offered as a download.
+
+        Never rendered inline. A file that arrived from a website is not
+        something to open in the dashboard's own origin.
+        """
+        try:
+            desktops.store.get(desktop_id)
+            path, record = desktops.artifacts.file(desktop_id, artifact_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            filename=record["name"],
+            headers={
+                "Cache-Control": "no-store, private",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'; sandbox",
+            },
+        )
+
+    @api.delete("/{desktop_id}/files/{artifact_id}")
+    def remove_file(desktop_id: str, artifact_id: str) -> dict:
+        try:
+            desktops.store.get(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+        if not desktops.artifacts.remove(desktop_id, artifact_id):
+            raise HTTPException(status_code=404, detail="That file is not on this desktop.")
+        return {"ok": True}
+
+    @api.delete("/{desktop_id}/files")
+    def clear_unresolved(desktop_id: str, digest: str | None = None) -> dict:
+        """Say that a submission nobody could confirm has been checked.
+
+        An owner action on purpose. The only thing that can establish what
+        happened on somebody else's server is a person looking, and a timer is
+        not a person looking.
+        """
+        try:
+            return desktops.resolve_uncertain(desktop_id, digest)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # --------------------------------------------------- website sessions --
+
+    @api.get("/{desktop_id}/session")
+    def website_session(desktop_id: str) -> dict:
+        """What sign-ins are being kept for this desktop, as counts."""
+        try:
+            return desktops.session_state(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/session")
+    async def keep_website_session(desktop_id: str) -> dict:
+        """Keep this desktop's signed-in websites for its next browser."""
+        try:
+            return await desktops.remember_session(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.delete("/{desktop_id}/session")
+    async def erase_website_session(desktop_id: str) -> dict:
+        """Erase them, from the file and from the browser that is open."""
+        try:
+            return await desktops.forget_session(desktop_id)
         except DesktopError as exc:
             raise _fail(exc)
 

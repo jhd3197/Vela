@@ -15,6 +15,7 @@ two workers a maintainer only has to learn once.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import platform
@@ -142,9 +143,20 @@ def availability() -> dict:
 class BrowserRuntime:
     """One supervised worker process, holding one browser per agent desktop."""
 
-    def __init__(self, frames_dir: Path, *, log=None):
+    def __init__(self, frames_dir: Path, *, downloads_dir: Path | None = None, log=None):
         self._frames_dir = Path(frames_dir)
+        #: The one directory the worker may write a finished download into. It
+        #: is Vela's, not the worker's: a browser that chose where files landed
+        #: would be a browser that chose what it could overwrite.
+        self._downloads_dir = Path(downloads_dir) if downloads_dir else None
         self._log = log or (lambda message: None)
+        #: Answers a request that would change something on an approved site.
+        #: Attached by the desktop service, because deciding needs the policy,
+        #: the grants and the run — none of which a pipe should know about.
+        self.on_effect_request = None
+        #: Told about something that happened to a view without an action: a
+        #: finished download, a dialog, a submission nobody could confirm.
+        self.on_view_notice = None
         self._process: asyncio.subprocess.Process | None = None
         self._reader_task: asyncio.Task | None = None
         self._stderr_task: asyncio.Task | None = None
@@ -176,6 +188,8 @@ class BrowserRuntime:
         if not state["available"]:
             raise RuntimeUnavailable(state["detail"])
         self._frames_dir.mkdir(parents=True, exist_ok=True)
+        if self._downloads_dir is not None:
+            self._downloads_dir.mkdir(parents=True, exist_ok=True)
         creation = 0
         if platform.system() == "Windows":
             # Keep the console window hidden; Vela may be running from the tray.
@@ -187,6 +201,7 @@ class BrowserRuntime:
                 state["node"],
                 str(script),
                 str(self._frames_dir),
+                *([str(self._downloads_dir)] if self._downloads_dir is not None else []),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -286,12 +301,23 @@ class BrowserRuntime:
             raise WorkerRefused(code, detail)
         return message.get("result") or {}
 
-    async def open_desktop(self, desktop_id: str, runtime_session_id: str, policy: dict):
+    async def open_desktop(
+        self,
+        desktop_id: str,
+        runtime_session_id: str,
+        policy: dict,
+        *,
+        storage_state: dict | None = None,
+    ):
         result = await self.command(
             "session.open",
             desktopId=desktop_id,
             runtimeSessionId=runtime_session_id,
             policy=policy,
+            # A remembered sign-in, when the owner asked for one. Sent at open
+            # time and nowhere else: the worker never reads it from disk, and
+            # closing the browser is the end of it unless Vela saved it again.
+            **({"storageState": storage_state} if storage_state else {}),
             timeout=START_TIMEOUT_SECONDS,
         )
         self.desktops.add(desktop_id)
@@ -374,6 +400,26 @@ class BrowserRuntime:
             return
         if kind in ("ready", "heartbeat", "closed", "accepted"):
             return
+        if kind == "effect_requested":
+            # A request the browser is holding. Answered on the loop rather than
+            # here, because deciding may open a question for the owner and the
+            # reader must not stop reading while that happens.
+            asyncio.create_task(self._decide(message))
+            return
+        if kind == "observation":
+            notice = message.get("notice") or {}
+            if self.on_view_notice is not None and notice:
+                # Off the reader's thread. Recording a finished download reads
+                # and moves a file that may be a hundred megabytes, and doing
+                # that here would stop this process reading its own pipe for as
+                # long as it took.
+                with contextlib.suppress(RuntimeError):
+                    asyncio.get_running_loop().create_task(
+                        asyncio.to_thread(
+                            self.on_view_notice, message.get("desktopId"), notice
+                        )
+                    )
+            return
         if kind in ("result", "error"):
             future = self._pending.pop(message.get("commandId", ""), None)
             if future is not None and not future.done():
@@ -385,6 +431,24 @@ class BrowserRuntime:
                 self._log(f"browser worker: {message.get('code')}: {message.get('detail')}")
             return
         self._log(f"browser worker sent an unexpected message: {kind}")
+
+    async def _decide(self, message):
+        """Answer one held request, and never leave it held.
+
+        Every path through this sends something back. A decision that raised and
+        answered nothing would be a page hanging on a socket until the worker's
+        own timeout, and "Vela crashed" is not a decision about somebody's data.
+        """
+        answer = {"decision": "person", "detail": "Vela could not decide about that request."}
+        try:
+            if self.on_effect_request is not None:
+                answer = await self.on_effect_request(
+                    message.get("desktopId"), message.get("request") or {}
+                )
+        except Exception as exc:  # noqa: BLE001 - a refusal is the safe answer
+            self._log(f"could not decide about a site request: {exc}")
+        with contextlib.suppress(RuntimeUnavailable, OSError):
+            await self._send({"type": "effect_result", "askId": message.get("askId"), **answer})
 
     async def _fail_pending(self, detail):
         for future in list(self._pending.values()):

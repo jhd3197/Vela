@@ -96,6 +96,10 @@ function collect(limits) {
       if (type === 'radio') return 'radio';
       if (type === 'submit' || type === 'button' || type === 'reset') return 'button';
       if (type === 'range') return 'slider';
+      // Named rather than folded into 'textbox'. A file field is the one
+      // control an agent cannot operate by typing, and calling it a textbox is
+      // how a task spends three steps trying to.
+      if (type === 'file') return 'file';
       return 'textbox';
     }
     if (element.isContentEditable) return 'textbox';

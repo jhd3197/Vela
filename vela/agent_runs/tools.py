@@ -1,12 +1,18 @@
 """Everything an agent run can do, and nothing else.
 
-This is the whole surface. Eleven tools: look at a view, open an app or an
+This is the whole surface. Thirteen tools: look at a view, open an app or an
 approved site, choose which view is in front, click, type, press one of a dozen
-keys, scroll, wait for one named condition, invoke a named app action, and
-declare the task finished. There is no evaluate, no shell, no file read and no
-raw request, and there is no path from anything a model says to a script that
-runs in a page — the only inspection code that runs in a controlled view is the
+keys, scroll, wait for one named condition, attach one of this desktop's own
+files, hand the task back to a person, invoke a named app action, and declare
+the task finished. There is no evaluate, no shell, no file read and no raw
+request, and there is no path from anything a model says to a script that runs
+in a page — the only inspection code that runs in a controlled view is the
 host's own, in `scripts/browser-worker/src/observe.mjs`.
+
+Files are the newest place that rule had to be defended. An agent names an
+artifact id and never a path; Vela turns the id into the file it stored under a
+name it generated; the page receives that. There is no file picker an agent can
+open and no directory it can name.
 
 Two rules shape almost every argument check below.
 
@@ -116,6 +122,29 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "changes": False,
     },
     {
+        "name": "desktop.attach_file",
+        "summary": "Attach one of this desktop's files to a file field or an "
+        "upload button. Files are named by id; there are no paths.",
+        "arguments": {
+            "viewId": "string",
+            "observationId": "string",
+            "ref": "string, the file field or the button that asks for a file",
+            "artifactId": "string, from the files this desktop has",
+        },
+        "changes": True,
+    },
+    {
+        "name": "task.needs_person",
+        "summary": "Stop and ask the owner to take over — for a sign-in, a "
+        "challenge, or anything you are not allowed to do yourself.",
+        "arguments": {
+            "reason": "'login' | 'challenge' | 'confirm' | 'blocked'",
+            "detail": "string, what they need to do",
+            "viewId": "string, optional — the window it is about",
+        },
+        "changes": False,
+    },
+    {
         "name": "app.invoke_action",
         "summary": "Ask an app to run one of its named actions. Preferred over "
         "clicking through a form when an action fits.",
@@ -171,6 +200,11 @@ WORKER_CODES = {
 #: Refusals where looking again and trying once more is worth something. A run
 #: that retried the others would be retrying a decision, not a hiccup.
 RETRYABLE = frozenset({"stale_observation", "view_not_ready", "timed_out", "runtime_unavailable"})
+
+#: Reasons a task can hand itself back to the person. Deliberately short and
+#: named: "it did not work" is not a reason anybody can act on, and a free-text
+#: reason would become one.
+PERSON_REASONS = ("login", "challenge", "confirm", "blocked")
 
 
 class ToolError(Exception):
@@ -263,7 +297,15 @@ class AgentTools:
             result={"observationId": observation.get("observationId")},
             outcome="committed",
         )
-        return {**observation, "repeats": progress["repeats"], "viewId": view["id"]}
+        happened = self.desktops.collect_notices(
+            desktop_id, observation.get("notices"), run_id=run_id
+        )
+        return {
+            **{key: value for key, value in observation.items() if key != "notices"},
+            "repeats": progress["repeats"],
+            "viewId": view["id"],
+            **({"happened": happened} if happened else {}),
+        }
 
     # ----------------------------------------------------------- opening --
 
@@ -429,6 +471,23 @@ class AgentTools:
             "view.act", desktopId=desktop_id, viewId=view["id"], action=action, timeout=40.0
         )
         after = result.get("after") or {}
+        # What the action set off besides changing the page: a download that
+        # finished, a submission held for approval, a dialog the page opened.
+        # Recorded before anything else, so a refusal further down still leaves
+        # the file that did arrive accounted for.
+        happened = self.desktops.collect_notices(
+            desktop_id, result.get("notices"), run_id=run_id
+        )
+        waiting = next(
+            (
+                notice
+                for notice in (result.get("notices") or [])
+                if isinstance(notice, dict)
+                and notice.get("type") == "effect_pending"
+                and notice.get("requestId")
+            ),
+            None,
+        )
         if result.get("observationSpent"):
             # Something was touched, so the run of identical observations is
             # over whether or not the page has visibly reacted yet.
@@ -446,13 +505,83 @@ class AgentTools:
             },
             outcome="committed",
         )
+        if waiting is not None:
+            # The request was not sent. The run stops here rather than reading a
+            # page that did not change and concluding the site refused it.
+            pending = ApprovalPending(
+                self.desktops.approvals.get(waiting["requestId"], desktop_id=desktop_id)
+            )
+            # The click is spent whatever the answer turns out to be, so the
+            # supervisor must not repeat this exact call: it has to look again.
+            pending.observation_spent = True
+            raise pending
         return {
-            **result,
+            **{key: value for key, value in result.items() if key != "notices"},
             "viewId": view["id"],
+            **({"happened": happened} if happened else {}),
             # Saying this plainly matters: every reference from that observation
             # is gone, and the next step has to look again.
             "observationInvalidated": bool(result.get("observationSpent")),
         }
+
+    # ------------------------------------------------------------- files --
+
+    async def _desktop_attach_file(self, desktop_id, arguments, *, run_id, actor_id):
+        """Put one of this desktop's files into a page that is asking for one.
+
+        The agent names an artifact id. Vela turns that into the file it stored
+        under a name it generated, in a directory it owns, and hands the page
+        that — so there is no argument here that could name anything else on
+        this computer, and no file picker the agent can open on its own.
+        """
+        view = self._view(desktop_id, arguments.get("viewId"))
+        artifact_id = _string(arguments.get("artifactId"), "artifactId", 64)
+        try:
+            resolved = self.desktops.resolve_artifacts(desktop_id, [artifact_id])
+        except AppServiceError as exc:
+            raise ToolError(_code_for(exc.status), exc.detail) from exc
+        paths = [path for path, _record in resolved]
+        names = [record["name"] for _path, record in resolved]
+        action = {
+            "action": "attach",
+            "observationId": _string(arguments.get("observationId"), "observationId", 64),
+            "ref": _string(arguments.get("ref"), "ref", 32),
+            "paths": paths,
+        }
+        result = await self._act(
+            desktop_id, view, action, run_id=run_id, expected=f"attach {names[0]}"
+        )
+        # The file's name goes back; its location does not. A run that knew
+        # where a file was would be a run with a path to put somewhere else.
+        return {**result, "attached": names}
+
+    # ------------------------------------------------------ handing back --
+
+    async def _task_needs_person(self, desktop_id, arguments, *, run_id, actor_id):
+        """Stop and ask for a person, with a named reason.
+
+        The honest end of several roads: a sign-in Vela will not attempt, a
+        challenge that exists to tell people and programs apart, a site whose
+        changes need a human at the keyboard. None of them is a failure and none
+        of them is something to work around — simulating a login or defeating a
+        challenge are both things this deliberately cannot do.
+        """
+        reason = _string(arguments.get("reason"), "reason", 20)
+        if reason not in PERSON_REASONS:
+            raise ToolError(
+                "protocol_error",
+                "A reason is one of: " + ", ".join(PERSON_REASONS) + ".",
+            )
+        detail = _string(arguments.get("detail"), "detail", 400)
+        view_id = None
+        if arguments.get("viewId"):
+            view_id = self._view(desktop_id, arguments.get("viewId"))["id"]
+        self.log.note_action(
+            desktop_id, run_id, tool="task.needs_person", target=view_id or desktop_id,
+            expected="hand this back to the owner", outcome="not_dispatched",
+            result={"reason": reason},
+        )
+        return {"reason": reason, "detail": detail, "viewId": view_id, "handedBack": True}
 
     # ----------------------------------------------------- named actions --
 

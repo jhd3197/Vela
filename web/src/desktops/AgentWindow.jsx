@@ -18,6 +18,7 @@ import AgentSetup from './AgentSetup.jsx';
 import ApprovalCard from './ApprovalCard.jsx';
 import RemoteView from './RemoteView.jsx';
 import TaskActivity, { LIVE_STATES } from './TaskActivity.jsx';
+import TaskFiles from './TaskFiles.jsx';
 import { desktopsApi } from './desktopsApi.js';
 import useAgentEvents from './useAgentEvents.js';
 
@@ -257,6 +258,10 @@ export default function AgentWindow({ desktopId }) {
         views={views?.views}
         selectedViewId={views?.layout?.selectedView}
       />
+
+      {/* The file picker is owner chrome, like the approval card: the agent is
+          told which files exist and can attach one, and cannot open this. */}
+      <TaskFiles desktopId={desktopId} enabled={isAgent} />
 
       {queued.length > 0 && (
         <section className="task-queue" aria-labelledby="task-queue-title">
