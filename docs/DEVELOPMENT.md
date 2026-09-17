@@ -403,6 +403,63 @@ adds it and the worker to the bundle, and says which of the two is missing if a
 build would ship without automations. It adds roughly 80 MiB to the installed
 size and about 30 MiB to a download.
 
+## Desktops
+
+A desktop is a persistent workspace: a name, an appearance, and the desk's two
+responsive boards. `desktop` and `phone` are two layouts of *one* workspace, not
+two workspaces — that distinction is why `vela/desktops/` sits above
+`vela/desk.py` rather than replacing it. (`vela/desktop.py`, singular, is the
+Windows tray and is unrelated.)
+
+| Location | Responsibility |
+| --- | --- |
+| `desktops/models.py` | What may be stored: ids, names, appearance references, bounds |
+| `desktops/store.py` | `desktops.sqlite`: desktops, boards, appearance, wallpaper assets |
+| `desktops/migration.py` | Turning the existing `desk.json` into Desktop 1, exactly once |
+| `desktops/service.py` | The rules: board validation and repair, asset reference counting, deletion |
+| `desktops/api.py` | `/api/desktops`, hub-authenticated like every other `/api` route |
+
+Board geometry is not re-implemented. `vela/desk.py` still decides what a board
+may contain: `validate_widgets` on the way in, `repair_widgets` on the way out.
+
+### One desk, two names for it
+
+`/api/desk`, the `desk` appearance keys in `/api/settings`, and `/api/wallpaper`
+are the first desktop under their original names. They are aliases, not a second
+store: same rows, same revision, same 409 with `X-Vela-Desk-Revision`. Keep it
+that way — two writable copies of one board is how an arrangement gets lost.
+
+Revisions are per concern. Renaming a desktop, arranging it and changing its
+wallpaper each have their own, so two people doing unrelated things in the same
+workspace both succeed.
+
+### Migration
+
+It runs once, on the way up, and is lossless: both boards, every widget id and
+position, the chosen wallpaper and the uploaded image. `desk.json` and the old
+`wallpaper.*` file are left where they are.
+
+A widget whose type no longer exists is *not* dropped during migration —
+unknown types are dropped when a board is read, which is where that decision has
+always been. The order is deliberate: the image is copied and verified first,
+outside any transaction, into a file named after its own SHA-256; then one
+transaction writes the desktop, its boards, its appearance and the marker
+together. A crash before the commit leaves an orphan file that the next run
+either reuses or sweeps. It never leaves two Desktop 1s.
+
+### Wallpaper assets
+
+Uploaded images live in `desktop-assets/<sha256><ext>`. Addressing them by
+content is what lets two desktops draw the same photo without two copies, and
+stops one of them deleting it from under the other. `cleanup_assets()` removes
+files nothing references and rows whose file is gone; it runs at start-up and
+after anything that can drop a reference.
+
+`desktops.sqlite` is in `BACKED_UP_FILES` because appearance used to live in
+`settings.json` and a restore that stopped bringing the wallpaper back would be
+a regression. The image files are not backed up — they never were — so a
+restored desktop whose picture is missing falls back to a painted one.
+
 ## Agent desktop runtime
 
 Agent desktops render their app views in a managed Chromium that Vela starts and

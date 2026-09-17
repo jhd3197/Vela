@@ -18,6 +18,14 @@ iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
 tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
+`test_desktops.py` and `test_desktop_migrations.py` cover the desktop service:
+creating, renaming and deleting a workspace, per-concern revisions, that
+`/api/desk` and the scoped board route agree about one board and one revision,
+that each desktop keeps its own picture and two desktops sharing a photo store
+it once, that deleting a desktop leaves installed app data alone, and that the
+desk migration is lossless, idempotent and produces exactly one Desktop 1 even
+when interrupted between copying the wallpaper and committing the row.
+
 The Python suite covers manifests, authentication, scoped storage, migrations,
 connections, app actions, releases, launcher behavior, automations, the log
 store, the health checks, the error record, the support bundle, backups

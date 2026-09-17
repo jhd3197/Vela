@@ -3,6 +3,9 @@
 The geometry rules here are the ones `web/src/desk/grid/layout.js` implements in
 the browser and `tests/desk-layout.test.mjs` pins there. The server is
 authoritative, so these are the ones that decide what can be stored.
+
+The boards belong to a desktop now, so the storage half of this runs through
+`vela/desktops/` — `/api/desk` is the first desktop under its old name.
 Everything uses disposable data.
 """
 import copy
@@ -20,11 +23,11 @@ from vela.desk import (
     CORE_WIDGET_TYPES,
     MAX_WIDGETS_PER_BOARD,
     DeskError,
-    DeskStore,
     default_boards,
     overlaps,
     validate_widgets,
 )
+from vela.desktops import DesktopConflict, Desktops
 
 ROOT = base.ROOT
 KNOWN = set(CORE_WIDGET_TYPES)
@@ -71,77 +74,68 @@ class ValidationTests(unittest.TestCase):
 
 
 class StoreTests(unittest.TestCase):
+    """The same behaviour the desk has always had, now through its desktop."""
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="vela-desk-")
-        self.path = Path(self.temp.name) / "desk.json"
-        self.store = DeskStore(self.path)
+        self.root = Path(self.temp.name)
+        self.desktops = Desktops(self.root, known_types=lambda: KNOWN)
+        self.desktops.prepare()
+        self.id = self.desktops.default_id()
 
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_a_missing_file_seeds_the_default_desk(self):
-        loaded = self.store.load(KNOWN)
+    def test_a_first_run_seeds_the_default_desk(self):
+        loaded = self.desktops.boards(self.id)
         self.assertEqual(loaded["revision"], 0)
         self.assertEqual(loaded["boards"], default_boards())
         self.assertEqual([w["type"] for w in loaded["boards"]["phone"]["widgets"]],
                          ["clock", "needs-you", "apps", "ask"])
-        # Reading does not write: the defaults are not frozen into a file the
-        # user never asked for.
-        self.assertFalse(self.path.exists())
 
-    def test_saving_bumps_the_revision_and_writes_atomically(self):
+    def test_saving_bumps_the_revision(self):
         boards = default_boards()
-        saved = self.store.save(boards, 0, KNOWN)
-        self.assertEqual(saved["revision"], 1)
-        self.assertEqual(self.store.load(KNOWN)["revision"], 1)
-        self.assertEqual(json.loads(self.path.read_text())["revision"], 1)
-        # No temporary file is left behind.
-        self.assertEqual([p.name for p in self.path.parent.iterdir()], ["desk.json"])
-        again = self.store.save(boards, 1, KNOWN)
-        self.assertEqual(again["revision"], 2)
+        self.assertEqual(self.desktops.save_boards(self.id, boards, 0)["revision"], 1)
+        self.assertEqual(self.desktops.boards(self.id)["revision"], 1)
+        self.assertEqual(self.desktops.save_boards(self.id, boards, 1)["revision"], 2)
 
-    def test_a_stale_revision_is_refused_without_touching_the_file(self):
+    def test_a_stale_revision_is_refused_without_changing_anything(self):
         boards = default_boards()
-        self.store.save(boards, 0, KNOWN)
+        self.desktops.save_boards(self.id, boards, 0)
         stale = copy.deepcopy(boards)
         stale["desktop"]["widgets"] = [widget("w1")]
-        with self.assertRaises(ValueError) as raised:
-            self.store.save(stale, 0, KNOWN)
+        with self.assertRaises(DesktopConflict) as raised:
+            self.desktops.save_boards(self.id, stale, 0)
         # The conflict carries the revision the caller should reload from.
-        self.assertEqual(raised.exception.args[0], 1)
+        self.assertEqual(raised.exception.revision, 1)
         self.assertEqual(
-            len(self.store.load(KNOWN)["boards"]["desktop"]["widgets"]),
+            len(self.desktops.boards(self.id)["boards"]["desktop"]["widgets"]),
             len(default_boards()["desktop"]["widgets"]),
         )
 
     def test_a_damaged_board_is_repaired_rather_than_thrown_away(self):
-        self.path.write_text(
-            json.dumps(
-                {
-                    "revision": 7,
-                    "boards": {
-                        "desktop": {
-                            "cols": 6,
-                            "widgets": [
-                                # Too wide for the board.
-                                widget("w1", "apps", x=4, w=6, h=2),
-                                # Sits on top of w1 once w1 is pulled back.
-                                widget("w2", "clock", x=0, y=0),
-                                # Its app is gone.
-                                widget("w3", "notes:sync"),
-                                # Not a widget at all.
-                                "rubbish",
-                                {"i": "w5"},
-                            ],
-                        },
-                        "phone": {"cols": 2, "widgets": []},
-                    },
-                }
-            ),
-            encoding="utf-8",
+        # Written straight into the store, the way a hand-edited file or an
+        # older schema would arrive: the read path has to cope.
+        self.desktops.store.save_boards(
+            self.id,
+            {
+                "desktop": [
+                    # Too wide for the board.
+                    widget("w1", "apps", x=4, w=6, h=2),
+                    # Sits on top of w1 once w1 is pulled back.
+                    widget("w2", "clock", x=0, y=0),
+                    # Its app is gone.
+                    widget("w3", "notes:sync"),
+                    # Not a widget at all.
+                    "rubbish",
+                    {"i": "w5"},
+                ],
+                "phone": [],
+            },
+            0,
         )
-        loaded = self.store.load(KNOWN)
-        self.assertEqual(loaded["revision"], 7)
+        loaded = self.desktops.boards(self.id)
+        self.assertEqual(loaded["revision"], 1)
         desktop = loaded["boards"]["desktop"]["widgets"]
         # w3 named an uninstalled app's widget and the last two are not widgets
         # at all, so only w1 and w2 survive.
@@ -154,10 +148,6 @@ class StoreTests(unittest.TestCase):
                 self.assertFalse(overlaps(a, b))
         # An empty board the user emptied stays empty.
         self.assertEqual(loaded["boards"]["phone"]["widgets"], [])
-
-    def test_an_unreadable_file_falls_back_to_the_seeded_desk(self):
-        self.path.write_text("{not json", encoding="utf-8")
-        self.assertEqual(self.store.load(KNOWN)["boards"], default_boards())
 
 
 class DeskApiTests(unittest.TestCase):

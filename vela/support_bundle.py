@@ -105,10 +105,12 @@ class SupportBundle:
         errors=None,
         doctor=None,
         automations=None,
+        desktops=None,
     ):
         self._config = config
         self._version = version
         self._registry = registry
+        self._desktops = desktops
         self._settings = settings
         self._errors = errors
         self._doctor = doctor
@@ -196,11 +198,25 @@ class SupportBundle:
         }
 
     def _desk(self) -> dict[str, Any]:
-        path = self._config.data_dir / "desk.json"
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        """How each desktop is arranged, from the desktops the server reads.
+
+        Not the preserved `desk.json`: that file is the pre-migration copy and
+        says nothing about how the desk looks now.
+        """
+        if self._desktops is None:
             return {}
+        out: list[dict[str, Any]] = []
+        for desktop in self._desktops.store.list():
+            look = self._desktops.store.appearance(desktop["id"])
+            out.append({
+                "name": desktop["name"],
+                "kind": desktop["kind"],
+                "boards": self._desktops.boards(desktop["id"])["boards"],
+                # The picture's digest names a file on this computer and means
+                # nothing to a reader, so only the choice is reported.
+                "appearance": {key: look[key] for key in ("wallpaper", "dim", "labels")},
+            })
+        return {"desktops": out}
 
     def _logs(self) -> dict[str, str]:
         out: dict[str, str] = {}
@@ -301,7 +317,7 @@ settings.json     Your hub settings, with anything that looks like a password,
                   token or key replaced by [REDACTED].
 doctor.json       The last health check run and what it found.
 apps.json         Which apps are installed, their versions and whether they run.
-desk.json         How your desk is arranged.
+desk.json         How each of your desktops is arranged.
 errors.json       The most recent recorded errors.
 automations.json  Whether automations can run, and how many ran today.
 logs/             The last 500 lines of each log, with credentials redacted.

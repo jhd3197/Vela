@@ -13,10 +13,11 @@ until the release workflow prepares a tested server version.
   here. Download this release the way you installed Vela originally — the
   installer, the portable zip or the archive — and from then on Vela can update
   itself.
-- **Settings, desk and app-state files keep a spare copy.** Each time Vela
-  writes one it keeps the previous good version beside it, so a file that will
-  no longer read can be put back from Settings → Health instead of falling
-  back to defaults.
+- **Settings and app-state files keep a spare copy.** Each time Vela writes one
+  it keeps the previous good version beside it, so a file that will no longer
+  read can be put back from Settings → Health instead of falling back to
+  defaults. Your desk is no longer one of these files — it lives with your
+  desktops now and is covered by backups instead.
 - **The server log is readable again.** Vela no longer records a line for every
   request the dashboard makes, so its log holds what Vela did rather than
   thousands of routine polls. Both ways of starting Vela — the tray on Windows
@@ -69,6 +70,17 @@ until the release workflow prepares a tested server version.
   a routine `dev` check.
 
 ### Added
+
+- **Your desk is a desktop you can have more than one of.** The desk you have
+  becomes **Desktop 1** with every widget, both the wide and the phone
+  arrangement, and its wallpaper exactly where they were; nothing is asked of
+  you and the old `desk.json` is left untouched. You can now keep up to 16 of
+  them, each with its own widgets and its own picture, and each one is a
+  workspace rather than a copy: your apps and everything they have saved stay
+  shared, so deleting a desktop never deletes a note. Backups now carry your
+  desktops, so restoring one brings back how your desk was arranged. The
+  dashboard still shows Desktop 1 — choosing between them arrives with the new
+  shell.
 
 - **Files: browse the folders you share with Vela.** A new app in the Launchpad
   shows the folders you name in **Settings → Files** — and only those. Make

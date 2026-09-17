@@ -1,8 +1,12 @@
 """The desk's custom wallpaper: accepted types, the size cap, and removal.
 
-Vela stores one image in the user's data directory and serves it back. It is
-drawn behind the whole shell, so the checks here are about what may be stored
-at all rather than about how it looks. Everything uses disposable data.
+The image belongs to a desktop and is stored under `desktop-assets/` named by
+its own SHA-256, so two desktops can draw the same photo without two copies and
+without one of them being able to delete it from under the other. `/api/wallpaper`
+is the first desktop's picture under its original name.
+
+It is drawn behind the whole shell, so the checks here are about what may be
+stored at all rather than about how it looks. Everything uses disposable data.
 """
 import copy
 import json
@@ -77,12 +81,9 @@ class WallpaperApiTests(unittest.TestCase):
                 self.assertTrue((bundled / "thumbs" / f"{name}.jpg").is_file())
 
     def test_a_desk_still_set_to_the_retired_photograph_draws_the_default(self):
-        # The stock photograph was removed, not re-licensed. A settings file
-        # written before that must still name a picture the desk can draw.
-        self.client.patch("/api/settings", headers=self.hub, json={"desk": {"wallpaper": "night"}})
-        stored = json.loads((self.config.data_dir / "settings.json").read_text(encoding="utf-8"))
-        stored["desk"]["wallpaper"] = "lake"
-        (self.config.data_dir / "settings.json").write_text(json.dumps(stored), encoding="utf-8")
+        # The stock photograph was removed, not re-licensed. A desk still asking
+        # for it must name a picture that can actually be drawn.
+        self.client.patch("/api/settings", headers=self.hub, json={"desk": {"wallpaper": "lake"}})
         desk = self.client.get("/api/settings", headers=self.hub).json()["desk"]
         self.assertEqual(desk["wallpaper"], "choroni")
 
@@ -106,9 +107,10 @@ class WallpaperApiTests(unittest.TestCase):
                 self.assertEqual(served.status_code, 200)
                 self.assertEqual(served.content, content)
                 self.assertEqual(served.headers["content-type"], content_type)
-                # Replacing the format must not leave the previous file behind.
-                stored = sorted(p.name for p in self.config.data_dir.glob("wallpaper.*"))
-                self.assertEqual(len(stored), 1, stored)
+                # Replacing the format must not leave the previous file behind:
+                # the old image is no longer referenced, so it is swept.
+                assets = sorted(p.name for p in (self.config.data_dir / "desktop-assets").iterdir())
+                self.assertEqual(len(assets), 1, assets)
         # Choosing an image is what makes the setting say `custom`.
         desk = self.client.get("/api/settings", headers=self.hub).json()["desk"]
         self.assertEqual(desk["wallpaper"], "custom")
@@ -152,9 +154,9 @@ class WallpaperApiTests(unittest.TestCase):
 
     def test_choosing_a_bundled_wallpaper_does_not_delete_the_uploaded_one(self):
         self.assertEqual(self.put(JPEG, "image/jpeg").status_code, 200)
-        self.client.patch("/api/settings", headers=self.hub, json={"desk": {"wallpaper": "night"}})
+        self.client.patch("/api/settings", headers=self.hub, json={"desk": {"wallpaper": "paramo"}})
         self.assertEqual(
-            self.client.get("/api/settings", headers=self.hub).json()["desk"]["wallpaper"], "night"
+            self.client.get("/api/settings", headers=self.hub).json()["desk"]["wallpaper"], "paramo"
         )
         # Switching back finds the same image rather than asking for it again.
         self.assertEqual(self.client.get("/api/wallpaper", headers=self.hub).status_code, 200)

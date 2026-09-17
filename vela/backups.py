@@ -27,7 +27,16 @@ from .manifest import ManifestError, load_manifest
 
 KEEP_BACKUPS = 10
 #: The files a backup covers, and therefore the files a restore replaces.
-BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite")
+#: `desktops.sqlite` holds how each desk is arranged and dressed. That used to
+#: live in settings.json, so leaving it out would quietly make a restore stop
+#: bringing the wallpaper back. The uploaded images themselves are not here:
+#: they never were, and a desktop whose picture is missing falls back to a
+#: painted one rather than failing.
+BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.sqlite")
+
+#: The SQLite databases a backup copies through the engine rather than the file
+#: system, so a write in progress cannot produce a torn copy.
+BACKED_UP_DATABASES = ("app-data.sqlite", "desktops.sqlite")
 #: A safety copy taken immediately before a restore.
 SAFETY_PREFIX = "pre-restore-"
 DEFAULT_SCHEDULE = {"enabled": False, "time": "03:00", "keep": KEEP_BACKUPS}
@@ -47,8 +56,9 @@ class BackupError(Exception):
 class BackupStore:
     """Backups under data_dir/backups/<YYYYMMDD-HHMMSS>/.
 
-    Each backup copies state.json, settings.json, and every installed app's
-    app.json manifest (logs are skipped). Verification is a restore *drill*:
+    Each backup copies state.json, settings.json, desktops.sqlite, the app data
+    and every installed app's app.json manifest (logs are skipped). Verification
+    is a restore *drill*:
     the backup is copied into an isolated temp dir and validated there — live
     files are never touched.
     """
@@ -75,10 +85,12 @@ class BackupStore:
                 if source.is_file():
                     shutil.copy2(source, target / filename)
             installed = self._config.installed_dir
-            database = self._config.data_dir / "app-data.sqlite"
-            if database.is_file():
+            for filename in BACKED_UP_DATABASES:
+                database = self._config.data_dir / filename
+                if not database.is_file():
+                    continue
                 source_db = sqlite3.connect(database)
-                target_db = sqlite3.connect(target / "app-data.sqlite")
+                target_db = sqlite3.connect(target / filename)
                 try:
                     source_db.backup(target_db)
                 finally:
@@ -135,19 +147,28 @@ class BackupStore:
             shutil.copytree(source, restored)
             ok = True
             files = []
-            database = restored / "app-data.sqlite"
-            if database.is_file():
+            for filename in BACKED_UP_DATABASES:
+                database = restored / filename
+                if not database.is_file():
+                    continue
                 db = None
                 try:
                     db = sqlite3.connect(database)
                     integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
                     if integrity != "ok":
                         raise sqlite3.DatabaseError(integrity)
-                    for row in db.execute("SELECT value FROM documents"):
-                        json.loads(row[0])
-                    files.append({"file": "app-data.sqlite", "ok": True})
+                    if filename == "app-data.sqlite":
+                        for row in db.execute("SELECT value FROM documents"):
+                            json.loads(row[0])
+                    else:
+                        # A desktop file that cannot list its desktops would
+                        # restore a dashboard with nowhere to go.
+                        db.execute("SELECT id, name FROM desktops").fetchall()
+                        for row in db.execute("SELECT widgets FROM desktop_boards"):
+                            json.loads(row[0])
+                    files.append({"file": filename, "ok": True})
                 except (sqlite3.Error, json.JSONDecodeError) as exc:
-                    files.append({"file": "app-data.sqlite", "ok": False, "error": str(exc)})
+                    files.append({"file": filename, "ok": False, "error": str(exc)})
                     ok = False
                 finally:
                     if db is not None:

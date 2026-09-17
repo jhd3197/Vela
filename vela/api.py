@@ -22,7 +22,8 @@ from .conversations import ConversationStore
 from .rooms import Rooms
 from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, validate_schedule
 from .config import Config, load_config
-from .desk import CORE_WIDGET_TYPES, DeskError, DeskStore
+from .desk import CORE_WIDGET_TYPES, DeskError
+from .desktops import Desktops, DesktopConflict, DesktopError, router as desktops_router
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
 from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
 from .snooze import SnoozeStore
@@ -290,11 +291,18 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     system_metrics = SystemMetrics(
         config, settings, secure=lambda: bool(getattr(app.state, "phone_access", None) and app.state.phone_access.origin)
     )
-    desk = DeskStore(config.data_dir / "desk.json")
     usage = UsageStore(config.data_dir / "usage.json")
     weather = Weather(settings)
     files = Files(config, settings)
     wallpaper = Wallpaper(config.data_dir)
+    # Desktops own the desk. `desk.json` is read once, on the way up, and then
+    # left alone: there is one writable copy of a board, not two.
+    desktops = Desktops(
+        config.data_dir,
+        known_types=lambda: _known_widget_types(),
+        settings=settings,
+        wallpaper=wallpaper,
+    )
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -328,7 +336,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
     update_job = UpdateJob(config, updates, backups=backups)
     support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
-                            errors=errors, doctor=doctor, automations=automations)
+                            errors=errors, doctor=doctor, automations=automations,
+                            desktops=desktops)
     # The scheduler runs the sweep daily and once after startup, and announces
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
@@ -341,6 +350,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     app.middleware("http")(auth.middleware)
     app.include_router(automations_router(automations))
     app.state.automations = automations
+    app.include_router(desktops_router(desktops))
+    app.state.desktops = desktops
+    # Import the existing desk before anything can read a desktop, and sweep
+    # wallpaper files a crash may have left unreferenced.
+    _desktop_migration = desktops.prepare()
+    for note in _desktop_migration["notes"]:
+        LOG.info("desktops: %s", note)
 
     @app.on_event('startup')
     async def start_automations() -> None:
@@ -755,6 +771,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def system_metrics_snapshot() -> dict:
         return system_metrics.snapshot()
 
+    def _desktop_conflict(exc: DesktopConflict) -> HTTPException:
+        """409 carrying the revision to reload, as `/api/desk` has always done."""
+        return HTTPException(
+            status_code=409,
+            detail=exc.detail,
+            headers={"X-Vela-Desk-Revision": str(exc.revision)},
+        )
+
     def _known_widget_types() -> set[str]:
         """Core types plus one per widget each installed app declares.
 
@@ -771,42 +795,43 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                     known.add(f"{summary['id']}:{widget_id}")
         return known
 
+    # The wallpaper routes are the default desktop's picture under their
+    # original names. The image itself lives in the desktop asset store, named
+    # by its own digest, so two desktops can draw the same photo and changing
+    # one of them cannot delete it from under the other.
     @app.get("/api/wallpaper")
     def get_wallpaper():
-        path = wallpaper.path()
-        if path is None:
-            raise HTTPException(status_code=404, detail="No wallpaper is set")
+        try:
+            path, media_type = desktops.wallpaper_file(desktops.default_id())
+        except DesktopError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
         # It changes only when the user replaces it, and the page asks for it
         # again on every desk load, so it is worth caching in the browser.
-        return FileResponse(
-            path,
-            media_type=wallpaper.media_type(path),
-            headers={"Cache-Control": "no-cache"},
-        )
+        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-cache"})
 
     @app.put("/api/wallpaper")
     async def put_wallpaper(request: Request):
         # Raw bytes with the type in the header, the same shape as the release
         # upload, so the server needs no multipart parser for one picture.
         try:
-            extension = wallpaper.extension_for(request.headers.get("content-type", ""))
+            extension = desktops.extension_for(request.headers.get("content-type", ""))
             content = bytearray()
             async for chunk in request.stream():
                 content.extend(chunk)
                 if len(content) > MAX_WALLPAPER_BYTES:
                     raise WallpaperError(413, "A wallpaper is at most 8 MB")
-            result = wallpaper.save(bytes(content), extension)
+            return desktops.save_wallpaper(desktops.default_id(), bytes(content), extension)
         except WallpaperError as exc:
             raise HTTPException(status_code=exc.status, detail=exc.detail)
-        settings.patch({"desk": {"wallpaper": "custom"}})
-        return result
+        except DesktopError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
 
     @app.delete("/api/wallpaper")
     def delete_wallpaper() -> dict:
-        result = wallpaper.remove()
-        if (settings.get("desk") or {}).get("wallpaper") == "custom":
-            settings.patch({"desk": {"wallpaper": "choroni"}})
-        return result
+        try:
+            return desktops.remove_wallpaper(desktops.default_id())
+        except DesktopError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
 
     # ---- files ---------------------------------------------------------
     #
@@ -940,30 +965,48 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def record_usage(app_id: str) -> dict:
         return usage.record(app_id)
 
+    # `/api/desk` is the default desktop's boards under its original name. It
+    # is an alias, not a second store: the dashboard that has not learned about
+    # desktops yet reads and writes exactly what `/api/desktops/{id}/boards`
+    # does, revision included.
     @app.get("/api/desk")
     def get_desk() -> dict:
-        return desk.load(_known_widget_types())
+        return desktops.boards(desktops.default_id())
 
     @app.put("/api/desk")
     def put_desk(payload: dict[str, Any] = Body(...)) -> dict:
         try:
-            return desk.save(
-                payload.get("boards"), payload.get("revision"), _known_widget_types()
+            return desktops.save_boards(
+                desktops.default_id(), payload.get("boards"), payload.get("revision")
             )
-        except ValueError as exc:
+        except DesktopConflict as exc:
             # Someone else saved first. The dashboard reloads and says so
             # rather than overwriting an arrangement it never saw.
-            raise HTTPException(
-                status_code=409,
-                detail="The desk changed somewhere else.",
-                headers={"X-Vela-Desk-Revision": str(exc.args[0])},
-            )
+            raise _desktop_conflict(exc)
+        except DesktopError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
         except DeskError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
 
+    # How a desk is dressed belongs to a desktop; which folders it may show and
+    # whether it asks about the weather stay global. The settings route keeps
+    # both halves in one object so the dashboard's shape does not change, and
+    # reads the appearance back from the desktop rather than a second copy.
+    _APPEARANCE_KEYS = ("wallpaper", "dim", "labels")
+
+    def _settings_view() -> dict:
+        view = settings.public_view()
+        try:
+            look = desktops.appearance(desktops.default_id())
+        except DesktopError:
+            return view
+        view["desk"] = {**(view.get("desk") or {}),
+                        **{key: look[key] for key in _APPEARANCE_KEYS}}
+        return view
+
     @app.get("/api/settings")
     def get_settings() -> dict:
-        return settings.public_view()
+        return _settings_view()
 
     @app.patch("/api/settings")
     def patch_settings(payload: dict[str, Any] = Body(...)) -> dict:
@@ -971,6 +1014,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # A desk volume names a real folder on this computer, so it is checked
         # before it is stored rather than failing later inside a widget.
         desk = update.get("desk")
+        appearance = {}
+        if isinstance(desk, dict):
+            appearance = {key: desk.pop(key) for key in _APPEARANCE_KEYS if key in desk}
+            if not desk:
+                update.pop("desk")
         if isinstance(desk, dict) and "volumes" in desk:
             try:
                 desk["volumes"] = validate_volumes(desk["volumes"])
@@ -1027,6 +1075,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             except BackupError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
             backups.set_keep(backup_settings["schedule"]["keep"])
+        if appearance:
+            try:
+                desktops.save_appearance(desktops.default_id(), appearance)
+            except DesktopError as exc:
+                raise HTTPException(status_code=exc.status, detail=exc.detail)
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:
