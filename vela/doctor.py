@@ -61,6 +61,8 @@ class Doctor:
         assistant=None,
         catalog=None,
         updates=None,
+        desktops=None,
+        runs=None,
     ):
         self._config = config
         self._state = state
@@ -70,6 +72,10 @@ class Doctor:
         self._assistant = assistant
         self._catalog = catalog
         self._updates = updates
+        # Optional: a hub assembled without desktops still has every other
+        # check, and one that has them gains three more.
+        self._desktops = desktops
+        self._runs = runs
         self._checks: dict[str, dict[str, Any]] = {}
         self._last: dict[str, Any] | None = None
         self.register_defaults()
@@ -233,6 +239,14 @@ class Doctor:
         self.register("backups", "Backups", self._check_backups)
         self.register("settings", "Saved settings", self._check_settings, repair=self._repair_settings)
         self.register("update", "Vela version", self._check_update)
+        self.register("agent-runtime", "Agent desktops", self._check_agent_runtime)
+        self.register(
+            "agent-files",
+            "Agent desktop files",
+            self._check_agent_files,
+            repair=self._repair_agent_files,
+        )
+        self.register("agent-sessions", "Agent browsers", self._check_agent_sessions)
 
     def _check_data_dir(self) -> dict[str, Any]:
         data_dir = self._config.data_dir
@@ -408,6 +422,110 @@ class Doctor:
         return {
             "status": WARN,
             "detail": state.get("detail") or "Automations cannot run on this computer.",
+        }
+
+    def _check_agent_runtime(self) -> dict[str, Any]:
+        """Whether an agent desktop could start, and against which browser.
+
+        The answer already exists and already says what to do about it; this
+        puts it where somebody looking for why a desktop will not start would
+        look. A version mismatch is called out separately because it produces a
+        failure that reads like a bug rather than like a missing download.
+        """
+        try:
+            from .desktops.runtime import PROTOCOL_VERSION, availability, provenance
+        except Exception as exc:  # noqa: BLE001
+            return {"status": WARN, "detail": f"Vela could not check the agent runtime: {exc}"}
+        state = availability()
+        if not state.get("available"):
+            return {"status": WARN, "detail": state.get("detail")}
+        record = provenance()
+        browser = (record.get("browser") or {}).get("name") or "chromium"
+        version = (record.get("installed") or {}).get("playwright-core") or "unknown"
+        return {
+            "status": OK,
+            "detail": (
+                f"Agent desktops can run here, using {browser} from {version}, "
+                f"protocol {PROTOCOL_VERSION}."
+            ),
+        }
+
+    def _check_agent_files(self) -> dict[str, Any]:
+        """How much room the staged files are using, and whether cleanup works.
+
+        Repairable, because the repair is the sweep — and a sweep that has been
+        failing quietly is exactly the thing somebody wants a button for.
+        """
+        if self._desktops is None or self._runs is None:
+            return {"status": OK, "detail": "Agent desktops are not in use on this server."}
+        try:
+            used = self._desktops.artifacts.used()
+            limit = self._desktops.artifacts.limits("")["maxServerBytes"]
+        except Exception as exc:  # noqa: BLE001
+            return {"status": WARN, "detail": f"Vela could not read the agent files: {exc}"}
+        megabytes = used // (1024 * 1024)
+        last = getattr(self._runs.retention, "last", None) or {}
+        if last.get("problems"):
+            return {
+                "status": WARN,
+                "detail": (
+                    "Vela could not remove some expired agent files: "
+                    + "; ".join(last["problems"])[:300]
+                ),
+            }
+        if used > limit * 0.9:
+            return {
+                "status": WARN,
+                "detail": (
+                    f"Agent desktops are holding {megabytes} MB of files, close to the "
+                    f"{limit // (1024 * 1024)} MB limit. Remove some from the desktops "
+                    "that have them."
+                ),
+            }
+        return {"status": OK, "detail": f"Agent desktops are holding {megabytes} MB of files."}
+
+    def _repair_agent_files(self) -> dict[str, Any]:
+        if self._runs is None:
+            return {"status": OK, "detail": "Nothing to clean up."}
+        removed = self._runs.retention.sweep()["removed"]
+        return {
+            "status": OK,
+            "detail": f"Removed {sum(removed.values())} expired item(s).",
+        }
+
+    def _check_agent_sessions(self) -> dict[str, Any]:
+        """Browsers that are open, and any that are open for a desktop that is not.
+
+        An orphan here is a browser context Vela is paying for and nothing is
+        using — the kind of leak that is invisible until the machine is out of
+        memory.
+        """
+        if self._desktops is None:
+            return {"status": OK, "detail": "Agent desktops are not in use on this server."}
+        runtime = self._desktops.runtime
+        if not runtime.running:
+            return {"status": OK, "detail": "No agent browser is running."}
+        open_now = set(runtime.desktops)
+        try:
+            known = {
+                desktop["id"]
+                for desktop in self._desktops.store.list()
+                if desktop["kind"] == "agent"
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {"status": WARN, "detail": f"Vela could not list the desktops: {exc}"}
+        orphans = sorted(open_now - known)
+        if orphans:
+            return {
+                "status": WARN,
+                "detail": (
+                    f"{len(orphans)} agent browser(s) are open for desktops that are no longer "
+                    "agents. Restart Vela to close them."
+                ),
+            }
+        return {
+            "status": OK,
+            "detail": f"{len(open_now)} agent browser(s) open, all for current desktops.",
         }
 
     def _check_node(self) -> dict[str, Any]:

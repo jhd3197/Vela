@@ -14,6 +14,7 @@ from typing import Any
 from ..app_storage import AppServiceError
 from ..desktops.models import DesktopError, validate_id
 from .model import OllamaAdapter
+from .retention import Retention
 from .store import RunStore
 from .supervisor import Supervisor
 from .viewer import Viewer
@@ -44,16 +45,55 @@ class AgentRuns:
         # the policy and the grants are.
         desktops.runs = self
         self._log = log or (lambda message: None)
+        # What this feature keeps, and the one place that removes it.
+        self.retention = Retention(desktops, self, log=self._log)
 
     def prepare(self) -> dict[str, Any]:
-        """On the way up: tell the truth about what was in flight."""
+        """On the way up: tell the truth about what was in flight, and tidy up.
+
+        A restart is the one moment when nothing is running, which makes it the
+        right time to remove what a crash may have left behind — a staged file
+        whose row was never written, a frame of a window that no longer exists.
+        """
         interrupted = self.store.reconcile()
         if interrupted:
             self._log(f"{interrupted} agent task(s) were interrupted by a restart")
-        return {"interrupted": interrupted}
+        swept = self.retention.sweep()
+        return {"interrupted": interrupted, "cleaned": swept["removed"]}
 
     async def stop(self) -> None:
         await self.supervisor.stop_all()
+
+    async def quiesce(self, *, reason: str = "Vela is restoring a backup") -> dict[str, Any]:
+        """Stop everything this feature is doing, and take its authority with it.
+
+        Called before a restore replaces the files underneath it. The order is
+        the point: stop dispatch first, then close the browsers, then drop the
+        grants and the sessions — so nothing is still running when what it was
+        running against is replaced, and nothing that was authorized against the
+        old data can be used against the new.
+
+        A task that was in flight is marked interrupted by the reconcile on the
+        way back up. It is never resumed: the effects it already had cannot be
+        undone by starting it again, and the data it was working in is about to
+        be a different version of itself.
+        """
+        await self.supervisor.stop_all()
+        closed = []
+        for desktop in self.desktops.store.list():
+            if desktop["kind"] != "agent":
+                continue
+            self.desktops.revoke_desktop(desktop["id"], reason=reason)
+            self.viewer.forget_desktop(desktop["id"])
+            closed.append(desktop["id"])
+        await self.desktops.stop_runtime()
+        # Every browser lifetime is over, so every site grant bound to one is
+        # unmatchable, and every uncertain submission belonged to a run that is
+        # no longer going anywhere.
+        self.desktops._runtime_sessions.clear()
+        self.desktops._uncertain.clear()
+        self._log(f"agent desktops quiesced: {len(closed)} browser(s) closed")
+        return {"desktops": closed}
 
     # -------------------------------------------------------- what works --
 
@@ -278,7 +318,12 @@ class AgentRuns:
         }
 
     def purge(self) -> int:
-        """Called when history is turned off. A deletion, not a preference."""
+        """Called when history is turned off. A deletion, not a preference.
+
+        The task records and their events go here. What else has to go with
+        them — the pictures, the staged files — is the retention sweep's job,
+        and `Retention.sweep` calls this so both halves happen together.
+        """
         return self.store.purge()
 
     def _describe(self, run: dict[str, Any]) -> dict[str, Any]:

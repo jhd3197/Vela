@@ -218,6 +218,23 @@ def router(desktops, *, runs=None) -> APIRouter:
         """What is working and what needs you, per agent desktop."""
         return _runs().attention()
 
+    # --------------------------------------------------------- what is kept --
+
+    @api.get("/retention")
+    def retention() -> dict:
+        """What agent desktops keep, for how long, and how much of it there is."""
+        return _runs().retention.status()
+
+    @api.post("/retention/sweep")
+    def sweep_retention() -> dict:
+        """Remove what has expired, now.
+
+        The same sweep that runs on the way up and periodically after. Offered
+        as a button because a cleanup that has been failing quietly is exactly
+        the thing somebody wants to be able to run and watch.
+        """
+        return _runs().retention.sweep()
+
     @api.get("/{desktop_id}")
     def get_desktop(desktop_id: str) -> dict:
         try:

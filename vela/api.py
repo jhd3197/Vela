@@ -367,11 +367,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     updates = UpdateChecker(config, __version__, settings=settings)
     doctor = Doctor(config, state=state, registry=registry, settings=settings,
                     backups=backups, assistant=assistant, catalog=catalog, updates=updates)
+    # Attached rather than passed: Doctor is built before the run service, and
+    # reordering the assembly for two optional checks would be the tail wagging
+    # the dog.
+    doctor._desktops = desktops
+    doctor._runs = agent_runs
     errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
     update_job = UpdateJob(config, updates, backups=backups)
     support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
                             errors=errors, doctor=doctor, automations=automations,
-                            desktops=desktops)
+                            desktops=desktops, runs=agent_runs)
     # The scheduler runs the sweep daily and once after startup, and announces
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
@@ -392,6 +397,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     for note in [agent_runs.prepare()]:
         if note["interrupted"]:
             LOG.info("desktops: %s task(s) were interrupted by a restart", note["interrupted"])
+        if any(note["cleaned"].values()):
+            LOG.info("desktops: cleaned up %s expired item(s)", sum(note["cleaned"].values()))
     # Import the existing desk before anything can read a desktop, and sweep
     # wallpaper files a crash may have left unreferenced.
     _desktop_migration = desktops.prepare()
@@ -1715,13 +1722,26 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # deliberate header so no stray link or retry can start one.
         if request.headers.get("x-vela-confirm") != "restore":
             raise HTTPException(status_code=428, detail="Confirm restoring this backup")
+        # Agent desktops are stopped before anything is replaced, and every
+        # grant, session and browser they held goes with them. A task still
+        # dispatching into app data that is being swapped underneath it is the
+        # one thing a restore must not allow.
+        quiesced = await agent_runs.quiesce()
         try:
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 backups.restore, name, lifecycle=lifecycle,
                 actor=request_actor(auth, request),
             )
         except BackupError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        # What was in flight is interrupted, not resumed: the effects it already
+        # had cannot be undone by starting it again.
+        interrupted = agent_runs.prepare()["interrupted"]
+        return {
+            **result,
+            "agentDesktopsStopped": quiesced["desktops"],
+            "agentTasksInterrupted": interrupted,
+        }
 
     # /apps/* is matched before the SPA fallback below; the fallback must
     # never swallow app requests.

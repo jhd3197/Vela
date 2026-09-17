@@ -97,6 +97,28 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Agent desktops tidy up after themselves, and say so.** Four things pile up
+  while one works and they now have four stated lifetimes: a picture of a window
+  lasts two minutes, a record that something happened lasts a day, a file lasts a
+  week, and tasks last as long as you keep history. Vela sweeps what has expired
+  when it starts and periodically after that.
+
+  Turning off **Keep history** now reaches everything, not only the task list:
+  the activity under each task goes with it.
+
+  A backup covers your settings, your desktops and what your apps saved — it is
+  not a copy of a browser session, so a sign-in a desktop was keeping, a file
+  staged for a task and a picture of a window are all outside it. Restoring one
+  stops every agent desktop first, drops every permission they held, and reports
+  what was running as interrupted rather than resuming it.
+
+  **Settings → Health** has three new checks — whether agent desktops can run
+  here and against which browser, how much room their files are using with a
+  button to clean up, and whether any browser is open for a desktop that is no
+  longer an agent's. A support bundle now carries those numbers and nothing else
+  about the feature: no task wording, no results, no websites you approved, no
+  sign-in, no file and no picture of a window.
+
 - **Windows move the way they should.** Minimizing and restoring an agent's
   window now plays a short warp toward its entry in the rail — 480 milliseconds,
   the same in both directions, and it narrows toward the icon rather than sliding

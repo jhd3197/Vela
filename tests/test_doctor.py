@@ -289,7 +289,7 @@ class CheckTests(unittest.TestCase):
 
     def test_every_shipped_check_answers_something_renderable(self):
         result = self.doctor.collect()
-        self.assertEqual(len(result["checks"]), 13)
+        self.assertEqual(len(result["checks"]), len(self.doctor.keys()))
         for check in result["checks"]:
             with self.subTest(key=check["key"]):
                 self.assertIn(check["status"], (OK, WARN, FAIL, SKIPPED))
@@ -387,7 +387,7 @@ class DoctorApiTests(unittest.TestCase):
 
     def test_running_returns_every_check_and_the_result_is_then_readable(self):
         body = self.client.post("/api/doctor/run", headers=self.hub).json()
-        self.assertEqual(len(body["checks"]), 13)
+        self.assertEqual(len(body["checks"]), 16)
         self.assertTrue(body["ranAt"])
         again = self.client.get("/api/doctor", headers=self.hub).json()
         self.assertEqual(again["ranAt"], body["ranAt"])

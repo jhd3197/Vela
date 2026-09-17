@@ -212,6 +212,24 @@ What those cannot establish is how it looks. Real-frame inspection at several
 densities, both themes and a physical phone is browser and device work; record
 what was actually looked at rather than inferring it from a passing suite.
 
+`test_agent_retention.py` covers what is kept and what leaves the computer. The
+rules themselves need nothing: a picture of a window outliving nothing else, and
+task history being the only class a backup carries. The backup scope is asserted
+against `BACKED_UP_FILES` directly, because that list is an allowlist and the
+exclusion of a kept sign-in and a staged file is a property of the list rather
+than of a filter somebody has to maintain. Then, against a real hub: the
+retention policy being readable, an expired file actually disappearing, turning
+history off removing the tasks *and* their events, and a support bundle
+containing the health numbers while containing none of a seeded task
+instruction, approved site, filename or file contents. It also quiesces the run
+service the way a restore does and checks that every grant, browser lifetime and
+unresolved submission is gone and that what was running is reported as
+interrupted — never resumed.
+
+The three Doctor checks are asserted to answer something a person can act on
+rather than a stack trace, and the agent-files repair is asserted to be
+runnable.
+
 `test_approvals.py` covers changes that wait for a person. Its first half is
 the sentence somebody decides from: a secret-looking field described and never
 repeated, a long value clipped, a change too large to list saying how much

@@ -188,6 +188,60 @@ windows go straight where they are going. Everything else behaves identically;
 the motion is decoration over a decision that has already happened, which is
 also why minimizing never pauses a task, closes a session or stops an agent.
 
+## What is kept, and for how long
+
+Four different things pile up while a desktop works, and they have four
+different lifetimes.
+
+| | How long | In a backup? |
+| --- | --- | --- |
+| Pictures of a window | 2 minutes | No |
+| Records that something happened | 1 day | No |
+| Files | 7 days | No |
+| Tasks and their activity | While you keep history | Yes |
+
+A picture of a window exists to be looked at now — by you, watching, or by the
+animation when a window is put away. Nothing keeps one.
+
+A *record that something happened* is how Vela knows whether a change went
+through, so an unanswered one can be checked rather than repeated. It holds a
+fingerprint and an outcome, not what was sent; it cannot be used to reconstruct
+a conversation you chose not to keep.
+
+Turning off **Keep history** in Settings stops tasks being written down at all,
+and removes what was already there — including the activity under each one.
+
+Vela sweeps expired things when it starts and periodically after that. If you
+want to watch it happen, **Settings → Health** has an agent files check with a
+clean-up button.
+
+## Backups
+
+A backup covers your settings, your desktops and what your apps have saved. It
+is not a copy of a browser session: a sign-in this desktop was keeping, a file
+staged for a task and a picture of a window are all outside it, because a backup
+is something people copy to other disks and hand to other people.
+
+Restoring one **stops every agent desktop first**. Their browsers close, every
+permission they held is dropped and every task that was running is reported as
+interrupted afterwards. Nothing is resumed: what a task already did, it did, and
+the data underneath it has just been replaced by an older version of itself.
+
+## When something is wrong
+
+**Settings → Health** has three checks for this feature:
+
+- **Agent desktops** — whether one could start here at all, and against which
+  browser build. If the answer is no, it says what to install.
+- **Agent desktop files** — how much room staged files are using, and whether
+  the clean-up is working. It has a button that runs it.
+- **Agent browsers** — how many are open, and whether any is open for a desktop
+  that is no longer an agent's.
+
+A support bundle from **Settings → Health** includes those numbers and nothing
+else about this feature. No task wording, no results, no websites you approved,
+no sign-in, no file, no picture.
+
 ## What is never available
 
 - No path, directory or file picker reaches the agent.
