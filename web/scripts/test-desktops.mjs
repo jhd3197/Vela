@@ -100,7 +100,15 @@ try {
     channel: process.env.VELA_BROWSER_CHANNEL || 'chrome',
   });
   const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-  await context.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
+  // Init scripts run in every frame, including the sandboxed app window, where
+  // localStorage is deliberately unreachable. Only the hub page needs the flag.
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('vela.welcome.v1', 'done');
+    } catch {
+      /* Not the hub page. */
+    }
+  });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -167,7 +175,13 @@ try {
 
   // --- the choice belongs to this browser, not to the server --------------
   const other = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-  await other.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
+  await other.addInitScript(() => {
+    try {
+      localStorage.setItem('vela.welcome.v1', 'done');
+    } catch {
+      /* See above. */
+    }
+  });
   const second = await other.newPage();
   await second.goto(base + '/');
   await second.locator('.desk-grid').waitFor();
@@ -315,11 +329,118 @@ try {
   assert.equal(await page.locator('.shell > .workspace').getAttribute('aria-hidden'), null);
   await page.locator('.desk-grid').waitFor();
 
+  // --- windows on a desktop -----------------------------------------------
+  // A real installed app, opened as a window, minimized, restored, maximized
+  // and closed. The point of each step is that these are four different things:
+  // only the last one ends anything.
+  const installed = await page.evaluate(
+    async (folder) => {
+      const { token } = await (
+        await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } })
+      ).json();
+      const hub = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const review = await (
+        await fetch('/api/releases/prepare', {
+          method: 'POST',
+          headers: hub,
+          body: JSON.stringify({ folder }),
+        })
+      ).json();
+      if (!review.review) return { error: review.detail || 'prepare failed' };
+      const committed = await fetch(`/api/releases/${review.review}/commit`, {
+        method: 'POST',
+        headers: hub,
+        body: JSON.stringify({
+          capabilities: review.capabilities,
+          operations: review.operations,
+        }),
+      });
+      return { ok: committed.ok };
+    },
+    path.join(root, 'tests/fixtures/widget-fixture'),
+  );
+  assert.ok(installed.ok, `installing the fixture app: ${JSON.stringify(installed)}`);
+
+  await page.goto(base + '/');
+  await page.locator('.desk-grid').waitFor();
+  await page.locator('.rail').getByRole('button', { name: 'All apps' }).click();
+  await page.locator('.apps-overlay .launchpad').waitFor();
+  const tile = page.locator('.launch-tile', { hasText: 'Widget Fixture' }).first();
+  await tile.waitFor();
+  await tile.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Open in a window' }).click();
+
+  const window = page.locator('.window-frame').first();
+  await window.waitFor();
+  assert.match(await window.locator('.window-title').innerText(), /Widget Fixture/);
+  // The rail names it, because the rail is the open-window navigator.
+  await page.locator('.rail-views .rail-view-item').first().waitFor();
+
+  // Minimize: the window goes, the rail entry stays, and nothing ended.
+  await window.getByRole('button', { name: /^Minimize / }).click();
+  await page.locator('.window-frame').waitFor({ state: 'detached' });
+  assert.equal(
+    await page.locator('.rail-views .rail-view-item[data-state="minimized"]').count(),
+    1,
+    'a minimized window is still open, which is the point of minimizing',
+  );
+  const stillOpen = await page.evaluate(
+    async (desktopId) => {
+      const { token } = await (
+        await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } })
+      ).json();
+      const payload = await (
+        await fetch(`/api/desktops/${desktopId}/views`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ).json();
+      return payload.views.map((entry) => ({
+        minimized: entry.window.minimized,
+        kind: entry.kind,
+      }));
+    },
+    await page.evaluate(() => localStorage.getItem('vela:selected-desktop')),
+  );
+  assert.deepEqual(stillOpen, [{ minimized: true, kind: 'app' }]);
+
+  // Restoring from the rail brings the same window back.
+  await page.locator('.rail-views .rail-view-item').first().click();
+  await page.locator('.window-frame').waitFor();
+
+  // Maximize fills the work area and leaves the rail reachable.
+  const floating = await page.locator('.window-frame').boundingBox();
+  await window.getByRole('button', { name: /^Maximize / }).click();
+  await page.locator('.window-frame[class*="is-fixed"]').waitFor();
+  const filled = await page.locator('.window-frame').boundingBox();
+  assert.ok(filled.width > floating.width, 'maximizing makes it bigger');
+  assert.ok(await page.locator('.rail').isVisible(), 'and the rail is still there');
+  await window.getByRole('button', { name: /^Restore / }).click();
+  await page.waitForFunction((width) => {
+    const node = document.querySelector('.window-frame');
+    return node && Math.round(node.getBoundingClientRect().width) === Math.round(width);
+  }, floating.width);
+
+  // Closing is the only one of the four that ends anything.
+  await window.getByRole('button', { name: /^Close / }).click();
+  await page.locator('.window-frame').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.rail-views .rail-view-item').count(), 0);
+  const apps = await page.evaluate(async () => {
+    const { token } = await (
+      await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } })
+    ).json();
+    const payload = await (
+      await fetch('/api/apps', { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    return payload.apps.filter((app) => app.installed).map((app) => app.id);
+  });
+  assert.ok(apps.includes('widget-fixture'), 'closing a window does not uninstall anything');
+
   assert.deepEqual(errors, []);
   console.log(
     'PASS: the migrated desk as Desktop 1, a second workspace with its own board and wallpaper, ' +
       'per-device selection, a direct link and an unknown one, keyboard menu and focus return, ' +
-      'a rename that lost its race, deletion leaving apps installed, and All apps over the desk',
+      'a rename that lost its race, deletion leaving apps installed, All apps over the desk, ' +
+      'and a window minimized, restored from the rail, maximized and closed',
   );
   await context.close();
 } finally {

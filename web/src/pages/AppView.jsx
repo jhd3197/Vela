@@ -67,7 +67,6 @@ function Workspace({ id, retry }) {
   const view = useViewport();
   const frame = useRef(null),
     exitControl = useRef(null),
-    bridge = useRef(null),
     cancelButton = useRef(null);
   const menuRef = useRef(null),
     menuButton = useRef(null);
@@ -101,7 +100,7 @@ function Workspace({ id, retry }) {
   // The session, the bridge and their teardown are shared with the desktop's
   // windows: two copies of "open a session, attach a bridge, revoke on the way
   // out" would be two places for the revoke to be forgotten.
-  const { session, ready, error, setError, save, updateContext } = useAppFrame({
+  const { session, ready, error, setError, save, updateContext, disconnect } = useAppFrame({
     appId: id,
     enabled: running && isolated,
     frameRef: frame,
@@ -423,7 +422,7 @@ function Workspace({ id, retry }) {
           referrerPolicy="no-referrer"
           onLoad={(event) => {
             if (isolated && event.currentTarget.dataset.loaded) {
-              bridge.current?.close();
+              disconnect();
               setError('The app navigated away from its workspace. Reopen it to reconnect.');
             }
             event.currentTarget.dataset.loaded = 'true';

@@ -223,6 +223,10 @@ try {
   await menu.waitFor();
   assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), [
     'Open',
+    // A window on the desktop being looked at, as opposed to the full-screen
+    // page `Open` goes to. The two are different presentations, not a choice
+    // between doing something and doing nothing.
+    'Open in a window',
     'Pin to rail',
     'Add widget to desk',
     'App settings',

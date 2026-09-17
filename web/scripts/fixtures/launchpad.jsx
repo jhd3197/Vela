@@ -88,6 +88,19 @@ window.fetch = async (input, init) => {
   if (url.includes('/api/apps')) return json({ apps });
   // One disposable desktop, so the rail's switcher and the desk's boards have
   // something real to read.
+  if (url.includes('/api/desktops/fixture-desktop/views'))
+    return json({
+      views: [],
+      layout: {
+        revision: 0,
+        arrangement: 'floating',
+        maximizedView: null,
+        primaryView: null,
+        secondaryView: null,
+        dividerRatio: 0.5,
+        selectedView: null,
+      },
+    });
   if (url.includes('/api/desktops/fixture-desktop/appearance'))
     return json({ wallpaper: 'choroni', dim: true, labels: true, revision: 0 });
   if (url.includes('/api/desktops/fixture-desktop/boards')) {

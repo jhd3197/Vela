@@ -117,5 +117,17 @@ export default function useAppFrame({
     return bridge.current.save();
   }, []);
 
-  return { session, ready, error, setError, save, updateContext };
+  /**
+   * Tear the bridge down without ending the view.
+   *
+   * For the one case the host can detect and the app cannot recover from: the
+   * frame navigated away from the workspace it was given. Nothing is on the
+   * other end any more, so continuing to speak to it would be pretending.
+   */
+  const disconnect = useCallback(() => {
+    bridge.current?.close();
+    bridge.current = null;
+  }, []);
+
+  return { session, ready, error, setError, save, updateContext, disconnect };
 }

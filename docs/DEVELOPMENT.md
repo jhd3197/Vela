@@ -497,6 +497,12 @@ rotates a tablet, zooms to 200% or opens a layout saved on a monitor they no
 longer own, and `tests/desktop-window-state.test.mjs` can ask it all of those
 questions in milliseconds instead of only in a browser at one size.
 
+`DesktopViewHost` draws the windows over the desk, `WindowFrame` is the chrome,
+`AppWindow` is what goes inside an app window, and `useDesktopViews` keeps a
+fast local copy of the server's records: a window follows the pointer at the
+refresh rate and the write happens once, on a trailing edge, because a gesture
+that emitted a request per frame would be a request storm.
+
 `web/src/desktops/view-lifecycle.js` owns one app view's session and bridge and
 the end of both. The full-screen app page and the desktop's windows share it;
 two copies of "open a session, attach a bridge, revoke on the way out" would be

@@ -54,6 +54,21 @@ export const desktopsApi = {
   appearance: (id, options) => request(`${scope(id)}/appearance`, options),
   saveAppearance: (id, patch) => request(`${scope(id)}/appearance`, json('PUT', patch)),
 
+  views: (id, options) => request(`${scope(id)}/views`, options),
+  openView: (id, body) => request(`${scope(id)}/views`, json('POST', body)),
+  updateView: (id, viewId, patch) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}`, json('PATCH', patch)),
+  closeView: (id, viewId) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}`, { method: 'DELETE' }),
+  // Selecting is not saving an arrangement, which is why it has its own route
+  // and carries no revision: clicking a window must not conflict with a drag
+  // somebody else is finishing.
+  selectView: (id, viewId) => request(`${scope(id)}/selected-view`, json('POST', { viewId })),
+
+  layout: (id, options) => request(`${scope(id)}/layout`, options),
+  saveLayout: (id, revision, patch) =>
+    request(`${scope(id)}/layout`, json('PUT', { revision, ...patch })),
+
   // The image goes up as raw bytes with its type in the header: one picture
   // does not justify a multipart parser on the server.
   putWallpaper: (id, file) =>

@@ -18,6 +18,7 @@ import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
 import DesktopSwitcher from '../desktops/DesktopSwitcher.jsx';
+import DesktopRailViews from '../desktops/DesktopRailViews.jsx';
 import { useAppsOverlay } from '../desktops/AppsOverlay.jsx';
 import ContextMenu from './ui/ContextMenu.jsx';
 
@@ -253,6 +254,10 @@ export default function AppRail({ onNavigate }) {
       {/* Which workspace this is. In the rail because the rail is the one piece
           of chrome that is there at every width and under every layout. */}
       <DesktopSwitcher onNavigate={onNavigate} />
+
+      {/* What is open on this desktop. The rail is the open-window navigator;
+          there is deliberately no second strip of tabs. */}
+      <DesktopRailViews onNavigate={onNavigate} />
 
       {(pins.length > 0 || openUnpinned.length > 0) && (
         <div className="rail-apps">

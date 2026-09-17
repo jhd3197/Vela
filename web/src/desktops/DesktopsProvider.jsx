@@ -11,6 +11,7 @@
 // the same wallpaper and reading it twice would let them disagree for a moment.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { desktopsApi } from './desktopsApi.js';
+import useDesktopViews from './useDesktopViews.js';
 import { DEFAULT_WALLPAPER } from '../desk/wallpaper.js';
 
 const DesktopsContext = createContext(null);
@@ -198,6 +199,11 @@ export default function DesktopsProvider({ children }) {
     return saved;
   }, [selectedId]);
 
+  // What is open on the selected desktop. It lives here because the desk draws
+  // the windows and the rail names them, and two copies would let the two
+  // disagree about which one is in front.
+  const views = useDesktopViews(selectedId);
+
   const appearance = useMemo(() => {
     const current = look || DEFAULT_LOOK;
     return { ...current, customUrl: customUrlFor(selectedId, current) };
@@ -221,6 +227,7 @@ export default function DesktopsProvider({ children }) {
       saveAppearance,
       uploadWallpaper,
       removeWallpaper,
+      views,
     }),
     [
       state,
@@ -236,6 +243,7 @@ export default function DesktopsProvider({ children }) {
       saveAppearance,
       uploadWallpaper,
       removeWallpaper,
+      views,
     ],
   );
 
@@ -259,6 +267,31 @@ const OUTSIDE = {
   saveAppearance: async () => null,
   uploadWallpaper: async () => null,
   removeWallpaper: async () => null,
+  views: {
+    views: [],
+    ordered: [],
+    loaded: false,
+    layout: {
+      revision: 0,
+      arrangement: 'floating',
+      maximizedView: null,
+      primaryView: null,
+      secondaryView: null,
+      dividerRatio: 0.5,
+      selectedView: null,
+    },
+    open: async () => null,
+    close: async () => {},
+    select: async () => {},
+    patchView: () => {},
+    minimize: () => {},
+    restore: () => {},
+    maximize: async () => null,
+    saveLayout: async () => null,
+    setArea: () => {},
+    refresh: async () => null,
+    flush: async () => {},
+  },
 };
 
 /**

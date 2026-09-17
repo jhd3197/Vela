@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowSquareOut,
+  AppWindow as AppWindowIcon,
   GearSix,
   PlusCircle,
   PushPin,
@@ -55,7 +56,7 @@ const FREQUENT_MAX = 12;
 // rendered it directly — it falls back to the route it was opened from, which
 // is what it always did.
 export default function Launchpad({ onClose }) {
-  const { apps, openApp, runAction, pushToast, pinned, pinApp, unpinApp } = useApps();
+  const { apps, openApp, runAction, pushToast, pinned, pinApp, unpinApp, refreshApps } = useApps();
   const developer = useDeveloperTools();
   const navigate = useNavigate();
   const { openSettings } = useSettingsPopup();
@@ -66,7 +67,7 @@ export default function Launchpad({ onClose }) {
   const phone = useMediaQuery(PHONE);
   // The Launchpad floats over the same picture as the desk, so it reads the
   // selected desktop's appearance rather than keeping its own copy.
-  const { appearance: desk, selectedId } = useDesktops();
+  const { appearance: desk, selectedId, views } = useDesktops();
   // What this computer is called, if the user named it. The Launchpad says it
   // at the top on a phone, where the desk's status strip cannot fit.
   const loadSettings = useCallback((options) => api.getSettings(options), []);
@@ -283,10 +284,43 @@ export default function Launchpad({ onClose }) {
     [pushToast, selectedId],
   );
 
+  // Opening an app as a window on the desktop being looked at. It starts the
+  // app if it is not running: a window with nothing in it is not an answer.
+  const openWindow = useCallback(
+    async (app) => {
+      try {
+        // Starting the app and opening a view are two things: a window with
+        // nothing running in it is not an answer, and a running app with no
+        // window is not what was asked for.
+        if (isProcessApp(app) && !app.running) {
+          await api.launch(app.id);
+          await refreshApps();
+        }
+        await views.open({ kind: 'app', appId: app.id, title: app.name });
+        api.recordUsage(app.id).catch(() => {});
+        dismiss();
+        navigate('/');
+      } catch (error) {
+        pushToast(error.message || `Could not open ${app.name}.`, 'error');
+      }
+    },
+    [refreshApps, views, dismiss, navigate, pushToast],
+  );
+
   const menuItems = useMemo(() => {
     if (!menu) return [];
     const item = menu.item;
     const items = [{ label: 'Open', icon: SquaresFour, onSelect: () => openItem(item) }];
+    if (item.kind === 'app') {
+      // A window on the desktop, rather than the full-screen page. The two are
+      // different presentations: a window can be minimized and left running
+      // while you do something else, and it belongs to the desktop you are on.
+      items.push({
+        label: 'Open in a window',
+        icon: AppWindowIcon,
+        onSelect: () => openWindow(item.app),
+      });
+    }
     // Both apps and core tools can be pinned to the rail.
     if (pinned.includes(item.id)) {
       items.push({
@@ -329,7 +363,7 @@ export default function Launchpad({ onClose }) {
       });
     }
     return items;
-  }, [menu, openItem, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
+  }, [menu, openItem, openWindow, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
 
   const openMenuAt = useCallback((item, x, y, opener) => {
     menuOpener.current = opener || null;

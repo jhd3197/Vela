@@ -197,3 +197,241 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* ---------- Windows on a desktop ---------- */
+
+/* Over the board, under the rail. A window is not part of the desk's
+   arrangement, so it does not take part in the grid; it is placed by
+   `window-state.js` in this element's coordinates, which is why the desk is
+   the positioned ancestor. */
+.desk {
+  position: relative;
+}
+
+.view-host {
+  position: absolute;
+  inset: 0;
+  /* Above the desk's own search row, which claims 10 so search results are not
+     swallowed by the board; below All apps, which is 25. A window is foreground
+     content, so it goes over the board rather than under it. */
+  z-index: 20;
+  /* The host itself is not a surface: clicks that miss a window land on the
+     wallpaper, where the desk's own menu is. */
+  pointer-events: none;
+}
+
+.window-frame {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow:
+    0 18px 48px rgba(10, 11, 20, 0.34),
+    inset 0 0 0 1px var(--border);
+}
+
+/* Selection is a shadow and an edge, never colour alone. */
+.window-frame.is-selected {
+  box-shadow:
+    0 24px 64px rgba(10, 11, 20, 0.44),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+/* The title bar: identity on the left, the three controls on the right. They
+   are 38px tall to match the reference, with larger hit areas on touch. */
+.window-bar {
+  flex: none;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 10px;
+  background: var(--bg-pop);
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  user-select: none;
+  touch-action: none;
+}
+
+.window-frame:not(.is-fixed) .window-bar {
+  cursor: grab;
+}
+
+.window-frame:not(.is-fixed) .window-bar:active {
+  cursor: grabbing;
+}
+
+.window-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.window-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.window-status {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.window-controls {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.window-control {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-dim);
+}
+
+.window-control:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+/* Close is the only one of the three that ends anything, and it is the only
+   one that looks like it might. */
+.window-close:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+.window-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.window-frame-app {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.window-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.window-state-over {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+}
+
+/* The grips are invisible; what they do is give the edges a few pixels of
+   tolerance so resizing does not need a steady hand. */
+.window-grip {
+  position: absolute;
+  touch-action: none;
+}
+
+.window-grip-n,
+.window-grip-s {
+  left: 8px;
+  right: 8px;
+  height: 6px;
+}
+.window-grip-n {
+  top: -3px;
+}
+.window-grip-s {
+  bottom: -3px;
+}
+
+.window-grip-e,
+.window-grip-w {
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+}
+.window-grip-e {
+  right: -3px;
+}
+.window-grip-w {
+  left: -3px;
+}
+
+.window-grip-ne,
+.window-grip-nw,
+.window-grip-se,
+.window-grip-sw {
+  width: 12px;
+  height: 12px;
+}
+.window-grip-ne {
+  top: -3px;
+  right: -3px;
+}
+.window-grip-nw {
+  top: -3px;
+  left: -3px;
+}
+.window-grip-se {
+  bottom: -3px;
+  right: -3px;
+}
+.window-grip-sw {
+  bottom: -3px;
+  left: -3px;
+}
+
+/* A rail entry for an open window. A minimized one keeps its entry — it is
+   still open, which is the point of minimizing — and says so quietly. */
+.rail-views {
+  width: 100%;
+}
+
+.rail-view-item[data-state='minimized'] {
+  opacity: 0.55;
+}
+
+.rail-view-item[data-state='minimized']:hover,
+.rail-view-item[data-state='minimized']:focus-visible {
+  opacity: 1;
+}
+
+.rail-view-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+}

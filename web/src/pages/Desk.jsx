@@ -27,6 +27,7 @@ import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
+import DesktopViewHost from '../desktops/DesktopViewHost.jsx';
 import { firstWidget } from '../desk/addAppWidget.js';
 import { useWallpaperFlags } from '../desk/wallpaper.js';
 import useWeather from '../desk/weather.js';
@@ -71,7 +72,7 @@ export default function Desk() {
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
   // Which workspace this is. Boards, wallpaper and the arrangement session all
   // hang off it, so switching desktops changes all three together.
-  const { selectedId, appearance } = useDesktops();
+  const { selectedId, appearance, views } = useDesktops();
   const { boards, revision, loaded, save } = useDeskBoards(knownTypes, selectedId);
 
   // How this desktop is dressed, plus the one desk setting that is global. The
@@ -565,6 +566,10 @@ export default function Desk() {
               }
             />
           )}
+          {/* Windows sit over the board. They are not part of the arrangement
+              session: moving a window is not arranging the desk. */}
+          {!edit && <DesktopViewHost views={views} />}
+
           {/* The strip sits under the board rather than over it, so it never
               covers a widget, and it stays out of the way while arranging. */}
           {!phone && !edit && <DeskStatus />}

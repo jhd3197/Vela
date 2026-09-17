@@ -18,6 +18,20 @@ until the release workflow prepares a tested server version.
   read can be put back from Settings → Health instead of falling back to
   defaults. Your desk is no longer one of these files — it lives with your
   desktops now and is covered by backups instead.
+- **Apps can open in a window on your desk.** Right-click an app in All apps
+  and choose **Open in a window**. It gets a title bar with three controls that
+  do three different things: **minimize** puts it away and nothing else — the
+  app keeps running and whatever you had typed is still there when you bring it
+  back from the rail; **maximize** fills the desk; **close** is the only one
+  that ends the window, and the only one that asks about unsaved work. Windows
+  can be moved and resized, they stay where you left them, and each desktop
+  keeps its own. Opening an app the ordinary way still fills the screen.
+
+- **The rail names what is open.** Windows on the desktop you are looking at
+  appear in the rail under **Open**, showing which one is selected and which are
+  minimized. A window whose app was reinstalled says it needs reopening rather
+  than pretending to still be connected.
+
 - **All apps opens over what you were doing.** The app grid used to be a page,
   so going to look for an app left the one you had open. It is now a layer over
   the current page: the app underneath stays exactly as it was, with whatever
