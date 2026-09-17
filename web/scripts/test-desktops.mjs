@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 // Desktops against a real engine: creating one, arranging and dressing it
@@ -372,6 +373,9 @@ try {
 
   const window = page.locator('.window-frame').first();
   await window.waitFor();
+  const shots = path.join(root, 'docs/screenshots/desktops');
+  await fs.mkdir(shots, { recursive: true });
+  await page.screenshot({ path: path.join(shots, 'window-1366.png') });
   assert.match(await window.locator('.window-title').innerText(), /Widget Fixture/);
   // The rail names it, because the rail is the open-window navigator.
   await page.locator('.rail-views .rail-view-item').first().waitFor();

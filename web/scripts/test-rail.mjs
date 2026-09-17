@@ -133,8 +133,8 @@ try {
   assert.equal(openNames.filter((name) => name === 'Duplicate').length, 1);
   assert.equal(
     await page.locator('.rail-apps-open .rail-section-label').innerText(),
-    'OPEN',
-    'the running group is labelled',
+    'RUNNING',
+    'running processes are labelled as that, not as what is open on this desktop',
   );
   const railWidth = await page.locator('.rail').evaluate((el) => el.getBoundingClientRect().width);
   assert.equal(Math.round(railWidth), 62);

@@ -290,10 +290,13 @@ export default function AppRail({ onNavigate }) {
             </div>
           )}
 
+          {/* Apps whose process is running but which are not pinned. This is
+              server activity, not what is open on this desktop — the windows
+              above are that — so it says which one it is. */}
           {openUnpinned.length > 0 && (
-            <div className="rail-apps-group rail-apps-open" aria-label="Open apps" role="group">
+            <div className="rail-apps-group rail-apps-open" aria-label="Running apps" role="group">
               <span className="rail-section-label" aria-hidden="true">
-                OPEN
+                RUNNING
               </span>
               {openUnpinned.map((app) => (
                 <RailItem
