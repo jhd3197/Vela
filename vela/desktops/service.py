@@ -95,6 +95,13 @@ class Desktops:
         self.grants = Grants(storage) if storage is not None else None
         self._auth = auth
         self._registry = registry
+        # Named actions, attached after construction because the action service
+        # is built from services that are built from this one. An agent invoking
+        # an action goes through the same service a person's click does.
+        self.actions = None
+        # The tool surface a run acts through. Lazily built so a server with no
+        # agent desktops never assembles one.
+        self._tools = None
         # The managed browser. Created now, started only when a desktop needs
         # one: a server with no agent desktops should cost nothing.
         self.runtime = BrowserRuntime(data_dir / "agent-frames", log=log or (lambda message: None))
@@ -321,7 +328,7 @@ class Desktops:
         state = runtime_availability()
         if not state["available"]:
             raise DesktopError(503, state["detail"])
-        if desktop["kind"] == "agent":
+        if desktop["kind"] == "agent" and desktop_id in self.runtime.desktops:
             return {"desktop": self.store.get(desktop_id), "views": self.views(desktop_id)["views"]}
 
         started = False
@@ -383,17 +390,65 @@ class Desktops:
                 notes.append(f"{view['appId']} is not one of this desktop's allowed apps.")
                 continue
             try:
-                await self.runtime.command(
-                    "view.open",
-                    desktopId=desktop_id,
-                    viewId=view["id"],
-                    url=f"{self._origin}/agent-host/{view['id']}",
-                    bootstrap=self._bootstrap(desktop_id, view),
-                )
+                await self.open_in_browser(desktop_id, view)
                 moved.append(view["id"])
             except RuntimeUnavailable as exc:
                 notes.append(f"{view['appId']} could not be opened there: {exc}")
         return moved, notes
+
+    async def open_in_browser(self, desktop_id: str, view: dict[str, Any]) -> dict[str, Any]:
+        """Give one stored view a page in this desktop's managed browser.
+
+        The single place a view becomes something the agent can look at, used by
+        the conversion and by the open tools alike. One path means one set of
+        rules about what a page is given before it loads.
+        """
+        if view["kind"] == "app":
+            return await self.runtime.command(
+                "view.open",
+                desktopId=desktop_id,
+                viewId=view["id"],
+                url=f"{self._origin}/agent-host/{view['id']}",
+                bootstrap=self._bootstrap(desktop_id, view),
+                timeout=45.0,
+            )
+        if view["kind"] == "web":
+            # No bootstrap: a website gets no Vela session, no token and nothing
+            # about the desktop it is being looked at from.
+            return await self.runtime.command(
+                "view.open",
+                desktopId=desktop_id,
+                viewId=view["id"],
+                url=view["url"],
+                timeout=45.0,
+            )
+        raise DesktopError(422, "That kind of window does not open in the agent's browser.")
+
+    @property
+    def tools(self):
+        """The typed tools a run uses to perceive and operate this desktop."""
+        if self._tools is None:
+            from ..agent_runs.tools import AgentTools
+
+            self._tools = AgentTools(self)
+        return self._tools
+
+    def agent_runtime_for(self, desktop_id: str) -> None:
+        """Refuse early when this desktop has no browser behind it.
+
+        A desktop marked as an agent's whose browser died — a crash, a restart,
+        a machine that slept — is not a desktop an agent can work in, and saying
+        so is better than a command that fails somewhere less obvious.
+        """
+        desktop = self.store.get(desktop_id)
+        if desktop["kind"] != "agent":
+            raise DesktopError(409, "This desktop is not running an agent.")
+        if not self.runtime.running or desktop_id not in self.runtime.desktops:
+            raise DesktopError(
+                503,
+                "This desktop's agent browser is not running. Turn the agent off and on "
+                "again to start a new one.",
+            )
 
     def _bootstrap(self, desktop_id: str, view: dict[str, Any]) -> dict[str, Any]:
         """What the app host page is given before it loads.

@@ -1,0 +1,621 @@
+"""Everything an agent run can do, and nothing else.
+
+This is the whole surface. Eleven tools: look at a view, open an app or an
+approved site, choose which view is in front, click, type, press one of a dozen
+keys, scroll, wait for one named condition, invoke a named app action, and
+declare the task finished. There is no evaluate, no shell, no file read and no
+raw request, and there is no path from anything a model says to a script that
+runs in a page — the only inspection code that runs in a controlled view is the
+host's own, in `scripts/browser-worker/src/observe.mjs`.
+
+Two rules shape almost every argument check below.
+
+**An action names the observation it was decided from.** A click that does not
+say which screen it came from is a click on whatever happens to be there now.
+The worker refuses a reference from a replaced observation, and re-checks that
+the control still reads the way the agent was told before touching it.
+
+**Nothing here is a second way into an effect.** Opening a window and clicking a
+button are presentation and input; the moment something would change data it
+goes through the same service, the same session and the same grant check a
+person's click goes through. A tool that could write on its own would make the
+rest of the enforcement decoration.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from typing import Any
+from urllib.parse import urlparse
+
+from ..app_storage import AppServiceError
+from ..desktops.models import DesktopError
+from ..desktops.policy import allows_app, allows_site
+from ..desktops.runtime import RuntimeUnavailable, WorkerRefused
+from .observations import ObservationLog, StalledError
+
+#: The declared surface, in the order a task tends to need it. The model adapter
+#: in Phase 8 turns this into whatever shape its model wants; keeping the
+#: descriptions here means there is one answer to "what can a run do".
+TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "desktop.observe",
+        "summary": "Look at a view and get its current controls and text.",
+        "arguments": {"viewId": "string, optional — defaults to the selected view"},
+        "changes": False,
+    },
+    {
+        "name": "desktop.open_app",
+        "summary": "Open one of this desktop's allowed apps in a window.",
+        "arguments": {"appId": "string"},
+        "changes": False,
+    },
+    {
+        "name": "desktop.open_site",
+        "summary": "Open an approved website in a window.",
+        "arguments": {"url": "string"},
+        "changes": False,
+    },
+    {
+        "name": "desktop.select_view",
+        "summary": "Bring one of this desktop's windows to the front.",
+        "arguments": {"viewId": "string"},
+        "changes": False,
+    },
+    {
+        "name": "desktop.click",
+        "summary": "Click a control from the latest observation of a view.",
+        "arguments": {
+            "viewId": "string",
+            "observationId": "string",
+            "ref": "string, a control reference from that observation",
+            "point": "{x, y} in CSS pixels, only when no control fits",
+        },
+        "changes": True,
+    },
+    {
+        "name": "desktop.type",
+        "summary": "Type into an editable control, replacing or appending.",
+        "arguments": {
+            "viewId": "string",
+            "observationId": "string",
+            "ref": "string",
+            "text": "string",
+            "mode": "'replace' or 'append'",
+        },
+        "changes": True,
+    },
+    {
+        "name": "desktop.keypress",
+        "summary": "Press one allowed key or combination in a view.",
+        "arguments": {"viewId": "string", "observationId": "string", "key": "string"},
+        "changes": True,
+    },
+    {
+        "name": "desktop.scroll",
+        "summary": "Scroll a view, or one scrollable control inside it.",
+        "arguments": {
+            "viewId": "string",
+            "observationId": "string",
+            "ref": "string, optional",
+            "dx": "number",
+            "dy": "number",
+        },
+        "changes": True,
+    },
+    {
+        "name": "desktop.wait",
+        "summary": "Wait for one named condition, for a bounded time.",
+        "arguments": {
+            "viewId": "string",
+            "condition": "{type: 'ready'|'text'|'idle', text?}",
+            "timeoutMs": "number, at most 15000",
+        },
+        "changes": False,
+    },
+    {
+        "name": "app.invoke_action",
+        "summary": "Ask an app to run one of its named actions. Preferred over "
+        "clicking through a form when an action fits.",
+        "arguments": {
+            "appId": "string",
+            "actionId": "string",
+            "value": "object matching the action's input schema",
+            "requestKey": "string, so a repeated call is not a repeated effect",
+        },
+        "changes": True,
+    },
+    {
+        "name": "task.finish",
+        "summary": "Report the task done, with what was actually changed.",
+        "arguments": {"summary": "string", "evidence": "array of short strings"},
+        "changes": False,
+    },
+)
+
+TOOL_NAMES = tuple(tool["name"] for tool in TOOLS)
+
+#: Bounds on what may arrive as an argument, before anything is done with it.
+MAX_TEXT = 4000
+MAX_SUMMARY = 2000
+MAX_EVIDENCE = 12
+MAX_ACTION_VALUE_BYTES = 64 * 1024
+
+
+#: The worker's error vocabulary, in the words a run is answered in. Translated
+#: rather than passed through, so the model reads one vocabulary instead of the
+#: browser's, the service's and the API's.
+WORKER_CODES = {
+    "stale_observation": "stale_observation",
+    "view_not_ready": "view_not_ready",
+    "unknown_view": "no_view",
+    "unknown_command": "unknown_tool",
+    "identity_mismatch": "conflict",
+    "stale_control_epoch": "control_lost",
+    "navigation_denied": "not_allowed",
+    "network_denied": "not_allowed",
+    "protocol_error": "protocol_error",
+    "payload_too_large": "too_large",
+    "command_timeout": "timed_out",
+    "capture_unsupported": "unsupported",
+    "runtime_unavailable": "runtime_unavailable",
+    "worker_error": "failed",
+}
+
+#: Refusals where looking again and trying once more is worth something. A run
+#: that retried the others would be retrying a decision, not a hiccup.
+RETRYABLE = frozenset({"stale_observation", "view_not_ready", "timed_out", "runtime_unavailable"})
+
+
+class ToolError(Exception):
+    """A tool refused, with a reason a run can act on.
+
+    `code` is the vocabulary the supervisor and the Agent window report against;
+    `retryable` says whether looking again is worth anything, so a run does not
+    sit in a loop against a refusal that will never change.
+    """
+
+    def __init__(self, code: str, detail: str, *, retryable: bool = False):
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+        self.retryable = retryable
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"error": self.code, "detail": self.detail, "retryable": self.retryable}
+
+
+class AgentTools:
+    """The tool surface for one Vela, across every agent desktop on it."""
+
+    def __init__(self, desktops, *, log: ObservationLog | None = None):
+        self.desktops = desktops
+        self.log = log or ObservationLog()
+
+    # ------------------------------------------------------------ calling --
+
+    async def call(
+        self,
+        desktop_id: str,
+        name: str,
+        arguments: Any = None,
+        *,
+        run_id: str,
+        actor_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Run one tool for one run on one desktop.
+
+        Every refusal comes back as a `ToolError` rather than as whatever the
+        layer underneath raised. A run reads these; a stack of service
+        exceptions with three different vocabularies is not something a model
+        can be expected to act on sensibly.
+        """
+        if name not in TOOL_NAMES:
+            raise ToolError("unknown_tool", f"{name} is not a tool this desktop has.")
+        arguments = arguments if isinstance(arguments, dict) else {}
+        if not isinstance(run_id, str) or not run_id:
+            raise ToolError("protocol_error", "A tool call belongs to a run.")
+        handler = getattr(self, "_" + name.replace(".", "_"))
+        try:
+            return await handler(desktop_id, arguments, run_id=run_id, actor_id=actor_id or run_id)
+        except ToolError:
+            raise
+        except StalledError as exc:
+            raise ToolError("no_progress", exc.detail) from exc
+        except DesktopError as exc:
+            raise ToolError(_code_for(exc.status), exc.detail) from exc
+        except AppServiceError as exc:
+            raise ToolError(_code_for(exc.status), exc.detail) from exc
+        except RuntimeUnavailable as exc:
+            raise ToolError("runtime_unavailable", str(exc)) from exc
+
+    # ------------------------------------------------------ perceiving --
+
+    async def _desktop_observe(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"), allow_default=True)
+        observation = await self._runtime_command(
+            "view.observe", desktopId=desktop_id, viewId=view["id"], timeout=30.0
+        )
+        try:
+            progress = self.log.record(desktop_id, view["id"], observation)
+        except StalledError as exc:
+            self.log.note_action(
+                desktop_id, run_id, tool="desktop.observe", target=view["id"],
+                outcome="not_dispatched", result={"stalled": exc.repeats},
+            )
+            raise
+        self.log.note_action(
+            desktop_id,
+            run_id,
+            tool="desktop.observe",
+            target=view["id"],
+            expected="see what this view shows",
+            result={"observationId": observation.get("observationId")},
+            outcome="committed",
+        )
+        return {**observation, "repeats": progress["repeats"], "viewId": view["id"]}
+
+    # ----------------------------------------------------------- opening --
+
+    async def _desktop_open_app(self, desktop_id, arguments, *, run_id, actor_id):
+        self.desktops.agent_runtime_for(desktop_id)
+        app_id = _string(arguments.get("appId"), "appId", 64)
+        policy = self.desktops.store.policy(desktop_id)
+        if not allows_app(policy, app_id):
+            raise ToolError("not_allowed", f"This desktop is not allowed to use {app_id}.")
+        view = self.desktops.open_view(desktop_id, "app", {"appId": app_id}, opened_by="agent")
+        if not view["available"]:
+            raise ToolError("view_unavailable", f"{app_id} is not installed on this computer.")
+        await self.desktops.open_in_browser(desktop_id, self.desktops.store.view(view["id"]))
+        self.desktops.select_view(desktop_id, view["id"])
+        self.log.note_action(
+            desktop_id, run_id, tool="desktop.open_app", target=app_id,
+            expected="open this app in a window", result={"viewId": view["id"]},
+        )
+        return {"view": _view_summary(view)}
+
+    async def _desktop_open_site(self, desktop_id, arguments, *, run_id, actor_id):
+        self.desktops.agent_runtime_for(desktop_id)
+        url = _string(arguments.get("url"), "url", 2000)
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ToolError("protocol_error", "A site is an http or https address.")
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        policy = self.desktops.store.policy(desktop_id)
+        if not allows_site(policy, origin):
+            raise ToolError("not_allowed", f"{origin} is not one of this desktop's approved sites.")
+        view = self.desktops.open_view(desktop_id, "web", {"url": url}, opened_by="agent")
+        await self.desktops.open_in_browser(desktop_id, self.desktops.store.view(view["id"]))
+        self.desktops.select_view(desktop_id, view["id"])
+        self.log.note_action(
+            desktop_id, run_id, tool="desktop.open_site", target=origin,
+            expected="open this site in a window", result={"viewId": view["id"]},
+        )
+        return {"view": _view_summary(view)}
+
+    async def _desktop_select_view(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        # Only this desktop's attention changes. Another desktop's selected view
+        # and another desktop's running task are not this run's to touch.
+        self.desktops.select_view(desktop_id, view["id"])
+        self.log.note_action(
+            desktop_id, run_id, tool="desktop.select_view", target=view["id"],
+            expected="bring this window to the front",
+        )
+        return {"view": _view_summary(view)}
+
+    # ------------------------------------------------------------ acting --
+
+    async def _desktop_click(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        action: dict[str, Any] = {
+            "action": "click",
+            "observationId": _string(arguments.get("observationId"), "observationId", 64),
+        }
+        if arguments.get("ref") is not None:
+            action["ref"] = _string(arguments.get("ref"), "ref", 32)
+        elif isinstance(arguments.get("point"), dict):
+            action["point"] = {
+                "x": _number(arguments["point"].get("x"), "x"),
+                "y": _number(arguments["point"].get("y"), "y"),
+            }
+        else:
+            raise ToolError("protocol_error", "A click names a control or a point in the view.")
+        if arguments.get("button") is not None:
+            action["button"] = _string(arguments.get("button"), "button", 10)
+        return await self._act(desktop_id, view, action, run_id=run_id, expected="click it")
+
+    async def _desktop_type(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        text = arguments.get("text")
+        if not isinstance(text, str):
+            raise ToolError("protocol_error", "Typing needs text.")
+        if len(text) > MAX_TEXT:
+            raise ToolError("too_large", f"Type at most {MAX_TEXT} characters at once.")
+        mode = arguments.get("mode") or "replace"
+        if mode not in ("replace", "append"):
+            raise ToolError("protocol_error", "Typing either replaces what is there or appends.")
+        action = {
+            "action": "type",
+            "observationId": _string(arguments.get("observationId"), "observationId", 64),
+            "ref": _string(arguments.get("ref"), "ref", 32),
+            "text": text,
+            "mode": mode,
+        }
+        return await self._act(
+            desktop_id, view, action, run_id=run_id, expected=f"{mode} the text in this field"
+        )
+
+    async def _desktop_keypress(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        action = {
+            "action": "key",
+            "observationId": _string(arguments.get("observationId"), "observationId", 64),
+            "key": _string(arguments.get("key"), "key", 32),
+        }
+        return await self._act(
+            desktop_id, view, action, run_id=run_id, expected=f"press {action['key']}"
+        )
+
+    async def _desktop_scroll(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        action: dict[str, Any] = {
+            "action": "scroll",
+            "observationId": _string(arguments.get("observationId"), "observationId", 64),
+            "dx": _number(arguments.get("dx", 0), "dx"),
+            "dy": _number(arguments.get("dy", 0), "dy"),
+        }
+        if arguments.get("ref") is not None:
+            action["ref"] = _string(arguments.get("ref"), "ref", 32)
+        return await self._act(desktop_id, view, action, run_id=run_id, expected="scroll the view")
+
+    async def _desktop_wait(self, desktop_id, arguments, *, run_id, actor_id):
+        view = self._view(desktop_id, arguments.get("viewId"))
+        condition = arguments.get("condition")
+        if not isinstance(condition, dict) or condition.get("type") not in ("ready", "text", "idle"):
+            raise ToolError(
+                "protocol_error",
+                "A wait names what it is waiting for: 'ready', 'text' or 'idle'.",
+            )
+        action = {
+            "action": "wait",
+            # Optional here alone: waiting touches nothing, and waiting for a
+            # freshly opened view to be ready happens before there is anything to
+            # observe. Given one, it is still required to be the current one.
+            "observationId": (
+                _string(arguments.get("observationId"), "observationId", 64)
+                if arguments.get("observationId")
+                else None
+            ),
+            "condition": {
+                "type": condition["type"],
+                "text": _string(condition.get("text"), "text", 200) if condition.get("text") else None,
+            },
+            "timeoutMs": _number(arguments.get("timeoutMs", 5000), "timeoutMs"),
+        }
+        return await self._act(
+            desktop_id, view, action, run_id=run_id, expected=f"wait for {condition['type']}"
+        )
+
+    async def _act(self, desktop_id, view, action, *, run_id, expected):
+        self.desktops.agent_runtime_for(desktop_id)
+        result = await self._runtime_command(
+            "view.act", desktopId=desktop_id, viewId=view["id"], action=action, timeout=40.0
+        )
+        after = result.get("after") or {}
+        if result.get("observationSpent"):
+            # Something was touched, so the run of identical observations is
+            # over whether or not the page has visibly reacted yet.
+            self.log.progressed(desktop_id, view["id"])
+        self.log.note_action(
+            desktop_id,
+            run_id,
+            tool="desktop." + action["action"],
+            target=action.get("ref") or view["id"],
+            expected=expected,
+            result={
+                "changed": after.get("changed"),
+                "navigated": after.get("navigated"),
+                "url": after.get("url"),
+            },
+            outcome="committed",
+        )
+        return {
+            **result,
+            "viewId": view["id"],
+            # Saying this plainly matters: every reference from that observation
+            # is gone, and the next step has to look again.
+            "observationInvalidated": bool(result.get("observationSpent")),
+        }
+
+    # ----------------------------------------------------- named actions --
+
+    async def _app_invoke_action(self, desktop_id, arguments, *, run_id, actor_id):
+        """Ask an app to do something by name rather than by clicking at it.
+
+        Preferred wherever an action fits, because the app validated the input,
+        the result is a receipt, and a repeated request key returns the first
+        answer instead of doing it twice. What it is not is a shortcut past
+        permission: the grant is checked inside the write's own transaction, the
+        same as any other effect.
+        """
+        desktop = self.desktops.store.get(desktop_id)
+        if desktop["kind"] != "agent":
+            raise ToolError("conflict", "This desktop is not running an agent.")
+        # Deliberately no browser check: a named action is a call to a service,
+        # not something clicked in a window, and it works whether or not the app
+        # happens to be on screen.
+        desktop_id = desktop["id"]
+        app_id = _string(arguments.get("appId"), "appId", 64)
+        action_id = _string(arguments.get("actionId"), "actionId", 64)
+        request_key = _string(arguments.get("requestKey"), "requestKey", 64)
+        value = arguments.get("value")
+        encoded = _encode(value)
+        if len(encoded.encode("utf-8")) > MAX_ACTION_VALUE_BYTES:
+            raise ToolError("too_large", "That action input is too large to send.")
+
+        policy = self.desktops.store.policy(desktop_id)
+        if not allows_app(policy, app_id):
+            raise ToolError("not_allowed", f"This desktop is not allowed to use {app_id}.")
+        actions = self.desktops.actions
+        if actions is None or self.desktops.grants is None:
+            raise ToolError("unsupported", "Named actions are not available on this server.")
+
+        from ..actions import fingerprint
+
+        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        scope = {"app": app_id, "action": action_id}
+
+        def authorize(target_manifest, target_identity):
+            # Bound to this installation and this exact manifest, so reinstalling
+            # or updating the app stops the grant matching rather than carrying
+            # an old approval onto new code.
+            with self.desktops.grants.storage.connection() as db:
+                self.desktops.grants.require(
+                    db,
+                    desktop_id=desktop_id,
+                    effect="action",
+                    app_id=app_id,
+                    installation_id=target_identity,
+                    contract=fingerprint(target_manifest),
+                    run_id=run_id,
+                    request_digest=digest,
+                    scope=scope,
+                    detail=(
+                        f"This desktop has not been allowed to run {app_id}'s "
+                        f"{action_id} with these values."
+                    ),
+                )
+
+        try:
+            result = actions.invoke_for_agent(
+                f"{desktop_id}:{run_id}", app_id, action_id, value, request_key, authorize
+            )
+        except AppServiceError as exc:
+            self.log.note_action(
+                desktop_id, run_id, tool="app.invoke_action", target=f"{app_id}.{action_id}",
+                expected="run this named action", outcome="denied" if exc.status == 403 else
+                "failed_before_commit", result={"detail": exc.detail},
+            )
+            raise
+        self.log.note_action(
+            desktop_id, run_id, tool="app.invoke_action", target=f"{app_id}.{action_id}",
+            expected="run this named action", outcome="committed",
+            result={"status": result.get("status"), "replayed": result.get("replayed")},
+        )
+        return {"result": result}
+
+    # ---------------------------------------------------------- finishing --
+
+    async def _task_finish(self, desktop_id, arguments, *, run_id, actor_id):
+        """A proposal, not a verdict.
+
+        The run says it is done and what it changed; the supervisor in Phase 8
+        decides whether the evidence matches what was asked for. A tool that
+        could declare its own success would make the result meaningless.
+        """
+        summary = _string(arguments.get("summary"), "summary", MAX_SUMMARY)
+        evidence = arguments.get("evidence")
+        if evidence is None:
+            evidence = []
+        if not isinstance(evidence, list) or len(evidence) > MAX_EVIDENCE:
+            raise ToolError("protocol_error", f"Evidence is a list of at most {MAX_EVIDENCE} notes.")
+        notes = [_string(item, "evidence", 300) for item in evidence]
+        self.log.note_action(
+            desktop_id, run_id, tool="task.finish", expected="finish the task",
+            result={"summary": summary}, outcome="committed",
+        )
+        return {
+            "proposed": True,
+            "summary": summary,
+            "evidence": notes,
+            "actions": self.log.evidence(desktop_id, run_id),
+        }
+
+    # ----------------------------------------------------------- helpers --
+
+    def _view(self, desktop_id: str, view_id: Any, *, allow_default: bool = False):
+        """The view a tool is aimed at, checked against this desktop.
+
+        A reference to another desktop's view is a 404 here, not a redirect to
+        something nearby: the whole point of view identity is that it does not
+        wander.
+        """
+        self.desktops.agent_runtime_for(desktop_id)
+        state = self.desktops.views(desktop_id)
+        views = state["views"]
+        if view_id is None and allow_default:
+            selected = state["layout"].get("selectedView")
+            view = next((item for item in views if item["id"] == selected), None)
+            if view is None:
+                view = next((item for item in views if item["agentViewable"]), None)
+            if view is None:
+                raise ToolError("no_view", "Nothing is open on this desktop yet.")
+        else:
+            view_id = _string(view_id, "viewId", 64)
+            view = next((item for item in views if item["id"] == view_id), None)
+            if view is None:
+                raise ToolError("no_view", "That window is not open on this desktop.")
+        if not view["agentViewable"]:
+            raise ToolError("not_allowed", "That window is one of the owner's, not the agent's.")
+        if not view["available"]:
+            raise ToolError(
+                "view_unavailable",
+                "That app was reinstalled or removed; open it again before using it.",
+            )
+        return view
+
+    async def _runtime_command(self, name: str, **fields) -> dict[str, Any]:
+        try:
+            return await self.desktops.runtime.command(name, **fields)
+        except WorkerRefused as exc:
+            code = WORKER_CODES.get(exc.code, "failed")
+            raise ToolError(code, exc.detail, retryable=code in RETRYABLE) from exc
+        except RuntimeUnavailable as exc:
+            raise ToolError("runtime_unavailable", str(exc), retryable=True) from exc
+
+
+def _view_summary(view: dict[str, Any]) -> dict[str, Any]:
+    """What a run is told about a window. Not its bounds or its z-order."""
+    return {
+        "viewId": view["id"],
+        "kind": view["kind"],
+        "appId": view.get("appId"),
+        "url": view.get("url"),
+        "title": view.get("title") or view.get("appId") or view["kind"],
+    }
+
+
+def _string(value: Any, what: str, limit: int) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ToolError("protocol_error", f"{what} is required.")
+    if len(value) > limit:
+        raise ToolError("too_large", f"{what} is longer than {limit} characters.")
+    return value
+
+
+def _number(value: Any, what: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ToolError("protocol_error", f"{what} is a number.")
+    return float(value)
+
+
+def _encode(value: Any) -> str:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ToolError("protocol_error", "That action input is not something Vela can send.") from exc
+
+
+def _code_for(status: int) -> str:
+    return {
+        401: "not_allowed",
+        403: "not_allowed",
+        404: "not_found",
+        409: "conflict",
+        413: "too_large",
+        422: "protocol_error",
+        503: "runtime_unavailable",
+        504: "timed_out",
+    }.get(status, "failed")

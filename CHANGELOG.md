@@ -97,6 +97,20 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **App developers: label your controls and declare your actions.** Vela is
+  building desktops an agent can work in, and the parts that read and operate an
+  app's window now exist. An app is found by the accessible name of its
+  controls — `aria-label`, a real `<label>`, `placeholder`, `title`, then its
+  text — so a button whose only name is an icon cannot be used, and a control
+  that renames itself while it is on screen is refused rather than clicked. A
+  named action is preferred to a form wherever one fits: it is validated, it
+  returns a receipt, and repeating its request key returns the first answer
+  instead of doing the work twice. Nothing changes for an app that is not in an
+  agent's window, and an app in one is told so through `view.chrome`. Whatever
+  an app saves still goes through the same permission check whether a person
+  clicked it or an agent did. See
+  [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#what-a-run-can-perceive-and-do).
+
 - **Your desk is a desktop you can have more than one of.** The desk you have
   becomes **Desktop 1** with every widget, both the wide and the phone
   arrangement, and its wallpaper exactly where they were; nothing is asked of

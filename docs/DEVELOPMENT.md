@@ -707,6 +707,105 @@ the spellings that hide a private address — `2130706433`, `0x7f000001`, `127.1
 `[::ffff:127.0.0.1]`, `169.254.169.254` — because a denial that only matches
 dotted quads is not a denial.
 
+### What a run can perceive and do
+
+`vela/agent_runs/` holds the run's side of an agent desktop: what it may see,
+what it may do and the evidence it leaves. It is kept apart from
+`vela/desktops/` deliberately — a desktop exists whether or not anything is
+running in it.
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/tools.py` | The declared tool surface, its argument bounds and the one vocabulary refusals are answered in |
+| `vela/agent_runs/observations.py` | The no-progress rule and the bounded action record |
+| `scripts/browser-worker/src/observe.mjs` | The host-owned collector that reads a page, and the mutation counter installed in every document |
+| `scripts/browser-worker/src/targets.mjs` | One observation per view, and re-checking a control before it is touched |
+| `scripts/browser-worker/src/input.mjs` | The six ways an agent may touch a view, each one bounded |
+| `tests/agent-tools.test.mjs` | Observation and input against a real page, with the refusals as the point |
+| `tests/test_agent_tools.py` | The same tools through a listening Vela, a managed browser and the Notes fixture |
+
+**The surface is eleven tools.** `desktop.observe`, `desktop.open_app`,
+`desktop.open_site`, `desktop.select_view`, `desktop.click`, `desktop.type`,
+`desktop.keypress`, `desktop.scroll`, `desktop.wait`, `app.invoke_action` and
+`task.finish`. There is no evaluate, no shell, no file read and no raw request,
+and no path from anything a model says to a script that runs in a page: the only
+inspection code that runs in a controlled view is `observe.mjs`, which is
+versioned host code.
+
+**An observation is two halves.** `view` is what Vela knows — the view and
+runtime identities, the URL, the viewport and the device pixel ratio. `page` is
+what the page said about itself and is marked `untrusted: true`. Keeping them
+apart is what stops an instruction in a button label arriving as though Vela had
+said it. Both are bounded: 120 controls and 6000 characters of text per frame,
+12 frames, names clipped, and a password field's value never read back.
+
+**A control reference belongs to one observation.** References look like
+`f1:e7` and mean nothing outside the observation that issued them. The worker
+holds real element handles for the current observation and writes nothing into
+the page to mark them. An action names the observation it was decided from; a
+replaced observation is refused, and so is a control that has since been
+removed, hidden, disabled or *renamed* — a button that now reads "Delete
+everything" where the agent was shown "Save note" is a different control as far
+as a run is concerned, and the answer is to observe again rather than to guess.
+
+Observations are invalidated by navigation, by a viewport change, by the control
+epoch changing hands, by the view closing and by any action that touched the
+page. Waiting is the one thing that does not spend one, because it touches
+nothing — and it is the one tool that may run before the first look, which is
+when waiting for a view to be ready is most useful.
+
+**Keys are an allowlist**, in `input.mjs`: Enter, Tab, Escape, the arrows, the
+editing keys and six Control combinations. No function keys, no Meta, no Alt,
+nothing that reaches the browser or the window manager rather than the page.
+Text is capped at 4000 characters and rejected if it carries control characters;
+a scroll moves at most 4000 pixels; a wait ends within 15 seconds whether or not
+its condition arrived, because a timeout is an answer.
+
+**Coordinates are CSS pixels in the viewport the observation recorded.** Device
+pixel ratio is reported so a caller can reason about rendering, and is
+deliberately not applied to input: a tool that multiplied by it would click at
+twice the intended place on a dense display.
+
+**Named actions are preferred over clicking a form.** `app.invoke_action` goes
+through the same `Actions` service a person's click does, on the agent path
+added for it (`invoke_for_agent`), with a caller id of its own so its receipts
+are its own. A repeated request key returns the first result instead of doing
+the work twice. It is not a shortcut past permission: the grant is required
+inside the write's own transaction, bound to the desktop, the run, the
+installation, the manifest fingerprint and the exact request digest.
+
+**Nothing here is a second way into an effect.** An agent clicking Save in an
+app's own window reaches the same bridge route, the same session and the same
+grant check a person's click does — `tests/test_agent_tools.py` exercises exactly
+that and asserts the stored data is unchanged when nothing granted it.
+
+**A run that is getting nowhere is stopped.** Five identical observations of one
+view in a row end with `no_progress` and the reason. The fingerprint covers the
+address, the controls and the length of the text but not the text itself, so a
+clock ticking in the corner does not count as progress.
+
+### For app developers
+
+Nothing about an app changes for Phase 6. An app running in an agent's window is
+told it is one — `view.chrome` is `agent` — and is otherwise the same app with
+the same bridge and the same capabilities.
+
+Two things are worth designing for:
+
+- **Label your controls.** Observation resolves a control by its accessible
+  name, in the order `aria-label`, `aria-labelledby`, an associated `<label>`,
+  `placeholder`, `title`, `alt`, `name`, then its text. A button whose only name
+  is an icon is a button an agent cannot address, and a control whose label
+  changes while it is on screen is one the target check will refuse to touch.
+- **Declare actions for what matters.** A named action is validated, receipted
+  and replay-safe; a form an agent clicks through is none of those. Anything an
+  agent could reasonably be asked to do is better expressed as an action.
+
+An app's own writes still pause at the effect boundary. Until delayed approvals
+land, an app that expects a write to complete within the bridge's ten-second
+timeout will see a refusal rather than an indefinite wait when no grant covers
+it.
+
 ## Container build
 
 The root `Dockerfile` builds the dashboard with Node.js 22 and packages it with

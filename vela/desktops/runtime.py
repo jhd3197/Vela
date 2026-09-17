@@ -42,6 +42,21 @@ class RuntimeUnavailable(RuntimeError):
     """The browser runtime is missing, or refused to start."""
 
 
+class WorkerRefused(RuntimeUnavailable):
+    """The worker answered, and the answer was no.
+
+    A subclass so every existing caller that treats a browser problem as one
+    thing keeps working, and a distinct type so the ones that can act on the
+    difference have something to act on. "Observe again, the page moved" and
+    "there is no browser" are not the same news.
+    """
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code or "worker_error"
+        self.detail = detail
+
+
 @dataclass(frozen=True)
 class RuntimeInfo:
     node: str
@@ -264,7 +279,11 @@ class BrowserRuntime:
             self._pending.pop(command_id, None)
             raise RuntimeUnavailable(f"The browser runtime did not answer {name} in time.") from exc
         if message.get("type") == "error":
-            raise RuntimeUnavailable(message.get("detail") or "The browser refused that.")
+            code = message.get("code") or "worker_error"
+            detail = message.get("detail") or "The browser refused that."
+            if code == "runtime_unavailable":
+                raise RuntimeUnavailable(detail)
+            raise WorkerRefused(code, detail)
         return message.get("result") or {}
 
     async def open_desktop(self, desktop_id: str, runtime_session_id: str, policy: dict):

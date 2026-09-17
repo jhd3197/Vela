@@ -17,6 +17,22 @@ import { existsSync } from 'node:fs';
 
 import { chromium } from 'playwright-core';
 import { checkServerAddress, decide } from './network-policy.mjs';
+import { composeObservation, DOM_VERSION_SCRIPT, LIMITS, observePage } from './observe.mjs';
+import {
+  afterState,
+  checkKey,
+  checkPoint,
+  checkScroll,
+  checkText,
+  checkTimeout,
+  clickElement,
+  clickPoint,
+  pressKey,
+  scrollTarget,
+  typeInto,
+  waitFor,
+} from './input.mjs';
+import { Observations, resolveTarget } from './targets.mjs';
 
 /** The agent's screen. Explicit, because an observation records the size it saw. */
 export const DEFAULT_VIEWPORT = Object.freeze({ width: 1280, height: 800 });
@@ -70,6 +86,8 @@ export class DesktopSession {
     /** @type {Map<string, import('playwright-core').Page>} */
     this.views = new Map();
     this.denials = [];
+    // One observation per view, and the element handles that belong to it.
+    this.observations = new Observations();
   }
 
   async start({ headless = true, executablePath } = {}) {
@@ -92,6 +110,10 @@ export class DesktopSession {
       acceptDownloads: false,
       javaScriptEnabled: true,
     });
+    // Host inspection code, installed before any document runs, in every frame.
+    // All it does is count mutations; it is what lets an action notice that the
+    // page moved between being looked at and being touched.
+    await this.context.addInitScript(DOM_VERSION_SCRIPT);
     await this.context.route('**/*', (route, request) => this.#screen(route, request));
     // WebSocket handshakes do not pass through `route`, so they get their own
     // pass over the same policy. A transport we cannot screen stays disabled.
@@ -144,14 +166,22 @@ export class DesktopSession {
    * target never gets a tab it could keep using.
    */
   async openView(viewId, url, bootstrap = null) {
-    if (this.views.has(viewId)) throw new SessionError(`view ${viewId} is already open`, 'worker_error');
+    if (this.views.has(viewId)) {
+      // A view id names one window for its whole life, and the address it
+      // renders derives from that id. Opening it again means "make sure it is
+      // there", so the page that already is gets returned rather than a second
+      // one nobody is tracking — and rather than an error for a request that
+      // has already been satisfied.
+      const open = this.views.get(viewId);
+      return { viewId, url: open.url(), title: await open.title(), reused: true };
+    }
     const verdict = decide(url, this.policy);
     if (!verdict.allowed) {
       this.#deny({ stage: 'open_view', resourceType: 'document', url, reason: verdict.reason });
       throw new SessionError(`${verdict.reason}`, 'navigation_denied');
     }
     const page = await this.context.newPage();
-    this.#guard(page);
+    this.#guard(page, viewId);
     this.views.set(viewId, page);
     if (bootstrap) {
       // The app host's session goes into the page before it loads, rather than
@@ -171,7 +201,7 @@ export class DesktopSession {
    * Watch one page for the things route interception does not cover: a popup
    * aiming somewhere else, and a navigation that ended up at a denied URL.
    */
-  #guard(page) {
+  #guard(page, viewId) {
     page.on('popup', async (popup) => {
       const target = popup.url();
       const verdict = decide(target, this.policy);
@@ -182,6 +212,10 @@ export class DesktopSession {
     });
     page.on('framenavigated', (frame) => {
       const target = frame.url();
+      // A navigation replaces what was observed, so whatever the agent was
+      // holding a reference to stops being addressable. Refusing a stale click
+      // is only possible because this happens whether or not anybody noticed.
+      this.observations.invalidate(viewId, 'the view navigated').catch(() => {});
       if (!target || target === 'about:blank') return;
       const verdict = decide(target, this.policy);
       if (!verdict.allowed) {
@@ -251,21 +285,178 @@ export class DesktopSession {
     return page;
   }
 
+  #viewportOf(page) {
+    return page.viewportSize() || { ...DEFAULT_VIEWPORT };
+  }
+
+  /* ------------------------------------------------ observing and acting -- */
+
+  /**
+   * Look at one view.
+   *
+   * Replaces whatever observation that view had, which is what makes references
+   * from an older one stop working. The result separates what the host knows
+   * about the view from what the page said about itself, because the second is
+   * written by the thing being observed.
+   */
+  async observe(viewId, { limits = LIMITS } = {}) {
+    const page = this.page(viewId);
+    const viewport = page.viewportSize() || { ...DEFAULT_VIEWPORT };
+    const deviceScaleFactor = await page.evaluate(() => window.devicePixelRatio).catch(() => 1);
+    const { frames, handles, notes } = await observePage(page, { limits });
+    const observationId = this.observations.nextId();
+    const observation = composeObservation(frames, { observationId, viewId, revision: 0 });
+    const record = await this.observations.record(viewId, {
+      observationId,
+      handles,
+      controls: observation.page.controls,
+      viewport,
+      deviceScaleFactor,
+      url: observation.page.url,
+      domVersion: observation.page.domVersion,
+    });
+    return {
+      ...observation,
+      revision: record.revision,
+      view: {
+        viewId,
+        desktopId: this.desktopId,
+        runtimeSessionId: this.runtimeSessionId,
+        controlEpoch: this.controlEpoch,
+        url: page.url(),
+        viewport,
+        deviceScaleFactor,
+        takenAt: record.takenAt,
+      },
+      notes,
+    };
+  }
+
+  /**
+   * Do one thing to a view, then say what it looks like afterwards.
+   *
+   * Every action names the observation it was decided from. That observation is
+   * required to still be the current one, and the control it points at is
+   * re-checked against the description the agent was given, before anything
+   * happens. Both checks are here rather than in the caller so there is one
+   * place an action can start from.
+   */
+  async act(viewId, action) {
+    const page = this.page(viewId);
+    const kind = String(action?.action || '');
+    // Waiting touches nothing, so it may happen before the first look — which is
+    // when it is most useful. Everything else names the observation it was
+    // decided from, because acting without saying what you saw is acting on
+    // whatever is there now.
+    const record =
+      kind === 'wait' && !action?.observationId
+        ? { viewId, revision: 0, handles: [], controls: [], viewport: this.#viewportOf(page), url: page.url(), domVersion: null }
+        : this.observations.require(viewId, action?.observationId);
+    let target = null;
+    let acted = { kind };
+
+    try {
+      if (kind === 'click') {
+        if (action.ref) {
+          target = await resolveTarget(record, action.ref, {});
+          await clickElement(target.element, {
+            button: action.button || 'left',
+            clickCount: action.clickCount || 1,
+          });
+          acted = { kind, ref: action.ref, name: target.described.name, role: target.described.role };
+        } else {
+          const point = checkPoint(action.point, record.viewport);
+          await clickPoint(page, point);
+          acted = { kind, point };
+        }
+      } else if (kind === 'type') {
+        target = await resolveTarget(record, action.ref, { expect: { editable: true } });
+        const text = checkText(action.text ?? '');
+        await typeInto(target.element, text, { mode: action.mode || 'replace' });
+        acted = {
+          kind,
+          ref: action.ref,
+          name: target.described.name,
+          mode: action.mode || 'replace',
+          characters: text.length,
+        };
+      } else if (kind === 'scroll') {
+        const delta = checkScroll(action);
+        if (action.ref) {
+          target = await resolveTarget(record, action.ref, {});
+          await scrollTarget(page, target.element, delta);
+          acted = { kind, ref: action.ref, ...delta };
+        } else {
+          await scrollTarget(page, null, delta);
+          acted = { kind, ...delta };
+        }
+      } else if (kind === 'key') {
+        const key = checkKey(action.key);
+        await pressKey(page, key);
+        acted = { kind, key };
+      } else if (kind === 'wait') {
+        const result = await waitFor(page, action.condition, checkTimeout(action.timeoutMs));
+        acted = { kind, condition: action.condition?.type, ...result };
+      } else {
+        throw new SessionError(`${kind || 'that'} is not an action`, 'unknown_command');
+      }
+    } finally {
+      if (target) await target.element.dispose().catch(() => {});
+    }
+
+    const after = await afterState(page);
+    // Anything that touched the page makes the observation it was decided from
+    // no longer describe what is there. A waiting tool did not touch anything.
+    if (kind !== 'wait') await this.observations.invalidate(viewId, `a ${kind} changed the view`);
+    return {
+      acted,
+      after: {
+        ...after,
+        changed: after.domVersion !== null && after.domVersion !== record.domVersion,
+        navigated: after.url !== record.url,
+      },
+      observationSpent: kind !== 'wait',
+    };
+  }
+
+  /** Navigate an open view somewhere else it is allowed to go. */
+  async navigateView(viewId, url) {
+    const page = this.page(viewId);
+    const verdict = decide(url, this.policy);
+    if (!verdict.allowed) {
+      this.#deny({ stage: 'navigate', resourceType: 'document', url, reason: verdict.reason });
+      throw new SessionError(`${verdict.reason}`, 'navigation_denied');
+    }
+    await this.observations.invalidate(viewId, 'the view was sent somewhere else');
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await this.#checkAddress(page, response);
+    return { viewId, url: page.url(), title: await page.title() };
+  }
+
   async closeView(viewId) {
     const page = this.views.get(viewId);
     if (!page) return false;
     this.views.delete(viewId);
+    await this.observations.invalidate(viewId, 'the view was closed');
     await page.close().catch(() => {});
     return true;
   }
 
-  /** A new control generation. Commands issued under the old one stop being valid. */
+  /**
+   * A new control generation. Commands issued under the old one stop being
+   * valid, and so does everything anybody was looking at: control changing hands
+   * is exactly when a held reference is most dangerous.
+   */
   bumpControlEpoch() {
     this.controlEpoch += 1;
+    for (const viewId of this.views.keys()) {
+      this.observations.invalidate(viewId, 'control of this desktop changed hands').catch(() => {});
+    }
     return this.controlEpoch;
   }
 
   async stop() {
+    await this.observations.clear();
     this.views.clear();
     if (this.context) await this.context.close().catch(() => {});
     if (this.browser) await this.browser.close().catch(() => {});

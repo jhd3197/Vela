@@ -114,6 +114,32 @@ const COMMANDS = {
     return { closed: await session.closeView(command.viewId) };
   },
 
+  /** Send an already open view somewhere else it is allowed to go. */
+  async 'view.navigate'(command) {
+    const session = sessionFor(command.desktopId);
+    return session.navigateView(command.viewId, command.url);
+  },
+
+  /**
+   * What this view shows now. Replaces the view's previous observation, so
+   * references handed out from that one stop resolving.
+   */
+  async 'view.observe'(command) {
+    const session = sessionFor(command.desktopId);
+    return session.observe(command.viewId);
+  },
+
+  /**
+   * One bounded action on a view, aimed at a control from a named observation.
+   *
+   * The action is not applied unless that observation is still the current one
+   * and the control still matches what the agent was told about it.
+   */
+  async 'view.act'(command) {
+    const session = sessionFor(command.desktopId);
+    return session.act(command.viewId, command.action || {});
+  },
+
   /**
    * A frame of one view, handed over as a file rather than on this channel.
    *

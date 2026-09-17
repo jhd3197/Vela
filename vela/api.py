@@ -342,6 +342,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services, guard=guard)
+    # An agent run invoking a named action goes through this same service, with
+    # its own caller identity and its own grant check. Attached here because the
+    # action service is built from services that are built from desktops.
+    desktops.actions = actions
     snooze = SnoozeStore(config.data_dir / "snooze.json")
     widgets = Widgets(storage, registry, actions, snooze, guard=guard)
     automations = Automations(config, registry, actions, notifier, settings,
@@ -775,6 +779,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.on_event("startup")
     async def start_scheduler() -> None:
+        # The loop everything asynchronous in this server belongs to. Recorded
+        # because the browser runtime's pipes and futures live on it, and work
+        # scheduled from another thread has to come back here rather than
+        # awaiting on a loop that is not the one reading the worker.
+        app.state.loop = asyncio.get_running_loop()
         scheduler.start()
         system_metrics.start()
 

@@ -41,6 +41,31 @@ frame over as a file instead of on the control channel, and — killed while Vel
 is waiting on a command — fails that command in bounded time and leaves nothing
 running. Without the browser installed it skips with a reason.
 
+`agent-tools.test.mjs` covers observation and input against a real page: a
+nested cross-document frame contributing addressable controls, a modal appearing
+in the next observation, replace and append typing, an allowed key reaching the
+page and a disallowed one never doing so, and a coordinate click landing where
+the observation said it would. The point of it is the refusals — a control
+renamed between the look and the click, a control that has been removed, an
+observation spent by the action it authorised, a reference from another view, an
+action naming no observation, and a wait that ends whether or not its condition
+arrived. Without the browser installed the browser half skips with a reason; the
+bounds on keys, text, coordinates, scrolls and waits are checked directly and
+always run.
+
+`test_agent_tools.py` runs the same tools through a listening Vela, a managed
+browser and the Notes fixture: opening the app, waiting for its own text,
+reading its real controls out of the sandboxed frame, typing into it and seeing
+the next observation change. It checks that a personal desktop has no tools,
+that a tool nobody declared is not a tool, that an app or site the desktop does
+not allow is refused before a window exists, that a view on another desktop is
+not addressable, and that looking at an unchanging view five times in a row
+stops with `no_progress`. The two that matter most: the agent clicking the app's
+own New button changes nothing when no grant covers the save, and a named action
+runs only with a grant bound to that exact request — replaying the same request
+key returns the first answer instead of writing twice. Its pure-Python half —
+the no-progress rule and the bounded evidence record — needs no browser.
+
 `test_agent_permissions.py` covers what an agent may change: an unclassified
 operation being unavailable, an agent session that cannot reach the dashboard or
 an unclassified app route, reading needing only that the desktop allows the app,

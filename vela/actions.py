@@ -23,6 +23,11 @@ from .app_storage import AppServiceError
 #: out of any installed app's namespace.
 AUTOMATION_CALLER_PREFIX = 'automation:'
 
+#: Caller-id prefix for agent runs, for the same reason. A run's receipts are
+#: its own: they are what makes an uncertain external result something to
+#: reconcile rather than something to repeat.
+AGENT_CALLER_PREFIX = 'agent:'
+
 
 def fingerprint(manifest):
     return hashlib.sha256(json.dumps(manifest.raw, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -201,6 +206,55 @@ class Actions:
                 with self.storage.connection() as db:
                     self._event(db, event_id, caller, target_id, action_id, 'failed', error.detail)
                 raise error
+
+    def invoke_for_agent(self, caller_key, target_id, action_id, value, key, authorize):
+        """Run one named action on behalf of an agent run.
+
+        The same shape as the automation path, and for the same reason: an agent
+        is not an app, so it has no manifest declaring which actions it may ask
+        for. What decides is `authorize(target_manifest, target_identity)`, which
+        must find a current grant bound to this desktop, this run, this
+        installation and this exact request — and which runs again inside the
+        write's own transaction, so a grant revoked a moment earlier still stops
+        it.
+
+        `caller_key` names the run, so its request keys and receipts are its own.
+        A repeated request key returns the first result rather than doing it
+        twice, which is what makes retrying a lost answer safe.
+        """
+        caller = AGENT_CALLER_PREFIX + caller_key
+        event_id = str(uuid.uuid4())
+        with self.lifecycle.lock:
+            try:
+                target, target_identity, action = self.target(target_id, action_id)
+                authorize(target, target_identity)
+                return self._apply(caller, target, target_id, action, value, key, event_id,
+                                   lambda db: authorize(target, target_identity))
+            except (AppServiceError, ValueError, TypeError) as exc:
+                error = exc if isinstance(exc, AppServiceError) else AppServiceError(422, 'Invalid action input')
+                with self.storage.connection() as db:
+                    self._event(db, event_id, caller, target_id, action_id, 'failed', error.detail)
+                raise error
+
+    def describe_for_agent(self, app_id):
+        """The named actions an agent could ask this app to run.
+
+        Title, effect and input shape — what a run needs to choose one, without
+        the grant state of any other app that happens to call it.
+        """
+        manifest, _ = self.context(app_id)
+        return {'actions': [
+            {'id': item['id'], 'title': item.get('title'), 'effect': item.get('effect'),
+             'inputSchema': item.get('inputSchema')}
+            for item in manifest.raw.get('actions', [])
+        ]}
+
+    def forget_agent(self, caller_key):
+        """Drop a run's receipts when its history is cleared or its desktop goes."""
+        caller = AGENT_CALLER_PREFIX + caller_key
+        with self.storage.connection() as db:
+            db.execute('DELETE FROM action_results WHERE source=?', (caller,))
+            db.execute('DELETE FROM action_events WHERE source_app=?', (caller,))
 
     def forget_automation(self, workflow_id):
         """Drop an automation's receipts when its workflow is deleted."""
