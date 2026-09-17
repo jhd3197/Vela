@@ -66,6 +66,28 @@ runs only with a grant bound to that exact request — replaying the same reques
 key returns the first answer instead of writing twice. Its pure-Python half —
 the no-progress rule and the bounded evidence record — needs no browser.
 
+`test_approvals.py` covers changes that wait for a person. Its first half is
+the sentence somebody decides from: a secret-looking field described and never
+repeated, a long value clipped, a change too large to list saying how much
+changed rather than listing part of it, and a first write describing the fields
+it sets rather than "nothing becomes 2 fields". Its second half is the flow, and
+is mostly about the answer *not* counting — the wrong digest, the second click,
+the click after the window closed, after the policy changed, after the run
+stopped, after the app gave up, and after the request expired. Each of those
+checks the stored data as well as the status code. It also covers one question
+for a repeated identical change, a different question for a different one, an
+app seeing only its own, an app session unable to resolve anything, a person's
+own change never becoming a question at all, and extensions that cannot push
+past the absolute deadline.
+
+`bridge.test.mjs` covers the host side of that: a write answered 202 keeps the
+app's request open past the ten-second reply timeout, the app is told
+`vela:pending` rather than that it failed, and when the owner approves the
+effect happens exactly once. It also covers the compatibility path — an app
+whose SDK announced no features is answered immediately with a message saying it
+cannot wait, and its question is withdrawn rather than left on the owner's
+screen.
+
 `test_agent_permissions.py` covers what an agent may change: an unclassified
 operation being unavailable, an agent session that cannot reach the dashboard or
 an unclassified app route, reading needing only that the desktop allows the app,

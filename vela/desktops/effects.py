@@ -38,6 +38,9 @@ EFFECTFUL = ("write", "restore", "action", "connection", "publish")
 #: `{}` for it.
 OPERATIONS = {
     ("DELETE", "/session"): ("session.close", "read"),
+    # What the app's own SDK says it can do. Read-only in every sense: it can
+    # only ever make Vela more careful, never more permissive.
+    ("POST", "/features"): ("session.features", "read"),
     ("GET", "/storage"): ("storage.read", "read"),
     ("PUT", "/storage"): ("storage.write", "write"),
     ("GET", "/storage/snapshots"): ("storage.snapshots", "read"),
@@ -45,6 +48,12 @@ OPERATIONS = {
     ("POST", "/storage/snapshots/{}/restore"): ("storage.restore", "restore"),
     ("GET", "/actions"): ("actions.status", "read"),
     ("POST", "/actions/invoke"): ("actions.invoke", "action"),
+    # Asking about a change this app is already waiting on, and asking for more
+    # time to wait. Both are `read`: neither changes anything, and needing a
+    # grant to ask about a grant would be a circle.
+    ("GET", "/approvals/{}"): ("approvals.status", "read"),
+    ("POST", "/approvals/{}/extend"): ("approvals.extend", "read"),
+    ("POST", "/approvals/{}/abandon"): ("approvals.abandon", "read"),
     ("GET", "/connection"): ("connection.read", "read"),
     ("POST", "/connection/invoke"): ("connection.invoke", "connection"),
     ("PUT", "/widgets/{}"): ("widget.publish", "publish"),

@@ -97,6 +97,22 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **A change can wait for you to say yes.** When an app running on an agent's
+  desktop tries to save something the desktop was not already allowed to save,
+  the change becomes a question rather than a failure. Nothing is written while
+  it is open, the question says in plain language what would change — and
+  describes a password-like field rather than repeating it — and saying yes
+  approves that exact change and no other. Say no, close the window, change the
+  desktop's permissions or stop the task, and a click arriving afterwards does
+  nothing at all. Questions expire on their own, and no amount of asking for
+  more time pushes that past twenty minutes.
+
+  Apps are not left hanging while you decide. An app that loads Vela's own SDK
+  waits as long as the question does; one that bundles an older copy is told
+  straight away that it cannot wait, so you can make the change yourself in the
+  window instead. Your own clicks are unaffected: using your own computer has
+  never needed anyone's approval and still does not.
+
 - **App developers: label your controls and declare your actions.** Vela is
   building desktops an agent can work in, and the parts that read and operate an
   app's window now exist. An app is found by the accessible name of its

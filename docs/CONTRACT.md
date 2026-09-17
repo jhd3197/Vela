@@ -184,6 +184,51 @@ synchronization and whole-engine live restore remain later work.
 data migration. Native runtimes execute with the user's privileges even when
 their UI uses the v2 browser sandbox. See [the security boundaries](../SECURITY.md#current-boundaries).
 
+#### Changes that wait for the owner
+
+An app running on a desktop an agent is working in reaches the same endpoints
+through the same session, and a change it makes may need the server's owner to
+agree to it. That decision is a person walking back to their computer, not a
+slow response, so the effect becomes a question instead of a failure.
+
+| Response | Meaning |
+| --- | --- |
+| `202` with `{pending: {...}}` | Nothing was written. The change is described and waiting for the owner. |
+| `200` | It was allowed and it happened. |
+| `403` | Denied, or the app cannot wait and must be taken over by a person. |
+| `409` | The request expired or was cancelled while waiting. |
+
+The pending record carries `requestId`, `effect`, `appId`, `requestDigest`, the
+plain-language `summary`, `expiresAt` and an `absoluteExpiry` that no extension
+can pass. While one is open, the app's session may read
+`GET /api/app/approvals/{requestId}`, ask for more time with
+`POST /api/app/approvals/{requestId}/extend`, and withdraw its own question with
+`POST /api/app/approvals/{requestId}/abandon`. None of those resolve anything:
+approving or denying is `POST /api/desktops/{id}/approvals/{requestId}`, which
+is hub-authenticated and unreachable from any app session or agent browser.
+
+An approval is bound to the app, the installation, the manifest fingerprint, the
+effect class and the digest of that exact request. Approving one change cannot
+commit a different one that arrives afterwards. Cancellation — a closed window, a
+stopped run, a changed policy, an app that gave up — is final: a decision that
+arrives afterwards resolves nothing.
+
+**Protocol negotiation, not a protocol bump.** The bridge protocol stays at 1.
+An SDK announces `features: ['approvals']` in its `vela:ready` handshake; a host
+sends `vela:pending` only to an app that announced it, and an app that announces
+nothing behaves exactly as it always has. The engine records what each window
+announced, so `GET /api/desktops/{id}/views` reports `canWaitForApproval` per
+view — `null` until the app has said, `false` for one that cannot.
+
+**The compatibility path for an app that cannot wait.** Apps loading the
+engine-served `_vela/sdk.js` get this automatically. An app bundling an older
+`@vela/sdk` copy is answered `403` immediately, with a message saying the change
+needs approval and the app cannot wait for one, and its question is withdrawn
+rather than left on the owner's screen. Such an app is still fully usable on an
+agent desktop through two supported paths: a **declared action**, which can be
+granted ahead of time in `granted` approval mode, and **human takeover**, where
+a person makes the change in the window themselves.
+
 ### App data, connections and HTTPS
 
 `data.schema` optionally names an app-local JSON Schema used on writes, imports

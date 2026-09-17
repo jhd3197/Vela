@@ -85,6 +85,24 @@ class AgentPermissionTests(unittest.TestCase):
             "/api/app/storage", headers=headers, json={"value": value, "revision": revision}
         )
 
+    def assertAsked(self, response, why=""):
+        """An effect with no grant behind it becomes a question, not a write.
+
+        202 with a pending request, and — the part that matters — nothing
+        changed. Since delayed approvals arrived this is what "refused" looks
+        like from the agent's side: still waiting, still not done.
+        """
+        self.assertEqual(response.status_code, 202, response.text or why)
+        body = response.json()
+        self.assertIn("pending", body, why)
+        self.assertEqual(body["pending"]["state"], "pending", why)
+        self.assertTrue(body["pending"]["summary"]["headline"], why)
+        return body["pending"]
+
+    def stored(self, headers=None):
+        """What the app actually has saved, read as the person."""
+        return self.client.get("/api/app/storage", headers=headers or self.notes).json()
+
     # ---- the classification itself
 
     def test_an_operation_nobody_classified_is_unavailable(self):
@@ -183,14 +201,13 @@ class AgentPermissionTests(unittest.TestCase):
 
     def test_a_write_without_a_grant_is_refused_however_it_arrives(self):
         agent = self.ready()
+        before = self.stored()["revision"]
         # The same change, through the storage route an app's Save button uses.
-        refused = self.write(agent, {"notes": []})
-        self.assertEqual(refused.status_code, 403)
-        self.assertIn("allowed", refused.json()["detail"].lower())
+        asked = self.assertAsked(self.write(agent, {"notes": []}))
+        self.assertEqual(asked["effect"], "write")
+        self.assertEqual(self.stored()["revision"], before, "asking is not writing")
         # And through the snapshot route, which is also a change.
-        self.assertEqual(
-            self.client.post("/api/app/storage/snapshots", headers=agent).status_code, 403
-        )
+        self.assertAsked(self.client.post("/api/app/storage/snapshots", headers=agent))
         # A person doing the same thing is unaffected.
         self.assertEqual(self.write(self.notes, {"notes": []}).status_code, 200)
 
@@ -213,11 +230,11 @@ class AgentPermissionTests(unittest.TestCase):
         self.grant("write", requestDigest=digest)
 
         other = {"notes": [{"id": "a", "title": "Groceries", "body": "keys too", "updated": 1}]}
-        self.assertEqual(
-            self.write(agent, other).status_code,
-            403,
+        self.assertAsked(
+            self.write(agent, other),
             "approving one change is not approving a different one that arrives after",
         )
+        self.assertEqual(self.stored()["revision"], 0, "and the other one did not land")
         self.assertEqual(self.write(agent, wanted).status_code, 200)
 
     def test_restoring_needs_its_own_grant(self):
@@ -234,12 +251,15 @@ class AgentPermissionTests(unittest.TestCase):
         # Permission to save is not permission to replace everything with an
         # older copy of it.
         self.grant("write")
-        refused = self.client.post(
-            f"/api/app/storage/snapshots/{snapshot_id}/restore",
-            headers=agent,
-            json={"revision": 2},
+        asked = self.assertAsked(
+            self.client.post(
+                f"/api/app/storage/snapshots/{snapshot_id}/restore",
+                headers=agent,
+                json={"revision": 2},
+            )
         )
-        self.assertEqual(refused.status_code, 403)
+        self.assertEqual(asked["effect"], "restore")
+        self.assertEqual(self.stored()["revision"], 2, "asking about a restore restores nothing")
 
         self.grant("restore", scope={"snapshot": snapshot_id})
         allowed = self.client.post(
@@ -257,10 +277,12 @@ class AgentPermissionTests(unittest.TestCase):
         agent = self.agent_session(view)
         widget_id = "sync"
         summary = {"value": "3", "caption": "notes"}
-        refused = self.client.put(
-            f"/api/app/widgets/{widget_id}", headers=agent, json={"summary": summary}
+        asked = self.assertAsked(
+            self.client.put(
+                f"/api/app/widgets/{widget_id}", headers=agent, json={"summary": summary}
+            )
         )
-        self.assertEqual(refused.status_code, 403)
+        self.assertEqual(asked["effect"], "publish")
         self.grant("publish", app_id="widget-fixture", scope={"widget": widget_id})
         allowed = self.client.put(
             f"/api/app/widgets/{widget_id}", headers=agent, json={"summary": summary}
@@ -310,7 +332,9 @@ class AgentPermissionTests(unittest.TestCase):
         view = self.open_view("notes")
         other = self.agent_session(view, "run-b")
         self.grant("write", runId="run-a")
-        self.assertEqual(self.write(other, {"notes": []}).status_code, 403)
+        asked = self.assertAsked(self.write(other, {"notes": []}))
+        self.assertEqual(asked["runId"], "run-b", "and it is asked on behalf of the run that asked")
+        self.assertEqual(self.stored()["revision"], 0)
 
     def test_a_grant_does_not_survive_the_app_being_reinstalled(self):
         agent = self.ready()
@@ -331,7 +355,10 @@ class AgentPermissionTests(unittest.TestCase):
         self.grant("write", seconds=1)
         self.assertEqual(self.write(agent, {"notes": []}).status_code, 200)
         time.sleep(1.1)
-        self.assertEqual(self.write(agent, {"notes": []}, revision=1).status_code, 403)
+        # An expired grant is no grant. The change goes back to being a
+        # question, and revision 1 is still what is stored.
+        self.assertAsked(self.write(agent, {"notes": []}, revision=1))
+        self.assertEqual(self.stored()["revision"], 1)
 
     def test_deleting_a_desktop_takes_its_authority_with_it(self):
         self.assertEqual(self.policy(apps=["notes"]).status_code, 200)
@@ -415,7 +442,9 @@ class AgentPermissionTests(unittest.TestCase):
                 json={"app": "notes", "action": "create-note", "input": value, "key": key},
             )
 
-        # Neither permission yet.
+        # Neither permission yet. The app's own missing permission is a refusal
+        # — it is not something the owner can approve on the app's behalf — so
+        # this one is 403 rather than a question.
         self.assertEqual(invoke(agent).status_code, 403)
 
         # The app is allowed to ask, which is a different question from this
@@ -435,8 +464,11 @@ class AgentPermissionTests(unittest.TestCase):
             ).status_code,
             200,
         )
+        # Now the app may ask, and the run may not — so this becomes the
+        # owner's question rather than a refusal, and nothing is written.
+        self.assertAsked(invoke(agent, "agent-key-2"), "the app may ask; this run may not")
         self.assertEqual(
-            invoke(agent, "agent-key-2").status_code, 403, "the app may ask; this run may not"
+            self.client.get("/api/app/storage", headers=self.notes).json()["value"], None
         )
 
         self.grant("action", app_id="meals", scope={"app": "notes", "action": "create-note"})

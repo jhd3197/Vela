@@ -229,7 +229,12 @@ class Widgets:
         summary = validate_summary(payload)
         # Publishing puts a line on the owner's desk. An agent doing it needs to
         # have been allowed to; a person doing it is using their own desk.
-        authorize = self._guard(session, "publish", scope={"widget": widget_id})
+        authorize = self._guard(
+            session,
+            "publish",
+            scope={"widget": widget_id},
+            note=f"Only what the {widget_id} widget shows on your desk changes.",
+        )
         updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with self._storage.connection() as db:
             db.execute("BEGIN IMMEDIATE")

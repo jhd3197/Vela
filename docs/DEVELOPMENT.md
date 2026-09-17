@@ -784,6 +784,53 @@ view in a row end with `no_progress` and the reason. The fingerprint covers the
 address, the controls and the length of the text but not the text itself, so a
 clock ticking in the corner does not count as progress.
 
+### Changes that wait for a person
+
+`vela/agent_runs/approvals.py` holds every pending question and what became of
+it. In memory, deliberately: a pending approval that survived a restart would be
+authority for an effect whose run, view and browser are all gone.
+
+The shape is one decision made in four places, and it is worth reading in that
+order:
+
+1. **`Desktops.effect_guard` opens the question.** When an agent holds no grant
+   for an effect, the answer is not automatically no. It reads the grant once
+   outside the transaction — only to decide whether this needs asking — opens a
+   pending request described from the request itself, and returns an `authorize`
+   that asks again *inside* the write's transaction and raises `ApprovalPending`
+   if there is still nothing. Nothing is written while a question is open.
+2. **The route answers 202.** `ApprovalPending` is not an `AppServiceError`: a
+   failure and a question are different answers, and an app told "failed" learns
+   to give up on the thing it should be waiting for.
+3. **The host bridge waits.** `web/src/bridge/host.js` holds the app's request
+   open, tells the app with `vela:pending`, polls the app-scoped status route,
+   asks for more time as the deadline nears, and — once the state is
+   `approved` — runs *the same operation again*. The retry is the point: the
+   effect commits through the ordinary path, with the grant checked where it
+   always is. Approving issues a grant and nothing else.
+4. **Only the owner resolves it.** `POST /api/desktops/{id}/approvals/{id}` is
+   hub-authenticated and on the desktops router, which no app session and no
+   managed browser can reach.
+
+The summary is built from the request, never from anything the agent said about
+it — a model describing its own effect would be a model writing the sentence
+somebody makes their decision from. `changes()` diffs the stored document
+against the proposal to a bounded depth and count; past those bounds it says how
+much changed rather than listing part of it and implying that is all. Values
+under a field whose name suggests a secret are described by their shape and
+never repeated, because a prompt is read by a person and may be screenshotted or
+read aloud.
+
+Cancellation is final and comes from five places: a closed window
+(`close_view`), a stopped run (`revoke_run`), a changed policy (`save_policy`),
+the agent being turned off (`disable_agent`) and the app itself giving up
+(`/abandon`). A decision arriving after any of those resolves nothing.
+
+The approval's own grant is short — two minutes for "approve once", an hour for
+an explicitly scoped "and next time too" — and the one-off is bound to the exact
+request digest while the scoped one deliberately is not. They are different
+decisions and never the same button.
+
 ### For app developers
 
 Nothing about an app changes for Phase 6. An app running in an agent's window is

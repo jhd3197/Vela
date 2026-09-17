@@ -24,7 +24,7 @@ from .effects import EFFECTFUL
 from .grants import Grants
 from .principals import agent_of
 from .migration import migrate
-from .policy import empty_policy, validate_policy
+from .policy import empty_policy, granted_action, validate_policy
 from .runtime import BrowserRuntime, RuntimeUnavailable, availability as runtime_availability
 from .store import new_id as new_runtime_session_id
 from .models import (
@@ -93,6 +93,13 @@ class Desktops:
         # revocation and an effect contend for one write lock instead of racing
         # across two databases.
         self.grants = Grants(storage) if storage is not None else None
+        # Changes an agent has asked about and nobody has answered yet. In
+        # memory: a pending approval that survived a restart would be authority
+        # for an effect whose run, view and browser are all gone.
+        self._approvals = None
+        #: view id -> what that window's SDK announced it understands. Volatile,
+        #: and only ever used to say in advance that something will not work.
+        self._view_features: dict[str, tuple[str, ...]] = {}
         self._auth = auth
         self._registry = registry
         # Named actions, attached after construction because the action service
@@ -104,7 +111,8 @@ class Desktops:
         self._tools = None
         # The managed browser. Created now, started only when a desktop needs
         # one: a server with no agent desktops should cost nothing.
-        self.runtime = BrowserRuntime(data_dir / "agent-frames", log=log or (lambda message: None))
+        self._log = log or (lambda message: None)
+        self.runtime = BrowserRuntime(data_dir / "agent-frames", log=self._log)
         # The one origin the managed browser may talk to. Everything else on
         # this computer, including the rest of Vela, is off the list.
         self._origin = origin.rstrip("/")
@@ -356,7 +364,7 @@ class Desktops:
         """Give the desktop back, and take the agent's authority with it."""
         desktop_id = validate_id(desktop_id)
         self.store.get(desktop_id)
-        self.revoke_desktop(desktop_id)
+        self.revoke_desktop(desktop_id, reason="the agent was turned off")
         try:
             await self.runtime.close_desktop(desktop_id)
         except RuntimeUnavailable:
@@ -423,6 +431,17 @@ class Desktops:
                 timeout=45.0,
             )
         raise DesktopError(422, "That kind of window does not open in the agent's browser.")
+
+    @property
+    def approvals(self):
+        """Pending changes waiting for the owner's answer."""
+        if self._approvals is None:
+            if self.grants is None:
+                raise DesktopError(503, "Approvals are not available yet.")
+            from ..agent_runs.approvals import Approvals
+
+            self._approvals = Approvals(self.grants, log=self._log)
+        return self._approvals
 
     @property
     def tools(self):
@@ -498,24 +517,91 @@ class Desktops:
         saved = self.store.save_policy(
             desktop_id, checked, validate_revision(revision, what="policy")
         )
-        self.revoke_desktop(desktop_id)
+        self.revoke_desktop(desktop_id, reason="this desktop's permissions changed")
         return saved
 
     # ---------------------------------------------------------- grants --
 
-    def revoke_desktop(self, desktop_id: str) -> dict[str, Any]:
-        """Drop every grant and every agent session this desktop holds."""
+    def revoke_desktop(self, desktop_id: str, *, reason: str = "this desktop's permissions changed") -> dict[str, Any]:
+        """Drop every grant, agent session and pending question this desktop holds.
+
+        The pending ones matter as much as the grants. A prompt left on screen
+        after the policy behind it changed is a question whose answer would
+        authorize something nobody is asking for any more.
+        """
         removed = self.grants.revoke_desktop(desktop_id) if self.grants else 0
         sessions = self._auth.revoke_agent(desktop_id=desktop_id) if self._auth else 0
-        return {"grants": removed, "sessions": sessions}
+        asked = self._cancel_approvals(desktop_id=desktop_id, reason=reason)
+        return {"grants": removed, "sessions": sessions, "approvals": asked}
 
-    def revoke_run(self, desktop_id: str, run_id: str) -> dict[str, Any]:
+    def revoke_run(self, desktop_id: str, run_id: str, *, reason: str = "the task stopped") -> dict[str, Any]:
         desktop_id = validate_id(desktop_id)
         removed = self.grants.revoke_run(desktop_id, run_id) if self.grants else 0
         sessions = (
             self._auth.revoke_agent(desktop_id=desktop_id, run_id=run_id) if self._auth else 0
         )
-        return {"grants": removed, "sessions": sessions}
+        asked = self._cancel_approvals(desktop_id=desktop_id, run_id=run_id, reason=reason)
+        return {"grants": removed, "sessions": sessions, "approvals": asked}
+
+    def note_view_features(self, session: Any, features: Any) -> dict[str, Any]:
+        """Record what the SDK in one window said it can do.
+
+        Only ever consulted to warn. An app claiming a feature it does not have
+        gets no authority from saying so — the worst it can do is make Vela stop
+        warning about a limitation it really has, which is the app's own problem
+        and never anybody else's data.
+        """
+        principal = agent_of(session)
+        if principal is None or not principal.view_id:
+            return {"ok": True}
+        names = tuple(
+            name for name in (features or []) if isinstance(name, str) and 0 < len(name) < 40
+        )[:8]
+        self._view_features[principal.view_id] = names
+        return {"ok": True, "features": list(names)}
+
+    def view_features(self, view_id: str) -> tuple[str, ...] | None:
+        return self._view_features.get(view_id)
+
+    def approval_for_session(self, session: Any, request_id: str) -> dict[str, Any]:
+        """One pending request, as the app waiting on it may see it.
+
+        Scoped to the session that asked: same desktop, same app, same
+        installation. An app cannot look at another app's question, and reading
+        one resolves nothing.
+        """
+        principal = agent_of(session)
+        if principal is None:
+            raise AppServiceError(403, "Only an agent's app session waits for approval.")
+        record = self.approvals.get(request_id, desktop_id=principal.desktop_id)
+        if (
+            record["appId"] != session["app_id"]
+            or record["installationId"] != session["installationId"]
+        ):
+            raise AppServiceError(404, "That request is not this app's.")
+        return record
+
+    def extend_approval_for_session(self, session: Any, request_id: str) -> dict[str, Any]:
+        self.approval_for_session(session, request_id)
+        principal = agent_of(session)
+        return self.approvals.extend(request_id, desktop_id=principal.desktop_id)
+
+    def abandon_approval_for_session(self, session: Any, request_id: str) -> dict[str, Any]:
+        """The app that asked has stopped waiting. Withdraw its question."""
+        self.approval_for_session(session, request_id)
+        principal = agent_of(session)
+        cancelled = self.approvals.cancel(
+            desktop_id=principal.desktop_id,
+            request_id=request_id,
+            reason="the app stopped waiting for an answer",
+        )
+        return {"cancelled": bool(cancelled)}
+
+    def _cancel_approvals(self, **kwargs) -> int:
+        """Cancel pending questions, without making a missing registry fatal."""
+        if self.grants is None:
+            return 0
+        return self.approvals.cancel(**kwargs)
 
     def list_grants(self, desktop_id: str) -> dict[str, Any]:
         desktop_id = validate_id(desktop_id)
@@ -620,7 +706,16 @@ class Desktops:
             },
         )
 
-    def effect_guard(self, session: Any, effect: str, *, request_digest=None, scope=None):
+    def effect_guard(
+        self,
+        session: Any,
+        effect: str,
+        *,
+        request_digest=None,
+        scope=None,
+        proposal=None,
+        note=None,
+    ):
         """What has to be true, inside the transaction, for this effect to land.
 
         Returns None when a person is asking — the owner using their own
@@ -628,6 +723,13 @@ class Desktops:
         effect's own transaction runs before it writes. That placement is the
         whole point: the answer cannot go stale between being given and being
         used, because giving it and using it are the same transaction.
+
+        When an agent holds no grant for this effect, the answer is not
+        automatically no. A pending request is opened, described in plain
+        language from `proposal`, and the effect's transaction raises
+        `ApprovalPending` instead of writing. Nothing is written while one is
+        open; approving issues the grant and the effect commits by this same
+        path, through this same check.
         """
         principal = agent_of(session)
         if principal is None:
@@ -660,10 +762,75 @@ class Desktops:
             "scope": scope,
         }
 
+        # Read once, outside the transaction, only to decide whether this needs
+        # asking. It is never what authorizes anything: the check that counts
+        # runs below, inside the write's own transaction.
+        with self.grants.storage.connection() as db:
+            already = self.grants.find(db, **binding)
+
+        if already is not None:
+            def authorize(db):
+                self.grants.require(db, **binding)
+
+            return authorize
+
+        # The owner's standing answer, from the setup screen: in `granted` mode
+        # the named actions they listed do not ask again. Only those — the mode
+        # is not "allow everything", and nothing else consults this list.
+        if effect == "action" and granted_action(
+            policy, (scope or {}).get("app"), (scope or {}).get("action")
+        ):
+            return lambda db: None
+
+        # No grant. Open the question rather than closing it, and describe it
+        # from the request itself — never from anything the agent said about it.
+        from ..agent_runs.approvals import ApprovalPending, summarize
+
+        summary = summarize(
+            effect,
+            app_name=manifest.name,
+            current=self._current_document(session) if effect == "write" else None,
+            proposal=proposal,
+            scope=scope,
+            note=note,
+        )
+        record = self.approvals.request(
+            desktop_id=principal.desktop_id,
+            run_id=principal.run_id,
+            view_id=principal.view_id,
+            effect=effect,
+            app_id=app_id,
+            app_name=manifest.name,
+            installation_id=binding["installation_id"],
+            contract=binding["contract"],
+            request_digest=request_digest or "",
+            scope=scope,
+            summary=summary,
+        )
+
         def authorize(db):
-            self.grants.require(db, **binding)
+            # Asked again inside the transaction, because the owner may have
+            # answered in the meantime — and because a grant issued a moment ago
+            # and a write landing now must contend for one lock, not two.
+            if self.grants.find(db, **binding) is not None:
+                return
+            raise ApprovalPending(record)
 
         return authorize
+
+    def _current_document(self, session: Any):
+        """What this app has saved now, for describing what would change.
+
+        A read that fails is not a reason to refuse the change; it means the
+        prompt says less about it. Refusing a save because its *description*
+        could not be built would be the wrong way round.
+        """
+        if self._storage is None:
+            return None
+        try:
+            return self._storage.read(session["installationId"], session["schemaVersion"])["value"]
+        except (AppServiceError, KeyError, TypeError):
+            return None
 
     # ----------------------------------------------------------- views --
 
@@ -768,6 +935,12 @@ class Desktops:
         if view["desktopId"] != desktop_id:
             raise DesktopError(404, "That view is not open on this desktop.")
         self.store.close_view(view_id)
+        self._view_features.pop(view_id, None)
+        # A question asked by a window that is gone has nobody left to answer
+        # for. Approving it now would commit a change into a closed app.
+        self._cancel_approvals(
+            desktop_id=desktop_id, view_id=view_id, reason="its window was closed"
+        )
         return {"ok": True, "layout": self.store.layout(desktop_id)}
 
     def select_view(self, desktop_id: str, view_id: str | None) -> dict[str, Any]:
@@ -847,6 +1020,15 @@ class Desktops:
             # pointed at one, and saying so here keeps that decision in one
             # place rather than in every caller that iterates views.
             "agentViewable": view["kind"] in AGENT_VIEWABLE_KINDS,
+            # Whether this window's app can wait while its owner decides about a
+            # change. None until its SDK has said, because "we have not heard
+            # yet" and "it cannot" are different things and only one of them is
+            # worth warning somebody about.
+            "canWaitForApproval": (
+                None
+                if self._view_features.get(view["id"]) is None
+                else "approvals" in self._view_features[view["id"]]
+            ),
         }
 
     # ---------------------------------------------- wallpaper as assets --

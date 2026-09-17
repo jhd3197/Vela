@@ -166,7 +166,8 @@ class Actions:
 
                 agent = self.guard(session, 'action',
                                    request_digest=hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest(),
-                                   scope={'app': target_id, 'action': action_id})
+                                   scope={'app': target_id, 'action': action_id},
+                                   proposal=value)
 
                 def authorize(db):
                     if not self.granted(db, source, sid, target, tid, action):

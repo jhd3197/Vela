@@ -6,14 +6,16 @@ test('bridge binds source, opaque origin, protocol, nonce and operation; tokens 
   let listener;
   globalThis.addEventListener = (_type, callback) => { listener = callback; };
   globalThis.removeEventListener = () => {};
-  const messages = [], requests = [];
+  const messages = [], requests = [], announced = [];
   const source = { postMessage: (message) => messages.push(message) };
   let ready = false;
   const bridge = createBridge({ frame: { contentWindow: source },
     session: { token: 'scoped-secret', installationId: 'installation-one', capabilities: ['storage'] },
     context: { installationId: 'installation-one' },
     onReady: () => { ready = true; }, onDirty() {}, onNavigate() {}, onError() {},
-    fetcher: async (path, options) => { requests.push({ path, options }); return new Response(JSON.stringify({ revision: 1, value: 'own data' })); },
+    // The handshake reports what the app's SDK can do. Counted separately
+    // throughout, so the assertions below stay about what the app asked for.
+    fetcher: async (path, options) => { if (path !== '/api/app/features') requests.push({ path, options }); else announced.push(options); return new Response(JSON.stringify({ revision: 1, value: 'own data' })); },
   });
   const hello = { type: 'vela:ready', protocol: 1 };
   await listener({ source: {}, origin: 'null', data: hello });
@@ -22,6 +24,8 @@ test('bridge binds source, opaque origin, protocol, nonce and operation; tokens 
   assert.equal(ready, false);
   await listener({ source, origin: 'null', data: hello });
   assert.equal(ready, true);
+  assert.equal(announced.length, 1, 'the engine is told what this app can do');
+  assert.deepEqual(JSON.parse(announced[0].body), { features: [] }, 'an SDK that announces nothing announces nothing');
   const nonce = messages[0].session;
   const request = { type: 'vela:request', protocol: 1, id: 'one', session: nonce, operation: 'storage.read', payload: {} };
   await listener({ source, origin: 'null', data: { ...request, session: 'stale' } });
@@ -57,7 +61,7 @@ test('a widget summary is published only with the grant, and never carries the t
       session: { token: 'scoped-secret', installationId: 'installation-one', capabilities },
       context: { installationId: 'installation-one' },
       onReady() {}, onDirty() {}, onNavigate() {}, onError() {},
-      fetcher: async (path, options) => { requests.push({ path, options }); return new Response(JSON.stringify({ ok: true })); },
+      fetcher: async (path, options) => { if (path !== '/api/app/features') requests.push({ path, options }); return new Response(JSON.stringify({ ok: true })); },
     });
     return listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } });
   };
@@ -114,4 +118,154 @@ test('hub worker never caches authenticated API traffic and retires old API cach
     handlers.fetch({ request: { method: 'GET', url: 'http://localhost' + path }, respondWith: () => { intercepted = true; } });
     assert.equal(intercepted, false);
   }
+});
+
+test('a change waiting for approval outlasts the ten-second reply timeout and lands exactly once', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => {
+    listener = callback;
+  };
+  globalThis.removeEventListener = () => {};
+  const messages = [],
+    requests = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  // The owner answers after the bridge has asked about the request a few times,
+  // which is the point of the test: an app's ten seconds is not how long a
+  // person takes, and the host is the one that waits.
+  let looks = 0;
+  let writes = 0;
+  const bridge = createBridge({
+    frame: { contentWindow: source },
+    session: { token: 'scoped-secret', installationId: 'installation-one', capabilities: ['storage'] },
+    context: { installationId: 'installation-one' },
+    onReady() {},
+    onDirty() {},
+    onNavigate() {},
+    onError() {},
+    fetcher: async (path, options) => {
+      requests.push({ path, options });
+      if (path === '/api/app/storage' && options?.method === 'PUT') {
+        writes += 1;
+        if (writes === 1) {
+          return new Response(
+            JSON.stringify({
+              pending: {
+                requestId: 'req-1',
+                state: 'pending',
+                effect: 'write',
+                expiresAt: Date.now() / 1000 + 300,
+                summary: { headline: 'Notes wants to save a change.', detail: ['one more note'] },
+              },
+              detail: 'Notes wants to save a change.',
+            }),
+            { status: 202 },
+          );
+        }
+        return new Response(JSON.stringify({ revision: 2, value: { notes: ['one'] } }));
+      }
+      if (path.startsWith('/api/app/approvals/req-1')) {
+        looks += 1;
+        return new Response(
+          JSON.stringify({
+            requestId: 'req-1',
+            state: looks >= 3 ? 'approved' : 'pending',
+            expiresAt: Date.now() / 1000 + 300,
+          }),
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }));
+    },
+  });
+  await listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1, features: ['approvals'] } });
+  const nonce = messages[0].session;
+  const answer = listener({
+    source,
+    origin: 'null',
+    data: {
+      type: 'vela:request',
+      protocol: 1,
+      id: 'w1',
+      session: nonce,
+      operation: 'storage.write',
+      payload: { value: { notes: ['one'] }, revision: 1 },
+    },
+  });
+  await answer;
+
+  // The app was told it is waiting, not that it failed.
+  const told = messages.find((message) => message.type === 'vela:pending');
+  assert.ok(told, 'the app is told a person has been asked');
+  assert.equal(told.id, 'w1');
+  assert.equal(told.request.summary.headline, 'Notes wants to save a change.');
+
+  // And then it got its real answer, from one write rather than two.
+  const reply = messages.filter((message) => message.type === 'vela:response' && message.id === 'w1');
+  assert.equal(reply.length, 1);
+  assert.equal(reply[0].error, undefined, JSON.stringify(reply[0]));
+  assert.equal(reply[0].result.revision, 2);
+  assert.equal(writes, 2, 'asked once, retried once — the effect itself happened once');
+  assert.equal(JSON.stringify(messages).includes('scoped-secret'), false);
+  bridge.close();
+});
+
+test('an app that cannot wait is told so, and the question is withdrawn rather than left open', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => {
+    listener = callback;
+  };
+  globalThis.removeEventListener = () => {};
+  const messages = [],
+    requests = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  createBridge({
+    frame: { contentWindow: source },
+    session: { token: 'scoped-secret', installationId: 'installation-one', capabilities: ['storage'] },
+    context: { installationId: 'installation-one' },
+    onReady() {},
+    onDirty() {},
+    onNavigate() {},
+    onError() {},
+    fetcher: async (path, options) => {
+      requests.push({ path, options });
+      if (path === '/api/app/storage' && options?.method === 'PUT')
+        return new Response(
+          JSON.stringify({
+            pending: {
+              requestId: 'req-2',
+              state: 'pending',
+              effect: 'write',
+              expiresAt: Date.now() / 1000 + 300,
+              summary: { headline: 'Notes wants to save a change.', detail: [] },
+            },
+          }),
+          { status: 202 },
+        );
+      return new Response(JSON.stringify({ ok: true }));
+    },
+  });
+  // An older SDK announces no features at all.
+  await listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } });
+  const nonce = messages[0].session;
+  await listener({
+    source,
+    origin: 'null',
+    data: {
+      type: 'vela:request',
+      protocol: 1,
+      id: 'w2',
+      session: nonce,
+      operation: 'storage.write',
+      payload: { value: { notes: [] }, revision: 0 },
+    },
+  });
+  const reply = messages.at(-1);
+  assert.equal(reply.type, 'vela:response');
+  assert.equal(reply.error.status, 403);
+  assert.match(reply.error.message, /cannot wait for one/);
+  // Waiting would have been worse than saying so, and a prompt nobody is behind
+  // any more does not stay on the owner's screen.
+  assert.ok(
+    requests.some((request) => request.path === '/api/app/approvals/req-2/abandon'),
+    'the question is withdrawn',
+  );
 });

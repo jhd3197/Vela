@@ -100,6 +100,18 @@ class IssueGrant(BaseModel):
     seconds: int = Field(default=3600, ge=1, le=86400)
 
 
+class ResolveApproval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decision: str = Field(pattern=r"^(approve|deny)$")
+    #: The digest of what was on screen when the person decided. Sent back so a
+    #: prompt that was replaced between being rendered and being answered
+    #: resolves nothing.
+    requestDigest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    #: Approving this one thing, or approving this kind of thing for a while.
+    #: Two different decisions, never the same button.
+    scopeFuture: bool = False
+
+
 class OpenAgentSession(BaseModel):
     model_config = ConfigDict(extra="forbid")
     viewId: str = Field(max_length=64)
@@ -339,6 +351,36 @@ def router(desktops) -> APIRouter:
                 return desktops.revoke_run(desktop_id, runId)
             desktops.get(desktop_id)
             return desktops.revoke_desktop(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.get("/{desktop_id}/approvals")
+    def list_approvals(desktop_id: str) -> dict:
+        """What this desktop is waiting for you to answer."""
+        try:
+            desktops.get(desktop_id)
+            return {"approvals": desktops.approvals.pending(desktop_id)}
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/approvals/{request_id}")
+    def resolve_approval(desktop_id: str, request_id: str, payload: ResolveApproval) -> dict:
+        """Approve or deny one pending change.
+
+        Owner-authenticated, like every route in this file. Nothing inside an
+        agent's browser can reach it, which is what makes "only owner controls
+        resolve approvals" a fact about the system rather than a claim about a
+        page.
+        """
+        try:
+            desktops.get(desktop_id)
+            return desktops.approvals.resolve(
+                request_id,
+                payload.decision,
+                desktop_id=desktop_id,
+                expected_digest=payload.requestDigest,
+                scope_future=bool(payload.scopeFuture),
+            )
         except DesktopError as exc:
             raise _fail(exc)
 
