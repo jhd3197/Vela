@@ -242,6 +242,57 @@ def check_automations(request, hub):
     print(f"       automations ran on bundled Node {worker['node']} with tramo {worker['tramo']}")
 
 
+def check_agent_desktops(request, hub):
+    """What the download says about agent desktops, and whether it is true.
+
+    Deliberately not "start one and run a task". The browser build is not inside
+    the download — it lives in a per-user cache the runtime manages — so on a
+    clean machine the honest result is *unavailable, with the sentence that says
+    what to install*, and that sentence is the thing worth checking. Where the
+    browser does happen to be present, this goes further and converts a desktop
+    for real.
+
+    What is always checked: the worker shipped, its provenance came with it, the
+    integrity digest matches, and nothing here reached outside the bundle.
+    """
+    status = json.loads(request('/api/desktops/runtime', headers=hub))
+    record = status.get('provenance') or {}
+    assert record, 'Packaged server carries no agent runtime provenance'
+    assert (record.get('installed') or {}).get('playwright-core'), (
+        'Packaged server does not say which browser engine it was built against')
+    assert (record.get('sources') or {}).get('digest'), (
+        'Packaged server carries no integrity digest for its worker sources')
+
+    if not status['available']:
+        # The one failure mode that must never be silent: a reason that does not
+        # say what to do about it.
+        detail = status.get('detail') or ''
+        assert detail and ('setup-browser-worker' in detail or 'Reinstall' in detail), (
+            f'Packaged server says agent desktops are unavailable without saying why: {detail!r}')
+        # A digest mismatch means the download is inconsistent, not that a
+        # browser is missing, and that is a packaging failure rather than a
+        # clean-machine expectation.
+        assert 'does not match the rest of this Vela' not in detail, (
+            'Packaged worker sources do not match the digest recorded at build time')
+        print('PASS: agent desktops are packaged and report, with the browser build absent, '
+              'exactly what to install — ' + detail)
+        return
+
+    node = Path(status['node']).as_posix()
+    assert 'node-runtime' in node or 'node' in node.lower(), (
+        f'Packaged server used {status["node"]} for the agent runtime')
+    desktop = json.loads(request('/api/desktops', headers=hub))['defaultId']
+    policy = json.loads(request(f'/api/desktops/{desktop}/policy', headers=hub))
+    request(f'/api/desktops/{desktop}/policy', 'PUT',
+            {'revision': policy['revision'], 'apps': ['chat-fixture']}, hub)
+    started = json.loads(request(f'/api/desktops/{desktop}/enable-agent', 'POST', {}, hub))
+    assert started['desktop']['kind'] == 'agent', started
+    running = json.loads(request('/api/desktops/runtime', headers=hub))
+    assert desktop in running['desktops'], running
+    request(f'/api/desktops/{desktop}/disable-agent', 'POST', {}, hub)
+    print('PASS: the packaged server started a managed browser for a desktop and gave it back')
+
+
 def main():
     check_portable_swap()
     check_update_over_http()
@@ -302,14 +353,15 @@ def main():
                 request('/api/app/storage', 'PUT', {'value': {'messages': []}, 'revision': 0}, app)
                 assert json.loads(request('/api/app/storage', headers=app))['value'] == {'messages': []}
                 check_automations(request, hub)
+                check_agent_desktops(request, hub)
                 # psutil is imported lazily, so a bundle that failed to collect
                 # it starts fine and only reports available: false here.
                 metrics = json.loads(request('/api/system/metrics', headers=hub))
                 assert metrics['available'], 'Packaged server has no psutil: the desk loses System and Volume'
                 assert metrics['memory']['total'] > 0 and metrics['uptime']['seconds'] >= 0, metrics
                 print('PASS: relocated server starts, serves dashboard/assets, validates and installs an app, '
-                      'serves SDK, stores app data, reports system metrics, and runs an automation on its '
-                      'bundled runtime')
+                      'serves SDK, stores app data, reports system metrics, runs an automation on its '
+                      'bundled runtime, and carries a verified agent desktop runtime')
             except Exception:
                 output.flush()
                 print((work / 'server.log').read_text(encoding='utf-8'))

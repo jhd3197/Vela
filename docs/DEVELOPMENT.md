@@ -965,6 +965,56 @@ paused, and `control` refuses to resume while anybody still holds the lease. A
 closed tab is covered by the lease timeout rather than by a release request from
 a page being torn down.
 
+### Windows, panes and the warp
+
+| Location | Responsibility |
+| --- | --- |
+| `web/src/desktops/window-state.js` | Every rectangle: clamping, cascading, maximizing, split halves, and the 720 px threshold below which a split is drawn one pane at a time |
+| `web/src/desktops/snap.js` | What a drag near an edge means, and the layout patches for snapping, swapping, leaving and vacating |
+| `web/src/desktops/SplitDivider.jsx` | The handle: pointer, keyboard, one revisioned save on release |
+| `web/src/desktops/EmptyPane.jsx` | A pane whose member left, and the picker that fills it |
+| `web/src/desktops/app-reference.js` | The typed drag payload: an app's identity, never its contents |
+| `web/src/desktops/motion/genie-preset.js` | `vela-genie-v1` — the one place the numbers live |
+| `web/src/desktops/motion/genie-geometry.js` | The band arithmetic, with no canvas, clock or React in it |
+| `web/src/desktops/motion/motion-state.js` | Generations, reversal, and settling on cancellation |
+| `web/src/desktops/motion/frame-source.js` | Whether a window can be warped at all, and the frame if it can |
+| `web/src/desktops/motion/GenieOverlay.jsx` | Canvas 2D, DPR-scaled backing store, CSS-pixel geometry |
+
+**The preset is one frozen object.**
+
+```js
+{ preset: 'vela-genie-v1', durationMs: 480, neck: 10, swoopPx: 150 }
+```
+
+`neck` is dimensionless: `lead = clamp(neck / 100, 0.06, 0.92)`, which is 0.10
+for the approved value, and it is the fraction of the duration by which bands
+nearer the icon start ahead of bands further from it. That stagger is the neck —
+there is no separate curve for it. `swoopPx` is 150 CSS pixels at the 1440-wide
+reference composition and scales down proportionally on a narrower screen.
+
+The prototype this came from carried swoop 10 in its metadata, its draw fallback
+and its displayed timing. If you change any of these numbers, change them here;
+the renderer, the geometry, the tests and the documentation all read this object,
+and a test that only read the label would pass while the motion was wrong.
+
+**The decision happens before the decoration.** `useWindowMotion.animate` applies
+the layout change first and only then asks whether a frame is available. Every
+way capture can fail therefore costs an animation rather than a window, and
+nothing about minimizing touches an app's process, its bridge session or an
+agent's task.
+
+**Capture is a capability question, not a promise.** A browser will not hand this
+page the pixels of a cross-origin app frame, and Vela will not request screen
+recording or relax an app frame's sandbox to get them. `capabilityFor` answers
+`remote` for a view the managed browser renders — Vela's server already takes
+authorized frames of those — and `fallback` with a reason for everything else.
+Do not add the prototype's sample textures as a substitute.
+
+**Cancelling settles to the decision.** A hidden tab stops delivering animation
+frames, so lifecycle completion cannot wait for the last one. `cancelMotion`
+applies the state the intent asked for and takes a new generation, which is what
+stops a stale completion hiding a window that has since been restored.
+
 **Human input is bounded like the agent's.** The same key allowlist, the same
 text limits, the same refusal to reach past the page — being a person does not
 turn Ctrl+W into a page interaction. A click is checked against the size of the
@@ -1107,6 +1157,44 @@ not disable branch protection as a workaround in the workflow.
 Windows has a per-user installer and tray controls with optional start at sign in.
 macOS/Linux currently use portable archives. Code signing, macOS notarization
 and background system services are not implemented.
+
+### Ship the agent desktop runtime in a download
+
+`scripts/build-server.py` adds `scripts/browser-worker/` — its sources, its
+`playwright-core` install and its `provenance.json` — to the bundle, and copies
+that package's licence and notices into `third-party/playwright-core/`.
+
+**The Chromium build is deliberately not in the download.** It is a few hundred
+megabytes and lives in a per-user cache the runtime manages, so a copy inside
+every Vela download would multiply the size of the download for something most
+machines already have one of. What ships instead is the pinned version and the
+revision it needs, and a Vela without the browser says which command fetches it.
+The one thing a packaged Vela must never do is download "whatever Chromium is
+current" while somebody is waiting for a task.
+
+`provenance.json` also carries a SHA-256 over every `src/*.mjs` the worker runs.
+`availability()` recomputes it before the worker is started, because the two
+halves speak a versioned protocol and a download with mismatched halves fails
+somewhere that reads like a bug in whatever the agent was doing. A record with no
+digest — from before this existed — is accepted, so an upgrade is not broken for
+no safety gained.
+
+Building without the runtime installed still produces a working download; it
+prints `This download cannot run agent desktops: …` and the feature reports the
+same reason in the dashboard. Run `python scripts/setup-browser-worker.py`
+before building a release.
+
+`scripts/test-server-bundle.py` checks the packaged server for all of it: that
+the provenance shipped, that the digest matches, and that an unavailable runtime
+says which command to run. Where the browser build happens to be present on the
+build machine it goes further and converts a desktop for real.
+
+### Supported platforms
+
+Say what was actually run. A successful Windows check is not evidence about
+macOS or Linux, and the honest thing is a narrower matrix rather than a wider
+claim — record the platforms in the release notes as they were tested, not as
+they are expected to behave.
 
 Vela updates itself from these releases. A running server asks GitHub once a
 day which release is newest, downloads the asset matching how it was installed,

@@ -97,6 +97,18 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Agent desktops are in the download.** A Vela download now carries the piece
+  that drives an agent's browser, along with the record of which browser build it
+  was made against and a checksum of its own code that Vela verifies before
+  starting it. Two halves from different downloads are refused with a sentence
+  about reinstalling rather than failing later in a way that looks like a bug in
+  whatever the agent was doing.
+
+  The browser itself is not in the download — it is a few hundred megabytes and
+  lives in a cache shared with anything else that uses one. Vela says which
+  command fetches it and will never download a browser while you are waiting for
+  a task.
+
 - **Agent desktops tidy up after themselves, and say so.** Four things pile up
   while one works and they now have four stated lifetimes: a picture of a window
   lasts two minutes, a record that something happened lasts a day, a file lasts a

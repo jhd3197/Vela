@@ -1,5 +1,6 @@
 """Build a portable server for the current OS; the frontend must already be built."""
 import hashlib
+import json
 from importlib.metadata import distribution
 import platform
 import shutil
@@ -38,10 +39,57 @@ def automation_assets():
     return options, notes
 
 
+def browser_assets():
+    """The agent desktop runtime, or an explanation of why it is not shipping.
+
+    The worker and `playwright-core` go into the download; the Chromium build
+    does not. That is a deliberate split rather than an oversight: the browser is
+    a few hundred megabytes and lives in a per-user cache the runtime manages, so
+    shipping a copy inside every Vela download would multiply the size of the
+    download for something most people already have one of.
+
+    What the download does carry is the pinned version and the revision it needs,
+    so a Vela without the browser says exactly which one to fetch and never
+    downloads "whatever Chromium is current" during somebody's task.
+    """
+    options, notes = [], []
+    worker = ROOT / 'scripts/browser-worker'
+    if not (worker / 'node_modules/playwright-core').is_dir():
+        notes.append('the browser engine package is not installed '
+                     '(run python scripts/setup-browser-worker.py)')
+        return options, notes
+    if not (worker / 'provenance.json').is_file():
+        notes.append('the runtime has no provenance record '
+                     '(run python scripts/setup-browser-worker.py)')
+        return options, notes
+    options += ['--add-data', f'{worker}:scripts/browser-worker']
+    return options, notes
+
+
+def browser_notices(bundle):
+    """Licence texts for what the agent desktop runtime brings with it."""
+    source = ROOT / 'scripts/browser-worker/node_modules/playwright-core'
+    if not source.is_dir():
+        return
+    destination = bundle / 'third-party/playwright-core'
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in ('LICENSE', 'NOTICE', 'ThirdPartyNotices.txt'):
+        if (source / name).is_file():
+            shutil.copy2(source / name, destination / name)
+    version = json.loads((source / 'package.json').read_text(encoding='utf-8'))['version']
+    (destination / 'README.txt').write_text(
+        f'Agent desktops render in a Chromium that playwright-core {version} starts and stops.\n'
+        'playwright-core is Apache-2.0; its licence and notices are beside this file.\n'
+        'The browser build itself is not in this download. Vela records which revision it\n'
+        'needs and says so rather than downloading one during a task.\n'
+        'Vela source remains MIT licensed.\n', encoding='utf-8')
+
+
 def main():
     if not (ROOT / 'web/dist/index.html').is_file():
         raise SystemExit('Build the dashboard first: npm --prefix web ci && npm --prefix web run build')
     automation_options, automation_notes = automation_assets()
+    browser_options, browser_notes = browser_assets()
     output = ROOT / '.local/server-build'
     output.mkdir(parents=True, exist_ok=True)
     windows_options = []
@@ -80,12 +128,14 @@ def main():
         '--add-data', f'{ROOT / "web/dist"}:web/dist',
         '--add-data', f'{ROOT / "vela/assets"}:vela/assets',
         *automation_options,
+        *browser_options,
         *windows_options,
         str(ROOT / 'scripts/server-entry.py'),
     ], cwd=ROOT, check=True)
     bundle = output / 'dist/Vela'
     shutil.copy2(ROOT / 'docs/SERVER.md', bundle / 'README.md')
     shutil.copy2(ROOT / 'LICENSE', bundle / 'LICENSE')
+    browser_notices(bundle)
     if platform.system() == 'Windows':
         # Ship the tray library's source and notices with the frozen application.
         third_party = bundle / 'third-party'
@@ -118,6 +168,13 @@ def main():
         print('This download cannot run automations: ' + '; '.join(automation_notes) + '.')
     else:
         print('Automations included: bundled Node runtime and workflow engine.')
+    if browser_notes:
+        print('This download cannot run agent desktops: ' + '; '.join(browser_notes) + '.')
+    else:
+        record = json.loads((ROOT / 'scripts/browser-worker/provenance.json').read_text('utf-8'))
+        print('Agent desktops included: playwright-core '
+              f'{(record.get("installed") or {}).get("playwright-core")}. '
+              'The browser build is fetched on the computer that runs Vela.')
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@ to carry.
 a server download so a packaged Vela can say which browser it carries.
 """
 import argparse
+import hashlib
 import json
 import platform
 import shutil
@@ -64,6 +65,22 @@ def probe() -> dict:
         return {'path': None, 'present': False, 'error': 'the runtime did not report a browser path'}
 
 
+def source_digest() -> str:
+    """One digest over every file the worker actually runs.
+
+    Recorded at install time and checked before the worker is started. What it
+    catches is a bundle whose Python half was updated and whose worker half was
+    not — two versions of a protocol talking past each other, which produces a
+    failure that reads like a bug in whatever the agent was doing rather than
+    like a broken download.
+    """
+    digest = hashlib.sha256()
+    for path in sorted((WORKER / 'src').rglob('*.mjs')):
+        digest.update(path.relative_to(WORKER).as_posix().encode('utf-8'))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
 def installed_version() -> str | None:
     package = WORKER / 'node_modules/playwright-core/package.json'
     if not package.is_file():
@@ -86,6 +103,7 @@ def main() -> int:
         current = probe()
         print(f'playwright-core pinned at {pinned}, installed: {installed_version() or "no"}')
         print(f'browser: {current.get("path") or "unknown"}')
+        print(f'sources: {source_digest()[:16]}')
         print(f'present: {"yes" if current.get("present") else "no"}')
         if current.get('error'):
             print(f'reason: {current["error"]}')
@@ -117,6 +135,8 @@ def main() -> int:
                             'present': current.get('present', False)},
                 'platform': {'system': platform.system(), 'machine': platform.machine()},
                 'installedWithNode': node_version,
+                # Checked before the worker is launched. See `source_digest`.
+                'sources': {'algorithm': 'sha256', 'digest': source_digest()},
             },
             indent=2, sort_keys=True,
         ) + '\n',

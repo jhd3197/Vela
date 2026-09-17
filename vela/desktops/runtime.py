@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import os
 import platform
@@ -109,6 +110,21 @@ def provenance() -> dict:
         return {}
 
 
+def source_digest() -> str:
+    """The digest of the worker sources as they are on this computer.
+
+    The same walk `scripts/setup-browser-worker.py` does, in the same order, so
+    the two numbers are comparable. Kept here rather than imported from the
+    script because a packaged Vela ships this module and not that one.
+    """
+    worker = REPO_ROOT / WORKER_DIR
+    digest = hashlib.sha256()
+    for path in sorted((worker / "src").rglob("*.mjs")):
+        digest.update(path.relative_to(worker).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
 def availability() -> dict:
     """Whether agent desktops can run on this computer, in plain words.
 
@@ -138,6 +154,15 @@ def availability() -> dict:
             "The browser this Vela was built against is not on this computer. Run "
             "python scripts/setup-browser-worker.py to fetch it."
         )
+    elif not _sources_match(record):
+        # A download whose Python half and worker half are different versions
+        # would fail somewhere that reads like a bug in whatever the agent was
+        # doing. Better to refuse here and say which half to reinstall.
+        detail = (
+            "The agent desktop runtime does not match the rest of this Vela. Reinstall "
+            "the Vela download, or run python scripts/setup-browser-worker.py from a "
+            "checkout to record the runtime that is actually here."
+        )
     else:
         detail = None
     return {
@@ -146,6 +171,22 @@ def availability() -> dict:
         "node": node,
         "provenance": record,
     }
+
+
+def _sources_match(record: dict) -> bool:
+    """Whether the worker on disk is the one this build recorded.
+
+    A provenance file with no digest is from before this check existed and is
+    accepted: refusing to start over a missing field would break an upgrade for
+    no safety gained, since every other check still has to pass.
+    """
+    recorded = (record.get("sources") or {}).get("digest")
+    if not recorded:
+        return True
+    try:
+        return source_digest() == recorded
+    except OSError:
+        return False
 
 
 class BrowserRuntime:
