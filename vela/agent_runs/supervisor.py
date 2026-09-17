@@ -58,6 +58,24 @@ APPROVAL_POLL_SECONDS = 1.0
 #: twice, not after spending every step it was given saying the same thing.
 MAX_REFUSED_FINISHES = 3
 
+#: How a run ended, and whether the next one on that desktop should start.
+#:
+#: Succeeding and being stopped by a person are both complete answers, so the
+#: queue moves on. Everything else left something the owner has not seen: a
+#: failure, a restart in the middle, or a request whose outcome nobody can
+#: establish. Starting the next task on top of one of those is how a second
+#: thing goes wrong for the same reason as the first.
+ADVANCES_QUEUE = ("succeeded", "cancelled")
+
+#: Why a desktop's queue is holding, in the words it is reported in.
+BLOCKED_REASONS = {
+    "failed": "The task before this one stopped with a problem.",
+    "interrupted": "The task before this one was interrupted.",
+    "outcome_unknown": (
+        "The task before this one sent something to a website and never saw the answer."
+    ),
+}
+
 
 class Supervisor:
     """Every agent run on this server."""
@@ -76,6 +94,12 @@ class Supervisor:
         self.tools = tools if tools is not None else desktops.tools
         self._log = log or (lambda message: None)
         self._runs: dict[str, asyncio.Task] = {}
+        #: run id -> the desktop it is on, so a task can be found without
+        #: reading the store from inside the lock that guards starting one.
+        self._desktops: dict[str, str] = {}
+        #: Desktops whose queue is holding, and why. Cleared by the owner saying
+        #: to carry on, or by a new task being submitted deliberately.
+        self._blocked: dict[str, str] = {}
         self._control: dict[str, str] = {}
         self._budgets: dict[str, Budget] = {}
         self._slots = asyncio.Semaphore(MAX_CONCURRENT_RUNS)
@@ -122,6 +146,9 @@ class Supervisor:
     async def submit(self, desktop_id: str, instruction: str, **options) -> dict[str, Any]:
         """Queue a task and make sure something is working on this desktop."""
         run = self.store.submit(desktop_id, instruction, **options)
+        # Giving a desktop something new to do is the owner looking at it, which
+        # is what the hold was waiting for.
+        self._blocked.pop(desktop_id, None)
         if run["state"] == "queued":
             self.emit(
                 desktop_id,
@@ -133,19 +160,58 @@ class Supervisor:
         return run
 
     async def _pump(self, desktop_id: str) -> None:
-        """Start the next queued task, if this desktop is free and so is a slot."""
+        """Start the next queued task, if this desktop is free and so is a slot.
+
+        "Free" is three things, and the third is the one worth naming: this
+        desktop has nothing running, nothing of its own is already waiting for a
+        workspace, and its queue is not holding because the task before left
+        something the owner has not looked at.
+        """
         async with self._lock:
             if self._stopping:
                 return
             if self.store.active(desktop_id) is not None:
                 return  # One task at a time per desktop. That is the whole rule.
+            if desktop_id in self._desktops.values():
+                # Already carrying one that has not reached `starting` yet,
+                # because it is waiting for a free workspace.
+                return
+            if desktop_id in self._blocked:
+                return
             queued = self.store.next_queued(desktop_id)
             if queued is None:
                 return
-            self.store.update(queued["id"], state="starting")
-            task = asyncio.create_task(self._carry(queued["id"], desktop_id))
-            self._runs[queued["id"]] = task
-            task.add_done_callback(lambda _t, run_id=queued["id"]: self._runs.pop(run_id, None))
+            run_id = queued["id"]
+            # Deliberately still `queued` here. The state changes to `starting`
+            # once a workspace is actually free, so "Starting" on the screen
+            # means starting rather than queueing behind another desktop.
+            task = asyncio.create_task(self._carry(run_id, desktop_id))
+            self._runs[run_id] = task
+            self._desktops[run_id] = desktop_id
+            task.add_done_callback(lambda _t, run_id=run_id: self._forget(run_id))
+
+    def _forget(self, run_id: str) -> None:
+        self._runs.pop(run_id, None)
+        self._desktops.pop(run_id, None)
+
+    def blocked(self, desktop_id: str) -> str | None:
+        """Why this desktop's queue is holding, or None."""
+        return self._blocked.get(desktop_id)
+
+    async def resume_queue(self, desktop_id: str) -> dict[str, Any]:
+        """The owner saying they have seen what stopped the last task.
+
+        An explicit action rather than a timer, because the thing that made the
+        queue hold — a failure, a restart, a request nobody could confirm — is
+        the kind of thing a person has to look at. A timer would only mean the
+        next task starts before they did.
+        """
+        reason = self._blocked.pop(desktop_id, None)
+        if reason is not None:
+            self.emit(desktop_id, "queue.resumed", {"was": reason})
+        await self._pump(desktop_id)
+        queued = self.store.next_queued(desktop_id)
+        return {"desktopId": desktop_id, "wasBlocked": reason, "queued": bool(queued)}
 
     # ----------------------------------------------------------- control --
 
@@ -159,7 +225,14 @@ class Supervisor:
 
         if action == "stop":
             if run["state"] == "queued":
-                # Nothing was ever started, so nothing has to be unwound.
+                # Nothing was ever started, so nothing has to be unwound. It may
+                # still be holding a coroutine that is waiting for a workspace,
+                # and that has to end too or the slot it eventually gets is
+                # spent on a task nobody wants.
+                self._control[run_id] = "stop"
+                waiting = self._runs.get(run_id)
+                if waiting:
+                    waiting.cancel()
                 updated = self.store.update(
                     run_id, state="cancelled", detail="You cancelled this before it started."
                 )
@@ -220,11 +293,30 @@ class Supervisor:
     # --------------------------------------------------------- the run --
 
     async def _carry(self, run_id: str, desktop_id: str) -> None:
-        """One task, from starting to a terminal state, whatever happens."""
+        """One task, from waiting for a workspace to a terminal state."""
         budget = Budget.from_policy(self.desktops.store.policy(desktop_id))
         self._budgets[run_id] = budget
         try:
+            if self._slots.locked():
+                # Said plainly and once. A task that sat on "Starting" for ten
+                # minutes because another desktop had both workspaces would be a
+                # task the person thinks is broken.
+                self.emit(
+                    desktop_id,
+                    "task.waiting",
+                    {
+                        "runId": run_id,
+                        "detail": (
+                            f"Vela runs {MAX_CONCURRENT_RUNS} agent desktops at once, and both "
+                            "are busy. This starts when one finishes."
+                        ),
+                    },
+                    run_id=run_id,
+                )
             async with self._slots:
+                if self._control.get(run_id) == "stop":
+                    raise asyncio.CancelledError()
+                self.store.update(run_id, state="starting")
                 await self._execute(run_id, desktop_id, budget)
         except asyncio.CancelledError:
             reason = self._control.get(run_id)
@@ -253,12 +345,26 @@ class Supervisor:
             )
         finally:
             self._control.pop(run_id, None)
-            self.desktops.tools.log.forget_run(desktop_id, run_id)
-            # Whatever happened here, the next queued task on this desktop gets
-            # its turn rather than waiting for somebody to notice.
+            self._forget(run_id)
+            self.tools.log.forget_run(desktop_id, run_id)
+            # Whether the next one starts depends on how this one ended. A queue
+            # that marched on past a failure would turn one problem into a row
+            # of them, each with the same cause and none of them looked at.
             if not self._stopping:
                 with contextlib.suppress(Exception):
-                    await self._pump(desktop_id)
+                    ended = self.store.get(run_id)["state"]
+                    if ended in ADVANCES_QUEUE:
+                        await self._pump(desktop_id)
+                    elif self.store.next_queued(desktop_id) is not None:
+                        self._hold_queue(desktop_id, ended)
+
+    def _hold_queue(self, desktop_id: str, ended: str) -> None:
+        """Stop the queue and say why, once."""
+        reason = BLOCKED_REASONS.get(ended, "The task before this one did not finish.")
+        if self._blocked.get(desktop_id) == reason:
+            return
+        self._blocked[desktop_id] = reason
+        self.emit(desktop_id, "queue.blocked", {"reason": reason, "after": ended})
 
     async def _execute(self, run_id: str, desktop_id: str, budget: Budget) -> None:
         run = self.store.get(run_id)
@@ -732,8 +838,34 @@ class Supervisor:
             },
         }
 
+    def _last_confirmed(self, desktop_id: str, run_id: str) -> dict[str, Any] | None:
+        """The last thing this run did that there is a receipt for.
+
+        Recorded on every ending that is not a success, because that is when it
+        matters: a task that was interrupted or failed leaves the question "how
+        far did it get", and the honest answer is the last committed step rather
+        than the last step attempted. Nothing here is a reason to try again — it
+        is what somebody reads before deciding whether to.
+        """
+        try:
+            evidence = self.tools.log.evidence(desktop_id, run_id)
+        except Exception:  # noqa: BLE001 - a missing record is not the run's problem
+            return None
+        for record in reversed(evidence or []):
+            if record.get("outcome") == "committed":
+                return {
+                    "tool": record.get("tool"),
+                    "target": record.get("target"),
+                    "at": record.get("at"),
+                }
+        return None
+
     def _finish(self, run_id, desktop_id, state, *, detail=None, result=None, outcome=None,
                 budget=None, limit=None) -> dict[str, Any]:
+        if state != "succeeded":
+            confirmed = self._last_confirmed(desktop_id, run_id)
+            if confirmed:
+                result = {**(result or {}), "lastConfirmed": confirmed}
         with contextlib.suppress(AppServiceError):
             self.store.update(
                 run_id,

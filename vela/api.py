@@ -345,7 +345,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     connected_apps = ConnectedApps(storage)
     app_services = AppServices(registry, auth, storage, guard=guard)
     connections = Connections(registry, storage, transport=connection_transport, guard=guard)
-    lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage)
+    lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage, desktops)
     catalog = Catalog(config)
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)

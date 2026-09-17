@@ -108,6 +108,37 @@ export default function AgentWindow({ desktopId }) {
     [attachments, desktopId, instruction, refresh],
   );
 
+  // Asking again is a new task. The old one is over — what it did, it did — and
+  // this queues the same instruction rather than pretending to continue it.
+  const again = useCallback(
+    async (runId) => {
+      setBusy(true);
+      setProblem(null);
+      try {
+        await desktopsApi.retryTask(desktopId, runId);
+        await refresh();
+      } catch (failure) {
+        setProblem(failure);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [desktopId, refresh],
+  );
+
+  const carryOnQueue = useCallback(async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await desktopsApi.resumeQueue(desktopId);
+      await refresh();
+    } catch (failure) {
+      setProblem(failure);
+    } finally {
+      setBusy(false);
+    }
+  }, [desktopId, refresh]);
+
   const control = useCallback(
     async (runId, action) => {
       setBusy(true);
@@ -263,6 +294,18 @@ export default function AgentWindow({ desktopId }) {
           told which files exist and can attach one, and cannot open this. */}
       <TaskFiles desktopId={desktopId} enabled={isAgent} />
 
+      {/* A queue that is holding says why, and moves only when the person has
+          seen it. Marching on past a failure turns one problem into a row of
+          them with the same cause. */}
+      {tasks.blocked && queued.length > 0 && (
+        <p className="queue-blocked" role="status">
+          {tasks.blocked} Nothing else starts until you say so.
+          <Button size="small" disabled={busy} onClick={carryOnQueue}>
+            Carry on
+          </Button>
+        </p>
+      )}
+
       {queued.length > 0 && (
         <section className="task-queue" aria-labelledby="task-queue-title">
           <h3 id="task-queue-title">Waiting</h3>
@@ -302,6 +345,23 @@ export default function AgentWindow({ desktopId }) {
                 )}
                 {run.detail && run.state !== 'succeeded' && (
                   <p className="task-detail">{run.detail}</p>
+                )}
+                {/* How far it actually got, from the receipts. A task that was
+                    interrupted leaves the question, and the last committed step
+                    is the only honest answer to it. */}
+                {run.result?.lastConfirmed && (
+                  <p className="task-detail">
+                    The last thing it finished was {run.result.lastConfirmed.tool}
+                    {run.result.lastConfirmed.target
+                      ? ` on ${run.result.lastConfirmed.target}`
+                      : ''}
+                    .
+                  </p>
+                )}
+                {['failed', 'cancelled', 'interrupted'].includes(run.state) && (
+                  <Button size="small" disabled={busy} onClick={() => again(run.id)}>
+                    Try again
+                  </Button>
                 )}
               </li>
             ))}

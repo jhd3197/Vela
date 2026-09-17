@@ -103,6 +103,51 @@ intercept — so the site may have received it more than once even though Vela
 allowed it once. That is exactly why the outcome is reported as unknown and why
 checking is a person's job.
 
+## More than one at a time
+
+Vela runs two agent desktops at once on one computer. A third is refused with a
+sentence rather than admitted into a machine that then starts swapping, and a
+task waiting for one of the two says it is waiting rather than showing
+*Starting* for ten minutes.
+
+Each desktop carries one task at a time and keeps its own queue, its own limits
+and its own window in front. Nothing one desktop does reaches another: a window
+on one is not addressable from the other, and a task on one cannot change which
+window the other has selected.
+
+## When a task does not finish cleanly
+
+A task that failed, was interrupted by a restart, or sent something nobody could
+confirm leaves a question you have not looked at yet. The queue on that desktop
+**holds** and says why, instead of starting the next task on top of it and
+turning one problem into a row of them.
+
+**Carry on** starts the queue again, and so does giving the desktop something
+new to do — both of those are you looking at it, which is what the hold was
+waiting for.
+
+A result that did not succeed also says how far it actually got: the last step
+there is a receipt for, read from what happened rather than from how the task
+described it.
+
+## Trying again
+
+**Try again** on a finished task queues the same instruction as a **new** task.
+It is never the old one carrying on — what that one did, it did, and there is no
+state to resume into: the page has moved and anything it sent has been sent. The
+record says which task it came from.
+
+A desktop with something unaccounted for will not repeat it. Say you have
+checked first.
+
+## When an app changes underneath it
+
+Installing an update, removing an app or upgrading one takes its authority with
+it: every permission an agent desktop held against that app is dropped, and any
+question waiting about it can no longer be answered. Windows stay open and say
+they need reopening — you chose to have them, and closing them to tidy up is not
+Vela's decision to make.
+
 ## What is never available
 
 - No path, directory or file picker reaches the agent.

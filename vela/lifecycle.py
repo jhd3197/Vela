@@ -1,6 +1,7 @@
 """Lifecycle orchestration; HTTP routes only translate transport concerns."""
 import socket
 import threading
+from contextlib import suppress
 import time
 import shutil
 import uuid
@@ -53,11 +54,28 @@ def _log_tail(path):
 
 
 class Lifecycle:
-    def __init__(self, config, registry, state, runner, platform, auth, storage):
+    def __init__(self, config, registry, state, runner, platform, auth, storage, desktops=None):
         self.config, self.registry, self.state = config, registry, state
         self.runner, self.platform = runner, platform
         self.auth, self.storage = auth, storage
+        # Optional, because a hub assembled without desktops still installs and
+        # removes apps. Present, it is what keeps agent authority from outliving
+        # the code it was reviewed against.
+        self.desktops = desktops
         self.lock = threading.RLock()
+
+    def revoke_app_authority(self, app_id, *, reason="that app changed"):
+        """Drop everything that was authorized against this app as it was.
+
+        One call site for two things that must not drift apart: the app sessions
+        the auth layer issued, and the grants an agent desktop holds. An update
+        that ended one and left the other would leave authority reviewed against
+        code that is no longer installed.
+        """
+        self.auth.revoke_app(app_id)
+        if self.desktops is not None:
+            with suppress(Exception):
+                self.desktops.app_changed(app_id, reason=reason)
 
     def manifest(self, app_id):
         manifest = self.registry.get(app_id)
@@ -82,7 +100,7 @@ class Lifecycle:
             self.manifest(app_id)
             self.stop_app(app_id)
             self.state.clear(app_id)
-            self.auth.revoke_app(app_id)
+            self.revoke_app_authority(app_id, reason="that app was removed")
             with self.storage.connection() as db:
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='connections'").fetchone():
                     db.execute("DELETE FROM connections WHERE identity IN (SELECT identity FROM installations WHERE app_id=?)", (app_id,))
@@ -118,7 +136,7 @@ class Lifecycle:
                 except Exception:
                     replace_dir(archive, target)
                     raise
-                self.auth.revoke_app(app_id)
+                self.revoke_app_authority(app_id, reason="that app was upgraded")
                 return {"id": app_id, "upgraded": True, "previousPackage": str(archive)}
             finally:
                 shutil.rmtree(staging, ignore_errors=True)

@@ -96,6 +96,11 @@ export const desktopsApi = {
   task: (id, runId, options) => request(`${scope(id)}/tasks/${encodeURIComponent(runId)}`, options),
   controlTask: (id, runId, action) =>
     request(`${scope(id)}/tasks/${encodeURIComponent(runId)}/control`, json('POST', { action })),
+  // Asking again is a new task, never the old one carrying on: what it did, it
+  // did, and there is no state to resume into.
+  retryTask: (id, runId) =>
+    request(`${scope(id)}/tasks/${encodeURIComponent(runId)}/retry`, { method: 'POST' }),
+  resumeQueue: (id) => request(`${scope(id)}/queue/resume`, { method: 'POST' }),
   // `after` is the cursor a viewer already has. Reconnecting with it is what
   // makes a dropped connection cost nothing.
   events: (id, after = 0, options) =>

@@ -127,7 +127,24 @@ class AgentRuns:
                 "working": bool(active and active["state"] in ("starting", "running")),
                 "needsYou": len(waiting),
                 "queued": len(queued),
+                # A queue that is holding is something the person has to clear,
+                # so it belongs in the badge beside the questions.
+                "blocked": self.supervisor.blocked(desktop["id"]),
             }
+        # Polled often enough to be where a lease that nobody ended is noticed.
+        # A person who closed their laptop holding control of a desktop should
+        # not leave it held until somebody thinks to look.
+        for desktop_id in self.viewer.leases.sweep():
+            self.supervisor.emit(
+                desktop_id,
+                "control.expired",
+                {
+                    "detail": (
+                        "Control of this desktop went back to nobody after being idle. "
+                        "The task is still paused."
+                    )
+                },
+            )
         return {"desktops": summary}
 
     # ------------------------------------------------------------- tasks --
@@ -162,6 +179,10 @@ class AgentRuns:
             "runs": [self._describe(run) for run in runs],
             "active": self._describe(active) if active else None,
             "keepingHistory": self.store.keeping_history,
+            # Why nothing is starting, when something is queued and nothing is
+            # running. Without this the screen would show a queue that simply
+            # never moves, which reads as a bug rather than as a decision.
+            "blocked": self.supervisor.blocked(desktop_id),
         }
 
     def get(self, desktop_id: str, run_id: str) -> dict[str, Any]:
@@ -176,6 +197,45 @@ class AgentRuns:
         if action not in ("pause", "resume", "stop"):
             raise DesktopError(422, "A task is paused, resumed or stopped.")
         return self._describe(await self.supervisor.control(desktop_id, run_id, action))
+
+    async def retry(self, desktop_id: str, run_id: str) -> dict[str, Any]:
+        """Do this again — as a new task, never as the old one carrying on.
+
+        Deliberately not "resume". A run that ended has already had whatever
+        effects it had, and there is no state to continue from: the browser it
+        was looking at may be gone, the page has moved, and anything it sent has
+        been sent. What a person means by "try again" is a fresh attempt at the
+        same instruction, and that is what this queues — with a line in the
+        record saying which one it came from, so a pair of half-finished
+        attempts is legible afterwards.
+
+        A task whose outcome nobody could establish is refused. Repeating that
+        is exactly the thing the whole uncertain-outcome path exists to prevent;
+        say what happened first, then ask again.
+        """
+        desktop_id = self._agent_desktop(desktop_id)
+        original = self.get(desktop_id, run_id)
+        if original["state"] == "outcome_unknown" or self.desktops.uncertain(desktop_id):
+            raise DesktopError(
+                409,
+                "Something this desktop sent has not been accounted for. Check what "
+                "happened to it before asking for this again.",
+            )
+        if original["state"] not in ("failed", "cancelled", "interrupted", "succeeded"):
+            raise DesktopError(409, "That task has not finished yet.")
+        fresh = await self.supervisor.submit(desktop_id, original["instruction"])
+        self.supervisor.emit(
+            desktop_id,
+            "task.retried",
+            {"runId": fresh["id"], "of": run_id},
+            run_id=fresh["id"],
+        )
+        return self._describe(fresh)
+
+    async def resume_queue(self, desktop_id: str) -> dict[str, Any]:
+        """Carry on with what is queued, after seeing why it stopped."""
+        desktop_id = self._agent_desktop(desktop_id)
+        return await self.supervisor.resume_queue(desktop_id)
 
     def events(self, desktop_id: str, *, after: int = 0, limit: int = 200) -> dict[str, Any]:
         """Everything that happened after a cursor the viewer already has.

@@ -521,3 +521,18 @@
   margin-top: 14px;
   padding-top: 6px;
 }
+
+/* A queue that is holding. Loud enough to be seen, quiet enough not to look
+   like a failure: nothing is wrong, something is waiting for a person. */
+.queue-blocked {
+  align-items: center;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+}

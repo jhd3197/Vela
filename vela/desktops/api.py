@@ -715,6 +715,30 @@ def router(desktops, *, runs=None) -> APIRouter:
         except AppServiceError as exc:
             raise HTTPException(status_code=exc.status, detail=exc.detail)
 
+    @api.post("/{desktop_id}/tasks/{run_id}/retry", status_code=201)
+    async def retry_task(desktop_id: str, run_id: str) -> dict:
+        """Ask for the same thing again, as a new task.
+
+        Never a resumption: what the old run did, it did. This queues a fresh
+        attempt and records which one it came from.
+        """
+        try:
+            return await _runs().retry(desktop_id, run_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.post("/{desktop_id}/queue/resume")
+    async def resume_queue(desktop_id: str) -> dict:
+        """Carry on with what is queued, after seeing why it stopped."""
+        try:
+            return await _runs().resume_queue(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
     @api.get("/{desktop_id}/events")
     def read_events(desktop_id: str, after: int = 0, limit: int = 200) -> dict:
         """Everything after a cursor the viewer already has.

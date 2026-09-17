@@ -158,6 +158,30 @@ checks that the bytes come back as a download behind owner authentication with
 `no-store` and `nosniff`, and that deleting a desktop takes its staged files and
 leaves the installed apps exactly as they were.
 
+`test_agent_concurrency.py` covers several desktops at once and what happens
+when one goes wrong. No browser: the model and the tools are fixtures, and what
+is under test is the supervisor's decisions. Two tasks on one desktop running in
+the order they were given; two desktops not waiting for each other; a task held
+by the concurrency limit saying so and staying honestly `queued` rather than
+showing `starting`; cancelling one while it waits ending it rather than spending
+the slot it eventually gets. Then the queue rule: a failure holding the queue
+with a reason, the owner's *carry on* being what starts the next one, submitting
+something new also clearing the hold, and one desktop's hold not touching
+another's. It also checks that a task which did not succeed records the last
+step there is a receipt for, that a retry is a new run leaving the original
+exactly as it ended, that a desktop with an unaccounted-for submission refuses
+to repeat it until somebody says they checked, that selecting a window on one
+desktop leaves the other alone, and that a third managed browser is refused with
+a sentence and nothing sent.
+
+Its authority half uses the real hub: removing an app drops every grant held
+against it, a question about an app that is gone can no longer be answered, and
+another app's grants are left exactly as they were.
+
+`test_agent_conversion.py` also turns a desktop's agent on and off five times in
+a row and checks that nothing survives a cycle — no browser context, no grant,
+no session. A leak there is not one anybody sees once; it is one per cycle.
+
 `test_approvals.py` covers changes that wait for a person. Its first half is
 the sentence somebody decides from: a secret-looking field described and never
 repeated, a long value clipped, a change too large to list saying how much

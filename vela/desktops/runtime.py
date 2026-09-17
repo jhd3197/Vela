@@ -38,6 +38,14 @@ HEARTBEAT_SECONDS = 25
 BUNDLED_NODE_DIR = "node-runtime"
 WORKER_DIR = Path("scripts/browser-worker")
 
+#: Browsers this worker will hold at once, across every agent desktop.
+#:
+#: Two browser contexts cost about a gigabyte on the machine this was measured
+#: on. A third desktop is refused with a sentence rather than admitted into a
+#: machine that then starts swapping — stopping at a known number is the version
+#: of resource pressure Vela can actually keep its word about.
+MAX_OPEN_DESKTOPS = 2
+
 
 class RuntimeUnavailable(RuntimeError):
     """The browser runtime is missing, or refused to start."""
@@ -309,6 +317,11 @@ class BrowserRuntime:
         *,
         storage_state: dict | None = None,
     ):
+        if desktop_id not in self.desktops and len(self.desktops) >= MAX_OPEN_DESKTOPS:
+            raise RuntimeUnavailable(
+                f"Vela runs {MAX_OPEN_DESKTOPS} agent desktops at once on this computer. "
+                "Turn one of the others off first."
+            )
         result = await self.command(
             "session.open",
             desktopId=desktop_id,

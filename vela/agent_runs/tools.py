@@ -267,9 +267,9 @@ class AgentTools:
         except StalledError as exc:
             raise ToolError("no_progress", exc.detail) from exc
         except DesktopError as exc:
-            raise ToolError(_code_for(exc.status), exc.detail) from exc
+            raise _refusal(exc) from exc
         except AppServiceError as exc:
-            raise ToolError(_code_for(exc.status), exc.detail) from exc
+            raise _refusal(exc) from exc
         except RuntimeUnavailable as exc:
             raise ToolError("runtime_unavailable", str(exc)) from exc
 
@@ -796,6 +796,26 @@ def _encode(value: Any) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise ToolError("protocol_error", "That action input is not something Vela can send.") from exc
+
+
+def _refusal(exc: Any) -> ToolError:
+    """A service refusal in the vocabulary a run reads.
+
+    A conflict gets a sentence of its own. "409" means somebody — the owner, or
+    another task — changed the thing between it being read and it being written,
+    and the useful instruction is to look again rather than to try the same
+    write harder. A run told only "conflict" repeats itself until its budget
+    ends, which a real evaluation showed it doing.
+    """
+    code = _code_for(exc.status)
+    if code == "conflict":
+        return ToolError(
+            code,
+            exc.detail.rstrip(".")
+            + ". Somebody changed this since you read it — look at it again before deciding.",
+            retryable=True,
+        )
+    return ToolError(code, exc.detail)
 
 
 def _code_for(status: int) -> str:

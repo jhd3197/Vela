@@ -78,6 +78,24 @@ class Leases:
     def __init__(self):
         self._lock = threading.Lock()
         self._leases: dict[str, Lease] = {}
+        #: Desktops whose lease expired and whose expiry nobody has been told
+        #: about yet. Drained by `sweep`, so the event goes out once.
+        self._expired: set[str] = set()
+
+    def sweep(self) -> list[str]:
+        """Desktops whose control has just timed out, reported once each.
+
+        The common way a lease ends is not somebody clicking Release; it is a
+        lid closing. Noticing that has to happen somewhere other than the next
+        request from the person who is no longer there.
+        """
+        with self._lock:
+            for desktop_id, lease in list(self._leases.items()):
+                if lease.expired:
+                    del self._leases[desktop_id]
+                    self._expired.add(desktop_id)
+            expired, self._expired = sorted(self._expired), set()
+        return expired
 
     def holder(self, desktop_id: str) -> dict[str, Any] | None:
         """Who has control here, or None. Every viewer may ask; that is the point.
@@ -140,13 +158,6 @@ class Leases:
         """End it regardless of who held it. Used by logout and by Stop."""
         with self._lock:
             return self._leases.pop(desktop_id, None) is not None
-
-    def sweep(self) -> int:
-        with self._lock:
-            gone = [key for key, lease in self._leases.items() if lease.expired]
-            for key in gone:
-                self._leases.pop(key, None)
-            return len(gone)
 
 
 def check_point(point: Any, viewport: dict[str, Any]) -> dict[str, float]:

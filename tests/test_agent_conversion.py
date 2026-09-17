@@ -202,6 +202,45 @@ class AgentConversionTests(unittest.TestCase):
         self.assertEqual(again.status_code, 200, again.text)
         self.assertEqual(again.json()["desktop"]["kind"], "agent")
 
+    def test_turning_it_on_and_off_repeatedly_leaves_nothing_behind(self):
+        """The cleanup check, run the only way that means anything: repeatedly.
+
+        A leak here is not a leak anybody sees once. It is a browser context per
+        cycle, a grant per cycle, a session per cycle — invisible until the
+        machine is out of memory a day later. Five cycles is enough for a
+        per-cycle leak to be a fivefold one.
+        """
+        self.set_policy()
+        runtime = self.app.state.desktops.runtime
+        grants = self.app.state.desktops.grants
+        for cycle in range(5):
+            self.assertEqual(self.enable().status_code, 200, f"cycle {cycle}")
+            self.assertIn(self.desktop, runtime.desktops, f"cycle {cycle}")
+            grants.issue(
+                desktop_id=self.desktop,
+                effect="write",
+                app_id="notes",
+                installation_id=f"inst-{cycle}",
+                contract="c",
+                seconds=3600,
+            )
+            off = self.client.post(
+                f"/api/desktops/{self.desktop}/disable-agent", headers=self.hub
+            )
+            self.assertEqual(off.status_code, 200, off.text)
+            # Nothing the last cycle held survives into the next one.
+            self.assertNotIn(self.desktop, runtime.desktops, f"cycle {cycle}")
+            self.assertEqual(grants.list(self.desktop), [], f"cycle {cycle}")
+
+        status = self.client.get("/api/desktops/runtime", headers=self.hub).json()
+        self.assertEqual(status["desktops"], [])
+        # And the windows the person had open are still theirs: turning the
+        # agent off is giving the workspace back, not throwing it away.
+        self.assertEqual(
+            self.client.get(f"/api/desktops/{self.desktop}", headers=self.hub).json()["kind"],
+            "personal",
+        )
+
     async def _capture(self, view_id):
         runtime = self.app.state.desktops.runtime
         frame = await runtime.command("view.capture", desktopId=self.desktop, viewId=view_id)

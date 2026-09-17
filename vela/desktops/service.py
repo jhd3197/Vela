@@ -927,6 +927,26 @@ class Desktops:
         asked = self._cancel_approvals(desktop_id=desktop_id, reason=reason)
         return {"grants": removed, "sessions": sessions, "approvals": asked}
 
+    def app_changed(self, app_id: str, *, reason: str = "that app changed") -> dict[str, Any]:
+        """An app was removed, replaced or upgraded underneath a desktop.
+
+        Every grant naming it goes, and every question waiting on it is
+        cancelled. A grant already names an installation and a manifest
+        fingerprint, so a reinstalled app would not match one anyway — but
+        "would not match" leaves a row that means nothing sitting in the table
+        until it expires, and a question on screen whose answer could no longer
+        apply to anything. Removing both is the honest version.
+
+        Windows stay open and say they need reopening. The person chose to have
+        them; closing them to tidy up would be Vela deciding that for them.
+        """
+        removed = self.grants.revoke_app(app_id) if self.grants else 0
+        sessions = self._auth.revoke_app(app_id) if self._auth else 0
+        asked = self._cancel_approvals(app_id=app_id, reason=reason)
+        if removed or asked:
+            self._log(f"{app_id} changed: {removed} grant(s) and {asked} question(s) dropped")
+        return {"grants": removed, "sessions": sessions, "approvals": asked}
+
     def revoke_run(self, desktop_id: str, run_id: str, *, reason: str = "the task stopped") -> dict[str, Any]:
         desktop_id = validate_id(desktop_id)
         removed = self.grants.revoke_run(desktop_id, run_id) if self.grants else 0

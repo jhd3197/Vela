@@ -320,6 +320,7 @@ class Approvals:
         run_id: str | None = None,
         view_id: str | None = None,
         request_id: str | None = None,
+        app_id: str | None = None,
         reason: str = "it was cancelled",
     ) -> int:
         """Stop waiting, permanently.
@@ -342,6 +343,11 @@ class Approvals:
                 if run_id is not None and record["runId"] != run_id:
                     continue
                 if view_id is not None and record["viewId"] != view_id:
+                    continue
+                # An app that was removed, replaced or updated. The question was
+                # about code that is no longer installed, and an answer to it
+                # would authorize an effect against something else.
+                if app_id is not None and record["appId"] != app_id:
                     continue
                 record.update(
                     state="cancelled", resolvedAt=now, resolution="cancelled", reason=reason

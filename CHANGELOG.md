@@ -97,6 +97,27 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Two desktops can work at once, and a queue stops when something goes wrong.**
+  Vela runs two agent desktops at a time on one computer; a third is refused with
+  a sentence, and a task waiting for one of the two says it is waiting instead of
+  showing *Starting* for ten minutes. Each desktop keeps its own queue, its own
+  limits and its own window in front, and nothing one does reaches the other.
+
+  A task that failed, was interrupted or sent something nobody could confirm now
+  **holds** the rest of that desktop's queue and says why, rather than starting
+  the next one on top of it. **Carry on** releases it, and so does giving the
+  desktop something new to do. A result that did not succeed says how far it
+  actually got — the last step there is a receipt for.
+
+  **Try again** queues the same instruction as a new task. It is never the old
+  one carrying on: what that one did, it did. A desktop with something
+  unaccounted for will not repeat it until you say you have checked.
+
+  Updating, removing or upgrading an app now takes its authority with it. Every
+  permission an agent desktop held against that app is dropped and any question
+  waiting about it can no longer be answered, so an approval reviewed against one
+  version of an app can never apply to another.
+
 - **An agent desktop can use a website, and bring a file back.** Approving a
   site is two decisions now, so the setup asks two questions. **Reading only**
   is the default: it can browse, and signing in, sending a form or anything else
