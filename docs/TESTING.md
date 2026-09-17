@@ -41,6 +41,16 @@ it they skip with a reason rather than failing. Install it with
 process over its real protocol, including its watchdog: a force-killed Vela must
 not leave the runtime running.
 
+`tests/agent-boundary.test.mjs` covers the agent desktop runtime. Its policy and
+protocol checks always run. The rest drives a real Chromium: the gateway path
+limit, the owner API refused from navigation and from `fetch`, another local
+service refused over navigation, `fetch` and WebSocket, a redirect out of the
+boundary, a popup aimed outside it, a service worker that never takes over, two
+desktops with separate cookies, a view that keeps working with nothing watching
+it, a real captured frame, and a browser lost mid-command. Without the browser
+installed that half skips with a reason; install it with
+`python scripts/setup-browser-worker.py`.
+
 ## Browser acceptance
 
 After building the dashboard, make Playwright available in `web/` and install

@@ -403,6 +403,59 @@ adds it and the worker to the bundle, and says which of the two is missing if a
 build would ship without automations. It adds roughly 80 MiB to the installed
 size and about 30 MiB to a download.
 
+## Agent desktop runtime
+
+Agent desktops render their app views in a managed Chromium that Vela starts and
+stops, in `scripts/browser-worker/`. The parts that exist today are the ones the
+rest of the feature has to be able to rely on: the stdio protocol, the network
+boundary and the browser session that applies it.
+
+| Location | Responsibility |
+| --- | --- |
+| `scripts/browser-worker/src/protocol.mjs` | The versioned stdio envelope and the identities a command must carry |
+| `scripts/browser-worker/src/network-policy.mjs` | What a desktop may reach: the Vela gateway and the owner's approved sites, nothing else |
+| `scripts/browser-worker/src/session.mjs` | One desktop's browser: its context, its views and the policy applied to every transport |
+| `tests/agent-boundary.test.mjs` | The boundary, checked against a real browser rather than a mocked policy |
+
+### Set up the runtime
+
+```bash
+python scripts/setup-browser-worker.py
+```
+
+This installs the pinned `playwright-core` and the Chromium build that version
+expects, then writes `scripts/browser-worker/provenance.json` recording both.
+`--check` reports what is installed without changing anything; `--skip-browser`
+installs the package alone and leaves the runtime unavailable. Downloading a
+browser is a deliberate setup step, never something a running task does.
+
+Sessions launch the full Chromium (`channel: 'chromium'`), not the headless
+shell the runtime would otherwise pick: the agent's screen is the same screen a
+human takes over, so it has to render through the same engine. Chromium's own
+sandbox stays on — a platform that cannot run it is reported unavailable rather
+than launched with the sandbox disabled.
+
+### Where the boundary is enforced
+
+A separate browser context per desktop separates cookies, storage and input. It
+is not a sandbox for hostile code, so the network boundary is enforced
+separately and in more than one place, because no single hook covers every
+transport:
+
+- `context.route` screens documents, subresources, redirects and `fetch`.
+- `context.routeWebSocket` screens handshakes, which `route` does not see.
+- A `framenavigated` guard catches a navigation that arrived some other way.
+- Service workers are blocked, because a worker sits between the page and the
+  screened network.
+- `response.serverAddr()` is re-checked against the policy, because a URL cannot
+  tell you that an approved hostname resolves to a private address.
+
+Loopback is denied except for the one gateway origin, under the path prefixes
+Vela publishes for it; the owner API is not one of them. The check understands
+the spellings that hide a private address — `2130706433`, `0x7f000001`, `127.1`,
+`[::ffff:127.0.0.1]`, `169.254.169.254` — because a denial that only matches
+dotted quads is not a denial.
+
 ## Container build
 
 The root `Dockerfile` builds the dashboard with Node.js 22 and packages it with
