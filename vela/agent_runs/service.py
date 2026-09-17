@@ -23,14 +23,16 @@ MAX_CLIENT_REQUEST_ID = 100
 class AgentRuns:
     """The task surface for one Vela."""
 
-    def __init__(self, desktops, data_dir, *, settings=None, log=None):
+    def __init__(self, desktops, data_dir, *, settings=None, log=None, notifier=None):
         self.desktops = desktops
         self.store = RunStore(
             data_dir / "agent-runs.sqlite",
             history=(lambda: bool(settings.get("chat_history"))) if settings else None,
         )
         self.model = OllamaAdapter(settings)
-        self.supervisor = Supervisor(desktops, self.store, model=self.model, log=log)
+        self.supervisor = Supervisor(
+            desktops, self.store, model=self.model, log=log, notifier=notifier
+        )
         self._log = log or (lambda message: None)
 
     def prepare(self) -> dict[str, Any]:
@@ -42,6 +44,81 @@ class AgentRuns:
 
     async def stop(self) -> None:
         await self.supervisor.stop_all()
+
+    # -------------------------------------------------------- what works --
+
+    async def models(self) -> dict[str, Any]:
+        """The models on this computer, and which of them could run a task.
+
+        A real check rather than a list of names. The setup screen shows which
+        choices actually work, because discovering that a model cannot call a
+        tool *after* setting a desktop up is the thing this avoids.
+        """
+        from .model import ModelUnavailable
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                response = await client.get(f"{self.model.url}/api/tags")
+                response.raise_for_status()
+                names = [
+                    entry["name"]
+                    for entry in (response.json().get("models") or [])
+                    if isinstance(entry, dict) and entry.get("name")
+                ]
+        except Exception:  # noqa: BLE001 - unreachable is an answer, not a crash
+            return {
+                "reachable": False,
+                "url": self.model.url,
+                "models": [],
+                "default": self.model.default_model(),
+                "detail": (
+                    "Vela could not reach the model server. Start it with: ollama serve"
+                ),
+            }
+        models = []
+        for name in sorted(names)[:40]:
+            try:
+                capabilities = await self.model.capabilities(name)
+            except ModelUnavailable:
+                continue
+            models.append(
+                {"name": name, "tools": capabilities["tools"], "vision": capabilities["vision"]}
+            )
+        return {
+            "reachable": True,
+            "url": self.model.url,
+            "models": models,
+            "default": self.model.default_model(),
+            "usable": [model["name"] for model in models if model["tools"]],
+        }
+
+    def attention(self) -> dict[str, Any]:
+        """One compact line per desktop, for the switcher and the rail.
+
+        Deliberately small: whether something is working, and how many things
+        need the person. A badge that carried the whole task state would be a
+        badge nobody could read at 16 pixels.
+        """
+        summary = {}
+        for desktop in self.desktops.store.list():
+            if desktop["kind"] != "agent":
+                continue
+            active = self.store.active(desktop["id"])
+            waiting = self.desktops.approvals.pending(desktop["id"]) if self.desktops.grants else []
+            queued = [
+                run for run in self.store.list(desktop["id"], limit=50)
+                if run["state"] == "queued"
+            ]
+            summary[desktop["id"]] = {
+                "state": active["state"] if active else "idle",
+                "runId": active["id"] if active else None,
+                "working": bool(active and active["state"] in ("starting", "running")),
+                "needsYou": len(waiting),
+                "queued": len(queued),
+            }
+        return {"desktops": summary}
 
     # ------------------------------------------------------------- tasks --
 

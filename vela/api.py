@@ -357,7 +357,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # Tasks an agent desktop carries out. Created after actions because a run
     # invoking a named action goes through that service.
     agent_runs = AgentRuns(
-        desktops, config.data_dir, settings=settings,
+        desktops, config.data_dir, settings=settings, notifier=notifier,
         log=lambda message: print(f'[vela] {message}', flush=True),
     )
     snooze = SnoozeStore(config.data_dir / "snooze.json")

@@ -62,10 +62,14 @@ MAX_REFUSED_FINISHES = 3
 class Supervisor:
     """Every agent run on this server."""
 
-    def __init__(self, desktops, store, *, model, log=None, tools=None):
+    def __init__(self, desktops, store, *, model, log=None, tools=None, notifier=None):
         self.desktops = desktops
         self.store = store
         self.model = model
+        # Optional, and used for one line per transition that matters. A result
+        # nobody asked to be told about is not a reason to send a message off
+        # this computer.
+        self.notifier = notifier
         self.tools = tools if tools is not None else desktops.tools
         self._log = log or (lambda message: None)
         self._runs: dict[str, asyncio.Task] = {}
@@ -80,6 +84,35 @@ class Supervisor:
 
     def emit(self, desktop_id: str, kind: str, payload: dict[str, Any], *, run_id=None) -> dict:
         return self.store.append(desktop_id, kind, payload, run_id=run_id)
+
+    def announce(self, title: str, message: str, *, tags=None, priority: int = 3) -> None:
+        """One line to the person, through the channel they already configured.
+
+        Deliberately rare: a message per click or per observation would train
+        somebody to ignore the one that mattered. Only a task ending, or one
+        that has stopped and needs them, is worth an interruption.
+
+        Nothing leaves this computer that the owner has not set up and left
+        switched on, and a delivery failure is never allowed to affect the task.
+        """
+        if self.notifier is None:
+            return
+        config = self.notifier.config()
+        if not config["server"] or not config["topic"]:
+            return
+        if config["events"].get("agent_tasks") is False:
+            return
+
+        async def send():
+            try:
+                await self.notifier.publish(
+                    title, message, tags=tags or ["robot"], priority=priority, kind="agent"
+                )
+            except Exception:  # noqa: BLE001 - a notification is never the work
+                self._log(f"could not send a task notification: {title}")
+
+        with contextlib.suppress(RuntimeError):
+            asyncio.get_running_loop().create_task(send())
 
     # ------------------------------------------------------- the queue --
 
@@ -463,6 +496,17 @@ class Supervisor:
             run_id=run_id,
         )
         budget.suspend()
+        # Waiting for a person is worth telling the person about. The message
+        # names the desktop and the change; resolving it is still only possible
+        # in Vela's own controls.
+        with contextlib.suppress(Exception):
+            name = self.desktops.store.get(desktop_id)["name"]
+            self.announce(
+                f"{name}: a change needs you",
+                (record["summary"] or {}).get("headline", "")[:400],
+                tags=["question"],
+                priority=4,
+            )
         deadline = time.monotonic() + APPROVAL_WAIT_SECONDS
         try:
             while time.monotonic() < deadline:
@@ -581,6 +625,16 @@ class Supervisor:
             },
             run_id=run_id,
         )
+        # One line, once, for a transition somebody would want to know about.
+        # Not for every step, and not for a task they cancelled themselves.
+        if state != "cancelled":
+            name = self.desktops.store.get(desktop_id)["name"]
+            with contextlib.suppress(Exception):
+                self.announce(
+                    f"{name}: {'task finished' if state == 'succeeded' else 'task stopped'}",
+                    (detail or (result or {}).get("summary") or "")[:400],
+                    priority=3 if state == "succeeded" else 4,
+                )
         # Whatever this run was allowed to do, it is not allowed to do any more.
         with contextlib.suppress(Exception):
             self.desktops.revoke_run(desktop_id, run_id, reason="the task ended")

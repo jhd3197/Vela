@@ -66,6 +66,19 @@ runs only with a grant bound to that exact request — replaying the same reques
 key returns the first answer instead of writing twice. Its pure-Python half —
 the no-progress rule and the bounded evidence record — needs no browser.
 
+`web/scripts/test-agent-window.mjs` covers the Agent window against a real
+engine: opening it from the rail on a personal desktop shows the setup, which
+asks the four questions — model, apps, websites, changes — and contains none of
+the words a person should never have to read (worker, protocol, port, the
+browser library's name). Asking before changes is the default, the other choice
+says in so many words that it is not a trust-everything switch, and a desktop
+that allows nothing cannot be started. It then checks that what the screen says
+about the runtime and the models is what the engine says, that a personal
+desktop refuses a task, that approvals need owner authentication, and that the
+window minimizes to the rail and comes back. It asserts on structure and on
+refusals rather than on a model being installed, so it is honest on a machine
+with no model server.
+
 `test_agent_runs.py` covers the supervisor with a scripted model and a
 recording tool surface, so it is about the loop rather than about Chromium: a
 task running to a result with nobody watching, ordered events readable from a
@@ -193,6 +206,7 @@ node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
 node web/scripts/test-desktops.mjs
+node web/scripts/test-agent-window.mjs
 node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs

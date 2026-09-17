@@ -78,5 +78,31 @@ export const desktopsApi = {
       body: file,
     }),
   deleteWallpaper: (id) => request(`${scope(id)}/wallpaper`, { method: 'DELETE' }),
+
+  // ---- agent desktops
+  //
+  // Every one of these names its desktop. An agent surface that acted on
+  // "the current desktop" would eventually act on the wrong one.
+  policy: (id, options) => request(`${scope(id)}/policy`, options),
+  savePolicy: (id, body) => request(`${scope(id)}/policy`, json('PUT', body)),
+  enableAgent: (id) => request(`${scope(id)}/enable-agent`, { method: 'POST' }),
+  disableAgent: (id) => request(`${scope(id)}/disable-agent`, { method: 'POST' }),
+  runtime: (options) => request('/api/desktops/runtime', options),
+  models: (options) => request('/api/desktops/models', options),
+  attention: (options) => request('/api/desktops/attention', options),
+
+  tasks: (id, options) => request(`${scope(id)}/tasks`, options),
+  submitTask: (id, body) => request(`${scope(id)}/tasks`, json('POST', body)),
+  task: (id, runId, options) => request(`${scope(id)}/tasks/${encodeURIComponent(runId)}`, options),
+  controlTask: (id, runId, action) =>
+    request(`${scope(id)}/tasks/${encodeURIComponent(runId)}/control`, json('POST', { action })),
+  // `after` is the cursor a viewer already has. Reconnecting with it is what
+  // makes a dropped connection cost nothing.
+  events: (id, after = 0, options) =>
+    request(`${scope(id)}/events?after=${Number(after) || 0}`, options),
+
+  approvals: (id, options) => request(`${scope(id)}/approvals`, options),
+  resolveApproval: (id, requestId, body) =>
+    request(`${scope(id)}/approvals/${encodeURIComponent(requestId)}`, json('POST', body)),
   wallpaperUrl: (id) => `${scope(id)}/wallpaper`,
 };

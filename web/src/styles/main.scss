@@ -41,5 +41,6 @@
 @use 'components/security';
 @use 'components/bots';
 @use 'components/desktops';
+@use 'components/agent';
 // Last: shared touch, scroll and viewport policies override the modules above.
 @use 'layout/mobile';

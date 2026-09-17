@@ -789,3 +789,117 @@ class TaskApiTests(unittest.IsolatedAsyncioTestCase):
             f"/api/desktops/{self.desktop}/tasks", headers=self.hub
         ).json()
         self.assertFalse(listed["keepingHistory"])
+
+
+class NotificationTests(unittest.IsolatedAsyncioTestCase):
+    """One line to the person, and only when it is worth interrupting them."""
+
+    def setUp(self):
+        base.ApiBoundaryTests.setUp(self)
+        self.desktops = self.client.app.state.desktops
+        self.desktop = self.client.get("/api/desktops", headers=self.hub).json()["defaultId"]
+        self.desktops.store.set_kind(self.desktop, "agent")
+        self.desktops.agent_runtime_for = lambda desktop_id: None
+        self.sent = []
+
+        outer = self
+
+        class Recording:
+            def __init__(self, configured=True, enabled=True):
+                self.configured = configured
+                self.enabled = enabled
+
+            def config(self):
+                return {
+                    "server": "https://ntfy.example" if self.configured else "",
+                    "topic": "vela" if self.configured else "",
+                    "user": "",
+                    "pass": "",
+                    "events": {"agent_tasks": self.enabled},
+                }
+
+            async def publish(self, title, message, **kwargs):
+                outer.sent.append({"title": title, "message": message, **kwargs})
+                return {"id": "n1", "accepted_at": "now"}
+
+        self.Recording = Recording
+
+    def tearDown(self):
+        base.ApiBoundaryTests.tearDown(self)
+
+    def supervisor(self, script, answers=None, notifier=None):
+        temp = tempfile.TemporaryDirectory(prefix="vela-note-")
+        self.addCleanup(temp.cleanup)
+        store = RunStore(Path(temp.name) / "runs.sqlite")
+        supervisor = Supervisor(
+            self.desktops,
+            store,
+            model=ScriptedModel(script),
+            tools=RecordingTools(answers),
+            notifier=notifier,
+        )
+        return supervisor, store
+
+    async def settle(self, supervisor, store, instruction="do it"):
+        run = await supervisor.submit(self.desktop, instruction)
+        for _ in range(200):
+            if store.get(run["id"])["state"] in TERMINAL:
+                break
+            await asyncio.sleep(0.05)
+        # The notification is sent from a task of its own, so let it land.
+        await asyncio.sleep(0.2)
+        return store.get(run["id"])
+
+    FINISH = [("task.finish", {"summary": "Read it", "changed": False})]
+    ANSWER = {"task.finish": {"proposed": True, "summary": "Read it", "changed": False, "actions": []}}
+
+    async def test_one_line_when_a_task_ends(self):
+        supervisor, store = self.supervisor(self.FINISH, self.ANSWER, notifier=self.Recording())
+        await self.settle(supervisor, store)
+        self.assertEqual(len(self.sent), 1, self.sent)
+        self.assertIn("task finished", self.sent[0]["title"])
+
+    async def test_nothing_is_sent_when_notifications_are_not_set_up(self):
+        supervisor, store = self.supervisor(
+            self.FINISH, self.ANSWER, notifier=self.Recording(configured=False)
+        )
+        await self.settle(supervisor, store)
+        self.assertEqual(self.sent, [], "a result is not a reason to configure anything")
+
+    async def test_nothing_is_sent_when_the_person_turned_it_off(self):
+        supervisor, store = self.supervisor(
+            self.FINISH, self.ANSWER, notifier=self.Recording(enabled=False)
+        )
+        await self.settle(supervisor, store)
+        self.assertEqual(self.sent, [])
+
+    async def test_a_task_you_stopped_yourself_does_not_tell_you_about_it(self):
+        started = asyncio.Event()
+
+        class Slow(RecordingTools):
+            async def call(self, *args, **kwargs):
+                started.set()
+                await asyncio.sleep(30)
+
+        supervisor, store = self.supervisor(
+            [("desktop.observe", {})], notifier=self.Recording()
+        )
+        supervisor.tools = Slow()
+        run = await supervisor.submit(self.desktop, "wait around")
+        await asyncio.wait_for(started.wait(), timeout=5)
+        await supervisor.control(self.desktop, run["id"], "stop")
+        for _ in range(100):
+            if store.get(run["id"])["state"] in TERMINAL:
+                break
+            await asyncio.sleep(0.05)
+        await asyncio.sleep(0.2)
+        self.assertEqual(self.sent, [], "you already know; you did it")
+
+    async def test_a_delivery_failure_never_affects_the_task(self):
+        class Broken(self.Recording):
+            async def publish(self, *args, **kwargs):
+                raise RuntimeError("the notification server is gone")
+
+        supervisor, store = self.supervisor(self.FINISH, self.ANSWER, notifier=Broken())
+        finished = await self.settle(supervisor, store)
+        self.assertEqual(finished["state"], "succeeded", finished["detail"])

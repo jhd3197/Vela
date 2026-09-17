@@ -186,6 +186,16 @@ def router(desktops, *, runs=None) -> APIRouter:
     def runtime_status() -> dict:
         return desktops.runtime_status()
 
+    @api.get("/models")
+    async def usable_models() -> dict:
+        """Which models on this computer could actually run a task."""
+        return await _runs().models()
+
+    @api.get("/attention")
+    def attention() -> dict:
+        """What is working and what needs you, per agent desktop."""
+        return _runs().attention()
+
     @api.get("/{desktop_id}")
     def get_desktop(desktop_id: str) -> dict:
         try:

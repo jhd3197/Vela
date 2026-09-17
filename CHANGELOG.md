@@ -97,6 +97,28 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Set up a desktop that works for you, and watch it.** The rail's desktop menu
+  has an Agent button on every desktop. On one that is still yours it opens a
+  short setup — which model, which apps, which websites, and whether changes ask
+  first — and it will not let you start a desktop that could not work: a missing
+  model server or a model that cannot operate an app is said plainly, next to the
+  choice, before you commit to anything. Asking before changes is the default,
+  and the other option allows only the actions you pick.
+
+  Afterwards the same window is where you give it work. It shows what is being
+  worked on, how long it has actually been working, what is queued behind it and
+  what came of earlier tasks, with Pause, Carry on and Stop. A change that needs
+  you appears here as a card saying what would change, with Allow, No, and Allow
+  for an hour — and this window is the only place that can answer it. Every
+  result says whether anything was really changed, read from what happened rather
+  than from how the task described it. Desktops working in the background show a
+  mark on the rail, so you can see that Desktop 2 needs you while you are on
+  Desktop 1.
+
+  If you have notifications set up, Vela sends one line when a task finishes or
+  needs you — not one per click — and nothing at all for a task you stopped
+  yourself. There is a new switch for it beside the others.
+
 - **A desktop can carry out a task while you do something else.** Give an agent
   desktop an instruction and Vela works on it on the server: you can close the
   dashboard, switch to another desktop or shut the browser, and the task carries

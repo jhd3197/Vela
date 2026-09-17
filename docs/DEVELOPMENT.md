@@ -886,6 +886,43 @@ A real evaluation run showed why that is wrong: a model reporting "no notes have
 been created" was refused for a change it was explicitly saying it had not made,
 and repeated itself until the step budget ended the task. Prose is not a claim.
 
+### The Agent window
+
+| Location | Responsibility |
+| --- | --- |
+| `web/src/desktops/AgentWindow.jsx` | The composer, the queue, the controls and the results |
+| `web/src/desktops/AgentSetup.jsx` | The four setup questions, with real capability checks |
+| `web/src/desktops/ApprovalCard.jsx` | The owner's answer to one pending change |
+| `web/src/desktops/TaskActivity.jsx` | Events as plain sentences |
+| `web/src/desktops/useAgentEvents.js` | The cursor-recovering reader |
+| `web/src/desktops/useAttention.js` | One small answer for every agent desktop, for the rail |
+
+It renders inside a `WindowFrame`, alongside app windows, and is deliberately
+**not** an app: it is first-party owner chrome. Nothing in the agent's browser
+can see it or reach the routes behind it, which is what makes "only owner
+controls resolve approvals" a fact about the system rather than a claim about a
+page. `DesktopViewHost` renders it for a view of kind `agent`.
+
+**Nothing on this screen is invented.** There is no progress percentage — a task
+does not know how many steps it needs — no hidden reasoning, and no summary
+presented as an outcome. A result's "Nothing was changed" line is read from the
+receipts, so it sits under a summary that reads like a change and contradicts it.
+
+**Events are read, never owned.** `useAgentEvents` polls with the cursor it
+already has, faster while something is happening and not at all while the tab is
+hidden. On a replay gap it says so and shows the task snapshot rather than a
+partial list that reads like the whole story.
+
+**Notifications are rare by design.** One line when a task ends or when one needs
+the person, through the ntfy channel they already configured, under an
+`agent_tasks` toggle beside the existing ones. A task the person stopped
+themselves sends nothing — they already know. A delivery failure is logged and
+never affects the task.
+
+**A dropped app is context.** `application/vela-app` becomes a removable chip. It
+does not submit the instruction, install anything or widen what the desktop may
+use; those remain the owner actions they already were.
+
 ### Evaluating a model
 
 Deterministic fixtures establish that the machinery is correct. They say nothing

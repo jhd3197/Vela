@@ -14,6 +14,7 @@ import AppIcon from '../components/AppIcon.jsx';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { useApps } from '../store.jsx';
+import AgentWindow from './AgentWindow.jsx';
 import AppWindow from './AppWindow.jsx';
 import WindowFrame from './WindowFrame.jsx';
 import { placeView, workArea } from './window-state.js';
@@ -25,6 +26,7 @@ function labelFor(view, apps) {
     return apps?.find((app) => app.id === view.appId)?.name || 'App';
   }
   if (view.kind === 'host') return view.surface === 'library' ? 'Marketplace' : 'Ask';
+  if (view.kind === 'agent') return 'Agent';
   if (view.kind === 'web') {
     try {
       return new URL(view.url).hostname;
@@ -136,6 +138,10 @@ export default function DesktopViewHost({ views }) {
                 onDirty={(state) => setDirty((previous) => ({ ...previous, [view.id]: state }))}
                 onDisconnect={() => setDirty((previous) => ({ ...previous, [view.id]: null }))}
               />
+            ) : view.kind === 'agent' ? (
+              // Owner chrome in a window, not an app. Nothing in the agent's
+              // browser can see this or reach what it calls.
+              <AgentWindow desktopId={view.desktopId} />
             ) : (
               <div className="window-state" role="status">
                 <p>This kind of window is not available yet.</p>

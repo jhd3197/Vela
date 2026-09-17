@@ -17,7 +17,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "topic": "",
         "user": "",
         "pass": "",
-        "events": {"digest": True, "status_alerts": True},
+        "events": {"digest": True, "status_alerts": True, "agent_tasks": True},
     },
     # The desk: which volumes it may show, and how it is dressed. `volumes` is
     # a list of {path, label}; it stays empty until the user names one, because

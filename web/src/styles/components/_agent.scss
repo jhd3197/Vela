@@ -1,0 +1,369 @@
+/* The Agent window: setup, composer, activity, approvals and results.
+
+   It sits inside a WindowFrame, so it owns its own scrolling and nothing else
+   about the window. Every colour here is a semantic token, so the window reads
+   correctly in both themes without a second set of rules.
+
+   The one thing that is deliberately loud is the approval card. Everything else
+   is a report; that is a question, and a question the person has not answered
+   should not be something the eye slides past. */
+
+.agent-window {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  overflow: auto;
+  height: 100%;
+  background: var(--bg-workspace);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------ setup -- */
+
+.agent-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+
+  header h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  header p,
+  .field-hint {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  select,
+  textarea {
+    width: 100%;
+    background: var(--bg-field);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    font: inherit;
+    padding: 8px 10px;
+  }
+}
+
+.agent-allowed {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  legend {
+    font-weight: 600;
+    font-size: 13px;
+    padding: 0 4px;
+  }
+}
+
+.agent-choice {
+  display: flex;
+  gap: 9px;
+  align-items: start;
+  font-size: 13.5px;
+  line-height: 1.45;
+
+  input {
+    margin-top: 3px;
+    flex: none;
+  }
+}
+
+/* A condition the person can act on, not a red box saying "error". */
+.agent-blocked {
+  background: var(--red-soft);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+
+.agent-notes {
+  color: var(--text-dim);
+  font-size: 13px;
+  list-style: disc;
+  padding-left: 20px;
+}
+
+/* -------------------------------------------------------- composer -- */
+
+.agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    font: inherit;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+}
+
+/* A dropped app is context. It names the app and nothing else happens. */
+.agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+
+  li {
+    align-items: center;
+    background: var(--accent-soft);
+    border-radius: 999px;
+    color: var(--text);
+    display: flex;
+    font-size: 12.5px;
+    gap: 4px;
+    padding: 3px 4px 3px 10px;
+  }
+
+  button {
+    background: none;
+    border: 0;
+    border-radius: 999px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 6px;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--text);
+    }
+  }
+}
+
+/* -------------------------------------------------------- the task -- */
+
+.task-card,
+.task-queue,
+.task-results {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+
+  h3 {
+    font-size: 14.5px;
+    line-height: 1.4;
+  }
+}
+
+.task-state {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
+.task-elapsed {
+  color: var(--text-faint);
+}
+
+.task-queue ol,
+.task-results ol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin-top: 8px;
+}
+
+.task-queue li {
+  align-items: center;
+  display: flex;
+  font-size: 13.5px;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.task-results li {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+
+  &:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+
+.task-instruction {
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+
+.task-summary {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* Read from the receipts, never from the wording. It sits under the summary on
+   purpose: a summary that reads like a change is answered right here. */
+.task-changed {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+
+.task-detail {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* ----------------------------------------------------- the activity -- */
+
+.task-activity {
+  margin-top: 12px;
+
+  ol {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+    max-height: 220px;
+    overflow: auto;
+  }
+
+  li {
+    border-left: 2px solid var(--border);
+    font-size: 13px;
+    line-height: 1.45;
+    padding: 2px 0 2px 10px;
+  }
+
+  li[data-state='refused'] {
+    border-left-color: var(--red);
+  }
+
+  small {
+    color: var(--text-dim);
+    display: block;
+    font-size: 12px;
+  }
+}
+
+.task-gap {
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+
+  button {
+    background: none;
+    border: 0;
+    color: var(--accent-strong);
+    cursor: pointer;
+    font: inherit;
+    padding: 0 0 0 6px;
+    text-decoration: underline;
+  }
+}
+
+/* ------------------------------------------------------- approvals -- */
+
+.approval-card {
+  background: var(--bg-card);
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+
+  h3 {
+    font-size: 14.5px;
+    line-height: 1.4;
+  }
+}
+
+.approval-detail {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+  list-style: disc;
+  margin-top: 6px;
+  padding-left: 20px;
+}
+
+.approval-note {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ---------------------------------------------- badges in the rail -- */
+
+/* A desktop that is not in front of you, saying something is happening there.
+   Colour alone never carries it: the accessible name says it too. */
+.rail-desktop-badge {
+  border-radius: 999px;
+  height: 8px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 8px;
+
+  &[data-kind='working'] {
+    background: var(--cyan);
+  }
+
+  &[data-kind='attention'] {
+    background: var(--accent);
+  }
+}
+
+.rail-desktop-item {
+  position: relative;
+}
+
+.desktop-menu-state {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  margin-left: auto;
+  padding-right: 6px;
+
+  &[data-kind='attention'] {
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-window * {
+    transition: none !important;
+  }
+}
