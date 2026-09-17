@@ -7,6 +7,7 @@ import AppIcon from '../components/AppIcon.jsx';
 import AppTitleBar from '../components/AppTitleBar.jsx';
 import Shell from '../components/Shell.jsx';
 import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
+import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import AppDataMigration from '../components/AppDataMigration.jsx';
 import AppConnection from '../components/AppConnection.jsx';
 import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
@@ -34,6 +35,9 @@ function Workspace({ id, retry }) {
   const location = useLocation();
   const { apps, busyIds, openApp, openingId, runAction, pushToast, pinned, pinApp, unpinApp } =
     useApps();
+  // "Add widget to desk" means the desk being looked at, not whichever one
+  // happens to come first.
+  const { selectedId } = useDesktops();
   const { status } = useAppStatus(id);
   const summary = apps?.find((item) => item.id === id);
   const app = summary && { ...summary, ...status };
@@ -278,7 +282,7 @@ function Workspace({ id, retry }) {
       onPin={() => pinApp(id)}
       onUnpin={() => unpinApp(id)}
       canAddWidget={Boolean(firstWidget(app))}
-      onAddWidget={() => addAppWidgetToDesk(app, pushToast)}
+      onAddWidget={() => addAppWidgetToDesk(app, pushToast, selectedId)}
       onAppSettings={app?.installed ? () => setSettingsOpen(true) : undefined}
       onHideBar={requestedMode === 'seamless' && !missing ? toggleCompact : undefined}
       onReload={retry}
@@ -323,7 +327,7 @@ function Workspace({ id, retry }) {
                 <button
                   onClick={() => {
                     setMenu(false);
-                    addAppWidgetToDesk(app, pushToast);
+                    addAppWidgetToDesk(app, pushToast, selectedId);
                   }}
                 >
                   Add widget to desk

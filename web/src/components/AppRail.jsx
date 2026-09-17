@@ -17,6 +17,8 @@ import useLongPress from '../hooks/useLongPress.js';
 import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
+import DesktopSwitcher from '../desktops/DesktopSwitcher.jsx';
+import { useAppsOverlay } from '../desktops/AppsOverlay.jsx';
 import ContextMenu from './ui/ContextMenu.jsx';
 
 // Installed apps in a stable, status-independent order so a shortcut never
@@ -96,6 +98,7 @@ export default function AppRail({ onNavigate }) {
   const { apps, openApp, pinned, pinApp, unpinApp, movePin } = useApps();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
+  const { appsOpen, openApps } = useAppsOverlay();
   const developer = useDeveloperTools();
   const location = useLocation();
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
@@ -216,12 +219,40 @@ export default function AppRail({ onNavigate }) {
       <img className="rail-mark" src="/vela-mark.png" alt="" aria-hidden="true" />
 
       <div className="rail-group">
-        {railGroup('primary', developer).map(({ to, end, label, icon: Icon }) => (
-          <RailItem key={to} to={to} end={end} label={label} onActivate={onNavigate} longPress={{}}>
-            <Icon size={20} weight="fill" aria-hidden="true" />
-          </RailItem>
-        ))}
+        {railGroup('primary', developer).map(({ to, end, label, overlay, icon: Icon }) =>
+          // All apps opens over the page rather than replacing it, so its rail
+          // entry asks the overlay to open instead of navigating away.
+          overlay ? (
+            <RailItem
+              key={to}
+              label={label}
+              className={appsOpen ? 'rail-item-active' : ''}
+              onActivate={() => {
+                onNavigate?.();
+                openApps();
+              }}
+              longPress={{}}
+            >
+              <Icon size={20} weight="fill" aria-hidden="true" />
+            </RailItem>
+          ) : (
+            <RailItem
+              key={to}
+              to={to}
+              end={end}
+              label={label}
+              onActivate={onNavigate}
+              longPress={{}}
+            >
+              <Icon size={20} weight="fill" aria-hidden="true" />
+            </RailItem>
+          ),
+        )}
       </div>
+
+      {/* Which workspace this is. In the rail because the rail is the one piece
+          of chrome that is there at every width and under every layout. */}
+      <DesktopSwitcher onNavigate={onNavigate} />
 
       {(pins.length > 0 || openUnpinned.length > 0) && (
         <div className="rail-apps">

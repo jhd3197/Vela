@@ -11,12 +11,18 @@ export function firstWidget(app) {
 
 // Place an app's first declared widget on the desktop board and save it. Shared
 // by the Launchpad and the app window's menu so "Add widget to desk" means the
-// same thing wherever it is chosen. Returns true when a widget was added.
-export async function addAppWidgetToDesk(app, pushToast) {
+// same thing wherever it is chosen. It lands on the desktop the user is looking
+// at, which is why the caller has to say which one. Returns true when a widget
+// was added.
+export async function addAppWidgetToDesk(app, pushToast, desktopId) {
   const declared = firstWidget(app);
   if (!declared) return false;
+  if (!desktopId) {
+    pushToast?.('No desktop is selected yet.', 'error');
+    return false;
+  }
   try {
-    const { revision, boards } = await deskApi.load();
+    const { revision, boards } = await deskApi.load(desktopId);
     const key = 'desktop';
     const current = widgetsOf(boards, key);
     const cols = colsOf(boards, key);
@@ -30,7 +36,11 @@ export async function addAppWidgetToDesk(app, pushToast) {
       h,
       cfg: {},
     };
-    await deskApi.save(revision, withWidgets(boards, key, compact([...current, placed])));
+    await deskApi.save(
+      desktopId,
+      revision,
+      withWidgets(boards, key, compact([...current, placed])),
+    );
     pushToast?.(`Added ${app.name} to your desk.`, 'success');
     return true;
   } catch (error) {

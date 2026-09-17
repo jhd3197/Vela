@@ -6,6 +6,7 @@
 import { useRef, useState } from 'react';
 import { Check, Trash, UploadSimple } from '@phosphor-icons/react';
 import { api } from '../api.js';
+import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import { BUNDLED_WALLPAPERS, DEFAULT_WALLPAPER, dailyWallpaper } from './wallpaper.js';
 import Drawer from '../components/ui/Drawer.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -29,6 +30,11 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const file = useRef(null);
+  // How a desk is dressed belongs to the desktop being looked at; the weather
+  // is one setting for the whole server. The two halves are shown together
+  // because that is how a person thinks about them, and saved apart because
+  // that is what they are.
+  const { selected, appearance, saveAppearance, uploadWallpaper, removeWallpaper } = useDesktops();
 
   // A toggle moves when it is pressed, not when the server answers: waiting
   // makes a switch feel broken. A failed save puts it back and says why.
@@ -37,7 +43,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setNote('');
     onChange({ ...desk, ...change });
     try {
-      await api.updateSettings({ desk: change });
+      await saveAppearance(change);
     } catch (error) {
       onChange(previous);
       setNote(error.message || 'Could not save that.');
@@ -52,7 +58,17 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
   const weather = desk.weather || {};
   const located = typeof weather.latitude === 'number' && typeof weather.longitude === 'number';
 
-  const setWeather = (change) => patch({ weather: { ...weather, ...change } });
+  const setWeather = async (change) => {
+    const previous = desk;
+    setNote('');
+    onChange({ ...desk, weather: { ...weather, ...change } });
+    try {
+      await api.updateSettings({ desk: { weather: { ...weather, ...change } } });
+    } catch (error) {
+      onChange(previous);
+      setNote(error.message || 'Could not save that.');
+    }
+  };
 
   const findPlace = async (event) => {
     event.preventDefault();
@@ -62,13 +78,11 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setNote('');
     try {
       const found = await api.locateWeather(typed);
-      await patch({
-        weather: {
-          enabled: true,
-          latitude: found.latitude,
-          longitude: found.longitude,
-          label: found.label,
-        },
+      await setWeather({
+        enabled: true,
+        latitude: found.latitude,
+        longitude: found.longitude,
+        label: found.label,
       });
       setPlace('');
     } catch (error) {
@@ -93,7 +107,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setBusy(true);
     setNote('');
     try {
-      await api.putWallpaper(chosen);
+      await uploadWallpaper(chosen);
       onChange({ ...desk, wallpaper: 'custom' });
     } catch (error) {
       setNote(error.message || 'Could not use that image.');
@@ -106,7 +120,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
     setBusy(true);
     setNote('');
     try {
-      await api.deleteWallpaper();
+      await removeWallpaper();
       onChange({ ...desk, wallpaper: DEFAULT_WALLPAPER });
     } catch (error) {
       setNote(error.message || 'Could not remove it.');
@@ -122,6 +136,13 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
   // uploaded image keep their CSS previews. Daily shows the picture it would
   // draw today, so the choice is not a mystery until midnight.
   const thumb = (id) => {
+    if (id === 'custom') {
+      // This desktop's own image, at its own address; a stylesheet has no way
+      // to know which one is being looked at.
+      return appearance.customUrl
+        ? { '--personalise-custom': `url('${appearance.customUrl}')` }
+        : undefined;
+    }
     const painted = id === 'daily' ? dailyWallpaper() : id;
     if (!BUNDLED_WALLPAPERS.some((wall) => wall.id === painted)) return undefined;
     return { backgroundImage: `url('/wallpapers/thumbs/${painted}.jpg')` };
@@ -132,6 +153,7 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
       <div className="drawer-header">
         <div className="drawer-title-row">
           <h2 className="drawer-name">Personalise</h2>
+          {selected ? <span className="drawer-scope">{selected.name}</span> : null}
         </div>
         <button className="drawer-close" onClick={onClose} aria-label="Close personalise">
           ×
@@ -184,7 +206,8 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
             onChange={upload}
           />
           <p className="panel-note">
-            Daily moves through the painted set, a new one each midnight. Your own image can be
+            The wallpaper, dimming and labels belong to this desktop; your other desktops keep their
+            own. Daily moves through the painted set, a new one each midnight. Your own image can be
             JPEG, PNG or WebP, up to 8 MB. It stays on this computer.
           </p>
         </section>

@@ -18,6 +18,13 @@ iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
 tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
 `npm --prefix web run build`. Browser acceptance remains a separate step.
 
+`web/scripts/test-desktops.mjs` covers the dashboard side against a real engine
+on its own port: the migrated desk as Desktop 1, a second workspace with its own
+board and wallpaper, the selection staying on the device that made it, a direct
+`/desktops/<id>` link and one that names nothing, the menu from the keyboard
+with focus returning, a rename that lost its race, deleting a desktop leaving
+the apps installed, and All apps drawing over the desk without unmounting it.
+
 `test_desktops.py` and `test_desktop_migrations.py` cover the desktop service:
 creating, renaming and deleting a workspace, per-concern revisions, that
 `/api/desk` and the scoped board route agree about one board and one revision,
@@ -81,6 +88,7 @@ node web/scripts/test-rail.mjs
 node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
+node web/scripts/test-desktops.mjs
 node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs

@@ -162,7 +162,10 @@ try {
   await done.click();
   await arrange.waitFor();
   await page.reload();
-  await page.locator('.desk-grid').waitFor();
+  // The board belongs to a desktop, so a fresh page asks which desktop before
+  // it can ask for the board. Waiting for the widget rather than for the grid
+  // is what makes this about what was saved rather than about that order.
+  await page.locator('.desk-frame[aria-label="System"]').waitFor();
   const kept = (await geometry(page)).find((frame) => frame.label === 'System');
   assert.ok(kept, `the saved widget survived a reload: ${JSON.stringify(await labels(page))}`);
   assert.deepEqual(

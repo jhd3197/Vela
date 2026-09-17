@@ -90,8 +90,10 @@ body[data-desk][data-desk-wallpaper='night'] {
   --desk-wallpaper: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
 }
 
+/* Each desktop has its own picture at its own address, which a stylesheet
+   cannot know, so `wallpaper.js` sets the variable while the desk is mounted. */
 body[data-desk][data-desk-wallpaper='custom'] {
-  --desk-wallpaper: url('/api/wallpaper');
+  --desk-wallpaper: var(--desk-wallpaper-custom, none);
 }
 
 /* Dimming is what keeps widget text readable over a bright picture, so turning

@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApps } from './store.jsx';
 import { coreById, isCoreId } from './navigation.js';
 import { useSettingsPopup } from './components/SettingsProvider.jsx';
+import { useAppsOverlay } from './desktops/AppsOverlay.jsx';
 
 const LAUNCHPAD = '/apps';
 
@@ -39,6 +40,7 @@ export function useGlobalShortcuts() {
   const location = useLocation();
   const { pinned, openApp } = useApps();
   const { openSettings } = useSettingsPopup();
+  const { toggleApps } = useAppsOverlay();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -61,12 +63,10 @@ export function useGlobalShortcuts() {
       // while a field has focus — including the Launchpad's own search box.
       if (isLaunchpadToggle(event)) {
         event.preventDefault();
-        const here = location.pathname + location.search;
-        if (location.pathname === LAUNCHPAD) navigate(launchpadReturnTo());
-        else {
-          launchpadReturn = here;
-          navigate(LAUNCHPAD, { state: { returnTo: here } });
-        }
+        // All apps opens over the current page, so the toggle does not
+        // navigate; the recorded return is still what a `/apps` link uses.
+        if (location.pathname !== LAUNCHPAD) launchpadReturn = location.pathname + location.search;
+        toggleApps();
         return;
       }
       // Ctrl+1..9 opens the matching pinned app; a modifier chord, so it fires
@@ -91,7 +91,7 @@ export function useGlobalShortcuts() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate, location.pathname, location.search, pinned, openApp, openSettings]);
+  }, [navigate, location.pathname, location.search, pinned, openApp, openSettings, toggleApps]);
 
   return { shortcutsOpen, closeShortcuts: () => setShortcutsOpen(false) };
 }

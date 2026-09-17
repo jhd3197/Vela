@@ -26,8 +26,9 @@ import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
 import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
+import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import { firstWidget } from '../desk/addAppWidget.js';
-import { DEFAULT_WALLPAPER, useWallpaperFlags } from '../desk/wallpaper.js';
+import { useWallpaperFlags } from '../desk/wallpaper.js';
 import useWeather from '../desk/weather.js';
 import DeskStatus from '../desk/DeskStatus.jsx';
 import useEditingSession from '../desk/editing/useEditingSession.js';
@@ -68,18 +69,27 @@ export default function Desk() {
   const boardKey = phone ? 'phone' : 'desktop';
   const types = useWidgetTypes(apps, AppWidget);
   const knownTypes = useMemo(() => types.map((type) => type.id), [types]);
-  const { boards, revision, loaded, save } = useDeskBoards(knownTypes);
+  // Which workspace this is. Boards, wallpaper and the arrangement session all
+  // hang off it, so switching desktops changes all three together.
+  const { selectedId, appearance } = useDesktops();
+  const { boards, revision, loaded, save } = useDeskBoards(knownTypes, selectedId);
 
-  // The desk's own preferences. The sheet writes them through the settings API
-  // and hands back what it saved, so the wallpaper changes as soon as it is
+  // How this desktop is dressed, plus the one desk setting that is global. The
+  // sheet hands back what it saved, so the wallpaper changes as soon as it is
   // chosen rather than on the next load.
   const loadSettings = useCallback((options) => api.getSettings(options), []);
   const { data: settings } = useResource(loadSettings);
   const [deskPrefs, setDeskPrefs] = useState(null);
-  const desk = useMemo(
-    () => deskPrefs || settings?.desk || { wallpaper: DEFAULT_WALLPAPER, dim: true, labels: true },
-    [deskPrefs, settings],
+  const stored = useMemo(
+    () => ({ ...appearance, weather: settings?.desk?.weather }),
+    [appearance, settings],
   );
+  const desk = useMemo(() => deskPrefs || stored, [deskPrefs, stored]);
+  // A desktop change replaces what the sheet was editing; keeping the optimistic
+  // copy would show the previous desktop's wallpaper over this one's board.
+  useEffect(() => {
+    setDeskPrefs(null);
+  }, [selectedId]);
 
   // The wallpaper and the dim toggle belong to the whole shell, so they ride on
   // the same body element the desk flag does. The Launchpad floats over the same
@@ -529,26 +539,32 @@ export default function Desk() {
           <p className="sr-only" role="status" aria-live="polite">
             {announcement}
           </p>
-          <DeskGrid
-            widgets={widgets}
-            types={types}
-            cols={cols}
-            rowHeight={phone ? 120 : 150}
-            gap={phone ? 12 : 16}
-            edit={edit}
-            ctx={deskContext}
-            selectedId={selected}
-            onSelect={setSelected}
-            onChange={(next) => setWidgets(next)}
-            onWidgetMenu={onWidgetMenu}
-            onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
-            onAppDrop={dropApp}
-            empty={
-              <p className="desk-empty">
-                Your desk is empty. Use <b>Add widget</b> to put something on it.
-              </p>
-            }
-          />
+          {/* Nothing is drawn until the board this desktop actually saved has
+              arrived. Showing the seeded default first and then rearranging it
+              is worse than a moment of wallpaper, and it would be wrong on
+              every desk but a brand new one. */}
+          {loaded && (
+            <DeskGrid
+              widgets={widgets}
+              types={types}
+              cols={cols}
+              rowHeight={phone ? 120 : 150}
+              gap={phone ? 12 : 16}
+              edit={edit}
+              ctx={deskContext}
+              selectedId={selected}
+              onSelect={setSelected}
+              onChange={(next) => setWidgets(next)}
+              onWidgetMenu={onWidgetMenu}
+              onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
+              onAppDrop={dropApp}
+              empty={
+                <p className="desk-empty">
+                  Your desk is empty. Use <b>Add widget</b> to put something on it.
+                </p>
+              }
+            />
+          )}
           {/* The strip sits under the board rather than over it, so it never
               covers a widget, and it stays out of the way while arranging. */}
           {!phone && !edit && <DeskStatus />}

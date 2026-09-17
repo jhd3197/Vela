@@ -77,6 +77,16 @@
   font-weight: 600;
 }
 
+/* Which desktop a scoped sheet is changing. Quiet, because the answer is
+   usually "the one I am looking at" and only matters when it is not. */
+.drawer-scope {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .drawer-meta {
   margin: 2px 0 0;
   font-size: 12.5px;
@@ -273,8 +283,10 @@
   background-image: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
 }
 
+/* The sheet is shown the selected desktop's own image, so the address comes
+   from the component rather than from here. */
 .personalise-wall[data-wallpaper='custom'] .personalise-wall-preview {
-  background-image: url('/api/wallpaper');
+  background-image: var(--personalise-custom, none);
 }
 
 .personalise-wall.is-selected .personalise-wall-preview {

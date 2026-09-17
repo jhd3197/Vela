@@ -18,6 +18,13 @@ until the release workflow prepares a tested server version.
   read can be put back from Settings → Health instead of falling back to
   defaults. Your desk is no longer one of these files — it lives with your
   desktops now and is covered by backups instead.
+- **All apps opens over what you were doing.** The app grid used to be a page,
+  so going to look for an app left the one you had open. It is now a layer over
+  the current page: the app underneath stays exactly as it was, with whatever
+  you had typed still in it, and Escape or the rail puts you back. The rail
+  entry is called **All apps** now; Ctrl+Space (Cmd+Space) and the `/apps` link
+  both still open it.
+
 - **The server log is readable again.** Vela no longer records a line for every
   request the dashboard makes, so its log holds what Vela did rather than
   thousands of routine polls. Both ways of starting Vela — the tray on Windows
@@ -69,6 +76,11 @@ until the release workflow prepares a tested server version.
   Contributors working on `scripts/` should expect that PR to take longer than
   a routine `dev` check.
 
+### Fixed
+
+- **The rail avatar draws properly.** Its stylesheet was never loaded, so the
+  letter standing for whoever the server belongs to appeared unstyled.
+
 ### Added
 
 - **Your desk is a desktop you can have more than one of.** The desk you have
@@ -79,8 +91,12 @@ until the release workflow prepares a tested server version.
   workspace rather than a copy: your apps and everything they have saved stay
   shared, so deleting a desktop never deletes a note. Backups now carry your
   desktops, so restoring one brings back how your desk was arranged. The
-  dashboard still shows Desktop 1 — choosing between them arrives with the new
-  shell.
+  A **desktops button in the rail** names the one you are looking at and
+  switches between them, with New, Rename and Delete in the same menu. Which
+  one you are on belongs to the device you are on: choosing Desktop 2 on your
+  laptop leaves your phone where it was. Each one keeps its own widgets, its own
+  wallpaper, its own dimming and its own labels. `/desktops/<id>` is a link
+  straight to one.
 
 - **Files: browse the folders you share with Vela.** A new app in the Launchpad
   shows the folders you name in **Settings → Files** — and only those. Make

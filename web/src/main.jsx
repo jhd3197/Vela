@@ -15,7 +15,10 @@ import Shell from './components/Shell.jsx';
 import ThemeSync from './components/ThemeSync.jsx';
 import SettingsProvider from './components/SettingsProvider.jsx';
 import SecurityProvider from './components/SecurityProvider.jsx';
+import DesktopsProvider from './desktops/DesktopsProvider.jsx';
+import AppsOverlayProvider from './desktops/AppsOverlay.jsx';
 import Desk from './pages/Desk.jsx';
+import DesktopRoute from './desktops/DesktopRoute.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
@@ -43,9 +46,17 @@ const router = createBrowserRouter(
               <EngineProvider>
                 <AppsProvider>
                   <ThemeSync />
-                  <SettingsProvider>
-                    <Outlet />
-                  </SettingsProvider>
+                  {/* Above the routes: the rail, the desk and the Launchpad all
+                      need to agree about which desktop is being looked at. */}
+                  <DesktopsProvider>
+                    <SettingsProvider>
+                      {/* All apps draws over the page, so its host wraps the
+                          routes rather than being one of them. */}
+                      <AppsOverlayProvider>
+                        <Outlet />
+                      </AppsOverlayProvider>
+                    </SettingsProvider>
+                  </DesktopsProvider>
                 </AppsProvider>
               </EngineProvider>
             </SecurityProvider>
@@ -69,6 +80,18 @@ const router = createBrowserRouter(
             )),
           )}
         </Route>
+        {/* A link straight to one workspace. It selects that desktop for this
+            browser and shows the ordinary desk. */}
+        <Route
+          path="/desktops/:desktopId"
+          element={
+            <Shell>
+              <ErrorBoundary>
+                <DesktopRoute />
+              </ErrorBoundary>
+            </Shell>
+          }
+        />
         {/* The manifest chooses the app view's host navigation. */}
         <Route path="/app/:id" element={<AppView />} />
         <Route path="*" element={<Desk />} />

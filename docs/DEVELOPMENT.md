@@ -460,6 +460,34 @@ after anything that can drop a reference.
 a regression. The image files are not backed up — they never were — so a
 restored desktop whose picture is missing falls back to a painted one.
 
+### The dashboard side
+
+`web/src/desktops/` owns which workspace the browser is looking at.
+
+| Location | Responsibility |
+| --- | --- |
+| `desktopsApi.js` | The scoped routes. Every call names a desktop, so a caller cannot forget which one |
+| `DesktopsProvider.jsx` | The list, the selection and the appearance, above the routes |
+| `DesktopSwitcher.jsx` | The rail entry and its menu, plus create/rename/delete |
+| `DesktopRoute.jsx` | `/desktops/:id` — selects that desktop and shows the ordinary desk |
+| `AppsOverlay.jsx` | All apps, drawn over the current page rather than replacing it |
+
+The selection lives in `localStorage`, not on the server. A phone and a laptop
+are two viewers of one server, and one of them choosing Desktop 2 must not move
+the other. It is re-resolved against the list on every load, so an id deleted
+elsewhere falls back to the first desktop instead of showing an empty board.
+
+The desk waits for its own board before drawing anything. Showing the seeded
+default first and then rearranging it would be wrong on every desk but a brand
+new one, and the board now takes one request longer to arrive because the page
+has to know which desktop it is for.
+
+All apps follows `SettingsProvider`: `/apps` still works as a link and a
+bookmark, and the rail entry opens the overlay in place. While it is up, the
+workspace behind is marked `inert` and `aria-hidden` — its own search field must
+not be the second searchbox a screen reader finds — and the rail stays live
+because it is how you leave.
+
 ## Agent desktop runtime
 
 Agent desktops render their app views in a managed Chromium that Vela starts and

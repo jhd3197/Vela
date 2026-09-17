@@ -1,0 +1,199 @@
+/* ---------- Desktops: the rail switcher and its menu ---------- */
+
+/* The anchor for the menu. The rail itself is a narrow column, so the list
+   opens beside it rather than inside it. */
+.rail-desktops {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rail-desktop-item {
+  color: var(--text-dim);
+}
+
+.rail-desktop-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: inherit;
+}
+
+.rail-item-active .rail-desktop-mark {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-strong);
+}
+
+/* Beside the rail, above the workspace. Wide enough for a real name and no
+   wider: a workspace name is a label, not a sentence. */
+.desktop-menu {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  z-index: 60;
+  width: 232px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--bg-pop);
+  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--border);
+}
+
+.desktop-menu-head {
+  margin: 2px 6px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.desktop-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* The name and its two actions share a row: renaming a workspace should not
+   need a second menu to reach. */
+.desktop-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+
+.desktop-menu-row:hover,
+.desktop-menu-row:focus-within {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.desktop-menu-choice {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px 6px 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.desktop-menu-choice[data-selected='true'] {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.desktop-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-menu-actions {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+/* Quiet until the row is under the pointer or holds focus, so the list reads
+   as names rather than as a column of icons. */
+.desktop-menu-action {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease;
+}
+
+.desktop-menu-row:hover .desktop-menu-action,
+.desktop-menu-row:focus-within .desktop-menu-action,
+.desktop-menu-action:focus-visible {
+  opacity: 1;
+}
+
+.desktop-menu-action:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.desktop-menu-action:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+.desktop-menu-row:hover .desktop-menu-action:disabled,
+.desktop-menu-row:focus-within .desktop-menu-action:disabled {
+  opacity: 0.3;
+}
+
+.desktop-menu-new {
+  width: 100%;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  appearance: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  background: none;
+  cursor: pointer;
+  padding: 10px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.desktop-menu-new:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* On a phone the rail is a drawer, so the menu has no room to sit beside it.
+   It drops below the trigger and takes the drawer's width instead. */
+@media (max-width: 860px) {
+  .desktop-menu {
+    left: 0;
+    top: calc(100% + 6px);
+    width: min(260px, 74vw);
+  }
+}
+
+/* ---------- All apps: the grid over whatever is underneath ---------- */
+
+/* Over the workspace, not over the rail: the rail is how you leave, so it stays
+   live and reachable while the grid is up. */
+.apps-overlay {
+  position: fixed;
+  inset: 0 0 0 var(--rail-w);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.apps-overlay > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}

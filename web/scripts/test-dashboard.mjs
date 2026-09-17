@@ -26,12 +26,13 @@ server.on('error', (error) => {
 });
 // Where each destination lives: `rail` is a shortcut beside the workspace,
 // `more` is the labelled secondary menu, `popup` opens over the current page.
-// System is absent entirely until Developer tools is on, and is checked
-// separately below.
+// All apps is an overlay like Settings — it draws over the page rather than
+// replacing it. System is absent entirely until Developer tools is on, and is
+// checked separately below.
 const pages = [
   ['/', 'Desk', 'rail'],
   ['/ask', 'Ask', 'rail'],
-  ['/apps', 'Launchpad', 'rail'],
+  ['/apps', 'All apps', 'overlay'],
   ['/library', 'Marketplace', 'rail'],
   ['/automations', 'Automations', 'none'],
   ['/settings', 'Settings', 'popup'],
@@ -82,13 +83,20 @@ try {
         // Every workspace keeps the rail on screen at every width.
         if (where === 'popup') {
           await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
+        } else if (where === 'overlay') {
+          // The grid is over the page, and the rail underneath it is still the
+          // way out.
+          await page.locator('.apps-overlay .launchpad').waitFor();
+          await page.locator('.rail').waitFor();
         } else {
           assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
           const nav = page.locator('.rail');
           await nav.waitFor();
-          // Desk and the Launchpad are fixed at the top; Ask and the Library are
-          // the default pins. There is no secondary menu. Settings closes the set.
-          assert.equal(await nav.locator('.rail-group a').count(), 2);
+          // Desk is fixed at the top and All apps sits beside it as a button,
+          // because it opens over the page. Ask and the Library are the default
+          // pins. There is no secondary menu. Settings closes the set.
+          assert.equal(await nav.locator('.rail-group a').count(), 1);
+          assert.equal(await nav.locator('.rail-group button').count(), 1);
           assert.equal(await nav.locator('.rail-foot button').count(), 1);
           assert.equal(await nav.getByRole('button', { name: 'More', exact: true }).count(), 0);
           if (where === 'rail') {

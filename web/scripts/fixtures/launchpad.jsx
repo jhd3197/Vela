@@ -11,6 +11,8 @@ import { routablePages } from '../../src/navigation.js';
 import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
+import DesktopsProvider from '../../src/desktops/DesktopsProvider.jsx';
+import AppsOverlayProvider from '../../src/desktops/AppsOverlay.jsx';
 import Shell from '../../src/components/Shell.jsx';
 import AppView from '../../src/pages/AppView.jsx';
 import WorkspacePage from '../../src/components/WorkspacePage.jsx';
@@ -84,6 +86,32 @@ window.fetch = async (input, init) => {
     });
   if (url.includes('/api/session')) return json({ token: 'fixture-token', remote: false });
   if (url.includes('/api/apps')) return json({ apps });
+  // One disposable desktop, so the rail's switcher and the desk's boards have
+  // something real to read.
+  if (url.includes('/api/desktops/fixture-desktop/appearance'))
+    return json({ wallpaper: 'choroni', dim: true, labels: true, revision: 0 });
+  if (url.includes('/api/desktops/fixture-desktop/boards')) {
+    if (method === 'PUT') {
+      const sent = JSON.parse(init.body);
+      desk = { revision: desk.revision + 1, boards: sent.boards };
+      return json(desk);
+    }
+    return json(desk);
+  }
+  if (url.includes('/api/desktops'))
+    return json({
+      desktops: [
+        {
+          id: 'fixture-desktop',
+          name: 'Desktop 1',
+          kind: 'personal',
+          revision: 1,
+          boardsRevision: desk.revision,
+          position: 0,
+        },
+      ],
+      defaultId: 'fixture-desktop',
+    });
   if (url.includes('/api/desk')) {
     if (method === 'PUT') {
       const sent = JSON.parse(init.body);
@@ -138,20 +166,22 @@ const router = createMemoryRouter(
       element={
         <EngineProvider>
           <AppsProvider>
-            <SettingsProvider>
-              <Outlet />
-            </SettingsProvider>
+            <DesktopsProvider>
+              <SettingsProvider>
+                <AppsOverlayProvider>
+                  <Outlet />
+                </AppsOverlayProvider>
+              </SettingsProvider>
+            </DesktopsProvider>
           </AppsProvider>
         </EngineProvider>
       }
     >
       <Route element={<Shell />}>
-        {routablePages.map(({ to, label, component: Component }) => (
-          <Route
-            key={to}
-            path={to}
-            element={to === '/apps' ? <Component /> : <Page label={label} />}
-          />
+        {/* All apps is an overlay now: `/apps` renders the page behind it and
+            `AppsOverlayProvider` draws the grid over that. */}
+        {routablePages.map(({ to, label }) => (
+          <Route key={to} path={to} element={<Page label={label} />} />
         ))}
       </Route>
       <Route path="/app/:id" element={<AppView />} />
