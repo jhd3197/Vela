@@ -143,7 +143,7 @@ export class DesktopSession {
    * Open a view. `url` is checked before a page is even created, so a denied
    * target never gets a tab it could keep using.
    */
-  async openView(viewId, url) {
+  async openView(viewId, url, bootstrap = null) {
     if (this.views.has(viewId)) throw new SessionError(`view ${viewId} is already open`, 'worker_error');
     const verdict = decide(url, this.policy);
     if (!verdict.allowed) {
@@ -153,6 +153,15 @@ export class DesktopSession {
     const page = await this.context.newPage();
     this.#guard(page);
     this.views.set(viewId, page);
+    if (bootstrap) {
+      // The app host's session goes into the page before it loads, rather than
+      // into its address. An address is written down in more places than
+      // anybody intends, and a bearer token in one of those is a bearer token
+      // in a log.
+      await page.addInitScript((value) => {
+        window.__velaAgentSession = value;
+      }, bootstrap);
+    }
     const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
     await this.#checkAddress(page, response);
     return { viewId, url: page.url(), title: await page.title() };

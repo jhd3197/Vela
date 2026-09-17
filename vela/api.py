@@ -322,6 +322,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         auth=auth,
         registry=registry,
         log=lambda message: print(f'[vela] {message}', flush=True),
+        # The one origin the managed browser is allowed to talk to. `__main__`
+        # records the port it bound; a server started another way falls back to
+        # the documented one.
+        origin=f"http://127.0.0.1:{os.environ.get('VELA_PORT', '7700')}",
     )
     # One guard, given to every service that can change something. For a person
     # it answers None and nothing changes; for an agent it returns the check
@@ -1639,6 +1643,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     index = config.web_dist / "index.html"
     if config.web_dist.is_dir() and index.is_file():
         dist_root = config.web_dist.resolve()
+
+        # The page an agent desktop's browser loads. A separate entry point, not
+        # the dashboard with pieces hidden: hiding is a rendering decision and
+        # this has to be a structural one. It is the only path under this prefix,
+        # which is what the managed browser's network policy allows.
+        @app.get("/agent-host/{full_path:path}", include_in_schema=False)
+        def agent_host(full_path: str) -> FileResponse:
+            page = config.web_dist / "agent-host.html"
+            if not page.is_file():
+                raise HTTPException(status_code=404, detail="The agent host was not built")
+            return FileResponse(page)
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str) -> FileResponse:

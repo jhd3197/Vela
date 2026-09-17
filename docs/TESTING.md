@@ -25,6 +25,14 @@ board and wallpaper, the selection staying on the device that made it, a direct
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
 
+`test_agent_conversion.py` is the one that means something: a listening Vela on
+a disposable data directory, an installed app, a window open on the desk, and a
+managed browser that ends up showing that app through the restricted host page —
+proved by capturing a frame of it. It also checks that a desktop allowing
+nothing is refused rather than converted, that a window which cannot come along
+says so, and that turning the agent off gives the workspace back and takes the
+grants with it.
+
 `test_browser_runtime.py` runs the real worker process: it starts and reports
 its protocol and browser, gives each desktop its own browser and each browser
 its own views, refuses a command for a desktop it does not hold and one nobody

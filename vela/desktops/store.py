@@ -301,6 +301,24 @@ class DesktopStore:
         if not removed:
             raise DesktopError(404, "That desktop no longer exists.")
 
+    def set_kind(self, desktop_id: str, kind: str) -> dict[str, Any]:
+        """Change a desktop between personal and agent.
+
+        Its own revision moves, because the kind is metadata somebody may be
+        looking at; its boards, appearance and windows are untouched, because
+        turning an agent on is not throwing the workspace away.
+        """
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM desktops WHERE id=?", (desktop_id,)).fetchone()
+            if not row:
+                raise DesktopError(404, "That desktop no longer exists.")
+            db.execute(
+                "UPDATE desktops SET kind=?, revision=?, updated_at=? WHERE id=?",
+                (kind, int(row["revision"]) + 1, now(), desktop_id),
+            )
+        return self.get(desktop_id)
+
     # ----------------------------------------------------------- boards --
 
     def boards(self, desktop_id: str) -> dict[str, Any]:

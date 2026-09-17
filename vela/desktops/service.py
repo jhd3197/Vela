@@ -26,6 +26,7 @@ from .principals import agent_of
 from .migration import migrate
 from .policy import empty_policy, validate_policy
 from .runtime import BrowserRuntime, RuntimeUnavailable, availability as runtime_availability
+from .store import new_id as new_runtime_session_id
 from .models import (
     AGENT_VIEWABLE_KINDS,
     DEFAULT_WALLPAPER,
@@ -76,6 +77,7 @@ class Desktops:
         auth: Any = None,
         registry: Any = None,
         log=None,
+        origin: str = "http://127.0.0.1:7700",
     ):
         self.data_dir = data_dir
         self.assets_dir = data_dir / "desktop-assets"
@@ -96,6 +98,9 @@ class Desktops:
         # The managed browser. Created now, started only when a desktop needs
         # one: a server with no agent desktops should cost nothing.
         self.runtime = BrowserRuntime(data_dir / "agent-frames", log=log or (lambda message: None))
+        # The one origin the managed browser may talk to. Everything else on
+        # this computer, including the rest of Vela, is off the list.
+        self._origin = origin.rstrip("/")
 
     # -------------------------------------------------------- start-up --
 
@@ -276,6 +281,148 @@ class Desktops:
     async def stop_runtime(self) -> None:
         """Close the browser deliberately. Called when Vela stops."""
         await self.runtime.stop()
+
+    def gateway_policy(self, desktop_id: str) -> dict[str, Any]:
+        """What the browser for this desktop may reach, as the worker wants it.
+
+        Derived from the owner's policy rather than stored separately, so there
+        is one answer to "what is allowed" and the browser's copy cannot drift
+        from the one the effect boundary checks.
+
+        The prefixes are as narrow as the paths allow: the app host page, the
+        assets it is built from, the bridge routes, and each allowed app's own
+        content — by id, not `/apps/`, so an allowed page cannot pull a
+        disallowed app's files.
+        """
+        policy = self.store.policy(desktop_id)
+        prefixes = ["/agent-host/", "/assets/", "/api/app/"]
+        prefixes += [f"/apps/{app_id}/" for app_id in policy.get("apps") or []]
+        return {
+            "gatewayOrigin": self._origin,
+            "gatewayPathPrefixes": prefixes,
+            "sites": policy.get("sites") or [],
+        }
+
+    async def enable_agent(self, desktop_id: str) -> dict[str, Any]:
+        """Turn this desktop into one an agent runs in.
+
+        Deliberately in this order: check first, start second, convert third,
+        and mark the desktop only once all three have happened. A conversion
+        that reported success with nothing behind it would be worse than one
+        that refused, because everything after it would be built on the report.
+        """
+        desktop_id = validate_id(desktop_id)
+        desktop = self.store.get(desktop_id)
+        policy = self.store.policy(desktop_id)
+        if not (policy.get("apps") or policy.get("sites")):
+            raise DesktopError(
+                422, "Choose what this desktop may use before turning on its agent."
+            )
+        state = runtime_availability()
+        if not state["available"]:
+            raise DesktopError(503, state["detail"])
+        if desktop["kind"] == "agent":
+            return {"desktop": self.store.get(desktop_id), "views": self.views(desktop_id)["views"]}
+
+        started = False
+        try:
+            await self.runtime.start()
+            session_id = new_runtime_session_id()
+            await self.runtime.open_desktop(desktop_id, session_id, self.gateway_policy(desktop_id))
+            started = True
+            moved, notes = await self._convert_views(desktop_id)
+            self.store.set_kind(desktop_id, "agent")
+        except (RuntimeUnavailable, OSError) as exc:
+            # Rolling back matters more than the error message: a desktop that
+            # is half converted is one the person cannot use and cannot fix.
+            if started:
+                await self.runtime.close_desktop(desktop_id)
+            raise DesktopError(503, str(exc)) from exc
+        return {
+            "desktop": self.store.get(desktop_id),
+            "views": self.views(desktop_id)["views"],
+            "moved": moved,
+            "notes": notes,
+        }
+
+    async def disable_agent(self, desktop_id: str) -> dict[str, Any]:
+        """Give the desktop back, and take the agent's authority with it."""
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        self.revoke_desktop(desktop_id)
+        try:
+            await self.runtime.close_desktop(desktop_id)
+        except RuntimeUnavailable:
+            # Already gone. Nothing to close is the state this was aiming for.
+            pass
+        self.store.set_kind(desktop_id, "personal")
+        # Its configuration and its windows stay: turning the agent off is not
+        # throwing the workspace away.
+        return {"desktop": self.store.get(desktop_id)}
+
+    async def _convert_views(self, desktop_id: str) -> tuple[list[str], list[str]]:
+        """Reopen the supported windows inside the managed browser.
+
+        A view that cannot move says so rather than being dropped. The person
+        chose to have it open, and "it is not there any more" is not an
+        acceptable way to find out that it could not come along.
+        """
+        policy = self.store.policy(desktop_id)
+        allowed = set(policy.get("apps") or [])
+        moved: list[str] = []
+        notes: list[str] = []
+        for view in self.store.views(desktop_id):
+            described = self._describe(view)
+            if view["kind"] != "app":
+                notes.append(f"{view['title'] or view['kind']} stays on your side of the window.")
+                continue
+            if not described["available"]:
+                notes.append(f"{view['title'] or view['appId']} needs reopening first.")
+                continue
+            if view["appId"] not in allowed:
+                notes.append(f"{view['appId']} is not one of this desktop's allowed apps.")
+                continue
+            try:
+                await self.runtime.command(
+                    "view.open",
+                    desktopId=desktop_id,
+                    viewId=view["id"],
+                    url=f"{self._origin}/agent-host/{view['id']}",
+                    bootstrap=self._bootstrap(desktop_id, view),
+                )
+                moved.append(view["id"])
+            except RuntimeUnavailable as exc:
+                notes.append(f"{view['appId']} could not be opened there: {exc}")
+        return moved, notes
+
+    def _bootstrap(self, desktop_id: str, view: dict[str, Any]) -> dict[str, Any]:
+        """What the app host page is given before it loads.
+
+        Its session, and the address of the app it is hosting. Nothing about the
+        owner, the run's instructions or any other desktop: the page an agent
+        looks at should contain what it needs to show one app and no more.
+        """
+        manifest = self._registry.get(view["appId"])
+        issued = self._auth.issue_agent(
+            manifest,
+            view["installationId"],
+            {
+                "desktopId": desktop_id,
+                "runId": f"conversion:{desktop_id}",
+                "viewId": view["id"],
+                "actorId": "conversion",
+                "policyRevision": self.store.policy(desktop_id)["revision"],
+            },
+        )
+        return {
+            "token": issued["token"],
+            "installationId": issued["installationId"],
+            "capabilities": issued["capabilities"],
+            "unavailableCapabilities": issued["unavailableCapabilities"],
+            "appId": view["appId"],
+            "appName": manifest.name,
+            "appUrl": f"{self._origin}/apps/{view['appId']}/",
+        }
 
     # ---------------------------------------------------------- policy --
 

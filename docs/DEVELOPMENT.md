@@ -648,6 +648,44 @@ human takes over, so it has to render through the same engine. Chromium's own
 sandbox stays on — a platform that cannot run it is reported unavailable rather
 than launched with the sandbox disabled.
 
+### The page the agent's browser loads
+
+`web/agent-host.html` is a second Vite entry, not the dashboard with pieces
+hidden. Hiding is a rendering decision and this has to be a structural one: the
+page has no rail, no navigation, no settings, no approval controls and no way to
+reach another app. A page saying "Approve" is never what authorizes an effect,
+and the surest way to keep that true is for the page an agent looks at not to
+have one.
+
+Its session arrives in `window.__velaAgentSession`, put there by the worker with
+`addInitScript` before the page is navigated to — not in the URL, because an
+address is written down in more places than anybody intends and a bearer token
+in one of those is a bearer token in a log. The page reads it once and deletes
+it. The app's own iframe is sandboxed and cross-document, so it cannot read the
+host page's variables either.
+
+The host page and the dashboard share `useAppFrame`: the session, the bridge and
+their teardown are the same code, and the chrome around them is what differs.
+
+### Turning an agent on
+
+`POST /api/desktops/{id}/enable-agent` checks first, starts second, converts
+third, and marks the desktop only once all three have happened. A conversion
+that reported success with nothing behind it would be worse than one that
+refused, because everything after it would be built on the report. A failure
+part-way closes the browser it opened rather than leaving a half-converted
+desktop.
+
+A window that cannot come along says so in `notes` rather than being dropped:
+the person chose to have it open, and "it is not there any more" is not an
+acceptable way to find out it could not move.
+
+The gateway policy the worker is handed is *derived* from the owner's policy
+rather than stored separately, so there is one answer to "what is allowed" and
+the browser's copy cannot drift from the one the effect boundary checks. Its
+path prefixes are as narrow as paths allow — the host page, its assets, the
+bridge routes, and each allowed app's content by id rather than `/apps/`.
+
 ### Where the boundary is enforced
 
 A separate browser context per desktop separates cookies, storage and input. It

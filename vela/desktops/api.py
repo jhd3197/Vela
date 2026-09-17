@@ -297,6 +297,20 @@ def router(desktops) -> APIRouter:
         except DesktopError as exc:
             raise _fail(exc)
 
+    @api.post("/{desktop_id}/enable-agent")
+    async def enable_agent(desktop_id: str) -> dict:
+        try:
+            return await desktops.enable_agent(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/disable-agent")
+    async def disable_agent(desktop_id: str) -> dict:
+        try:
+            return await desktops.disable_agent(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
     @api.get("/{desktop_id}/grants")
     def list_grants(desktop_id: str) -> dict:
         try:

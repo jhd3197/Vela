@@ -106,7 +106,7 @@ const COMMANDS = {
 
   async 'view.open'(command) {
     const session = sessionFor(command.desktopId);
-    return session.openView(command.viewId, command.url);
+    return session.openView(command.viewId, command.url, command.bootstrap || null);
   },
 
   async 'view.close'(command) {

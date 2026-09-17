@@ -1,0 +1,54 @@
+/* The agent's window: one app frame, edge to edge, and nothing else.
+
+   No tokens from the dashboard's stylesheet on purpose. This page is served to
+   a different browser than the one a person is using, and pulling in the whole
+   shell's styling to draw one iframe would be shipping the dashboard's surface
+   area somewhere it is not wanted. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #0d0f16;
+  color: #e7e9f2;
+  font:
+    14px/1.5 system-ui,
+    -apple-system,
+    Segoe UI,
+    sans-serif;
+}
+
+.agent-host {
+  position: relative;
+  height: 100%;
+}
+
+.agent-host-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+/* A state message, for the two cases worth saying out loud: the app broke, and
+   somebody opened this page by hand. */
+.agent-host-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  background: #0d0f16;
+}
+
+.agent-host-state[data-state='error'] {
+  color: #ff9d9d;
+}
