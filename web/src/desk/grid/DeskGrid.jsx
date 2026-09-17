@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getWidgetType } from '../registry.js';
 import { pushDown } from './layout.js';
 import WidgetFrame from './WidgetFrame.jsx';
+import { carriesApp, readAppReference } from '../../desktops/app-reference.js';
 
 // Breathing room under the last row so the resize grip is never flush with the
 // page edge.
@@ -180,11 +181,10 @@ export default function DeskGrid({
     [cell, cols, stepX, stepY],
   );
 
-  const carriesApp = (event) =>
-    Array.from(event.dataTransfer?.types || []).includes('application/x-vela-app');
+  const carries = (event) => carriesApp(event.dataTransfer);
 
   const onDragOver = (event) => {
-    if (!onAppDrop || !carriesApp(event)) return;
+    if (!onAppDrop || !carries(event)) return;
     // Taking the event is what tells the browser this is a valid drop target.
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
@@ -192,11 +192,11 @@ export default function DeskGrid({
   };
 
   const onDrop = (event) => {
-    if (!onAppDrop || !carriesApp(event)) return;
+    if (!onAppDrop || !carries(event)) return;
     event.preventDefault();
     setOver(false);
-    const appId = event.dataTransfer.getData('application/x-vela-app');
-    if (appId) onAppDrop(appId, cellAt(event));
+    const reference = readAppReference(event.dataTransfer);
+    if (reference) onAppDrop(reference.id, cellAt(event), reference);
   };
 
   const hostClassName = useMemo(

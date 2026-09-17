@@ -97,6 +97,25 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Two windows side by side, and everything a drag does without one.** Drag a
+  window's title bar to the left or right edge and Vela shows the half it would
+  take; let go and it goes there. The other half either keeps the window it had
+  or becomes a clearly empty pane that offers to be filled — it never quietly
+  shows the same window twice, and closing or minimizing one member leaves its
+  slot there so the window can come back into it.
+
+  The divider between the panes can be dragged, moved with the arrow keys, sent
+  back to equal halves with Home or a double-click, and it announces where it is
+  to a screen reader. A **⋯** menu on every title bar does the same things a drag
+  does — move left, move right, swap the panes, even them up, leave split view —
+  so none of this needs a pointer.
+
+  Dragging an app onto the desk still makes a widget of it, and dragging one into
+  a task's box now names it for that task. What travels is the app's identity and
+  nothing else: no install happens, nothing is submitted, and what the desktop is
+  allowed to use does not change. There is a **Mention an app** picker beside the
+  Start button for anyone not dragging.
+
 - **Two desktops can work at once, and a queue stops when something goes wrong.**
   Vela runs two agent desktops at a time on one computer; a third is refused with
   a sentence, and a task waiting for one of the two says it is waiting instead of

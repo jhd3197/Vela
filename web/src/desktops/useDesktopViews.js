@@ -7,6 +7,7 @@
 // layout — reports its failure rather than pretending.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { desktopsApi } from './desktopsApi.js';
+import { exitPatch, freeSlotFor, snapPatch, swapPatch, vacatePatch } from './snap.js';
 import { minimizePatch, restorePatch, stackOrder } from './window-state.js';
 
 const EMPTY = {
@@ -115,14 +116,6 @@ export default function useDesktopViews(desktopId) {
     [desktopId, load],
   );
 
-  const close = useCallback(
-    async (viewId) => {
-      await desktopsApi.closeView(desktopId, viewId);
-      await load();
-    },
-    [desktopId, load],
-  );
-
   const select = useCallback(
     async (viewId) => {
       setState((previous) => ({
@@ -155,27 +148,84 @@ export default function useDesktopViews(desktopId) {
     [desktopId, state.layout.revision, load],
   );
 
+  const close = useCallback(
+    async (viewId) => {
+      const vacated = vacatePatch(state.layout, viewId);
+      await desktopsApi.closeView(desktopId, viewId);
+      // Said before the reload so the empty slot is what comes back, rather
+      // than a split that briefly looks like it lost a pane.
+      if (vacated) await saveLayout({ arrangement: 'split', ...vacated }).catch(() => null);
+      await load();
+    },
+    [desktopId, load, saveLayout, state.layout],
+  );
+
   const area = useRef({ width: 0, height: 0 });
   const setArea = useCallback((next) => {
     area.current = next;
   }, []);
 
   const minimize = useCallback(
-    (view) => patchView(view.id, minimizePatch(view, area.current), { immediate: true }),
-    [patchView],
+    (view) => {
+      // A pane whose member went away stays a pane. Collapsing the split here
+      // would take the slot the person expects to restore into.
+      const vacated = vacatePatch(state.layout, view.id);
+      if (vacated) saveLayout({ arrangement: 'split', ...vacated });
+      return patchView(view.id, minimizePatch(view, area.current), { immediate: true });
+    },
+    [patchView, saveLayout, state.layout],
   );
 
   const restore = useCallback(
-    (view, index) =>
-      patchView(view.id, restorePatch(view, area.current, index), { immediate: true }),
-    [patchView],
+    (view, index) => {
+      // Back into its own slot if that slot is still free, and floating
+      // otherwise — never evicting whatever took its place in the meantime.
+      const slot = freeSlotFor(state.layout, view.id);
+      if (slot) {
+        patchView(view.id, { minimized: false, raise: true }, { immediate: true });
+        return saveLayout(snapPatch(state.layout, view.id, slot));
+      }
+      return patchView(view.id, restorePatch(view, area.current, index), { immediate: true });
+    },
+    [patchView, saveLayout, state.layout],
+  );
+
+  // ---- split placement
+  //
+  // Every one of these is a layout change and nothing else. No view is closed,
+  // reopened, serialized or recreated to move between panes: a window keeps its
+  // session wherever it is drawn, which is the whole reason the arrangement and
+  // the view are separate records.
+
+  const snap = useCallback(
+    (viewId, side) => {
+      const patch = snapPatch(state.layout, viewId, side);
+      if (!patch) return Promise.resolve({ ok: true });
+      // A window cannot be both in a pane and minimized. Snapping is an
+      // explicit request to see it, so it comes back if it was away.
+      patchView(viewId, { minimized: false, raise: true }, { immediate: true });
+      return saveLayout(patch);
+    },
+    [patchView, saveLayout, state.layout],
+  );
+
+  const swapPanes = useCallback(() => {
+    const patch = swapPatch(state.layout);
+    return patch ? saveLayout(patch) : Promise.resolve({ ok: true });
+  }, [saveLayout, state.layout]);
+
+  const exitSplit = useCallback(() => saveLayout(exitPatch()), [saveLayout]);
+
+  const setDivider = useCallback(
+    (ratio) => saveLayout({ arrangement: 'split', dividerRatio: ratio }),
+    [saveLayout],
   );
 
   const maximize = useCallback(
     (view) =>
       saveLayout(
         state.layout.arrangement === 'maximized' && state.layout.maximizedView === view.id
-          ? { arrangement: 'floating', clear: ['maximizedView'] }
+          ? { arrangement: 'floating', maximizedView: null }
           : { arrangement: 'maximized', maximizedView: view.id },
       ),
     [saveLayout, state.layout],
@@ -194,6 +244,10 @@ export default function useDesktopViews(desktopId) {
     minimize,
     restore,
     maximize,
+    snap,
+    swapPanes,
+    exitSplit,
+    setDivider,
     saveLayout,
     setArea,
     flush,

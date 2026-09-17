@@ -536,3 +536,21 @@
   margin: 12px 0 0;
   padding: 10px 12px;
 }
+
+/* Naming an app without dragging one. Sits beside Start because it belongs to
+   composing the instruction, not to the window's chrome. */
+.agent-attach {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  font-size: 12.5px;
+
+  span {
+    color: var(--text-dim);
+  }
+
+  select {
+    font-size: 12.5px;
+    padding: 4px 6px;
+  }
+}

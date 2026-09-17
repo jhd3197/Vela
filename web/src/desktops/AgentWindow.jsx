@@ -13,12 +13,14 @@
 // changed.
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Button from '../components/ui/Button.jsx';
+import { useApps } from '../store.jsx';
 import { useDesktops } from './DesktopsProvider.jsx';
 import AgentSetup from './AgentSetup.jsx';
 import ApprovalCard from './ApprovalCard.jsx';
 import RemoteView from './RemoteView.jsx';
 import TaskActivity, { LIVE_STATES } from './TaskActivity.jsx';
 import TaskFiles from './TaskFiles.jsx';
+import { carriesApp, readAppReference } from './app-reference.js';
 import { desktopsApi } from './desktopsApi.js';
 import useAgentEvents from './useAgentEvents.js';
 
@@ -52,6 +54,7 @@ function Elapsed({ budget }) {
 
 export default function AgentWindow({ desktopId }) {
   const { desktops, refresh: refreshDesktops, views } = useDesktops();
+  const { apps } = useApps();
   const desktop = desktops?.find((entry) => entry.id === desktopId);
   const isAgent = desktop?.kind === 'agent';
   const { events, tasks, approvals, error, gap, loaded, refresh, clearGap } = useAgentEvents(
@@ -155,25 +158,27 @@ export default function AgentWindow({ desktopId }) {
     [desktopId, refresh],
   );
 
-  const onDrop = useCallback((event) => {
-    // Typed only. A drop carries an app's identity; it never installs
-    // anything, never submits the instruction and never widens what this
-    // desktop may use.
-    const payload = event.dataTransfer?.getData('application/vela-app');
-    if (!payload) return;
-    event.preventDefault();
-    try {
-      const app = JSON.parse(payload);
-      if (!app?.id) return;
-      setAttachments((current) =>
-        current.some((entry) => entry.id === app.id)
-          ? current
-          : [...current, { id: app.id, name: app.name || app.id }],
-      );
-    } catch {
-      /* A drop Vela cannot read is a drop it ignores. */
-    }
+  // Naming an app, from a drag or from the button beside the composer. Either
+  // way it is a reference and nothing else: no install, no submission, no
+  // change to what this desktop is allowed to use. The chip is visible before
+  // anything is sent, and removing it is one click.
+  const attach = useCallback((app) => {
+    if (!app?.id) return;
+    setAttachments((current) =>
+      current.some((entry) => entry.id === app.id)
+        ? current
+        : [...current, { id: app.id, name: app.name || app.id }],
+    );
   }, []);
+
+  const onDrop = useCallback(
+    (event) => {
+      if (!carriesApp(event.dataTransfer)) return;
+      event.preventDefault();
+      attach(readAppReference(event.dataTransfer));
+    },
+    [attach],
+  );
 
   if (!isAgent) {
     return (
@@ -227,6 +232,28 @@ export default function AgentWindow({ desktopId }) {
           <Button type="submit" variant="primary" pending={busy} disabled={!instruction.trim()}>
             {active ? 'Add to the queue' : 'Start'}
           </Button>
+          {/* The same thing the drag does, for anyone not using a pointer.
+              Naming an app is not permission to use it: what this desktop may
+              open is still only what its settings say. */}
+          <label className="agent-attach">
+            <span>Mention an app</span>
+            <select
+              value=""
+              onChange={(event) => {
+                const app = (apps || []).find((entry) => entry.id === event.target.value);
+                if (app) attach({ id: app.id, name: app.name });
+              }}
+            >
+              <option value="">Choose…</option>
+              {(apps || [])
+                .filter((app) => app.installed)
+                .map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.name}
+                  </option>
+                ))}
+            </select>
+          </label>
         </div>
       </form>
 

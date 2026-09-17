@@ -16,8 +16,11 @@ import Dialog from '../components/ui/Dialog.jsx';
 import { useApps } from '../store.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import AppWindow from './AppWindow.jsx';
+import EmptyPane from './EmptyPane.jsx';
+import SplitDivider from './SplitDivider.jsx';
 import WindowFrame from './WindowFrame.jsx';
-import { placeView, workArea } from './window-state.js';
+import { panes, previewBounds, snapTargetFor } from './snap.js';
+import { placeView, splitBounds, workArea } from './window-state.js';
 
 /** What to call a view that has not been given a title. */
 function labelFor(view, apps) {
@@ -48,6 +51,10 @@ export default function DesktopViewHost({ views }) {
   // and the host is what asks before closing.
   const [dirty, setDirty] = useState({});
   const [confirm, setConfirm] = useState(null);
+  // Which half a drag is currently offering, and the divider position being
+  // previewed. Both are local: the person is still deciding.
+  const [snapping, setSnapping] = useState(null);
+  const [ratioPreview, setRatioPreview] = useState(null);
   const frames = useRef(new Map());
 
   useEffect(() => {
@@ -80,6 +87,23 @@ export default function DesktopViewHost({ views }) {
     [views],
   );
 
+  // Where the pointer is during a title-bar drag, turned into an offer of a
+  // half. Dropping while an offer is showing takes it; dropping anywhere else
+  // leaves the window exactly where the drag put it.
+  const onDragPoint = useCallback(
+    (viewId) =>
+      (point, options = {}) => {
+        if (point) {
+          setSnapping({ id: viewId, side: snapTargetFor(point, area) });
+          return;
+        }
+        const offered = snapping?.id === viewId ? snapping.side : null;
+        setSnapping(null);
+        if (offered && options.drop) views.snap(viewId, offered);
+      },
+    [area, snapping, views],
+  );
+
   const requestClose = useCallback(
     (view) => {
       // Close is the only one of the three controls that ends anything, so it
@@ -93,9 +117,40 @@ export default function DesktopViewHost({ views }) {
   if (!views.loaded || !views.ordered.length) return null;
 
   const { layout } = views;
+  const split = layout.arrangement === 'split';
+  const ratio = ratioPreview ?? layout.dividerRatio ?? 0.5;
+  const drawn = ratioPreview === null ? layout : { ...layout, dividerRatio: ratio };
   const visible = views.ordered
-    .map((view, index) => ({ view, bounds: placeView(view, { layout, area, index }) }))
+    .map((view, index) => ({ view, bounds: placeView(view, { layout: drawn, area, index }) }))
     .filter((entry) => entry.bounds);
+  const openElsewhere = views.ordered
+    .filter((view) => !view.window?.minimized)
+    .map((view) => ({ id: view.id, label: labelFor(view, apps) }));
+
+  const menuFor = (view) => {
+    const items = [
+      {
+        label: split && layout.primaryView === view.id ? 'Already on the left' : 'Move to the left',
+        disabled: split && layout.primaryView === view.id,
+        onSelect: () => views.snap(view.id, 'left'),
+      },
+      {
+        label:
+          split && layout.secondaryView === view.id ? 'Already on the right' : 'Move to the right',
+        disabled: split && layout.secondaryView === view.id,
+        onSelect: () => views.snap(view.id, 'right'),
+      },
+    ];
+    if (split) {
+      items.push(
+        { separator: true },
+        { label: 'Swap the two panes', onSelect: () => views.swapPanes() },
+        { label: 'Even them up', onSelect: () => views.setDivider(0.5) },
+        { label: 'Leave split view', onSelect: () => views.exitSplit() },
+      );
+    }
+    return items;
+  };
 
   return (
     <div className="view-host" ref={host}>
@@ -127,6 +182,8 @@ export default function DesktopViewHost({ views }) {
               views.patchView(view.id, { raise: true });
             }}
             onMove={onMove(view.id)}
+            onDragPoint={onDragPoint(view.id)}
+            actions={menuFor(view)}
             onMinimize={() => views.minimize(view)}
             onMaximize={() => views.maximize(view)}
             onClose={() => requestClose(view)}
@@ -150,6 +207,59 @@ export default function DesktopViewHost({ views }) {
           </WindowFrame>
         );
       })}
+
+      {/* The divider is drawn over the gutter the panes already leave for it, so
+          it never covers what is inside either one. */}
+      {split && area.width > 0 && (
+        <SplitDivider
+          area={area}
+          ratio={layout.dividerRatio ?? 0.5}
+          onPreview={setRatioPreview}
+          onCommit={(next) => {
+            setRatioPreview(null);
+            views.setDivider(next);
+          }}
+        />
+      )}
+
+      {split &&
+        panes(drawn)
+          .filter((pane) => !pane.viewId)
+          .map((pane) => (
+            <EmptyPane
+              key={pane.side}
+              side={pane.side}
+              bounds={splitBounds(area, ratio, pane.side === 'left' ? 'primary' : 'secondary')}
+              openViews={openElsewhere.filter(
+                (entry) => entry.id !== layout.primaryView && entry.id !== layout.secondaryView,
+              )}
+              apps={apps}
+              onChoose={(viewId) => views.snap(viewId, pane.side)}
+              onOpenApp={async (appId) => {
+                const view = await views.open({ kind: 'app', appId });
+                if (view?.id) views.snap(view.id, pane.side);
+              }}
+              onExit={() => views.exitSplit()}
+            />
+          ))}
+
+      {/* What a drop would do, shown before it happens. Decorative and never in
+          the way: it cannot be clicked and it holds no focus. */}
+      {snapping?.side && (
+        <div
+          className="snap-preview"
+          aria-hidden="true"
+          style={(() => {
+            const box = previewBounds(snapping.side, area, layout.dividerRatio ?? 0.5);
+            return {
+              left: `${box.x}px`,
+              top: `${box.y}px`,
+              width: `${box.width}px`,
+              height: `${box.height}px`,
+            };
+          })()}
+        />
+      )}
 
       {confirm && (
         <Dialog open aria-labelledby="window-unsaved-title" onClose={() => setConfirm(null)}>

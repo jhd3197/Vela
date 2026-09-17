@@ -17,6 +17,7 @@ import { useResource } from '../hooks/useResource.js';
 import { useDeveloperTools } from '../developer.js';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import useLongPress from '../hooks/useLongPress.js';
+import { writeAppReference } from '../desktops/app-reference.js';
 import useSwipe from '../hooks/useSwipe.js';
 import { PHONE } from '../breakpoints.js';
 import { coreApps } from '../navigation.js';
@@ -370,13 +371,12 @@ export default function Launchpad({ onClose }) {
     setMenu({ item, x, y });
   }, []);
 
-  // Dragging an app tile carries its id in Vela's own type, so only a surface
-  // that knows what to do with an app — the desk board — accepts the drop. The
-  // plain-text copy is what a drop onto a text field would paste.
+  // Dragging an app tile carries a typed reference to the app — its identity,
+  // never its contents — so only a surface that knows what to do with one takes
+  // the drop. The desk board makes a widget of it; a task composer attaches it
+  // as something to talk about. Neither is permission to do anything else.
   const onTileDragStart = (item) => (event) => {
-    event.dataTransfer.setData('application/x-vela-app', item.id);
-    event.dataTransfer.setData('text/plain', item.name);
-    event.dataTransfer.effectAllowed = 'copy';
+    writeAppReference(event.dataTransfer, item, 'launchpad');
   };
 
   const onTileContextMenu = (item) => (event) => {
