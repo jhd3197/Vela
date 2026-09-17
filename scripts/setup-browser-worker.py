@@ -146,6 +146,15 @@ def main() -> int:
     print(f'Browser worker installed: playwright-core {installed_version()}')
     print(f'  chromium: {current.get("path") or "not installed"}')
     if not current.get('present'):
+        if arguments.skip_browser:
+            # The browser was skipped on purpose. The package and the provenance
+            # record are exactly what this run promised, and both are now in
+            # place — which is what packaging ships: a worker that says which
+            # browser to fetch, not the browser. So this is a success, and the
+            # message says what is still missing rather than failing over it.
+            print('\nThe browser was skipped on request, so agent desktops stay unavailable '
+                  'until it is fetched. The package and its provenance are installed.')
+            return 0
         print('\nThe browser is not on this machine yet, so agent desktops stay unavailable.')
         print('Run this script again without --skip-browser once the download can succeed.')
         return 1
