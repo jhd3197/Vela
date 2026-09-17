@@ -133,6 +133,11 @@ export default function RemoteView({ desktopId, views, selectedViewId }) {
     return <p className="field-hint">Nothing is open on this desktop to watch.</p>;
   }
 
+  // Seconds, and only once it is worth saying. A second or two is what polling
+  // looks like when it is working.
+  const age = frame ? Date.now() - frame.capturedAt : 0;
+  const stale = age > 2500 ? Math.round(age / 1000) : 0;
+
   return (
     <section className="remote-view" aria-labelledby="remote-view-title">
       <header>
@@ -181,6 +186,16 @@ export default function RemoteView({ desktopId, views, selectedViewId }) {
         ) : (
           <p className="field-hint">Waiting for a picture of the window…</p>
         )}
+        {/* How old what is on screen is, once it is old enough to matter. A
+            picture that has stopped arriving still looks like a live one, and
+            deciding from a stale one is how a click lands somewhere else. Stop
+            and Pause do not go through this stream and keep working either
+            way. */}
+        {stale ? (
+          <p className="remote-stale" role="status">
+            This picture is {stale} seconds old.
+          </p>
+        ) : null}
       </div>
 
       {error && (

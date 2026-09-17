@@ -554,3 +554,17 @@
     padding: 4px 6px;
   }
 }
+
+/* How old the picture is, when that has started to matter. Over the frame
+   rather than beside it, so it cannot be missed while deciding from one. */
+.remote-stale {
+  position: absolute;
+  inset-block-end: 8px;
+  inset-inline-start: 8px;
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  margin: 0;
+  padding: 4px 8px;
+}

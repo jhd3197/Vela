@@ -97,6 +97,25 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Windows move the way they should.** Minimizing and restoring an agent's
+  window now plays a short warp toward its entry in the rail — 480 milliseconds,
+  the same in both directions, and it narrows toward the icon rather than sliding
+  as a rectangle.
+
+  It happens where Vela actually has a picture of the window to move, which
+  means a window the agent's own browser is rendering. An ordinary app on your
+  own desktop runs in a frame this page is not allowed to read the pixels of;
+  that is a browser rule, not a missing feature, and Vela will not ask for screen
+  recording or weaken an app's isolation to get around it for an animation —
+  those windows minimize immediately instead.
+
+  Ask your system for reduced motion and there is no warp at all. Either way it
+  is decoration over a decision that has already happened: minimizing a window
+  never pauses a task, ends a session or stops an agent, and the window goes
+  where you put it whether or not anything was drawn. A picture of the agent's
+  screen that has gone stale now says how old it is, and Stop never depended on
+  that stream.
+
 - **Two windows side by side, and everything a drag does without one.** Drag a
   window's title bar to the left or right edge and Vela shows the half it would
   take; let go and it goes there. The other half either keeps the window it had

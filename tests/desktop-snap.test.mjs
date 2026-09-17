@@ -15,6 +15,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { SPLIT_MIN_WIDTH, placeView } from '../web/src/desktops/window-state.js';
+
 import {
   exitPatch,
   freeSlotFor,
@@ -183,5 +185,36 @@ describe('the divider', () => {
     assert.equal(ratioAt(-500, AREA), MIN_RATIO);
     assert.equal(ratioAt(99999, AREA), MAX_RATIO);
     assert.equal(ratioAt(600, { width: 0 }), 0.5);
+  });
+});
+
+describe('a split too narrow to show as two', () => {
+  const view = (id) => ({ id, window: { minimized: false, stack: 0 } });
+  const layout = { ...split(), selectedView: 'b' };
+  const narrow = { width: SPLIT_MIN_WIDTH - 1, height: 700 };
+
+  test('one pane is drawn, full width, and the other is not drawn at all', () => {
+    const front = placeView(view('b'), { layout, area: narrow });
+    const behind = placeView(view('a'), { layout, area: narrow });
+    assert.deepEqual(front, { x: 0, y: 0, width: narrow.width, height: narrow.height });
+    assert.equal(behind, null, 'two 200-pixel columns are not a split screen');
+  });
+
+  test('the arrangement somebody made is kept, so a wider screen restores it', () => {
+    // Nothing above changed the layout: the same record, drawn wide, is two
+    // panes again. Rotating a tablet back is not supposed to lose an
+    // arrangement.
+    const wide = { width: 1200, height: 700 };
+    const left = placeView(view('a'), { layout, area: wide });
+    const right = placeView(view('b'), { layout, area: wide });
+    assert.ok(left.width > 0 && right.width > 0);
+    assert.ok(right.x > left.x);
+  });
+
+  test('with nothing selected the pane that has something in it comes forward', () => {
+    const half = { ...split({ primaryView: null }), selectedView: null };
+    assert.ok(placeView(view('b'), { layout: half, area: narrow }));
+    const other = { ...split({ secondaryView: null }), selectedView: null };
+    assert.ok(placeView(view('a'), { layout: other, area: narrow }));
   });
 });

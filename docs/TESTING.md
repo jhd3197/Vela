@@ -182,6 +182,36 @@ another app's grants are left exactly as they were.
 a row and checks that nothing survives a cycle — no browser context, no grant,
 no session. A leak there is not one anybody sees once; it is one per cycle.
 
+`desktop-snap.test.mjs`, `desktop-drag.test.mjs` and `genie-motion.test.mjs`
+cover the window interactions as arithmetic, with no browser. The snap suite is
+about what a drag near an edge *means*: where an offer starts, that moving a
+window to the other pane leaves the side it came from empty rather than showing
+it twice, that a closed or minimized member leaves its slot behind, that a
+minimized one goes back into that slot only while it is free, and that a split
+too narrow to draw as two is drawn as one without the stored arrangement
+changing. The drag suite is about what a dropped app card carries — identity
+only, checked by asserting that a token, some markup and some app state put on
+the same object do not appear anywhere in the payload.
+
+`genie-motion.test.mjs` is the approved motion, on a controlled clock. The
+preset is asserted by the values the geometry uses rather than by its label,
+because the prototype carried swoop 10 in three separate places and a test that
+read only one of them would have passed while the motion was wrong. Then: neck
+10 being a lead of 0.10; bands nearer the icon leading bands further from it;
+the furthest band starting exactly at the lead; collapse and expansion being
+different curves rather than one played backwards; a shape converting back to a
+time so a reversal resumes mid-warp; a reversal lasting as long as the distance
+left; 140 bands that overlap with no gap at 0, 25, 50, 75 and 100 per cent; the
+swoop peaking in the middle, vanishing at both ends and pointing opposite ways
+in the two directions. Its lifecycle half covers generations — a completion from
+a cancelled run changing nothing — and cancelling settling to the state that was
+*decided* rather than the shape on screen, which is what stops a hidden tab
+leaving a half-collapsed window nobody can click.
+
+What those cannot establish is how it looks. Real-frame inspection at several
+densities, both themes and a physical phone is browser and device work; record
+what was actually looked at rather than inferring it from a passing suite.
+
 `test_approvals.py` covers changes that wait for a person. Its first half is
 the sentence somebody decides from: a secret-looking field described and never
 repeated, a long value clipped, a change too large to list saying how much

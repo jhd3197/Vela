@@ -573,3 +573,15 @@
     transition: none;
   }
 }
+
+/* The warp. Above the window it is standing in for, below the rail, the owner's
+   approvals and any dialog — and it never takes a click. */
+.genie-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Nothing to reduce here: the motion itself is skipped rather than shortened
+   when someone asks for less of it, so this canvas is simply never created. */

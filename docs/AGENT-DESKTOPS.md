@@ -148,6 +148,46 @@ question waiting about it can no longer be answered. Windows stay open and say
 they need reopening — you chose to have them, and closing them to tidy up is not
 Vela's decision to make.
 
+## Windows
+
+Every window has a title bar with three controls that do three different things.
+**Minimize** puts it away and nothing else — the app keeps running, its session
+stays open, and an agent working in it carries on. **Maximize** fills the desk.
+**Close** is the only one that ends the window, and the only one that asks about
+unsaved work.
+
+Drag a title bar to the left or right edge and Vela shows the half the window
+would take; let go and it goes there. The other half keeps whatever it had, or
+becomes an empty pane that offers to be filled. A window moved from one side to
+the other is moved — it never ends up showing in both.
+
+The divider between two panes can be dragged, moved with the arrow keys, and
+sent back to equal halves with Home or a double-click. The **⋯** menu on any
+title bar does everything a drag does: move left, move right, swap the panes,
+even them up, leave split view.
+
+On a narrow screen a split is kept but drawn one pane at a time, full width,
+with the rail switching between them. Widen the window and both panes come back
+exactly as they were.
+
+## The way a window moves
+
+Minimizing and restoring an agent's window play a short warp toward its entry in
+the rail: 480 milliseconds, and the same motion in both directions.
+
+It happens where Vela has an actual picture of the window to move, which today
+means a window the agent's own browser is rendering — Vela's server already
+takes authorized pictures of those for the viewer. An ordinary app on your own
+desktop runs in a frame this page is not allowed to read the pixels of. That is
+a browser rule rather than a missing feature, and Vela will not ask for screen
+recording or weaken an app's isolation to get around it for an animation. Those
+windows minimize immediately instead.
+
+If you have asked your system for reduced motion, there is no warp at all —
+windows go straight where they are going. Everything else behaves identically;
+the motion is decoration over a decision that has already happened, which is
+also why minimizing never pauses a task, closes a session or stops an agent.
+
 ## What is never available
 
 - No path, directory or file picker reaches the agent.

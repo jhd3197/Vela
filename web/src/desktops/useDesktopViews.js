@@ -235,6 +235,9 @@ export default function useDesktopViews(desktopId) {
 
   return {
     ...state,
+    // Which workspace all of this belongs to. Carried so a consumer never has
+    // to be told separately and get it wrong.
+    desktopId,
     ordered,
     refresh: load,
     open,

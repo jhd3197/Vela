@@ -54,6 +54,11 @@ export default function DesktopRailViews({ onNavigate }) {
             key={view.id}
             type="button"
             className={`rail-item rail-view-item${selected ? ' rail-item-active' : ''}`}
+            // The window motion measures this to know where to fly. Measured
+            // every time rather than remembered: the rail scrolls, the theme
+            // changes its size, and a hardcoded coordinate would eventually be
+            // an animation into the edge of the screen.
+            data-motion-anchor={view.id}
             data-state={minimized ? 'minimized' : 'open'}
             aria-pressed={selected}
             onClick={() => {

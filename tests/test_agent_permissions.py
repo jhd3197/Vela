@@ -377,17 +377,23 @@ class AgentPermissionTests(unittest.TestCase):
 
         A grant being taken away and the effect it authorized being written
         contend for the same SQLite write lock, because they are rows in the
-        same database. So one of them wins outright: either the write landed and
-        the data says so, or it was refused and the data is untouched. What must
-        never happen is a refusal that changed something, or a success that did
-        not.
+        same database. So one of them wins outright, and the invariant is what
+        the data says afterwards: **a refusal never changed anything, and a
+        success always did.**
+
+        Three endings, not two, and the third one is the easy one to forget. If
+        the revocation lands first the write finds no grant — and finding no
+        grant is not the same as being refused. It becomes a question for the
+        owner, nothing is written while that is open, and the reply is `202`. A
+        test that only allowed 200 and 403 would fail on a correct outcome
+        roughly one run in ten, which is exactly how it was found.
 
         Run a dozen times because the interleaving is what is being checked, and
         one pass proves nothing about the other order.
         """
         self.assertEqual(self.policy(apps=["notes"]).status_code, 200)
         view = self.open_view("notes")
-        outcomes = {"committed": 0, "denied": 0}
+        outcomes = {"committed": 0, "denied": 0, "asked": 0}
         for attempt in range(12):
             agent = self.agent_session(view, f"run-{attempt}")
             before = self.client.get("/api/app/storage", headers=self.notes).json()
@@ -414,6 +420,18 @@ class AgentPermissionTests(unittest.TestCase):
                         "a write that said it succeeded has to have happened",
                     )
                     self.assertEqual(after["revision"], before["revision"] + 1)
+                elif written.status_code == 202:
+                    # The revocation got there first, so there was no grant to
+                    # check and the write became a question instead. Nothing is
+                    # written while one is open, which is the only thing that
+                    # matters here.
+                    outcomes["asked"] += 1
+                    self.assertEqual(
+                        after["revision"],
+                        before["revision"],
+                        "a write waiting for an answer must not have changed anything",
+                    )
+                    self.assertTrue(written.json()["pending"]["requestId"])
                 else:
                     outcomes["denied"] += 1
                     self.assertIn(written.status_code, (401, 403))

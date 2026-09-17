@@ -19,8 +19,11 @@ import AppWindow from './AppWindow.jsx';
 import EmptyPane from './EmptyPane.jsx';
 import SplitDivider from './SplitDivider.jsx';
 import WindowFrame from './WindowFrame.jsx';
+import GenieOverlay from './motion/GenieOverlay.jsx';
+import useWindowMotion from './motion/useWindowMotion.js';
+import { anchorFor } from './motion/anchors.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
-import { placeView, splitBounds, workArea } from './window-state.js';
+import { SPLIT_MIN_WIDTH, placeView, splitBounds, workArea } from './window-state.js';
 
 /** What to call a view that has not been given a title. */
 function labelFor(view, apps) {
@@ -40,7 +43,7 @@ function labelFor(view, apps) {
   return 'Agent';
 }
 
-export default function DesktopViewHost({ views }) {
+export default function DesktopViewHost({ views, desktop }) {
   const { apps } = useApps();
   const host = useRef(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
@@ -56,6 +59,11 @@ export default function DesktopViewHost({ views }) {
   const [snapping, setSnapping] = useState(null);
   const [ratioPreview, setRatioPreview] = useState(null);
   const frames = useRef(new Map());
+  // Presentation only. None of this touches an app's process, its session or an
+  // agent's task: a minimized remote view is a view the owner is not looking
+  // at, and the page it was showing is still open, still observed and still
+  // being worked in.
+  const motion = useWindowMotion({ desktopId: views.desktopId, desktop, area });
 
   useEffect(() => {
     if (!host.current) return undefined;
@@ -104,6 +112,22 @@ export default function DesktopViewHost({ views }) {
     [area, snapping, views],
   );
 
+  // Put a window away, or bring it back, with the warp where one is possible.
+  // The layout change happens first and unconditionally — somebody asked for
+  // the window to be minimized, so it is minimized — and the picture follows.
+  const putAway = useCallback(
+    (view, index) => {
+      const minimized = Boolean(view.window?.minimized);
+      const bounds = placeView(view, { layout: views.layout, area, index });
+      motion.animate(view, minimized ? 'expand' : 'collapse', {
+        icon: anchorFor(view.id, host.current),
+        bounds,
+        apply: () => (minimized ? views.restore(view, index) : views.minimize(view)),
+      });
+    },
+    [area, motion, views],
+  );
+
   const requestClose = useCallback(
     (view) => {
       // Close is the only one of the three controls that ends anything, so it
@@ -117,12 +141,18 @@ export default function DesktopViewHost({ views }) {
   if (!views.loaded || !views.ordered.length) return null;
 
   const { layout } = views;
+  // A split that is too narrow to show as two is still a split. It is drawn as
+  // one pane at a time; the divider, the empty slots and the snap preview all
+  // belong to the wide presentation and are not drawn here.
   const split = layout.arrangement === 'split';
+  const wideEnough = area.width >= SPLIT_MIN_WIDTH;
   const ratio = ratioPreview ?? layout.dividerRatio ?? 0.5;
   const drawn = ratioPreview === null ? layout : { ...layout, dividerRatio: ratio };
   const visible = views.ordered
     .map((view, index) => ({ view, bounds: placeView(view, { layout: drawn, area, index }) }))
-    .filter((entry) => entry.bounds);
+    // The window the overlay is standing in for is hidden while it stands in
+    // for it, so the two are never both on screen. Its session is untouched.
+    .filter((entry) => entry.bounds && motion.animatingViewId !== entry.view.id);
   const openElsewhere = views.ordered
     .filter((view) => !view.window?.minimized)
     .map((view) => ({ id: view.id, label: labelFor(view, apps) }));
@@ -184,7 +214,7 @@ export default function DesktopViewHost({ views }) {
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
             actions={menuFor(view)}
-            onMinimize={() => views.minimize(view)}
+            onMinimize={() => putAway(view, views.ordered.indexOf(view))}
             onMaximize={() => views.maximize(view)}
             onClose={() => requestClose(view)}
           >
@@ -210,7 +240,7 @@ export default function DesktopViewHost({ views }) {
 
       {/* The divider is drawn over the gutter the panes already leave for it, so
           it never covers what is inside either one. */}
-      {split && area.width > 0 && (
+      {split && wideEnough && area.width > 0 && (
         <SplitDivider
           area={area}
           ratio={layout.dividerRatio ?? 0.5}
@@ -223,6 +253,7 @@ export default function DesktopViewHost({ views }) {
       )}
 
       {split &&
+        wideEnough &&
         panes(drawn)
           .filter((pane) => !pane.viewId)
           .map((pane) => (
@@ -260,6 +291,16 @@ export default function DesktopViewHost({ views }) {
           })()}
         />
       )}
+
+      {/* Above the window it replaces and below everything the owner needs.
+          Decoration: it takes no pointer input and is not in the accessibility
+          tree, so every real control stays exactly as reachable as it was. */}
+      <GenieOverlay
+        run={motion.run}
+        area={area}
+        onDone={motion.settle}
+        onProgress={motion.progressed}
+      />
 
       {confirm && (
         <Dialog open aria-labelledby="window-unsaved-title" onClose={() => setConfirm(null)}>
