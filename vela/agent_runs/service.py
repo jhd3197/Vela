@@ -16,6 +16,7 @@ from ..desktops.models import DesktopError, validate_id
 from .model import OllamaAdapter
 from .store import RunStore
 from .supervisor import Supervisor
+from .viewer import Viewer
 
 MAX_CLIENT_REQUEST_ID = 100
 
@@ -33,6 +34,11 @@ class AgentRuns:
         self.supervisor = Supervisor(
             desktops, self.store, model=self.model, log=log, notifier=notifier
         )
+        # Watching and taking over. Built here because both need the runs and
+        # the desktops, and a second object holding half of each would be two
+        # answers to "who has control".
+        self.viewer = Viewer(desktops, self)
+        self.supervisor.leases = self.viewer.leases
         self._log = log or (lambda message: None)
 
     def prepare(self) -> dict[str, Any]:
@@ -190,6 +196,7 @@ class AgentRuns:
 
     def forget_desktop(self, desktop_id: str) -> None:
         self.store.forget_desktop(desktop_id)
+        self.viewer.forget_desktop(desktop_id)
 
     def purge(self) -> int:
         """Called when history is turned off. A deletion, not a preference."""

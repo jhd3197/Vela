@@ -923,6 +923,56 @@ never affects the task.
 does not submit the instruction, install anything or widen what the desktop may
 use; those remain the owner actions they already were.
 
+### Watching, and taking over
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/control.py` | The one writer lease, and the checks on a point and a frame's age |
+| `vela/agent_runs/viewer.py` | Frames, the takeover transition, and human input |
+| `web/src/desktops/RemoteView.jsx` | The picture, passive until control is taken |
+| `web/src/desktops/input-coordinates.js` | Displayed box → view coordinates, and the key allowlist |
+
+**A frame is of one view, never the desktop.** The whole-desktop capture that
+would be easier to build is the one that must not exist: it would contain the
+owner's approval prompt, and handing the agent's viewer a picture of the control
+that authorizes the agent is a mistake that is only obvious afterwards.
+`captureFrame` is scoped to a page and nothing widens it.
+
+**Frames are fetched, not linked.** An `<img src>` cannot carry the hub bearer,
+and putting a credential in a URL to work around that is how a token ends up in
+a log. `frameBytes` fetches through `hubFetch` and hands back a blob URL the
+component owns. The bytes are served `no-store, private` and are never static
+files.
+
+**Watching is passive.** A click does nothing until control has been taken.
+
+**Taking over is three steps in one order**, and the order is the whole thing:
+dispatch stops, the control epoch changes, and only then is the lease issued.
+Issuing the lease first would leave a window in which a command the agent sent a
+moment ago arrives while a person is typing. Changing the epoch invalidates
+every observation the run was holding, which is why resuming forces a fresh
+look.
+
+**One writer, decided by a lock.** `Leases.take` refuses the second request
+under the same lock that grants the first, so eight simultaneous requests
+produce one writer and seven refusals — `test_viewer.py` runs exactly that with
+a barrier. Other viewers can always see who holds control.
+
+**Giving control back is not resuming.** A person may release because they are
+finished or because they are leaving; an agent that started typing again because
+a connection dropped would be an agent nobody asked to continue. The run stays
+paused, and `control` refuses to resume while anybody still holds the lease. A
+closed tab is covered by the lease timeout rather than by a release request from
+a page being torn down.
+
+**Human input is bounded like the agent's.** The same key allowlist, the same
+text limits, the same refusal to reach past the page — being a person does not
+turn Ctrl+W into a page interaction. A click is checked against the size of the
+frame it was decided from and refused if that frame is more than ten seconds
+old. Coordinates stay in CSS pixels; the viewer undoes its own scaling, and the
+device pixel ratio is reported rather than applied. Vela never reads the host
+clipboard and does not ask for permission to.
+
 ### Evaluating a model
 
 Deterministic fixtures establish that the machinery is correct. They say nothing

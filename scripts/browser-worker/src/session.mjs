@@ -419,6 +419,53 @@ export class DesktopSession {
     };
   }
 
+  /**
+   * A person typing into a view they are looking at.
+   *
+   * Deliberately not `act`. An agent's action names the observation it was
+   * decided from, because an agent decides from a structured reading of a page
+   * it cannot see. A person decides from the picture in front of them, and the
+   * picture *is* the observation — so this takes a point and a key, and the
+   * host is what checked that the picture was recent enough and that this
+   * person holds the lease.
+   *
+   * What it shares with `act` is the bounds: the same key allowlist, the same
+   * text limits, the same refusal to reach past the page. Being a person does
+   * not make a browser shortcut into a page interaction.
+   */
+  async humanInput(viewId, input) {
+    const page = this.page(viewId);
+    const kind = String(input?.kind || '');
+    if (kind === 'click') {
+      const point = checkPoint(input.point, this.#viewportOf(page));
+      await page.mouse.click(point.x, point.y, {
+        button: ['left', 'right', 'middle'].includes(input.button) ? input.button : 'left',
+        clickCount: input.clickCount === 2 ? 2 : 1,
+      });
+    } else if (kind === 'move') {
+      const point = checkPoint(input.point, this.#viewportOf(page));
+      await page.mouse.move(point.x, point.y);
+    } else if (kind === 'scroll') {
+      const delta = checkScroll(input);
+      await page.mouse.wheel(delta.dx, delta.dy);
+    } else if (kind === 'key') {
+      await pressKey(page, checkKey(input.key));
+    } else if (kind === 'text') {
+      // Text the person chose, typed in. Never read from anybody's clipboard:
+      // Vela has no business in the host operating system's clipboard and does
+      // not ask for it.
+      const text = checkText(input.text ?? '');
+      if (text) await page.keyboard.type(text, { delay: 4 });
+    } else {
+      throw new SessionError(`${kind || 'that'} is not something a person can send`, 'unknown_command');
+    }
+    // A person has touched the page, so whatever the agent was holding is no
+    // longer a description of it.
+    await this.observations.invalidate(viewId, 'a person used this view');
+    const after = await afterState(page);
+    return { kind, after };
+  }
+
   /** Navigate an open view somewhere else it is allowed to go. */
   async navigateView(viewId, url) {
     const page = this.page(viewId);

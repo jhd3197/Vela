@@ -130,6 +130,18 @@ const COMMANDS = {
   },
 
   /**
+   * A person's input, for a view they are watching.
+   *
+   * Vela has already checked that they hold the desktop's one writer lease and
+   * that the picture they decided from is recent. The control epoch on this
+   * command is what stops the agent's in-flight commands landing beside it.
+   */
+  async 'view.input'(command) {
+    const session = sessionFor(command.desktopId);
+    return session.humanInput(command.viewId, command.input || {});
+  },
+
+  /**
    * One bounded action on a view, aimed at a control from a named observation.
    *
    * The action is not applied unless that observation is still the current one

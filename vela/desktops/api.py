@@ -115,6 +115,27 @@ class ControlTask(BaseModel):
     action: str = Field(pattern=r"^(pause|resume|stop)$")
 
 
+class TakeOver(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    viewId: str | None = Field(default=None, max_length=64)
+
+
+class ViewerInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str = Field(pattern=r"^(click|move|scroll|key|text)$")
+    viewId: str | None = Field(default=None, max_length=64)
+    point: dict[str, Any] | None = None
+    button: str | None = Field(default=None, max_length=8)
+    clickCount: int | None = Field(default=None, ge=1, le=2)
+    dx: float | None = None
+    dy: float | None = None
+    key: str | None = Field(default=None, max_length=32)
+    #: Text the person chose and sent. Vela never reads the host clipboard.
+    text: str | None = Field(default=None, max_length=4000)
+    #: When the picture this was decided from was taken.
+    frameAt: float | None = None
+
+
 class ResolveApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
     decision: str = Field(pattern=r"^(approve|deny)$")
@@ -458,6 +479,77 @@ def router(desktops, *, runs=None) -> APIRouter:
     def delete_wallpaper(desktop_id: str) -> dict:
         try:
             return desktops.remove_wallpaper(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # -------------------------------------------------- watch and control --
+
+    @api.get("/{desktop_id}/viewer")
+    def viewer_status(desktop_id: str) -> dict:
+        """Who is watching, and who — if anyone — is typing."""
+        try:
+            return _runs().viewer.status(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.get("/{desktop_id}/views/{view_id}/frame")
+    async def view_frame(desktop_id: str, view_id: str, maxAgeMs: int = 400) -> dict:
+        """A recent picture of one view — the view, never the whole desktop.
+
+        A desktop capture would contain the owner's approval prompt, which is
+        exactly what must never be in anything the agent's side can influence.
+        """
+        try:
+            frame = await _runs().viewer.frame(desktop_id, view_id, max_age_ms=maxAgeMs)
+        except DesktopError as exc:
+            raise _fail(exc)
+        return {key: value for key, value in frame.items() if key != "file"}
+
+    @api.get("/{desktop_id}/views/{view_id}/frame/{digest}")
+    def view_frame_bytes(desktop_id: str, view_id: str, digest: str):
+        """The bytes, behind owner authentication and never cached."""
+        try:
+            path = _runs().viewer.frame_file(desktop_id, view_id, digest)
+        except DesktopError as exc:
+            raise _fail(exc)
+        return FileResponse(
+            path,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "no-store, private",
+                "Content-Disposition": "inline",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @api.post("/{desktop_id}/takeover", status_code=201)
+    async def take_over(desktop_id: str, payload: TakeOver | None = None) -> dict:
+        """Stop the agent, change the generation, then hand control over."""
+        try:
+            return await _runs().viewer.take_over(
+                desktop_id, view_id=payload.viewId if payload else None
+            )
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.post("/{desktop_id}/takeover/{lease_id}/input")
+    async def send_input(desktop_id: str, lease_id: str, payload: ViewerInput) -> dict:
+        try:
+            return await _runs().viewer.send_input(
+                desktop_id, lease_id, payload.model_dump(exclude_none=True)
+            )
+        except DesktopError as exc:
+            raise _fail(exc)
+        except AppServiceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+
+    @api.delete("/{desktop_id}/takeover/{lease_id}")
+    def release_control(desktop_id: str, lease_id: str) -> dict:
+        """Give control back. The task stays paused until you say carry on."""
+        try:
+            return _runs().viewer.release(desktop_id, lease_id)
         except DesktopError as exc:
             raise _fail(exc)
 

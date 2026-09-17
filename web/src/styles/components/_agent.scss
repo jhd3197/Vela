@@ -367,3 +367,56 @@
     transition: none !important;
   }
 }
+
+/* --------------------------------------------- watching and control -- */
+
+/* The picture of the agent's window. Read-only until somebody takes control,
+   and it says which it is rather than relying on the person remembering. */
+.remote-view {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+
+  h3 {
+    font-size: 14.5px;
+  }
+}
+
+.remote-surface {
+  align-items: center;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  justify-items: center;
+  margin-top: 10px;
+  min-height: 160px;
+  overflow: hidden;
+  position: relative;
+
+  img {
+    display: block;
+    height: auto;
+    max-height: 420px;
+    max-width: 100%;
+    object-fit: contain;
+    width: auto;
+  }
+
+  /* Control is a visible state, not something to infer from a button label. */
+  &[data-control='yes'] {
+    border-color: var(--accent);
+    cursor: crosshair;
+    outline-offset: 2px;
+  }
+
+  &[data-control='yes']:focus-visible {
+    outline: 2px solid var(--accent);
+  }
+
+  /* Watching: the picture is a picture. Nothing about it invites a click. */
+  &[data-control='no'] img {
+    pointer-events: none;
+  }
+}

@@ -101,6 +101,27 @@ export const desktopsApi = {
   events: (id, after = 0, options) =>
     request(`${scope(id)}/events?after=${Number(after) || 0}`, options),
 
+  // ---- watching and control
+  viewer: (id, options) => request(`${scope(id)}/viewer`, options),
+  frame: (id, viewId, maxAgeMs = 400) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}/frame?maxAgeMs=${maxAgeMs}`),
+  // The bytes, fetched rather than pointed at. An <img src> cannot carry the
+  // hub bearer, and putting a credential in a URL to work around that is how a
+  // token ends up in a log. The caller gets a blob and owns revoking it.
+  frameBytes: async (id, viewId, digest) => {
+    const response = await hubFetch(
+      `${scope(id)}/views/${encodeURIComponent(viewId)}/frame/${encodeURIComponent(digest)}`,
+      { headers: { Accept: 'image/png' }, cache: 'no-store' },
+    );
+    if (!response.ok) throw new ApiError('That picture is no longer available.', response.status);
+    return URL.createObjectURL(await response.blob());
+  },
+  takeOver: (id, viewId) => request(`${scope(id)}/takeover`, json('POST', { viewId })),
+  sendInput: (id, leaseId, body) =>
+    request(`${scope(id)}/takeover/${encodeURIComponent(leaseId)}/input`, json('POST', body)),
+  releaseControl: (id, leaseId) =>
+    request(`${scope(id)}/takeover/${encodeURIComponent(leaseId)}`, { method: 'DELETE' }),
+
   approvals: (id, options) => request(`${scope(id)}/approvals`, options),
   resolveApproval: (id, requestId, body) =>
     request(`${scope(id)}/approvals/${encodeURIComponent(requestId)}`, json('POST', body)),

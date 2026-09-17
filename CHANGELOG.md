@@ -97,6 +97,19 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Watch what the agent is doing, and take the keyboard when you want it.**
+  The Agent window shows the actual screen the agent is working on. Watching is
+  watching: clicking the picture does nothing. **Take over** stops the agent
+  first, then hands you the window — your clicks and keys go to it, and the task
+  stays paused until you say carry on, even after you give control back. Only one
+  person can be typing at a time, and anyone else watching can see who it is.
+  When the agent does carry on, it looks at the screen again before doing
+  anything, so it sees what you changed.
+
+  Closing the tab does not hand the keyboard to the agent; control simply times
+  out. Pause holds a task where it is, Stop ends it — and neither pretends to
+  undo something that already happened. Vela never reads your clipboard.
+
 - **Set up a desktop that works for you, and watch it.** The rail's desktop menu
   has an Agent button on every desktop. On one that is still yours it opens a
   short setup — which model, which apps, which websites, and whether changes ask

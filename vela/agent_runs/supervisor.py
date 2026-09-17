@@ -70,6 +70,9 @@ class Supervisor:
         # nobody asked to be told about is not a reason to send a message off
         # this computer.
         self.notifier = notifier
+        #: Attached by the run service. Resuming has to know whether a person
+        #: still has control, and stopping has to take it back.
+        self.leases = None
         self.tools = tools if tools is not None else desktops.tools
         self._log = log or (lambda message: None)
         self._runs: dict[str, asyncio.Task] = {}
@@ -169,6 +172,8 @@ class Supervisor:
             # Dispatch stops now; what already committed stays committed, and an
             # external result nobody could confirm stays unknown.
             self.desktops.revoke_run(desktop_id, run_id, reason="you stopped this task")
+            if self.leases is not None:
+                self.leases.drop(desktop_id)
             return self.store.get(run_id)
 
         if action == "pause":
@@ -179,9 +184,21 @@ class Supervisor:
 
         if run["state"] != "paused":
             raise AppServiceError(409, "That task is not paused.")
+        if self.leases is not None and self.leases.holder(desktop_id):
+            raise AppServiceError(
+                409,
+                "Somebody still has control of this desktop. Give it back before the "
+                "task carries on.",
+            )
         self._control.pop(run_id, None)
-        # A resumed run observes again before it does anything: what it was
-        # looking at when it paused is not what is there now.
+        # A new generation on the way back in, so every observation the run was
+        # holding is invalid and it has to look again before it can act. What it
+        # remembers is not what a person left on the screen.
+        if self.leases is not None:
+            with contextlib.suppress(Exception):
+                await self.desktops.runtime.command(
+                    "control.take", desktopId=desktop_id, timeout=15.0
+                )
         self.store.update(run_id, state="running")
         self.emit(desktop_id, "task.resumed", {"runId": run_id}, run_id=run_id)
         return self.store.get(run_id)

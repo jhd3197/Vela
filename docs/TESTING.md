@@ -79,6 +79,21 @@ window minimizes to the rail and comes back. It asserts on structure and on
 refusals rather than on a model being installed, so it is honest on a machine
 with no model server.
 
+`test_viewer.py` covers watching and taking over. The lease half needs nothing
+and always runs: the second request losing, eight simultaneous requests through
+a barrier producing exactly one writer, two desktops having their own, a lease
+that nobody used timing out, using one keeping it alive, and an observer always
+being able to see who is typing. It also covers a click outside the view, a
+click that is not a point, a view with no known size, and input decided from a
+picture more than ten seconds old. The end-to-end half needs the browser and
+skips with a reason without one: a frame that is of one view and never carries a
+path, bytes served `no-store` behind owner authentication, a picture nobody
+captured not being served, watching changing nothing, taking over being
+exclusive and bumping the generation, input without the lease reaching nothing,
+a key a person may not press still being refused, and — the reason the epoch
+changes at all — an observation the agent was holding no longer working after a
+takeover.
+
 `test_agent_runs.py` covers the supervisor with a scripted model and a
 recording tool surface, so it is about the loop rather than about Chromium: a
 task running to a result with nobody watching, ordered events readable from a

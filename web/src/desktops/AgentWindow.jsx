@@ -16,6 +16,7 @@ import Button from '../components/ui/Button.jsx';
 import { useDesktops } from './DesktopsProvider.jsx';
 import AgentSetup from './AgentSetup.jsx';
 import ApprovalCard from './ApprovalCard.jsx';
+import RemoteView from './RemoteView.jsx';
 import TaskActivity, { LIVE_STATES } from './TaskActivity.jsx';
 import { desktopsApi } from './desktopsApi.js';
 import useAgentEvents from './useAgentEvents.js';
@@ -49,7 +50,7 @@ function Elapsed({ budget }) {
 }
 
 export default function AgentWindow({ desktopId }) {
-  const { desktops, refresh: refreshDesktops } = useDesktops();
+  const { desktops, refresh: refreshDesktops, views } = useDesktops();
   const desktop = desktops?.find((entry) => entry.id === desktopId);
   const isAgent = desktop?.kind === 'agent';
   const { events, tasks, approvals, error, gap, loaded, refresh, clearGap } = useAgentEvents(
@@ -248,6 +249,14 @@ export default function AgentWindow({ desktopId }) {
       ) : (
         loaded && <p className="field-hint">Nothing is being worked on.</p>
       )}
+
+      {/* Watching is passive. Taking over is a separate, deliberate act, and it
+          pauses the task rather than racing it. */}
+      <RemoteView
+        desktopId={desktopId}
+        views={views?.views}
+        selectedViewId={views?.layout?.selectedView}
+      />
 
       {queued.length > 0 && (
         <section className="task-queue" aria-labelledby="task-queue-title">
