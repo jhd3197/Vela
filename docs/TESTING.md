@@ -25,6 +25,14 @@ board and wallpaper, the selection staying on the device that made it, a direct
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
 
+`test_browser_runtime.py` runs the real worker process: it starts and reports
+its protocol and browser, gives each desktop its own browser and each browser
+its own views, refuses a command for a desktop it does not hold and one nobody
+implemented, enforces the policy it was handed rather than a mocked one, hands a
+frame over as a file instead of on the control channel, and — killed while Vela
+is waiting on a command — fails that command in bounded time and leaves nothing
+running. Without the browser installed it skips with a reason.
+
 `test_agent_permissions.py` covers what an agent may change: an unclassified
 operation being unavailable, an agent session that cannot reach the dashboard or
 an unclassified app route, reading needing only that the desktop allows the app,

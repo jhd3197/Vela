@@ -148,6 +148,11 @@ def router(desktops) -> APIRouter:
         except DesktopError as exc:
             raise _fail(exc)
 
+    # Declared before "/{desktop_id}" so it is not shadowed by it.
+    @api.get("/runtime")
+    def runtime_status() -> dict:
+        return desktops.runtime_status()
+
     @api.get("/{desktop_id}")
     def get_desktop(desktop_id: str) -> dict:
         try:

@@ -25,6 +25,7 @@ from .grants import Grants
 from .principals import agent_of
 from .migration import migrate
 from .policy import empty_policy, validate_policy
+from .runtime import BrowserRuntime, RuntimeUnavailable, availability as runtime_availability
 from .models import (
     AGENT_VIEWABLE_KINDS,
     DEFAULT_WALLPAPER,
@@ -74,6 +75,7 @@ class Desktops:
         storage: Any = None,
         auth: Any = None,
         registry: Any = None,
+        log=None,
     ):
         self.data_dir = data_dir
         self.assets_dir = data_dir / "desktop-assets"
@@ -91,6 +93,9 @@ class Desktops:
         self.grants = Grants(storage) if storage is not None else None
         self._auth = auth
         self._registry = registry
+        # The managed browser. Created now, started only when a desktop needs
+        # one: a server with no agent desktops should cost nothing.
+        self.runtime = BrowserRuntime(data_dir / "agent-frames", log=log or (lambda message: None))
 
     # -------------------------------------------------------- start-up --
 
@@ -251,6 +256,26 @@ class Desktops:
             else validate_revision(expected_revision, what="appearance")
         )
         return self.store.save_appearance(desktop_id, checked, revision)
+
+    # --------------------------------------------------------- runtime --
+
+    def runtime_status(self) -> dict[str, Any]:
+        """Whether agent desktops can run here, and which ones are running.
+
+        Answered before any work is accepted rather than discovered halfway
+        through a task, and each unavailable reason says what to do about it.
+        """
+        state = runtime_availability()
+        return {
+            **state,
+            "running": self.runtime.running,
+            "desktops": sorted(self.runtime.desktops),
+            "info": self.runtime.info.as_dict() if self.runtime.info else None,
+        }
+
+    async def stop_runtime(self) -> None:
+        """Close the browser deliberately. Called when Vela stops."""
+        await self.runtime.stop()
 
     # ---------------------------------------------------------- policy --
 

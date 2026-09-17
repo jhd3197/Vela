@@ -321,6 +321,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         storage=storage,
         auth=auth,
         registry=registry,
+        log=lambda message: print(f'[vela] {message}', flush=True),
     )
     # One guard, given to every service that can change something. For a person
     # it answers None and nothing changes; for an agent it returns the check
@@ -777,6 +778,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def stop_scheduler() -> None:
         await scheduler.stop()
         await system_metrics.stop()
+        # A browser left running with nobody to stop it is the thing the
+        # worker's own watchdog is a backstop for; this is the ordinary path.
+        await desktops.stop_runtime()
 
     @app.get("/api/system/metrics")
     def system_metrics_snapshot() -> dict:

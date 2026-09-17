@@ -606,6 +606,30 @@ boundary and the browser session that applies it.
 | `scripts/browser-worker/src/session.mjs` | One desktop's browser: its context, its views and the policy applied to every transport |
 | `tests/agent-boundary.test.mjs` | The boundary, checked against a real browser rather than a mocked policy |
 
+### The supervised process
+
+`vela/desktops/runtime.py` owns the worker's whole lifetime, following
+`vela/automations/worker.py` — two workers that fail the same way are two
+workers a maintainer only has to learn once. It starts hidden on Windows,
+speaks the frozen NDJSON protocol over its own pipes, receives no Vela
+credential and no network address, and is stopped when Vela stops.
+
+Both ends watch. Vela sends a heartbeat; the worker exits on its own if Vela
+goes quiet, because a force-killed server cannot send `shutdown` and a browser
+running with nobody to stop it is the failure worth preventing. A worker that
+dies takes its browsers with it and the desktops it held are gone — a browser
+session cannot be recreated, and pretending otherwise would mean an agent
+believing it is still looking at a page that is not there.
+
+Images never travel on the control channel. `view.capture` writes a PNG named
+after its own digest into a directory Vela passes on the command line and
+returns the name; one oversized capture taking the whole protocol down with it
+is the thing that avoids.
+
+`GET /api/desktops/runtime` reports whether agent desktops can run here at all,
+before any work is accepted, with a reason somebody can act on rather than the
+word "unavailable".
+
 ### Set up the runtime
 
 ```bash
