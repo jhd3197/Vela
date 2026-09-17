@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { api, isProcessApp } from '../api.js';
+import { isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import AppTitleBar from '../components/AppTitleBar.jsx';
@@ -13,7 +13,7 @@ import AppConnection from '../components/AppConnection.jsx';
 import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
 import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
-import { createBridge } from '../bridge/host.js';
+import useAppFrame from '../desktops/view-lifecycle.js';
 import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
@@ -57,9 +57,6 @@ function Workspace({ id, retry }) {
     : requestedMode === 'seamless' && compact
       ? 'compact'
       : requestedMode;
-  const [session, setSession] = useState(null);
-  const [error, setError] = useState('');
-  const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dirty, setDirty] = useState({ dirty: false, canSave: false });
@@ -93,6 +90,37 @@ function Workspace({ id, retry }) {
   };
   const leaveRef = useRef(requestLeave);
   leaveRef.current = requestLeave;
+
+  // The context the bridge sends is computed from the frame's measured box and
+  // the session, and the session comes from the hook below. The ref is what
+  // unties that: it is declared here and filled in once both exist, so the
+  // bridge — which only calls it after the first render — always finds the
+  // current one.
+  const contextRef = useRef(() => ({}));
+
+  // The session, the bridge and their teardown are shared with the desktop's
+  // windows: two copies of "open a session, attach a bridge, revoke on the way
+  // out" would be two places for the revoke to be forgotten.
+  const { session, ready, error, setError, save, updateContext } = useAppFrame({
+    appId: id,
+    enabled: running && isolated,
+    frameRef: frame,
+    contextRef,
+    onDirty: (state) => {
+      // Editing inside the frame is real activity. The host cannot see the
+      // keystrokes, so the app's own dirty report stands in for them and
+      // keeps the inactivity lock from firing mid-sentence.
+      reportAppActivity();
+      setDirty(state);
+    },
+    onNavigate: () => leaveRef.current(),
+  });
+
+  // The shared service already coalesces viewport events; the app only needs
+  // the resulting geometry once it settles.
+  useEffect(() => {
+    updateContext();
+  }, [mode, view, updateContext]);
 
   // While the frame connects, the window shows the app centred over a dimmed
   // ground; if `vela:ready` never arrives, a timeout turns that into a plain
@@ -159,71 +187,8 @@ function Workspace({ id, retry }) {
       },
     };
   }
-  const contextRef = useRef(viewportContext);
   contextRef.current = viewportContext;
 
-  useEffect(() => {
-    if (!running || !isolated) {
-      setSession(null);
-      setReady(false);
-      setError('');
-      return;
-    }
-    let disposed = false;
-    api
-      .openSession(id)
-      .then((value) => {
-        if (disposed)
-          fetch('/api/app/session', {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${value.token}` },
-          }).catch(() => {});
-        else setSession(value);
-      })
-      .catch((failure) => {
-        if (!disposed) setError(failure.message);
-      });
-    return () => {
-      disposed = true;
-    };
-  }, [id, running, isolated]);
-
-  useEffect(() => {
-    if (!session || !frame.current || !running) return;
-    const active = createBridge({
-      frame: frame.current,
-      session,
-      context: contextRef.current(),
-      onDirty: (state) => {
-        // Editing inside the frame is real activity. The host cannot see the
-        // keystrokes, so the app's own dirty report stands in for them and
-        // keeps the inactivity lock from firing mid-sentence.
-        reportAppActivity();
-        setDirty(state);
-      },
-      onNavigate: () => leaveRef.current(),
-      onReady: () => setReady(true),
-      onError: setError,
-    });
-    bridge.current = active;
-    const update = () => active.updateContext(contextRef.current());
-    const resize = new ResizeObserver(update);
-    resize.observe(frame.current);
-    const theme = new MutationObserver(update);
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => {
-      active.close();
-      bridge.current = null;
-      resize.disconnect();
-      theme.disconnect();
-    };
-  }, [session, running]);
-
-  // The shared service already coalesces viewport events; the app only needs
-  // the resulting geometry once it settles.
-  useEffect(() => {
-    bridge.current?.updateContext(contextRef.current());
-  }, [mode, view]);
   useEffect(() => {
     const warn = (event) => {
       if (dirtyRef.current.dirty) {
@@ -262,7 +227,7 @@ function Workspace({ id, retry }) {
     setSaving(true);
     setSaveError('');
     try {
-      await bridge.current.save();
+      await save();
       leave();
     } catch (failure) {
       setSaveError(failure.message);

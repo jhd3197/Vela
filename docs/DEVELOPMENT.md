@@ -460,6 +460,48 @@ after anything that can drop a reference.
 a regression. The image files are not backed up — they never were — so a
 restored desktop whose picture is missing falls back to a painted one.
 
+### Views and windows
+
+A **view** is what is open on a desktop. It is the identity that survives being
+minimized, maximized, moved between panes and restored; the app process it talks
+to has its own, shorter, life. Keeping those apart is the point: minimizing a
+window must not end a session, and closing one must not stop an app another
+desktop is also showing.
+
+| Table | Holds |
+| --- | --- |
+| `desktop_views` | What is open: kind, app and installation, owner surface or URL, title, who opened it, and the small navigation state it may remember |
+| `desktop_view_presentation` | Where the window is: bounds, restore bounds, minimized, stacking |
+| `desktop_layout` | One arrangement per desktop: floating, maximized or split, its panes, the divider and the selected view |
+
+Four kinds of view. `app` and `web` are things an agent can be pointed at;
+`host` and `agent` are the owner's own controls and are marked
+`agentViewable: false` at the service boundary rather than in every caller. A
+`host` view names one of a closed list of surfaces — one that could name any
+path would be a way to put the owner's dashboard, and its credentials, inside
+something that is not the owner's dashboard.
+
+**Installation binding.** An `app` view records the installation identity it
+opened against, and `available` is computed by comparing that to the current one
+on every read. That is deliberately not a hook at uninstall time: a hook is
+something a future code path can forget to call, and a window pointing at a
+replaced installation is exactly what must never be treated as still bound.
+
+**Revisions.** Only `PUT /layout` carries one. Opening a window, moving it and
+selecting it happen constantly, and charging them against the layout revision
+would make every click conflict with a drag somebody else was finishing.
+
+`web/src/desktops/window-state.js` is the geometry, with no React, no DOM and no
+fetch in it — because it is the part that has to keep being right after someone
+rotates a tablet, zooms to 200% or opens a layout saved on a monitor they no
+longer own, and `tests/desktop-window-state.test.mjs` can ask it all of those
+questions in milliseconds instead of only in a browser at one size.
+
+`web/src/desktops/view-lifecycle.js` owns one app view's session and bridge and
+the end of both. The full-screen app page and the desktop's windows share it;
+two copies of "open a session, attach a bridge, revoke on the way out" would be
+two places for the revoke to be forgotten.
+
 ### The dashboard side
 
 `web/src/desktops/` owns which workspace the browser is looking at.

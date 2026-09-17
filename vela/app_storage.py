@@ -63,6 +63,19 @@ class AppStorage:
             db.execute("INSERT OR REPLACE INTO installations VALUES (?, ?, 1)", (app_id, identity))
             return identity
 
+    def installation(self, app_id: str) -> str | None:
+        """The active installation identity, or None — without creating one.
+
+        `activate` is the write path an app session takes. Callers that only
+        want to know which installation is current — an open window binding
+        itself to one, say — must not bring a removed app back by asking.
+        """
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT identity FROM installations WHERE app_id=? AND active=1", (app_id,)
+            ).fetchone()
+        return row["identity"] if row else None
+
     def deactivate(self, app_id: str):
         with self.connection() as db:
             db.execute("UPDATE installations SET active=0 WHERE app_id=?", (app_id,))

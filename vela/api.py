@@ -295,14 +295,6 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     weather = Weather(settings)
     files = Files(config, settings)
     wallpaper = Wallpaper(config.data_dir)
-    # Desktops own the desk. `desk.json` is read once, on the way up, and then
-    # left alone: there is one writable copy of a board, not two.
-    desktops = Desktops(
-        config.data_dir,
-        known_types=lambda: _known_widget_types(),
-        settings=settings,
-        wallpaper=wallpaper,
-    )
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -318,6 +310,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     logs = LogStore(config.logs_dir)
     auth = Auth(config)
     storage = AppStorage(config.data_dir / "app-data.sqlite")
+    # Desktops own the desk. `desk.json` is read once, on the way up, and then
+    # left alone: there is one writable copy of a board, not two. An open window
+    # binds to the installation it opened against, which app storage knows.
+    desktops = Desktops(
+        config.data_dir,
+        known_types=lambda: _known_widget_types(),
+        settings=settings,
+        wallpaper=wallpaper,
+        storage=storage,
+    )
     connected_apps = ConnectedApps(storage)
     app_services = AppServices(registry, auth, storage)
     connections = Connections(registry, storage, transport=connection_transport)

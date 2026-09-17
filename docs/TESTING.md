@@ -25,6 +25,16 @@ board and wallpaper, the selection staying on the device that made it, a direct
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
 
+`test_desktop_views.py` covers open views and layouts: a view bound to the
+installation it opened against and not inherited by a reinstall, opening the
+same app twice bringing one window forward, a second window when one is asked
+for, the same app open in two desktops as two views, owner surfaces refusing
+anything outside their closed list, bounded window geometry, a view remembering
+a route and not a page dump, a layout saved against its revision, a closed split
+member leaving an explicit empty pane, and closing a view leaving the app
+installed with its data intact. `tests/desktop-window-state.test.mjs` checks the
+geometry without a browser.
+
 `test_desktops.py` and `test_desktop_migrations.py` cover the desktop service:
 creating, renaming and deleting a workspace, per-concern revisions, that
 `/api/desk` and the scoped board route agree about one board and one revision,

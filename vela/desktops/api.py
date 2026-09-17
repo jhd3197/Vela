@@ -46,6 +46,50 @@ class SaveAppearance(BaseModel):
     labels: bool | None = None
 
 
+class OpenView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str = Field(max_length=16)
+    # What this view points at. Each kind reads its own field and nothing else,
+    # so sending both cannot turn one kind of view into another.
+    appId: str | None = Field(default=None, max_length=80)
+    surface: str | None = Field(default=None, max_length=40)
+    url: str | None = Field(default=None, max_length=2000)
+    title: str = Field(default="", max_length=120)
+    state: dict[str, Any] | None = None
+    bounds: dict[str, Any] | None = None
+    # A second window of something already open, rather than bringing the first
+    # one forward. Off by default: opening Notes usually means "show me Notes".
+    newView: bool = False
+
+
+class UpdateView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(default=None, max_length=120)
+    state: dict[str, Any] | None = None
+    bounds: dict[str, Any] | None = None
+    restoreBounds: dict[str, Any] | None = None
+    minimized: bool | None = None
+    raise_: bool = Field(default=False, alias="raise")
+
+
+class SelectView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    viewId: str | None = Field(default=None, max_length=64)
+
+
+class SaveLayout(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=0)
+    arrangement: str | None = Field(default=None, max_length=16)
+    maximizedView: str | None = Field(default=None, max_length=64)
+    primaryView: str | None = Field(default=None, max_length=64)
+    secondaryView: str | None = Field(default=None, max_length=64)
+    selectedView: str | None = Field(default=None, max_length=64)
+    dividerRatio: float | None = None
+    # Which panes were deliberately emptied, as opposed to simply not sent.
+    clear: list[str] = Field(default_factory=list, max_length=4)
+
+
 def conflict(exc: DesktopConflict) -> HTTPException:
     """409 with the revision to reload, the same header `/api/desk` has used."""
     return HTTPException(
@@ -126,6 +170,74 @@ def router(desktops) -> APIRouter:
         patch.pop("revision", None)
         try:
             return desktops.save_appearance(desktop_id, patch, payload.revision)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # Views and layout. Opening a window is not saving an arrangement, so only
+    # the layout route carries a revision; selecting and moving windows happen
+    # constantly and must not conflict with a drag someone else is finishing.
+
+    @api.get("/{desktop_id}/views")
+    def get_views(desktop_id: str) -> dict:
+        try:
+            return desktops.views(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/views", status_code=201)
+    def open_view(desktop_id: str, payload: OpenView) -> dict:
+        try:
+            return desktops.open_view(
+                desktop_id,
+                payload.kind,
+                {"appId": payload.appId, "surface": payload.surface, "url": payload.url},
+                title=payload.title,
+                state=payload.state,
+                bounds=payload.bounds,
+                reuse=not payload.newView,
+            )
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.patch("/{desktop_id}/views/{view_id}")
+    def update_view(desktop_id: str, view_id: str, payload: UpdateView) -> dict:
+        patch = payload.model_dump(by_alias=True, exclude_unset=True)
+        try:
+            return desktops.update_view(desktop_id, view_id, patch)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.delete("/{desktop_id}/views/{view_id}")
+    def close_view(desktop_id: str, view_id: str) -> dict:
+        try:
+            return desktops.close_view(desktop_id, view_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/selected-view")
+    def select_view(desktop_id: str, payload: SelectView) -> dict:
+        try:
+            return desktops.select_view(desktop_id, payload.viewId)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.get("/{desktop_id}/layout")
+    def get_layout(desktop_id: str) -> dict:
+        try:
+            return desktops.layout(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.put("/{desktop_id}/layout")
+    def put_layout(desktop_id: str, payload: SaveLayout) -> dict:
+        patch = payload.model_dump(exclude_unset=True)
+        patch.pop("revision", None)
+        # An emptied pane is a deliberate choice, and `exclude_unset` cannot
+        # tell "I did not mention this" from "I want this cleared".
+        for key in patch.pop("clear", []):
+            patch[key] = None
+        try:
+            return desktops.save_layout(desktop_id, patch, payload.revision)
         except DesktopError as exc:
             raise _fail(exc)
 

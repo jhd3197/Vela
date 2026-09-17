@@ -21,15 +21,24 @@ from ..desk import BOARD_COLS, BOARD_VERSION, DeskError, default_boards, repair_
 from ..wallpaper import MAX_WALLPAPER_BYTES, WALLPAPER_TYPES, WallpaperError
 from .migration import migrate
 from .models import (
+    AGENT_VIEWABLE_KINDS,
     DEFAULT_WALLPAPER,
     DesktopError,
     default_appearance,
     default_name,
+    validate_actor,
     validate_appearance,
+    validate_arrangement,
+    validate_bounds,
+    validate_divider,
     validate_id,
     validate_kind,
     validate_name,
     validate_revision,
+    validate_view_id,
+    validate_view_kind,
+    validate_view_state,
+    validate_view_target,
 )
 from .store import DesktopStore
 
@@ -57,6 +66,7 @@ class Desktops:
         known_types: Callable[[], set[str]],
         settings: Any = None,
         wallpaper: Any = None,
+        storage: Any = None,
     ):
         self.data_dir = data_dir
         self.assets_dir = data_dir / "desktop-assets"
@@ -64,6 +74,10 @@ class Desktops:
         self._known_types = known_types
         self._settings = settings
         self._wallpaper = wallpaper
+        # App storage knows which installation of an app is the current one. A
+        # view binds to that identity when it opens, so a reinstall does not
+        # hand the new installation a window the old one had open.
+        self._storage = storage
 
     # -------------------------------------------------------- start-up --
 
@@ -221,6 +235,190 @@ class Desktops:
             else validate_revision(expected_revision, what="appearance")
         )
         return self.store.save_appearance(desktop_id, checked, revision)
+
+    # ----------------------------------------------------------- views --
+
+    def views(self, desktop_id: str) -> dict[str, Any]:
+        """What is open on this desktop, and how it is arranged.
+
+        Each view carries `available`: an app whose installation has been
+        replaced or removed is still the user's open window, and saying so is
+        more use than deleting it behind their back.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        views = [self._describe(view) for view in self.store.views(desktop_id)]
+        return {"views": views, "layout": self.store.layout(desktop_id)}
+
+    def open_view(
+        self,
+        desktop_id: str,
+        kind: Any,
+        target: Any = None,
+        *,
+        opened_by: str = "human",
+        title: str = "",
+        state: Any = None,
+        bounds: Any = None,
+        reuse: bool = True,
+    ) -> dict[str, Any]:
+        """Open a view, or bring forward the one that is already open.
+
+        `reuse` is the default because opening Notes when Notes is already open
+        means "show me Notes", not "give me a second copy of it". A caller that
+        really wants another window says so.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        kind = validate_view_kind(kind)
+        opened_by = validate_actor(opened_by)
+        checked = validate_view_target(kind, target)
+        state = validate_view_state(state)
+        bounds = validate_bounds(bounds)
+
+        installation = None
+        if kind == "app":
+            if self._storage is None:
+                raise DesktopError(503, "App installations are not available yet.")
+            installation = self._storage.installation(checked["app_id"])
+            if installation is None:
+                raise DesktopError(404, "That app is not installed.")
+
+        if reuse:
+            existing = self._match(desktop_id, kind, checked, installation)
+            if existing is not None:
+                # Bringing it forward is a presentation change, so a minimized
+                # window comes back rather than staying hidden behind its icon.
+                self.store.update_view(existing["id"], minimized=False, raise_to_front=True)
+                self.select_view(desktop_id, existing["id"])
+                return self._describe(self.store.view(existing["id"]))
+
+        view_id = self.store.open_view(
+            desktop_id,
+            kind=kind,
+            target=checked,
+            installation_id=installation,
+            title=str(title or "")[:120],
+            opened_by=opened_by,
+            state=state,
+            bounds=bounds,
+        )
+        return self._describe(self.store.view(view_id))
+
+    def update_view(self, desktop_id: str, view_id: str, patch: Any) -> dict[str, Any]:
+        """Change where a window sits, or what its view remembers.
+
+        Nothing here ends a session. Minimizing is presentation: the app keeps
+        running, the bridge stays open and whatever was typed into it is still
+        there when it comes back.
+        """
+        desktop_id = validate_id(desktop_id)
+        view_id = validate_view_id(view_id)
+        view = self.store.view(view_id)
+        if view["desktopId"] != desktop_id:
+            raise DesktopError(404, "That view is not open on this desktop.")
+        patch = patch if isinstance(patch, dict) else {}
+        updated = self.store.update_view(
+            view_id,
+            title=str(patch["title"])[:120] if "title" in patch else None,
+            state=validate_view_state(patch["state"]) if "state" in patch else None,
+            bounds=validate_bounds(patch["bounds"]) if "bounds" in patch else None,
+            restore_bounds=(
+                validate_bounds(patch["restoreBounds"]) if "restoreBounds" in patch else None
+            ),
+            minimized=bool(patch["minimized"]) if "minimized" in patch else None,
+            raise_to_front=bool(patch.get("raise")),
+        )
+        return self._describe(updated)
+
+    def close_view(self, desktop_id: str, view_id: str) -> dict[str, Any]:
+        """Close a view. The app process is not this record's to stop."""
+        desktop_id = validate_id(desktop_id)
+        view_id = validate_view_id(view_id)
+        view = self.store.view(view_id)
+        if view["desktopId"] != desktop_id:
+            raise DesktopError(404, "That view is not open on this desktop.")
+        self.store.close_view(view_id)
+        return {"ok": True, "layout": self.store.layout(desktop_id)}
+
+    def select_view(self, desktop_id: str, view_id: str | None) -> dict[str, Any]:
+        """Change which view has the desktop's attention.
+
+        Not a layout save: selecting is what happens every time someone clicks a
+        window, and charging that against the layout revision would make it
+        conflict with a drag somebody else was finishing.
+        """
+        desktop_id = validate_id(desktop_id)
+        if view_id is not None:
+            view_id = validate_view_id(view_id)
+            view = self.store.view(view_id)
+            if view["desktopId"] != desktop_id:
+                raise DesktopError(404, "That view is not open on this desktop.")
+        return self.store.select_view(desktop_id, view_id)
+
+    def layout(self, desktop_id: str) -> dict[str, Any]:
+        return self.store.layout(validate_id(desktop_id))
+
+    def save_layout(self, desktop_id: str, patch: Any, revision: Any) -> dict[str, Any]:
+        """Store one coherent arrangement against the revision it was built on."""
+        desktop_id = validate_id(desktop_id)
+        revision = validate_revision(revision, what="layout")
+        patch = patch if isinstance(patch, dict) else {}
+        checked: dict[str, Any] = {}
+        if "arrangement" in patch:
+            checked["arrangement"] = validate_arrangement(patch["arrangement"])
+        if "dividerRatio" in patch:
+            checked["dividerRatio"] = validate_divider(patch["dividerRatio"])
+        for key in ("maximizedView", "primaryView", "secondaryView", "selectedView"):
+            if key in patch:
+                value = patch[key]
+                checked[key] = None if value is None else validate_view_id(value)
+        return self.store.save_layout(desktop_id, checked, revision)
+
+    # ---- helpers
+
+    def _match(
+        self, desktop_id: str, kind: str, target: dict[str, Any], installation: str | None
+    ) -> dict[str, Any] | None:
+        """An open view of the same thing, from the same installation."""
+        for view in self.store.views(desktop_id):
+            if view["kind"] != kind:
+                continue
+            if kind == "app" and view["appId"] == target["app_id"]:
+                if view["installationId"] == installation:
+                    return view
+                continue
+            if kind == "host" and view["surface"] == target["surface_key"]:
+                return view
+            if kind == "web" and view["url"] == target["url"]:
+                return view
+            if kind == "agent":
+                return view
+        return None
+
+    def _describe(self, view: dict[str, Any]) -> dict[str, Any]:
+        """A view as the dashboard reads it, with what is true about it now."""
+        available = True
+        reason = None
+        if view["kind"] == "app":
+            # Compared on every read rather than invalidated by a hook at
+            # uninstall time: a hook is something a future code path can forget
+            # to call, and a window pointing at a replaced installation is
+            # exactly what must never be treated as still bound to it.
+            current = self._storage.installation(view["appId"]) if self._storage else None
+            if current is None:
+                available, reason = False, "uninstalled"
+            elif current != view["installationId"]:
+                available, reason = False, "reinstalled"
+        return {
+            **view,
+            "available": available,
+            "unavailableReason": reason,
+            # Owner surfaces are the person's own controls. An agent is never
+            # pointed at one, and saying so here keeps that decision in one
+            # place rather than in every caller that iterates views.
+            "agentViewable": view["kind"] in AGENT_VIEWABLE_KINDS,
+        }
 
     # ---------------------------------------------- wallpaper as assets --
 
