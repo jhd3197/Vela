@@ -29,6 +29,10 @@ class Auth:
         # A restart, a sign-out or a new access password drops it, and the
         # person signs in with the Vela password again.
         self.quick = {}
+        # Set by `create_app` once desktops exist. An agent-bound app session
+        # passes through here before any handler sees it, so there is one place
+        # that decides what a run may reach rather than a check per route.
+        self.gateway = None
         if self.remote and (not self.origin or not self.origin.startswith("https://") or not self.password_file.is_file()):
             raise ValueError("Remote access requires an HTTPS public origin and a configured access password")
 
@@ -267,6 +271,57 @@ class Auth:
         return {"token": token, "installationId": identity, "protocol": 1,
                 "capabilities": session["capabilities"], "unavailableCapabilities": manifest.unavailable_capabilities, "expiresIn": 3600}
 
+    def issue_agent(self, manifest, identity, agent):
+        """An app session an agent run holds, rather than a person.
+
+        Same shape as an ordinary one so every route and service that already
+        takes a session keeps working — which is the point: the agent path must
+        not be a second, parallel way into the same effects. What differs is
+        that it names the run it belongs to, expires in minutes rather than an
+        hour, and carries no owner token, so it cannot be mistaken for the
+        person who started it.
+        """
+        from .desktops.principals import AGENT_SESSION_SECONDS
+
+        token = secrets.token_urlsafe(32)
+        expires = time.monotonic() + AGENT_SESSION_SECONDS
+        session = {"app_id": manifest.id, "installationId": identity, "owner": None,
+                   "capabilities": manifest.capabilities, "expires": expires,
+                   "schemaVersion": manifest.raw.get("data", {}).get("schemaVersion", 1),
+                   "quota": manifest.raw.get("data", {}).get("quotaBytes", 1048576),
+                   "agent": {**agent, "expires": expires}}
+        with self.lock:
+            self.sessions = {key: value for key, value in self.sessions.items() if value["expires"] > time.monotonic()}
+            self.sessions[token] = session
+        return {"token": token, "installationId": identity, "protocol": 1,
+                "capabilities": session["capabilities"],
+                "unavailableCapabilities": manifest.unavailable_capabilities,
+                "expiresIn": AGENT_SESSION_SECONDS, "agent": agent}
+
+    def revoke_agent(self, *, desktop_id=None, run_id=None):
+        """Drop agent sessions for a desktop, or for one run on it.
+
+        Used by Stop, by a policy change and by deleting a desktop. Removing the
+        session is what makes those immediate: a session marked stale would still
+        be a session somebody has to remember to re-check.
+        """
+        with self.lock:
+            removed = 0
+            kept = {}
+            for token, session in self.sessions.items():
+                agent = session.get("agent")
+                matches = (
+                    isinstance(agent, dict)
+                    and (desktop_id is None or agent.get("desktopId") == desktop_id)
+                    and (run_id is None or agent.get("runId") == run_id)
+                )
+                if matches:
+                    removed += 1
+                else:
+                    kept[token] = session
+            self.sessions = kept
+            return removed
+
     def resolve(self, token):
         with self.lock:
             session = self.sessions.get(token)
@@ -331,6 +386,9 @@ class Auth:
                     request.state.app_session = self.resolve(token)
                     if remote_request and not self.remote and request.state.app_session.get('owner') == self.hub_token:
                         return JSONResponse({'detail': 'Open the app from your phone session'}, status_code=401)
+                    if self.gateway is not None:
+                        request.state.effect = self.gateway(
+                            request.state.app_session, request.method, path)
                 except AppServiceError as exc:
                     return JSONResponse({"detail": exc.detail}, status_code=exc.status)
             elif not public and not self.valid_hub_token(token):

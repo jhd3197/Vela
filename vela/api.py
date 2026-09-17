@@ -23,7 +23,7 @@ from .rooms import Rooms
 from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, validate_schedule
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError
-from .desktops import Desktops, DesktopConflict, DesktopError, router as desktops_router
+from .desktops import Desktops, DesktopConflict, DesktopError, Gateway, router as desktops_router
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
 from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
 from .snooze import SnoozeStore
@@ -319,17 +319,26 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         settings=settings,
         wallpaper=wallpaper,
         storage=storage,
+        auth=auth,
+        registry=registry,
     )
+    # One guard, given to every service that can change something. For a person
+    # it answers None and nothing changes; for an agent it returns the check
+    # that service runs inside its own write transaction.
+    guard = desktops.effect_guard
+    # Every app-scoped request passes the gateway before a handler sees it, so
+    # an operation nobody classified is refused rather than reaching one.
+    auth.gateway = Gateway(desktops).check
     connected_apps = ConnectedApps(storage)
-    app_services = AppServices(registry, auth, storage)
-    connections = Connections(registry, storage, transport=connection_transport)
+    app_services = AppServices(registry, auth, storage, guard=guard)
+    connections = Connections(registry, storage, transport=connection_transport, guard=guard)
     lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage)
     catalog = Catalog(config)
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
-    actions = Actions(lifecycle, app_services)
+    actions = Actions(lifecycle, app_services, guard=guard)
     snooze = SnoozeStore(config.data_dir / "snooze.json")
-    widgets = Widgets(storage, registry, actions, snooze)
+    widgets = Widgets(storage, registry, actions, snooze, guard=guard)
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
     updates = UpdateChecker(config, __version__, settings=settings)

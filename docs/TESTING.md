@@ -25,6 +25,17 @@ board and wallpaper, the selection staying on the device that made it, a direct
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
 
+`test_agent_permissions.py` covers what an agent may change: an unclassified
+operation being unavailable, an agent session that cannot reach the dashboard or
+an unclassified app route, reading needing only that the desktop allows the app,
+every change needing a grant however it arrives, a grant that covers one exact
+request not covering a different one, restoring needing its own grant rather
+than riding on write, an action needing both the app's declared permission and
+the agent's, a policy change taking every grant and session with it, a grant not
+surviving the app being reinstalled, and — run a dozen times — a revocation
+racing a live write with one answer: a refusal that changed nothing or a success
+that happened.
+
 `test_desktop_views.py` covers open views and layouts: a view bound to the
 installation it opened against and not inherited by a reinstall, opening the
 same app twice bringing one window forward, a second window when one is asked

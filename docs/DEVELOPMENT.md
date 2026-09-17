@@ -508,6 +508,62 @@ the end of both. The full-screen app page and the desktop's windows share it;
 two copies of "open a session, attach a bridge, revoke on the way out" would be
 two places for the revoke to be forgotten.
 
+### What an agent is allowed to change
+
+Vela already had three kinds of caller — the owner at the dashboard, an app in
+its iframe, an automation running a reviewed workflow. An agent is a fourth, and
+deliberately none of the others. It is not the owner, because owner
+authentication is what approves things and an agent approving its own effects
+would make approval meaningless. It is not an ordinary app session either: that
+one carries everything a manifest declares, for an hour, and an agent gets only
+what one run on one desktop needs, for minutes.
+
+| Location | Responsibility |
+| --- | --- |
+| `desktops/principals.py` | What an agent session is, and how any code holding a session asks whether a person or a run is behind it |
+| `desktops/effects.py` | Every `/api/app` operation, classified; and the vocabulary for how an effect ended |
+| `desktops/policy.py` | What a desktop allows: apps, sites, approval mode, granted actions, budgets |
+| `desktops/grants.py` | What has actually been allowed, stored beside the app data it authorizes changes to |
+| `desktops/gateway.py` | The coarse check, run on every app-scoped request before a handler sees it |
+
+**Classification is a list, and the default is no.** `effects.OPERATIONS` maps
+each `(method, path)` under `/api/app` to an operation and an effect class. A
+route nobody classified has no class, so there is nothing to grant, so the
+gateway refuses it. That is the point of the list being a list: a route added
+without a thought about agents is refused rather than waved through.
+
+**Grants live in `app-data.sqlite`, not in `desktops.sqlite`.** Not where they
+conceptually belong — where they can be checked. A grant is read inside the
+transaction that writes the effect it authorizes, so revoking it and committing
+the effect contend for one SQLite write lock and one of them wins outright.
+Storing them with the desktop would have meant two databases, two transactions
+and a window between them, and "we check, then we write" is not a sentence worth
+having here. `tests/test_agent_permissions.py` races the two a dozen times and
+asserts the invariant: a refusal changed nothing, a success happened.
+
+**Every service that can change something takes a `guard`.** `AppServices`,
+`Actions`, `Widgets` and `Connections` are constructed with
+`Desktops.effect_guard`. It returns `None` for a person and, for an agent, a
+callable that service runs inside its own write transaction. That is why a
+clicked Save in an agent's window follows the same rule as a tool call: both are
+the same route, the same session and the same check. `AppStorage.write` and
+`snapshot` grew an `authorize` hook for this.
+
+The one boundary that cannot work that way is a connection: a request to another
+service cannot be rolled back, so the check happens before dispatch and a lost
+response stays `unknown` rather than becoming `failed`.
+
+**Changing a policy revokes everything issued under it** — every grant row and
+every agent session for that desktop. Narrowing what an agent may do has to take
+effect now, not when something is next re-checked, and the only way to mean that
+is to remove the authority rather than mark it stale. Deleting a desktop and
+stopping a run do the same.
+
+Grants name the installation identity and the manifest fingerprint they were
+reviewed against, so updating or reinstalling an app does not hand the new one a
+decision somebody made about the old one. A grant carrying a request digest
+covers that exact request and nothing else.
+
 ### The dashboard side
 
 `web/src/desktops/` owns which workspace the browser is looking at.

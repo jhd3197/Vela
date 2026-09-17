@@ -96,7 +96,15 @@ class AppStorage:
                     "revision": row["revision"] if row else 0, "schemaVersion": schema_version}
 
     def write(self, identity: str, value, revision: int, schema_version: int, quota: int,
-              *, snapshot_reason=None, migration=None) -> dict:
+              *, snapshot_reason=None, migration=None, authorize=None) -> dict:
+        """Store an app's document.
+
+        `authorize(db)` runs inside the write transaction, for a caller whose
+        permission can be taken away — an agent's can. Checking before opening
+        the transaction would leave a window in which the permission is removed
+        and the write lands anyway; here the revocation and the write contend
+        for the same lock, so one of them wins outright.
+        """
         try:
             encoded = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         except (ValueError, TypeError, RecursionError) as exc:
@@ -105,6 +113,8 @@ class AppStorage:
             raise AppServiceError(413, "App storage quota exceeded")
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            if authorize is not None:
+                authorize(db)
             app_id = self._app_id(db, identity)
             row = db.execute("SELECT * FROM documents WHERE app_id=?", (app_id,)).fetchone()
             if migration and db.execute("SELECT 1 FROM migrations WHERE app_id=? AND digest=?", (app_id, migration[0])).fetchone():
@@ -131,9 +141,11 @@ class AppStorage:
         db.execute("DELETE FROM snapshots WHERE app_id=? AND id NOT IN (SELECT id FROM snapshots WHERE app_id=? ORDER BY created_at DESC LIMIT 20)", (app_id, app_id))
         return {"id": snapshot_id, "revision": row["revision"]}
 
-    def snapshot(self, identity):
+    def snapshot(self, identity, *, authorize=None):
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            if authorize is not None:
+                authorize(db)
             app_id = self._app_id(db, identity)
             row = db.execute("SELECT * FROM documents WHERE app_id=?", (app_id,)).fetchone()
             if not row:

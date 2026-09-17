@@ -77,6 +77,36 @@ class SelectView(BaseModel):
     viewId: str | None = Field(default=None, max_length=64)
 
 
+class SavePolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=0)
+    apps: list[str] = Field(default_factory=list, max_length=64)
+    sites: list[Any] = Field(default_factory=list, max_length=64)
+    approvals: str = Field(default="ask", max_length=16)
+    actionScopes: list[dict[str, Any]] = Field(default_factory=list, max_length=128)
+    budget: dict[str, Any] | None = None
+
+
+class IssueGrant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effect: str = Field(max_length=20)
+    appId: str = Field(max_length=80)
+    runId: str | None = Field(default=None, max_length=64)
+    # The exact request this covers. Without one the grant covers any request of
+    # its class for that app, which is a bigger decision and is why approving a
+    # particular change sends one.
+    requestDigest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    scope: dict[str, Any] | None = None
+    seconds: int = Field(default=3600, ge=1, le=86400)
+
+
+class OpenAgentSession(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    viewId: str = Field(max_length=64)
+    runId: str = Field(min_length=1, max_length=64)
+    actorId: str | None = Field(default=None, max_length=64)
+
+
 class SaveLayout(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -238,6 +268,65 @@ def router(desktops) -> APIRouter:
             patch[key] = None
         try:
             return desktops.save_layout(desktop_id, patch, payload.revision)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    # What this desktop may touch, and what it has actually been allowed to do.
+    # Configuration and authority are separate on purpose: changing the first
+    # removes every instance of the second, because narrowing what an agent may
+    # do has to take effect now rather than when something is next re-checked.
+
+    @api.get("/{desktop_id}/policy")
+    def get_policy(desktop_id: str) -> dict:
+        try:
+            return desktops.policy(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.put("/{desktop_id}/policy")
+    def put_policy(desktop_id: str, payload: SavePolicy) -> dict:
+        document = payload.model_dump(exclude_unset=True)
+        document.pop("revision", None)
+        try:
+            return desktops.save_policy(desktop_id, document, payload.revision)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.get("/{desktop_id}/grants")
+    def list_grants(desktop_id: str) -> dict:
+        try:
+            return desktops.list_grants(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/grants", status_code=201)
+    def issue_grant(desktop_id: str, payload: IssueGrant) -> dict:
+        try:
+            return desktops.grant(desktop_id, payload.model_dump())
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.delete("/{desktop_id}/grants/{grant_id}")
+    def revoke_grant(desktop_id: str, grant_id: str) -> dict:
+        try:
+            return desktops.revoke_grant(desktop_id, grant_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.delete("/{desktop_id}/grants")
+    def revoke_all(desktop_id: str, runId: str | None = None) -> dict:
+        try:
+            if runId:
+                return desktops.revoke_run(desktop_id, runId)
+            desktops.get(desktop_id)
+            return desktops.revoke_desktop(desktop_id)
+        except DesktopError as exc:
+            raise _fail(exc)
+
+    @api.post("/{desktop_id}/agent-sessions", status_code=201)
+    def open_agent_session(desktop_id: str, payload: OpenAgentSession) -> dict:
+        try:
+            return desktops.open_agent_session(desktop_id, payload.model_dump())
         except DesktopError as exc:
             raise _fail(exc)
 

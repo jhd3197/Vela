@@ -29,6 +29,7 @@ from .models import (
     DesktopError,
     default_appearance,
 )
+from .policy import empty_policy
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -107,6 +108,15 @@ CREATE TABLE IF NOT EXISTS desktop_layout (
   secondary_view TEXT,
   divider_ratio REAL NOT NULL DEFAULT 0.5,
   selected_view TEXT,
+  updated_at TEXT NOT NULL
+);
+-- What an agent desktop is allowed to touch. Configuration, so it lives with
+-- the desktop; the grants issued against it live beside the app data they
+-- authorize changes to, where they can be checked inside the same transaction.
+CREATE TABLE IF NOT EXISTS desktop_policy (
+  desktop_id TEXT PRIMARY KEY REFERENCES desktops (id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL,
+  document TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS desktop_assets (
@@ -661,6 +671,43 @@ class DesktopStore:
                 "SELECT * FROM desktop_layout WHERE desktop_id=?", (desktop_id,)
             ).fetchone()
         return _layout(saved)
+
+    # ----------------------------------------------------------- policy --
+
+    def policy(self, desktop_id: str) -> dict[str, Any]:
+        """What this desktop allows. A desktop nobody configured allows nothing."""
+        with self.connection() as db:
+            if not db.execute("SELECT 1 FROM desktops WHERE id=?", (desktop_id,)).fetchone():
+                raise DesktopError(404, "That desktop no longer exists.")
+            row = db.execute(
+                "SELECT * FROM desktop_policy WHERE desktop_id=?", (desktop_id,)
+            ).fetchone()
+        if row is None:
+            return empty_policy()
+        return {**json.loads(row["document"]), "revision": int(row["revision"])}
+
+    def save_policy(
+        self, desktop_id: str, document: dict[str, Any], expected_revision: int
+    ) -> dict[str, Any]:
+        stamp = now()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM desktops WHERE id=?", (desktop_id,)).fetchone():
+                raise DesktopError(404, "That desktop no longer exists.")
+            row = db.execute(
+                "SELECT revision FROM desktop_policy WHERE desktop_id=?", (desktop_id,)
+            ).fetchone()
+            current = int(row["revision"]) if row else 0
+            if expected_revision != current:
+                raise DesktopConflict("This desktop's permissions changed somewhere else.", current)
+            stored = {key: value for key, value in document.items() if key != "revision"}
+            db.execute(
+                "INSERT INTO desktop_policy VALUES (?,?,?,?) "
+                "ON CONFLICT (desktop_id) DO UPDATE SET revision=excluded.revision, "
+                "document=excluded.document, updated_at=excluded.updated_at",
+                (desktop_id, current + 1, _dump(stored), stamp),
+            )
+        return {**stored, "revision": current + 1}
 
     # ----------------------------------------------------------- assets --
 

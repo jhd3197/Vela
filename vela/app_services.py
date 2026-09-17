@@ -4,14 +4,33 @@ from .app_storage import AppServiceError
 import hashlib
 import json
 import uuid
+
+
+def _digest(value):
+    """What was asked for, as one string, so a grant can name exactly it."""
+    try:
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(encoded.encode()).hexdigest()
 from jsonschema import Draft202012Validator, SchemaError
 
 
 class AppServices:
-    def __init__(self, registry, auth, storage):
+    """App sessions and storage authorization.
+
+    `guard` answers "what has to be true for this caller to change this, and
+    when does it have to be true". For a person it is None and nothing changes.
+    For an agent it returns a check that the write transaction runs before it
+    writes, so a permission taken away a moment earlier stops the write rather
+    than losing a race with it.
+    """
+
+    def __init__(self, registry, auth, storage, guard=None):
         self.registry = registry
         self.auth = auth
         self.storage = storage
+        self.guard = guard or (lambda *args, **kwargs: None)
 
     def open(self, app_id, owner=None):
         manifest = self.registry.get(app_id)
@@ -34,7 +53,8 @@ class AppServices:
     def write(self, session, value, revision):
         self.authorize_storage(session)
         self.validate_data(session["app_id"], value)
-        return self.storage.write(session["installationId"], value, revision, session["schemaVersion"], session["quota"])
+        authorize = self.guard(session, "write", request_digest=_digest(value))
+        return self.storage.write(session["installationId"], value, revision, session["schemaVersion"], session["quota"], authorize=authorize)
 
     def validate_data(self, app_id, value, schema_file=None, *, manifest=None, schema_only=False):
         manifest = manifest or self.registry.get(app_id)
@@ -73,7 +93,7 @@ class AppServices:
 
     def snapshot(self, session):
         self.authorize_storage(session)
-        return self.storage.snapshot(session["installationId"])
+        return self.storage.snapshot(session["installationId"], authorize=self.guard(session, "write"))
 
     def restore(self, session, snapshot_id, revision):
         self.authorize_storage(session)
@@ -81,7 +101,10 @@ class AppServices:
         if saved["schemaVersion"] != session["schemaVersion"]:
             raise AppServiceError(409, "Backup needs a schema migration before restoring")
         self.validate_data(session["app_id"], saved["value"])
-        return self.storage.write(session["installationId"], saved["value"], revision, session["schemaVersion"], session["quota"], snapshot_reason="Before restore")
+        # Restoring replaces everything. Permission to save is not permission to
+        # do that, so it has its own effect class rather than riding on `write`.
+        authorize = self.guard(session, "restore", scope={"snapshot": snapshot_id})
+        return self.storage.write(session["installationId"], saved["value"], revision, session["schemaVersion"], session["quota"], snapshot_reason="Before restore", authorize=authorize)
 
     def migrate(self, app_id, value, revision, *, commit=False):
         manifest = self.registry.get(app_id)

@@ -19,7 +19,12 @@ from typing import Any, Callable
 
 from ..desk import BOARD_COLS, BOARD_VERSION, DeskError, default_boards, repair_widgets, validate_widgets
 from ..wallpaper import MAX_WALLPAPER_BYTES, WALLPAPER_TYPES, WallpaperError
+from ..app_storage import AppServiceError
+from .effects import EFFECTFUL
+from .grants import Grants
+from .principals import agent_of
 from .migration import migrate
+from .policy import empty_policy, validate_policy
 from .models import (
     AGENT_VIEWABLE_KINDS,
     DEFAULT_WALLPAPER,
@@ -67,6 +72,8 @@ class Desktops:
         settings: Any = None,
         wallpaper: Any = None,
         storage: Any = None,
+        auth: Any = None,
+        registry: Any = None,
     ):
         self.data_dir = data_dir
         self.assets_dir = data_dir / "desktop-assets"
@@ -78,6 +85,12 @@ class Desktops:
         # view binds to that identity when it opens, so a reinstall does not
         # hand the new installation a window the old one had open.
         self._storage = storage
+        # Grants live beside the app data they authorize changes to, so a
+        # revocation and an effect contend for one write lock instead of racing
+        # across two databases.
+        self.grants = Grants(storage) if storage is not None else None
+        self._auth = auth
+        self._registry = registry
 
     # -------------------------------------------------------- start-up --
 
@@ -162,6 +175,9 @@ class Desktops:
         """
         desktop_id = validate_id(desktop_id)
         self.store.get(desktop_id)
+        # Authority first: after the rows are gone there is nothing left to say
+        # which grants belonged to this desktop.
+        self.revoke_desktop(desktop_id)
         self.store.delete(desktop_id)
         removed = self.cleanup_assets()
         return {"ok": True, "removedAssets": removed}
@@ -235,6 +251,192 @@ class Desktops:
             else validate_revision(expected_revision, what="appearance")
         )
         return self.store.save_appearance(desktop_id, checked, revision)
+
+    # ---------------------------------------------------------- policy --
+
+    def policy(self, desktop_id: str) -> dict[str, Any]:
+        return self.store.policy(validate_id(desktop_id))
+
+    def save_policy(self, desktop_id: str, document: Any, revision: Any) -> dict[str, Any]:
+        """Change what this desktop may touch.
+
+        Every grant issued under the previous answer goes, and so does every
+        agent session holding it. Narrowing what an agent may do has to take
+        effect now rather than when something happens to be re-checked, and the
+        only way to mean that is to remove the authority rather than mark it
+        stale.
+        """
+        desktop_id = validate_id(desktop_id)
+        checked = validate_policy(document)
+        saved = self.store.save_policy(
+            desktop_id, checked, validate_revision(revision, what="policy")
+        )
+        self.revoke_desktop(desktop_id)
+        return saved
+
+    # ---------------------------------------------------------- grants --
+
+    def revoke_desktop(self, desktop_id: str) -> dict[str, Any]:
+        """Drop every grant and every agent session this desktop holds."""
+        removed = self.grants.revoke_desktop(desktop_id) if self.grants else 0
+        sessions = self._auth.revoke_agent(desktop_id=desktop_id) if self._auth else 0
+        return {"grants": removed, "sessions": sessions}
+
+    def revoke_run(self, desktop_id: str, run_id: str) -> dict[str, Any]:
+        desktop_id = validate_id(desktop_id)
+        removed = self.grants.revoke_run(desktop_id, run_id) if self.grants else 0
+        sessions = (
+            self._auth.revoke_agent(desktop_id=desktop_id, run_id=run_id) if self._auth else 0
+        )
+        return {"grants": removed, "sessions": sessions}
+
+    def list_grants(self, desktop_id: str) -> dict[str, Any]:
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        return {"grants": self.grants.list(desktop_id) if self.grants else []}
+
+    def grant(self, desktop_id: str, request: Any) -> dict[str, Any]:
+        """Allow one effect, bound to the app it names as it is right now.
+
+        The manifest fingerprint and the installation identity go onto the
+        grant, so an app that is updated or reinstalled afterwards does not
+        inherit a decision made about the version somebody actually read.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        if self.grants is None or self._registry is None:
+            raise DesktopError(503, "Grants are not available yet.")
+        request = request if isinstance(request, dict) else {}
+        effect = request.get("effect")
+        if effect not in EFFECTFUL:
+            raise DesktopError(422, "That is not something a grant can cover.")
+        app_id = request.get("appId")
+        policy = self.store.policy(desktop_id)
+        if app_id not in (policy.get("apps") or []):
+            raise DesktopError(403, "That app is not allowed on this desktop.")
+        manifest = self._registry.get(app_id)
+        if not manifest or not self._registry.is_installed(app_id):
+            raise DesktopError(404, "That app is not installed.")
+        installation = self._storage.installation(app_id)
+        if installation is None:
+            raise DesktopError(404, "That app is not installed.")
+        from ..actions import fingerprint
+
+        return self.grants.issue(
+            desktop_id=desktop_id,
+            effect=effect,
+            app_id=app_id,
+            installation_id=installation,
+            contract=fingerprint(manifest),
+            run_id=request.get("runId"),
+            request_digest=request.get("requestDigest"),
+            scope=request.get("scope") if isinstance(request.get("scope"), dict) else None,
+            seconds=int(request.get("seconds") or 3600),
+        )
+
+    def revoke_grant(self, desktop_id: str, grant_id: str) -> dict[str, Any]:
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        if self.grants is None:
+            raise DesktopError(503, "Grants are not available yet.")
+        # Scoped to the desktop so one desktop cannot drop another's grant by
+        # guessing an id.
+        for grant in self.grants.list(desktop_id):
+            if grant["id"] == grant_id:
+                return {"ok": self.grants.revoke(grant_id)}
+        raise DesktopError(404, "That grant no longer exists.")
+
+    # -------------------------------------------------- agent sessions --
+
+    def open_agent_session(self, desktop_id: str, request: Any) -> dict[str, Any]:
+        """A short-lived app session bound to one run on one desktop.
+
+        This is how the supervisor gets a token for the app a run is working in.
+        It is deliberately less than an ordinary app session: it expires in
+        minutes, it names the run it belongs to, and everything it can do is
+        decided by this desktop's policy and the grants issued against it.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        if self._auth is None or self._registry is None:
+            raise DesktopError(503, "Agent sessions are not available yet.")
+        request = request if isinstance(request, dict) else {}
+        view = self.store.view(validate_view_id(request.get("viewId")))
+        if view["desktopId"] != desktop_id:
+            raise DesktopError(404, "That view is not open on this desktop.")
+        if view["kind"] != "app":
+            raise DesktopError(422, "Only an app view has an app session.")
+        described = self._describe(view)
+        if not described["available"]:
+            raise DesktopError(409, "That window needs reopening before it can be used.")
+
+        policy = self.store.policy(desktop_id)
+        if view["appId"] not in (policy.get("apps") or []):
+            raise DesktopError(403, "This desktop is not allowed to use that app.")
+
+        run_id = request.get("runId")
+        if not isinstance(run_id, str) or not run_id:
+            raise DesktopError(422, "An agent session belongs to a run.")
+
+        manifest = self._registry.get(view["appId"])
+        if not manifest or not self._registry.is_installed(view["appId"]):
+            raise DesktopError(404, "That app is not installed.")
+        return self._auth.issue_agent(
+            manifest,
+            view["installationId"],
+            {
+                "desktopId": desktop_id,
+                "runId": run_id,
+                "viewId": view["id"],
+                "actorId": request.get("actorId") or run_id,
+                "policyRevision": policy["revision"],
+            },
+        )
+
+    def effect_guard(self, session: Any, effect: str, *, request_digest=None, scope=None):
+        """What has to be true, inside the transaction, for this effect to land.
+
+        Returns None when a person is asking — the owner using their own
+        computer needs no grant from anyone — and otherwise a callable the
+        effect's own transaction runs before it writes. That placement is the
+        whole point: the answer cannot go stale between being given and being
+        used, because giving it and using it are the same transaction.
+        """
+        principal = agent_of(session)
+        if principal is None:
+            return None
+        if principal.expired:
+            raise AppServiceError(401, "This agent session has expired.")
+        if effect not in EFFECTFUL:
+            return lambda db: None
+        if self.grants is None or self._registry is None:
+            raise AppServiceError(503, "Grants are not available yet.")
+
+        app_id = session["app_id"]
+        policy = self.store.policy(principal.desktop_id)
+        if app_id not in (policy.get("apps") or []):
+            raise AppServiceError(403, f"This desktop is not allowed to use {app_id}.")
+
+        manifest = self._registry.get(app_id)
+        if not manifest or not self._registry.is_installed(app_id):
+            raise AppServiceError(404, "App is not installed")
+        from ..actions import fingerprint
+
+        binding = {
+            "desktop_id": principal.desktop_id,
+            "effect": effect,
+            "app_id": app_id,
+            "installation_id": session["installationId"],
+            "contract": fingerprint(manifest),
+            "run_id": principal.run_id,
+            "request_digest": request_digest,
+            "scope": scope,
+        }
+
+        def authorize(db):
+            self.grants.require(db, **binding)
+
+        return authorize
 
     # ----------------------------------------------------------- views --
 

@@ -29,8 +29,12 @@ def fingerprint(manifest):
 
 
 class Actions:
-    def __init__(self, lifecycle, services):
+    def __init__(self, lifecycle, services, guard=None):
         self.lifecycle, self.services = lifecycle, services
+        # An agent invoking an action has to hold a grant for this exact
+        # request, checked inside `_apply`'s transaction alongside the app's own
+        # declared-and-allowed check. A person needs only the second.
+        self.guard = guard or (lambda *args, **kwargs: None)
         self.registry, self.storage = lifecycle.registry, lifecycle.storage
         with self.storage.connection() as db:
             db.executescript('''
@@ -155,9 +159,18 @@ class Actions:
                 if sid != session['installationId'] or 'actions' not in session['capabilities']:
                     raise AppServiceError(403, 'Caller action identity is no longer valid')
 
+                agent = self.guard(session, 'action',
+                                   request_digest=hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest(),
+                                   scope={'app': target_id, 'action': action_id})
+
                 def authorize(db):
                     if not self.granted(db, source, sid, target, tid, action):
                         raise AppServiceError(403, 'Allow this action in the Vela app controls first')
+                    # Both checks, in the write's own transaction. The app being
+                    # allowed to ask is a different question from this agent
+                    # being allowed to make it happen.
+                    if agent is not None:
+                        agent(db)
 
                 return self._apply(source.id, target, target_id, action, value, key, event_id, authorize)
             except (AppServiceError, ValueError, TypeError) as exc:

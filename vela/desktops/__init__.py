@@ -8,6 +8,7 @@ workspace code belongs here.
 """
 
 from .api import router
+from .gateway import Gateway
 from .models import (
     MAX_DESKTOPS,
     MAX_NAME,
@@ -18,6 +19,7 @@ from .service import Desktops
 
 __all__ = [
     "Desktops",
+    "Gateway",
     "DesktopConflict",
     "DesktopError",
     "MAX_DESKTOPS",
