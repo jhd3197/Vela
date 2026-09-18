@@ -12,6 +12,7 @@ from .config import Config, dir_size
 from .registry import Registry
 from .settings import SettingsStore
 from .errors_http import Upstream
+from .loop import BackgroundLoop
 
 SCHEDULE_INTERVAL_SECONDS = 15 * 60
 DIGEST_HOUR = 9
@@ -183,19 +184,37 @@ class NotifyScheduler:
         self._registry = registry
         self._config = config
         self._interval = interval
-        self._task: asyncio.Task | None = None
         self._doctor = doctor
         self._doctor_delay = doctor_delay
         self._doctor_interval = doctor_interval
-        self._doctor_task: asyncio.Task | None = None
         self._backups = None
         self._backup_settings = None
         self._backup_interval = BACKUP_TICK_SECONDS
         # The moment the schedule last named. A run is due once it has passed.
         self._backup_due: datetime | None = None
-        self._backup_task: asyncio.Task | None = None
         self._updates = None
-        self._update_task: asyncio.Task | None = None
+        # Four loops, one shape. Each one declines to start while the service
+        # it works for has not been attached, which is what `start()` used to
+        # check for itself; `first_delay_s` carries the delays the constants
+        # above name, including the interval a loop used to sleep through
+        # before its first tick.
+        self._loops = (
+            BackgroundLoop("notify.digest", self._interval, self._tick,
+                           first_delay_s=self._interval),
+            BackgroundLoop("notify.doctor", self._doctor_interval, self.run_doctor,
+                           # Startup is the busiest moment on this computer, and
+                           # a check run then would measure the startup rather
+                           # than the steady state.
+                           first_delay_s=self._doctor_delay,
+                           run_while=lambda: self._doctor is not None),
+            BackgroundLoop("notify.backups", self._backup_interval, self._backup_tick,
+                           first_delay_s=self._backup_interval,
+                           run_while=lambda: self._backups is not None),
+            BackgroundLoop("notify.updates", UPDATE_INTERVAL_SECONDS,
+                           self.run_update_check,
+                           first_delay_s=UPDATE_STARTUP_DELAY_SECONDS,
+                           run_while=lambda: self._updates is not None),
+        )
         # The version already announced. One notification per release, not one
         # a day until someone installs it.
         self._announced_version: str | None = None
@@ -211,24 +230,12 @@ class NotifyScheduler:
         self._known_running: set[str] | None = None
 
     def start(self) -> None:
-        self._task = asyncio.create_task(self._loop())
-        if self._doctor is not None:
-            self._doctor_task = asyncio.create_task(self._doctor_loop())
-        if self._backups is not None:
-            self._backup_task = asyncio.create_task(self._backup_loop())
-        if self._updates is not None:
-            self._update_task = asyncio.create_task(self._update_loop())
+        for background in self._loops:
+            background.start()
 
     async def stop(self) -> None:
-        for name in ("_task", "_doctor_task", "_backup_task", "_update_task"):
-            task = getattr(self, name)
-            if task is not None:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                setattr(self, name, None)
+        for background in self._loops:
+            await background.stop()
 
     def attach_doctor(self, doctor) -> None:
         """Give the scheduler the doctor to sweep with, before `start()`."""
@@ -237,15 +244,6 @@ class NotifyScheduler:
     def attach_updates(self, updates) -> None:
         """Give the scheduler the update checker to run, before `start()`."""
         self._updates = updates
-
-    async def _update_loop(self) -> None:
-        await asyncio.sleep(UPDATE_STARTUP_DELAY_SECONDS)
-        while True:
-            try:
-                await self.run_update_check()
-            except Exception:
-                pass
-            await asyncio.sleep(UPDATE_INTERVAL_SECONDS)
 
     def attach_update_job(self, job, registry=None, automations=None, doctor=None) -> None:
         """What automatic mode needs to decide whether now is a safe moment."""
@@ -322,26 +320,21 @@ class NotifyScheduler:
         self._backups = backups
         self._backup_settings = settings
 
-    async def _backup_loop(self) -> None:
+    async def _backup_tick(self) -> None:
+        """One look at the clock. A failure here is logged, not fatal."""
         from .backups import next_run
 
-        while True:
-            await asyncio.sleep(self._backup_interval)
-            try:
-                schedule = (self._backup_settings.get("backups") or {}).get("schedule")
-                due = next_run(schedule)
-                if due is None:
-                    self._backup_due = None
-                    continue
-                now = datetime.now(due.tzinfo)
-                # `next_run` answers with the next moment from now, so the run
-                # is due when the moment it named last time has passed.
-                if self._backup_due is not None and now >= self._backup_due:
-                    await self.run_backup()
-                self._backup_due = due
-            except Exception:
-                # A failed tick must not end the schedule.
-                pass
+        schedule = (self._backup_settings.get("backups") or {}).get("schedule")
+        due = next_run(schedule)
+        if due is None:
+            self._backup_due = None
+            return
+        now = datetime.now(due.tzinfo)
+        # `next_run` answers with the next moment from now, so the run is due
+        # when the moment it named last time has passed.
+        if self._backup_due is not None and now >= self._backup_due:
+            await self.run_backup()
+        self._backup_due = due
 
     async def run_backup(self) -> dict[str, Any] | None:
         """One scheduled backup, announcing a failure rather than hiding it."""
@@ -361,19 +354,6 @@ class NotifyScheduler:
                 )
             return None
         return made
-
-    async def _doctor_loop(self) -> None:
-        # Wait before the first sweep: startup is the busiest moment on this
-        # computer, and a check run then would measure the startup, not the
-        # steady state.
-        await asyncio.sleep(self._doctor_delay)
-        while True:
-            try:
-                await self.run_doctor()
-            except Exception:
-                # A failed sweep is not worth ending the daily schedule over.
-                pass
-            await asyncio.sleep(self._doctor_interval)
 
     async def run_doctor(self) -> dict[str, Any]:
         """One sweep, announcing failures that were not already announced."""
@@ -400,15 +380,6 @@ class NotifyScheduler:
                     kind="health",
                 )
         return result
-
-    async def _loop(self) -> None:
-        while True:
-            await asyncio.sleep(self._interval)
-            try:
-                await self._tick()
-            except Exception:
-                # ntfy offline or a transient failure — try again next tick.
-                pass
 
     async def _tick(self) -> None:
         cfg = self._notifier.config()

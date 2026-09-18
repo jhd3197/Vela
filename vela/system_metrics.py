@@ -19,7 +19,6 @@ The psutil calls are lifted from ServerKit's `backend/app/services/system_servic
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import platform
@@ -30,6 +29,8 @@ from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from .loop import BackgroundLoop
 
 from .config import write_json_atomic
 
@@ -102,7 +103,10 @@ class SystemMetrics:
         self._secure = secure
         self._lock = threading.Lock()
         self._history: deque[tuple[str, float]] = deque(maxlen=HISTORY_LENGTH)
-        self._task: asyncio.Task | None = None
+        self._loop = BackgroundLoop(
+            "system.metrics", self._interval, self.sample,
+            first_delay_s=self._interval, on_start=self._discard_first_reading,
+        )
         # Network counters are cumulative since boot, so only the difference
         # between two readings belongs to today.
         self._net_last: tuple[int, int] | None = None
@@ -114,32 +118,18 @@ class SystemMetrics:
 
     def start(self) -> None:
         """Begin recording CPU samples on the server's event loop."""
-        if self._task is None:
-            self._task = asyncio.create_task(self._loop())
+        self._loop.start()
 
     async def stop(self) -> None:
         with self._lock:
             self._flush_locked()
-        if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-            self._task = None
+        await self._loop.stop()
 
-    async def _loop(self) -> None:
+    def _discard_first_reading(self) -> None:
         # The first psutil reading after import covers the time since boot, so
         # it is thrown away rather than recorded as a sample.
         self.sample()
         self._history.clear()
-        while True:
-            await asyncio.sleep(self._interval)
-            try:
-                self.sample()
-            except Exception:
-                # A transient psutil failure must not kill the sampler.
-                pass
 
     def sample(self) -> float | None:
         """Record one CPU reading. Returns the percentage, or None without psutil."""

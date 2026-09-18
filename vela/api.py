@@ -53,6 +53,7 @@ from .errors_http import VelaError
 from .agent_runs.approvals import ApprovalPending
 from .app_services import AppServices
 from .lifecycle import Lifecycle
+from . import loop_registry
 from .logging_setup import audit
 from .logs import LogStore
 from .connections import Connections
@@ -68,6 +69,10 @@ LOG = logging.getLogger(__name__)
 
 
 def create_app(config: Config | None = None, *, connection_transport=None) -> FastAPI:
+    # Loops register themselves as they are constructed, process-wide. Mark
+    # where this server's begin, so its shutdown stops its own and never those
+    # of another app built in the same process — which the test suite does.
+    _loops_before = loop_registry.snapshot()
     config = config or load_config()
     state = StateStore(config.state_file)
     platform = current_platform()
@@ -179,6 +184,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     scheduler.attach_updates(updates)
     scheduler.attach_update_job(update_job, registry=registry,
                                 automations=automations, doctor=doctor)
+
+    # Every process-lifetime loop these services built, in construction order.
+    # The hooks below drive this rather than a hand-written list, so a loop
+    # added to a service cannot be forgotten at shutdown.
+    background_loops = loop_registry.since(_loops_before)
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
@@ -348,11 +358,26 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         app.state.loop = asyncio.get_running_loop()
         scheduler.start()
         system_metrics.start()
+        # Anything registered that nothing above started — a loop somebody
+        # added to a service and did not wire here. `start()` is idempotent and
+        # a loop whose `run_while` says no declines, so this is a backstop
+        # rather than a second startup path.
+        for background in background_loops:
+            background.start()
 
     @app.on_event("shutdown")
     async def stop_scheduler() -> None:
         await scheduler.stop()
         await system_metrics.stop()
+        # In reverse construction order, and after the two above have flushed
+        # what they hold. Stopping a loop that never started does nothing.
+        # Each one is named on the way out, so a shutdown that hangs says which
+        # loop it is waiting for rather than leaving it to be guessed.
+        for background in reversed(background_loops):
+            stopped = background.stop()
+            if stopped is not None:
+                await stopped
+            LOG.info("loop stopped: %s", background.name)
         # Tasks first, then the browser they were working in: a run that is
         # still dispatching into a closing browser is the one thing worse than a
         # run that stops.

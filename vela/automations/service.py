@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from ..app_storage import AppServiceError
+from ..loop import BackgroundLoop
 from . import blueprints as blueprint_library
 from . import catalog as node_catalog
 from . import schedules, validate
@@ -54,7 +55,13 @@ class Automations:
         self._log = log or (lambda message: None)
         self.worker = Worker(on_event=self._on_event, on_effect=self._on_effect, log=self._log)
         self._runners: list[asyncio.Task] = []
-        self._scheduler: asyncio.Task | None = None
+        # Periodic, and only while the service is started: `run_while` is what
+        # keeps it from running before `start()` has restored the schedules.
+        self._scheduler = BackgroundLoop(
+            "automations.schedule", SCHEDULE_TICK_SECONDS, self._schedule_tick,
+            first_delay_s=SCHEDULE_TICK_SECONDS,
+            run_while=lambda: self._started,
+        )
         # Created in start(), inside the loop that will await it: an asyncio
         # Event binds to the first loop that touches it, and this service is
         # constructed before any loop is running.
@@ -82,18 +89,19 @@ class Automations:
             self._log(f'automations: {recovered} run(s) marked interrupted after restart')
         self._restore_schedules()
         self._runners = [asyncio.create_task(self._run_loop()) for _ in range(MAX_CONCURRENT_RUNS)]
-        self._scheduler = asyncio.create_task(self._schedule_loop())
+        self._scheduler.start()
 
     async def stop(self):
         self._started = False
-        for task in [*self._runners, self._scheduler]:
+        await self._scheduler.stop()
+        for task in self._runners:
             if task:
                 task.cancel()
-        for task in [*self._runners, self._scheduler]:
+        for task in self._runners:
             if task:
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
-        self._runners, self._scheduler = [], None
+        self._runners = []
         self._loop, self._wake = None, None
         await self.worker.stop()
 
@@ -655,16 +663,10 @@ class Automations:
 
     # ------------------------------------------------------------ schedules --
 
-    async def _schedule_loop(self):
-        while True:
-            try:
-                await asyncio.sleep(SCHEDULE_TICK_SECONDS)
-                self.store.expire_approvals()
-                self._dispatch_due()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                self._log(f'automations: schedule error: {exc}')
+    def _schedule_tick(self):
+        """One sweep: expire what timed out, dispatch what is due."""
+        self.store.expire_approvals()
+        self._dispatch_due()
 
     def _dispatch_due(self):
         moment = datetime.now(timezone.utc)
