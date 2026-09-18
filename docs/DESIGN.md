@@ -17,6 +17,9 @@ than by care, this says which check.
 - **Widgets are drawn with primitives.** `web/src/components/ds/` over
   `web/src/styles/primitives/`. A widget an app published and one Vela drew
   should be indistinguishable in chrome.
+- **A theme is data, never code.** It names colours, lengths, shadows and fonts
+  from Vela's own list, and can never load anything from the network. Every
+  theme that ships is checked for legibility on every build.
 
 ## Tokens
 
@@ -140,9 +143,15 @@ looks right under a theme written next year.
 
 ### Adding a widget on the recipe
 
-1. Draw it with `ds/` components. Nothing else reaches for the classes.
-2. Give it a card header: an icon in the widget's tone and a title.
+1. Draw its **body** with `ds/` components. Nothing else reaches for the
+   classes.
+2. Add it to `CORE_WIDGETS` in `desk/types.jsx` with an `icon`, a `name` and a
+   `tone`. The card header — the tinted icon and the 14px title the prototype's
+   recipe calls for — is applied there by `withCard`, once for every widget,
+   so a widget added later cannot forget it. `bare: true` opts out; the clock
+   is the only one that does, because the time is its own heading.
 3. Render `DeskEmpty` when the source has nothing, rather than a chart of zero.
+   A bar chart of nothing reads as a measurement of zero that was never taken.
 4. Keep the widget's default `w`/`h` so saved boards do not reflow.
 
 ## The guards
@@ -152,6 +161,7 @@ Both run inside `npm --prefix web run check`, through `scripts/ratchet.mjs`.
 | Guard | Fails when |
 | --- | --- |
 | `tokens` | `_tokens.scss` has drifted from the generator; a hex, `rgb()` or `hsl()` is written in any other SCSS partial; a partial marked `// tokens: spacing` writes a raw `padding`/`gap`/`margin` between 3px and 28px |
+| `themes` | A bundled theme has drifted from its recipe, or stops clearing the contrast gate in a base it declares |
 | `inline-style` | A `style={{ }}` appears in JSX outside the registered runtime-geometry sites |
 
 A line may opt out with `// ratchet: allow tokens <reason>`, which is counted
@@ -163,8 +173,12 @@ the canvas an app paints for itself.
 After changing anything under `web/src/design/`, run:
 
 ```bash
-node web/scripts/build-tokens.mjs
+node web/scripts/build-tokens.mjs   # the token sheet and the server's whitelist
+node web/scripts/build-themes.mjs   # the bundled themes, if a recipe changed
 ```
+
+`build-themes.mjs` writes nothing while any bundled theme fails the gate, so a
+theme cannot reach the repository unreadable.
 
 ## Checking a visual change
 
