@@ -28,6 +28,29 @@ The automation step installs the workflow engine the automations feature runs in
 Skipping it leaves the rest of Vela working; the automations page then explains
 that the runtime is missing. See [Automations](#automations).
 
+## The dev launcher
+
+Once the setup above has run once, `./dev.sh` (Linux/macOS/WSL/Git Bash) and
+`.\dev.ps1` (native Windows, no WSL) start the backend and the Vite dashboard
+together against a disposable `.local/dev-data` directory, so a dev server
+never touches an installed Vela's data. Both create the virtualenv and install
+missing dependencies themselves, stop whatever is already on the dev ports, and
+move to a nearby port when one cannot be freed.
+
+```bash
+./dev.sh              # backend on 7700 + Vite on 5173 (hot reload)
+./dev.sh frontend     # Vite only — the quick path for CSS/UI-only work
+./dev.sh backend      # server only, serving the built dashboard
+./dev.sh build        # refresh web/dist without starting anything
+./dev.sh check        # the hub checks (npm --prefix web run check)
+./dev.sh setup        # first-run setup, end to end
+```
+
+`--backend-port`/`--frontend-port` (`-BackendPort`/`-FrontendPort` on Windows)
+pin ports; `--no-auto-port` fails instead of moving. `VELA_DATA_DIR` points the
+server at a different data directory. `frontend` mode and the Vite proxy follow
+`VELA_BACKEND_URL` when the backend is not on 7700.
+
 For live frontend development, leave the server running and run
 `npm --prefix web run dev` in another terminal. Open http://localhost:5173.
 

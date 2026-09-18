@@ -6,6 +6,18 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **One-command development environment.** `./dev.sh` (Linux/macOS/WSL/Git
+  Bash) and `.\dev.ps1` (native Windows) start the backend and the Vite
+  dashboard together against a disposable `.local/dev-data` directory, creating
+  the virtualenv and installing dependencies on first run. `frontend` mode
+  serves the dashboard with hot reload against an already running server —
+  the quick path for CSS/UI-only work — and `build` refreshes `web/dist`
+  without starting anything. `backend`, `check` and `setup` modes cover the
+  rest; `--backend-port`/`--frontend-port` pin ports, which default to 7700
+  and 5173 and move aside when busy.
+
 ## 0.1.18 - 2026-09-18
 
 No additional release notes were provided.
