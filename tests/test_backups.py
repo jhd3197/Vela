@@ -7,6 +7,7 @@ writes a real Vela installation, and no test restores over one.
 
 import json
 import sqlite3
+import shutil
 import tempfile
 import unittest
 from datetime import datetime, timedelta
@@ -325,6 +326,91 @@ class StoreTests(unittest.TestCase):
     def test_set_keep_follows_the_stored_schedule(self):
         self.store.set_keep(3)
         self.assertEqual(self.store.stats()["keep"], 3)
+
+
+class ThemeBackupTests(unittest.TestCase):
+    """A theme somebody imported is their work, and lives nowhere else."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="vela-backups-themes-")
+        self.root = Path(self.temp.name)
+        self.config = Config(self.root / "data", self.root / "catalog", ROOT / "web/dist")
+        self.config.ensure_dirs()
+        self.store = BackupStore(self.config)
+        self.themes = self.config.data_dir / "themes"
+        self.themes.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def write_theme(self, slug, **overrides):
+        document = {
+            "schema_version": 1,
+            "slug": slug,
+            "name": slug.title(),
+            "author": "Someone",
+            "version": "1.0.0",
+            "bases": ["light"],
+            "tokens": {"light": {"--bg": "#eeeeee", "--text": "#111111"}},
+        }
+        document.update(overrides)
+        (self.themes / f"{slug}.json").write_text(json.dumps(document), encoding="utf-8")
+        return document
+
+    def test_an_imported_theme_survives_a_backup_and_a_restore(self):
+        kept = self.write_theme("friend")
+        backup = self.store.create()
+        (self.themes / "friend.json").unlink()
+
+        report = self.store.restore(backup["name"])
+        self.assertIn("themes/friend.json", report["restored"])
+        self.assertEqual(report["skipped"], [])
+        self.assertEqual(
+            json.loads((self.themes / "friend.json").read_text(encoding="utf-8")), kept)
+
+    def test_a_theme_this_version_cannot_read_is_named_rather_than_restored(self):
+        """Not restored, not silently dropped: said out loud in the report."""
+        self.write_theme("friend")
+        (self.themes / "stale.json").write_text(
+            json.dumps({"schema_version": 99, "slug": "stale"}), encoding="utf-8")
+        backup = self.store.create()
+        for name in ("friend.json", "stale.json"):
+            (self.themes / name).unlink()
+
+        report = self.store.restore(backup["name"])
+        self.assertIn("themes/friend.json", report["restored"])
+        self.assertEqual(report["skipped"], ["themes/stale.json"])
+        self.assertTrue((self.themes / "friend.json").is_file())
+        self.assertFalse((self.themes / "stale.json").is_file())
+
+    def test_the_selected_theme_comes_back_with_the_settings(self):
+        self.write_theme("friend")
+        settings = self.config.data_dir / "settings.json"
+        settings.write_text(json.dumps({"theme": "light", "theme_id": "friend"}),
+                            encoding="utf-8")
+        backup = self.store.create()
+        settings.write_text(json.dumps({"theme": "dark", "theme_id": "vela"}), encoding="utf-8")
+
+        self.store.restore(backup["name"])
+        stored = json.loads(settings.read_text(encoding="utf-8"))
+        self.assertEqual(stored["theme_id"], "friend")
+
+    def test_a_backup_from_before_themes_existed_restores_without_them(self):
+        backup = self.store.create()
+        shutil.rmtree(self.store._dir / backup["name"] / "themes", ignore_errors=True)
+        self.write_theme("later")
+        report = self.store.restore(backup["name"])
+        self.assertEqual(report["skipped"], [])
+        # Nothing in the backup means nothing to put back, not "remove what is
+        # there": a restore replaces what it carries and no more.
+        self.assertTrue((self.themes / "later.json").is_file())
+
+    def test_the_bundled_themes_are_not_copied_into_every_backup(self):
+        self.write_theme("friend")
+        backup = self.store.create()
+        copied = sorted(
+            path.name for path in (self.store._dir / backup["name"] / "themes").glob("*.json"))
+        self.assertEqual(copied, ["friend.json"])
 
 
 class BackupApiTests(unittest.TestCase):

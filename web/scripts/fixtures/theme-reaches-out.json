@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "slug": "reaches",
+  "name": "Reaches",
+  "author": "A friend",
+  "version": "1.0.0",
+  "description": "A theme somebody sent, for the import path to carry.",
+  "bases": ["light", "dark"],
+  "tokens": {
+    "light": {
+      "--bg": "url(https://example.test/x.png)",
+      "--bg-card": "#fffdf9",
+      "--bg-workspace": "#faf7f2",
+      "--text": "#22201d",
+      "--text-dim": "#4d4842",
+      "--text-faint": "#6b655d",
+      "--border": "#ded7cc",
+      "--accent": "#9a4f16",
+      "--cyan": "#0d6f7c"
+    },
+    "dark": {
+      "--bg": "#1b1917",
+      "--bg-card": "#272321",
+      "--bg-workspace": "#211e1c",
+      "--text": "#f0ece6",
+      "--text-dim": "#c6bfb6",
+      "--text-faint": "#a49c92",
+      "--border": "#453f3a",
+      "--accent": "#f0a862",
+      "--cyan": "#5cc9d8"
+    }
+  }
+}

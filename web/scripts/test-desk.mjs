@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -8,6 +9,25 @@ import { chromium } from 'playwright';
 // and finding the same arrangement after a reload. It runs on a disposable
 // data directory, so it never touches the user's own desk or installed apps.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+/** The theme fixtures, read here so the browser can post them as documents. */
+const THEME_FIXTURES = [
+  'theme-reaches-out.json',
+  'theme-escapes.json',
+  'theme-strange-font.json',
+  'theme-wrong-schema.json',
+  'theme-no-slug.json',
+  'theme-bundled-slug.json',
+];
+async function readFixtures() {
+  const entries = await Promise.all(
+    THEME_FIXTURES.map(async (name) => [
+      name,
+      JSON.parse(await readFile(path.join(root, 'web/scripts/fixtures', name), 'utf8')),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
 const python =
   process.env.VELA_TEST_PYTHON ||
   path.join(root, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
@@ -788,6 +808,100 @@ try {
     'selecting the stock theme must leave no inline token behind',
   );
 
+  // --- import, export and remove -------------------------------------------
+  //
+  // The file picker is driven directly rather than through a real file dialog:
+  // what is being checked is the review sheet, the refusals and the fallback,
+  // not the operating system's ability to open a window.
+  const fixture = (name) => path.join(root, 'web/scripts/fixtures', name);
+
+  await sheet
+    .locator('input[aria-label="Choose a theme file"]')
+    .setInputFiles(fixture('theme-valid.json'));
+  const review = sheet.getByRole('group', { name: 'Review this theme' });
+  await review.waitFor();
+  // Nothing is applied until it is confirmed: the review names the theme, who
+  // made it and how much of the dashboard it would touch.
+  await review.getByText('Prestado').waitFor();
+  await review.getByText(/by A friend/).waitFor();
+  assert.equal(await ground(), stockGround, 'a theme under review must not be applied yet');
+
+  await review.getByRole('button', { name: 'Add this theme', exact: true }).click();
+  await page.waitForFunction(
+    (was) => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== was,
+    stockGround,
+  );
+  const importedGround = await ground();
+  const imported = sheet.locator('.personalise-theme[data-theme-slug="prestado"]');
+  await imported.waitFor();
+  await imported.getByText('Imported').waitFor();
+
+  // Export gives back exactly what was stored. That it arrives as a download is
+  // asserted server-side in tests/test_themes.py: the dashboard's own service
+  // worker does not pass `Content-Disposition` through to `fetch`, and what
+  // matters here is that the bytes coming back are the theme that went in.
+  const exported = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const response = await fetch('/api/themes/prestado/export', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { status: response.status, body: await response.json() };
+  });
+  assert.equal(exported.status, 200, JSON.stringify(exported));
+  assert.equal(exported.body.slug, 'prestado');
+  assert.equal(exported.body.author, 'A friend');
+  assert.deepEqual(exported.body.bases, ['light', 'dark']);
+
+  // A value Vela will not take is dropped and named; the rest of the theme is
+  // still imported, because one bad key is not a reason to refuse somebody's
+  // work. A theme that breaks a structural rule is refused outright.
+  const outcomes = await page.evaluate(
+    async (names) => {
+      const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+      const { token } = await session.json();
+      const results = {};
+      for (const [name, document] of Object.entries(names)) {
+        const response = await fetch('/api/themes/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(document),
+        });
+        results[name] = { status: response.status, body: await response.json() };
+      }
+      return results;
+    },
+    await readFixtures(),
+  );
+
+  assert.equal(outcomes['theme-reaches-out.json'].status, 200);
+  assert.deepEqual(outcomes['theme-reaches-out.json'].body.dropped, { light: ['--bg'] });
+  assert.deepEqual(outcomes['theme-escapes.json'].body.dropped, { light: ['--bg-card'] });
+  assert.deepEqual(outcomes['theme-strange-font.json'].body.dropped, { light: ['--font'] });
+  for (const [name, expected] of [
+    ['theme-wrong-schema.json', 'schema_version must be 1'],
+    ['theme-no-slug.json', 'slug must match'],
+    ['theme-bundled-slug.json', 'Vela ships'],
+  ]) {
+    assert.equal(outcomes[name].status === 200, false, `${name} was accepted`);
+    assert.match(outcomes[name].body.detail, new RegExp(expected), name);
+  }
+
+  // Removing the theme in use falls back to the stock look without a reload.
+  await page.reload();
+  await page.locator('.desk-grid').waitFor();
+  await personalise.click();
+  await sheet.waitFor();
+  assert.equal(await ground(), importedGround, 'the imported theme survived the reload');
+  await sheet.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.waitForFunction(
+    (want) => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === want,
+    stockGround,
+  );
+  await sheet
+    .locator('.personalise-theme[data-theme-slug="prestado"]')
+    .waitFor({ state: 'detached' });
+
   // The painted set previews as real thumbnails rather than empty swatches, so
   // a picture can be chosen by looking at it. Gradients keep their CSS preview.
   const painted = await sheet.evaluate((panel) =>
@@ -960,7 +1074,7 @@ try {
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
       'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +
       'uninstall; the phone board is its own at 320/390/768 and the desktop board at 900; ' +
-      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press; a theme repaints the dashboard, is saved, survives a reload without a flash, and leaves no inline token behind when the stock look is chosen',
+      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press; a theme repaints the dashboard, is saved, survives a reload without a flash, and leaves no inline token behind when the stock look is chosen; a theme file is reviewed before it is applied, exports as what was stored, drops what Vela will not take and names it, and falls back to stock when removed',
   );
 } finally {
   await browser?.close();
