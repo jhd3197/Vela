@@ -9,7 +9,8 @@ import { useState } from 'react';
 import { api } from '../../api.js';
 import Button from '../../components/ui/Button.jsx';
 import { useDeskData } from '../DeskDataProvider.jsx';
-import { DeskEmpty, DeskFailed, DeskLoading, WidgetStat } from './primitives.jsx';
+import Ring from '../../components/ds/Ring.jsx';
+import { DeskEmpty, DeskFailed, DeskLoading } from './primitives.jsx';
 
 export default function HealthWidget() {
   const { data, loaded, refresh } = useDeskData('health');
@@ -46,14 +47,26 @@ export default function HealthWidget() {
     );
   }
 
+  // A proportion, not a count: "eleven of twelve" should read as almost-whole
+  // at a glance, and a bar 92 % along reads as a bar. The number in the middle
+  // is the checks that passed, because that is the thing being measured; the
+  // ring's tone is the worst status among them, because that is the thing
+  // worth noticing.
+  const considered = summary.considered || checks.length;
+  const attention = summary.attention || 0;
+  const passing = Math.max(0, considered - attention);
+  const tone = summary.fail ? 'red' : attention ? 'amber' : 'green';
+
   return (
     <>
-      <WidgetStat
-        value={summary.attention ? `${summary.attention} to look at` : 'All good'}
-        caption={worst ? worst.title : `${summary.considered} checks passed`}
-        tone={summary.fail ? 'red' : undefined}
+      <Ring
+        percent={considered ? (passing / considered) * 100 : 100}
+        value={`${passing}/${considered}`}
+        caption={attention ? 'to look at' : 'all good'}
+        tone={tone}
+        label={`${passing} of ${considered} checks passing`}
       />
-      {worst ? <p className="vela-empty">{worst.detail}</p> : null}
+      {worst ? <p className="vela-empty">{worst.title}</p> : null}
       <Link className="btn btn-small" to="/settings#health">
         {worst ? 'Fix it' : 'Health'}
       </Link>

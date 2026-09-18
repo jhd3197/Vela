@@ -143,12 +143,26 @@ class Automations:
         converted before it is compared.
         """
         midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
-        stats = self.store.run_statistics(midnight.astimezone(timezone.utc).isoformat())
+        week_start = midnight - timedelta(days=6)
+        stats = self.store.run_statistics(
+            midnight.astimezone(timezone.utc).isoformat(),
+            week_start.astimezone(timezone.utc).isoformat(),
+        )
         average = stats.get('averageSeconds')
+        # Seven entries, oldest first, with a zero for a day nothing ran. A gap
+        # is a real answer -- Sunday had no runs -- and leaving it out would
+        # draw six days as seven and move every bar.
+        per_day = stats.get('perDay') or {}
+        days = [
+            per_day.get((week_start + timedelta(days=offset)).astimezone(timezone.utc)
+                        .date().isoformat(), 0)
+            for offset in range(7)
+        ]
         return {
             'runsToday': stats.get('total', 0),
             'failuresToday': stats.get('failed', 0),
             'averageDurationMs': None if average is None else int(round(average * 1000)),
+            'runsPerDay': days,
         }
 
     # ------------------------------------------------------------- catalog --

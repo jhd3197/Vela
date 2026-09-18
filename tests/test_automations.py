@@ -356,6 +356,28 @@ class AutomationApiTests(unittest.TestCase):
         self.assertEqual(status['failuresToday'], 1)
         self.assertEqual(status['averageDurationMs'], 2000)
 
+        # The week's bars: seven days, oldest first, a zero where nothing ran.
+        # A day with no runs is a real answer, and leaving it out would draw six
+        # days as seven and move every bar along by one.
+        week = status['runsPerDay']
+        self.assertEqual(len(week), 7)
+        self.assertEqual(sum(week), 3, week)
+        self.assertEqual(week[-1], 2, 'today is the last bar')
+        self.assertEqual(week[-2], 1, "yesterday's run is still on the chart")
+        self.assertEqual(week[:5], [0, 0, 0, 0, 0])
+
+    def test_the_week_of_runs_does_not_change_the_listing(self):
+        """The desk asked for per-day counts; nothing else did.
+
+        They ride on the statistics query the Flows widget already polls rather
+        than on an endpoint of their own, so the one thing worth guarding is
+        that a caller who did not ask is handed exactly what it was handed
+        before."""
+        listing = self.client.get('/api/automations', headers=self.hub).json()
+        self.assertNotIn('perDay', listing['statistics'])
+        self.assertEqual(set(listing['statistics']),
+                         {'total', 'succeeded', 'failed', 'averageSeconds'})
+
     def test_app_sessions_cannot_reach_automations(self):
         self.install('notes')
         _, session = base.ApiBoundaryTests.session(self, 'notes')

@@ -230,18 +230,93 @@ try {
   await health.getByRole('button', { name: 'Run checks' }).click();
   // A real engine answers here, so the widget shows whatever this disposable
   // server actually reports rather than a canned result.
-  await health.locator('.vela-stat-value').waitFor();
-  const verdict = await health.locator('.vela-stat-value').innerText();
-  assert.ok(
-    /All good|to look at/.test(verdict),
-    `the health widget must report the sweep: ${verdict}`,
-  );
+  // The sweep's result is a ring: how many checks passed out of how many ran,
+  // with the count in the middle and the verdict under it.
+  const ring = health.locator('.vela-ring');
+  await ring.waitFor();
+  const verdict = await ring.locator('.vela-ring-value').innerText();
+  assert.match(verdict, /^\d+\/\d+$/, `the health widget must report the sweep: ${verdict}`);
+  const [passing, considered] = verdict.split('/').map(Number);
+  assert.ok(considered > 0, 'the sweep considered no checks');
+  assert.ok(passing <= considered, `${passing} passing of ${considered} considered`);
+  // And it says the same thing to a screen reader as it draws.
+  assert.equal(await ring.getAttribute('aria-label'), `${passing} of ${considered} checks passing`);
+  await health.locator('.vela-ring-caption').waitFor();
   // Whatever it found, it offers the way to the section that can act on it.
   await health.getByRole('link', { name: /Health|Fix it/ }).waitFor();
 
   await arrange.click();
   await page.getByRole('button', { name: 'Menu for Health', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+  await done.click();
+  await arrange.waitFor();
+
+  // --- every core widget draws on the recipe, on a server with nothing -----
+  //
+  // This disposable engine has no apps, no automations, no backups and no
+  // volumes, which is the state a widget is most likely to be written wrong
+  // for: the empty one. A widget that throws here is caught by its boundary
+  // and says so, so the check is that none of them does, and that each draws
+  // the header the prototype's recipe calls for.
+  const EVERY_WIDGET = [
+    ['System', 'neutral'],
+    ['Volume', 'cyan'],
+    ['Flows', 'accent'],
+    ['Backups', 'cyan'],
+  ];
+  for (const [name] of EVERY_WIDGET) {
+    await add.click();
+    await library.waitFor();
+    await library.getByRole('searchbox', { name: 'Find a widget' }).fill(name);
+    await library.getByRole('button', { name: new RegExp(`^${name}`) }).click();
+    await library.waitFor({ state: 'detached' });
+  }
+  await done.click();
+  await arrange.waitFor();
+
+  for (const [name, tone] of EVERY_WIDGET) {
+    const frame = page.getByRole('region', { name: new RegExp(`^${name}`) }).first();
+    await frame.waitFor();
+    // The header is the widget's own content, tinted by what the widget is
+    // about, and present in view mode where the frame draws no chrome at all.
+    const head = frame.locator('.vela-card-head').first();
+    await head.waitFor();
+    assert.equal(
+      await head.locator('.vela-card-icon').getAttribute('data-tone'),
+      tone,
+      `${name} should carry the ${tone} tone`,
+    );
+    // A Volume widget with no volume chosen still says what it is: its own
+    // title is derived from a configuration it does not have yet.
+    assert.equal(
+      await frame.locator('.vela-card-title').first().innerText(),
+      name,
+      `${name} should title its own card`,
+    );
+    assert.equal(
+      await frame.getByText('This widget could not be shown.').count(),
+      0,
+      `${name} threw on a server with nothing to show`,
+    );
+  }
+  // The clock is the one widget with no header: the time is its own heading.
+  assert.equal(
+    await page
+      .getByRole('region', { name: 'Clock', exact: true })
+      .locator('.vela-card-head')
+      .count(),
+    0,
+    'the clock should not label itself',
+  );
+
+  await arrange.click();
+  for (const [name] of EVERY_WIDGET) {
+    await page
+      .getByRole('button', { name: new RegExp(`^Menu for ${name}`) })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+  }
   await done.click();
   await arrange.waitFor();
 
