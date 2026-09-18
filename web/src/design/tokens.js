@@ -227,7 +227,11 @@ export function derive(tokens, base) {
     // (upwards on a dark ground) until a step clears 4.5 against the tint it
     // sits on. That is why the stock light theme's violet cannot be its own
     // strong value and the dark theme's lavender can.
-    const surface = mix(tokens['--accent'], tokens['--bg-card'] || '#ffffff', SOFT_ALPHA.accent);
+    // Measured against the tint over the *ground*, not over a card. The same
+    // pill sits on a card, on the workspace and on a field, and the ground is
+    // the darkest of them on a light base: a step chosen against white clears
+    // 4.5 there and misses it two surfaces over.
+    const surface = mix(tokens['--accent'], tokens['--bg'] || '#ffffff', SOFT_ALPHA.accent);
     const order =
       base === 'dark'
         ? RAMP_STEPS.slice(0, stepIndex(500) + 1).reverse()

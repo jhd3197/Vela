@@ -102,8 +102,10 @@ test('deriving produces every step, tint and alias the stylesheet reads', () => 
 test('--accent-strong is the first step that clears 4.5 on the accent tint', () => {
   for (const base of stock.bases) {
     const derived = derive(stock.tokens[base], base);
-    // The tint is translucent, so it is measured where it is drawn: on a card.
-    const tint = flatten(derived['--accent-soft'], derived['--bg-card']);
+    // The tint is translucent, so it is measured over the ground it is drawn
+    // on -- the darkest surface it can sit on, which is what the step has to
+    // clear for the pill to be legible everywhere it appears.
+    const tint = flatten(derived['--accent-soft'], derived['--bg']);
     assert.ok(
       contrast(derived['--accent-strong'], tint) >= 4.5,
       `${base}: --accent-strong is not legible on its own tint (${tint})`,

@@ -235,6 +235,86 @@
   margin-top: var(--space-7);
 }
 
+/* ---------- the theme picker ---------- */
+
+/* Built like the wallpaper picker next to it, because they are the same kind
+   of choice: a strip you can see, a name under it, and a tick on the one you
+   are using. The strip is drawn from the theme's own tokens rather than from a
+   picture, so a theme shows what it will actually do. */
+.personalise-themes {
+  margin-top: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: var(--space-4);
+}
+
+.personalise-theme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.personalise-theme:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.personalise-theme-strip {
+  display: flex;
+  height: 44px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.personalise-theme-swatch {
+  flex: 1;
+}
+
+.personalise-theme-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+
+.personalise-theme.is-selected .personalise-theme-name {
+  color: var(--nav-active-text);
+  font-weight: 500;
+}
+
+.personalise-theme.is-selected .personalise-theme-strip {
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 0 0 2px var(--accent);
+}
+
+.personalise-theme-tag {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+/* What an imported theme says about itself before any of it is applied. */
+.personalise-review {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.personalise-review-name {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+
 .personalise-walls {
   margin-top: var(--space-4);
   display: grid;

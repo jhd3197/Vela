@@ -19,8 +19,8 @@ from ..settings import normalize_identity, sanitize_pins
 from ..system_metrics import validate_volumes
 from ..updates import MODES
 
-_SETTINGS_KEYS = {"theme", "chat_model", "chat_history", "ntfy_config", "desk", "rail",
-                  "backups", "updates", "identity", "files"}
+_SETTINGS_KEYS = {"theme", "theme_id", "chat_model", "chat_history", "ntfy_config", "desk",
+                  "rail", "backups", "updates", "identity", "files"}
 
 
 class NotifyPublishRequest(BaseModel):
@@ -30,7 +30,8 @@ class NotifyPublishRequest(BaseModel):
     priority: int = Field(default=3, ge=1, le=5)
 
 
-def router(settings, desktops, config, backups, conversations, agent_runs, notifier) -> APIRouter:
+def router(settings, desktops, config, backups, conversations, agent_runs, notifier,
+           themes) -> APIRouter:
     api = APIRouter(prefix="/api", tags=["settings"])
 
     _APPEARANCE_KEYS = ("wallpaper", "dim", "labels")
@@ -52,6 +53,13 @@ def router(settings, desktops, config, backups, conversations, agent_runs, notif
     @api.patch("/settings")
     def patch_settings(payload: dict[str, Any] = Body(...)) -> dict:
         update = {key: value for key, value in payload.items() if key in _SETTINGS_KEYS}
+        # A theme id names a theme this server actually has. Storing one that
+        # does not would leave the dashboard asking for a file that is not
+        # there on every load, and falling back silently each time.
+        if "theme_id" in update:
+            if not isinstance(update["theme_id"], str) or not themes.exists(update["theme_id"]):
+                raise Unprocessable("theme_id must name a theme this server has",
+                                    code="settings.theme_unknown")
         # A desk volume names a real folder on this computer, so it is checked
         # before it is stored rather than failing later inside a widget.
         desk = update.get("desk")

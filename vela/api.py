@@ -43,6 +43,7 @@ from .registry import Registry
 from .router_registry import ROUTERS
 from .runners import current_platform, get_runner
 from .settings import SettingsStore
+from .themes import Themes
 from .system_metrics import SystemMetrics
 from .state import StateStore
 from .wallpaper import Wallpaper
@@ -90,6 +91,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     weather = Weather(settings)
     files = Files(config, settings)
     wallpaper = Wallpaper(config.data_dir)
+    # Bundled themes are read and validated here, at startup: one that fails is
+    # a build mistake, and finding it when a user picks it is too late.
+    themes = Themes(config.data_dir)
     conversations = ConversationStore(config.data_dir / "chat.sqlite")
     bots = BotStore(config.data_dir / "chat.sqlite")
     assistant = Assistant(settings, registry, state, config, conversations, bots=bots)
@@ -248,6 +252,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         "settings": settings,
         "snooze": snooze,
         "state": state,
+        "themes": themes,
         "support": support,
         "system_metrics": system_metrics,
         "update_job": update_job,

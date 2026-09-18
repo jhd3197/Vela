@@ -9,6 +9,7 @@
     "web/src/components/ui/ContextMenu.jsx": 1,
     "web/src/components/UpdatesSection.jsx": 1,
     "web/src/desk/grid/DeskGrid.jsx": 2,
+    "web/src/desk/ThemeRow.jsx": 1,
     "web/src/desktops/EmptyPane.jsx": 1,
     "web/src/desktops/motion/GenieOverlay.jsx": 1,
     "web/src/desktops/SplitDivider.jsx": 1,

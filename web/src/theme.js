@@ -1,31 +1,84 @@
-// Theme preference: "light" (default, matches the Apps/Automations
-// prototypes) or "dark" (the Home dashboard prototype). Persisted locally;
-// applied as data-theme on <html> so every CSS variable flips at once.
+// The look: which base the dashboard is in, and which theme is painting it.
+//
+// Two settings, deliberately separate. `theme` is the base -- light or dark --
+// and is the choice a person makes by time of day or by preference. `theme_id`
+// is the theme, which decides what light and dark are made of. Apps keep
+// receiving only the base, and nothing else about a theme reaches them.
 const KEY = 'vela-theme';
+const THEME_KEY = 'vela-theme-id';
 import { readLocal, writeLocal } from './storage.js';
+import { applyTheme, cacheTheme, cachedTheme, clearTheme, STOCK } from './design/apply.js';
+
+export { STOCK };
 
 export function getTheme() {
   return readLocal(KEY) === 'dark' ? 'dark' : 'light';
 }
 
-export function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  // The phone paints its own chrome this colour, so it reads the ground the
-  // dashboard is actually drawing rather than a copy of it: once a theme can
-  // change `--bg`, a hard-coded pair here would leave a strip of the stock
-  // look above every page. Read after the attribute moves, not before.
+export function getThemeId() {
+  return readLocal(THEME_KEY) || STOCK;
+}
+
+/** Point the phone's own chrome at the ground the dashboard is drawing. */
+function paintBrowserChrome() {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
   const ground = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (ground) meta.setAttribute('content', ground);
 }
 
-export function setTheme(theme) {
-  // A browser that refuses to keep it still shows it for this session.
-  writeLocal(KEY, theme);
-  applyTheme(theme);
+/** Switch base, keeping whichever theme is painting it. */
+export function applyBase(base) {
+  const cached = cachedTheme();
+  if (cached && cached.slug !== STOCK && cached.tokens?.[base]) {
+    applyTheme({ base, tokens: cached.tokens[base], other: cached.tokens[other(base)] });
+  } else {
+    clearTheme(base);
+  }
+  paintBrowserChrome();
 }
 
+const other = (base) => (base === 'dark' ? 'light' : 'dark');
+
+export function setTheme(base) {
+  // A browser that refuses to keep it still shows it for this session.
+  writeLocal(KEY, base);
+  applyBase(base);
+}
+
+/**
+ * Paint a theme and remember it.
+ *
+ * `theme` is the document the server holds. A theme that does not carry the
+ * base in use falls back to the one it does carry, which is what lets a
+ * light-only theme be selected by somebody sitting in dark.
+ */
+export function setThemeDocument(theme, base = getTheme()) {
+  if (!theme || theme.slug === STOCK) {
+    writeLocal(THEME_KEY, STOCK);
+    cacheTheme(null);
+    clearTheme(base);
+    paintBrowserChrome();
+    return;
+  }
+  const chosen = theme.tokens?.[base] ? base : theme.bases?.[0];
+  writeLocal(THEME_KEY, theme.slug);
+  cacheTheme({ slug: theme.slug, bases: theme.bases, tokens: theme.tokens });
+  applyTheme({
+    base: chosen,
+    tokens: theme.tokens?.[chosen],
+    other: theme.tokens?.[other(chosen)],
+  });
+  paintBrowserChrome();
+}
+
+/**
+ * The first paint, before React mounts.
+ *
+ * The base and the theme both come from the last time this browser saw them, so
+ * the page opens in the colours it closed in. `ThemeSync` corrects both once
+ * settings load, as it already did for the base.
+ */
 export function initTheme() {
-  applyTheme(getTheme());
+  applyBase(getTheme());
 }

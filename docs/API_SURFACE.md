@@ -33,6 +33,7 @@ A route change belongs in the same commit as the regenerated list.
 - `DELETE /api/phone-access`
 - `DELETE /api/releases/{review}`
 - `DELETE /api/security`
+- `DELETE /api/themes/{slug}`
 - `DELETE /api/wallpaper`
 - `DELETE /api/web-apps/{app_id}`
 - `DELETE /api/widgets/{app_id}/{widget_id}/snooze`
@@ -115,6 +116,9 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/support-bundle`
 - `GET /api/support-bundle/{name}`
 - `GET /api/system/metrics`
+- `GET /api/themes`
+- `GET /api/themes/{slug}`
+- `GET /api/themes/{slug}/export`
 - `GET /api/updates`
 - `GET /api/updates/job`
 - `GET /api/updates/report`
@@ -209,6 +213,7 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/security/lock`
 - `POST /api/security/unlock`
 - `POST /api/support-bundle`
+- `POST /api/themes/import`
 - `POST /api/updates/apply`
 - `POST /api/updates/check`
 - `POST /api/updates/rollback`

@@ -698,6 +698,96 @@ try {
     );
   assert.match(await wallpaperOf(), /wallpapers\/choroni\.jpg/);
 
+  // --- Theme: a real repaint, held across a reload, with no flash ----------
+  //
+  // The Theme row sits beside Wallpaper because they are the same kind of
+  // choice. What it changes is different: a wallpaper is a picture behind the
+  // board, a theme is what every surface in the dashboard is made of.
+  const ground = () =>
+    page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+  const stockGround = await ground();
+
+  const swatches = sheet.locator('.personalise-theme');
+  await swatches.first().waitFor();
+  assert.ok((await swatches.count()) >= 6, 'the bundled set is six or more themes');
+  // Every strip is drawn from the theme's own tokens, so a theme shows what it
+  // will do rather than a picture of what it once did.
+  const strips = await sheet.evaluate((panel) =>
+    [...panel.querySelectorAll('.personalise-theme')].map((theme) => ({
+      slug: theme.dataset.themeSlug,
+      colours: [...theme.querySelectorAll('.personalise-theme-swatch')].map(
+        (swatch) => getComputedStyle(swatch).backgroundColor,
+      ),
+    })),
+  );
+  assert.ok(
+    strips.every((theme) => theme.colours.length >= 4),
+    JSON.stringify(strips),
+  );
+  assert.equal(
+    new Set(strips.map((theme) => theme.colours.join())).size,
+    strips.length,
+    'two themes drew the same strip',
+  );
+
+  await sheet.locator('.personalise-theme[data-theme-slug="contraste"]').click();
+  await page.waitForFunction(
+    (was) => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== was,
+    stockGround,
+  );
+  const pickedGround = await ground();
+  assert.notEqual(pickedGround, stockGround);
+
+  // It is a setting, not a page state.
+  await page.waitForFunction(async () => {
+    const response = await fetch('/api/settings');
+    return (await response.json()).theme_id === 'contraste';
+  });
+
+  // Reload and the theme is on the page before React has put anything in it:
+  // the cache paints it, so there is no flash of the stock colours.
+  await page.goto(base + '/');
+  const beforeMount = await page.evaluate(() => ({
+    ground: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+    mounted: document.getElementById('root')?.childElementCount ?? 0,
+  }));
+  assert.equal(
+    beforeMount.ground,
+    pickedGround,
+    'the chosen theme must paint before the dashboard mounts',
+  );
+  await page.locator('.desk-grid').waitFor();
+  assert.equal(await ground(), pickedGround, 'the theme survived the reload');
+
+  // An app window asking for a dark title bar under a light base gets *this*
+  // theme's dark, not the stock one's -- which is what the scoped half of the
+  // applier is for.
+  const scoped = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.dataset.theme = 'dark';
+    document.body.append(probe);
+    const value = getComputedStyle(probe).getPropertyValue('--bg-card').trim();
+    probe.remove();
+    return value;
+  });
+  assert.ok(scoped, 'the other base resolved to nothing');
+
+  // Back to stock: the inline tokens go, so the generated stylesheet shows
+  // through rather than a copy of itself being written back over it.
+  await personalise.click();
+  await sheet.waitFor();
+  await sheet.locator('.personalise-theme[data-theme-slug="vela"]').click();
+  await page.waitForFunction(
+    (was) => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== was,
+    pickedGround,
+  );
+  assert.equal(await ground(), stockGround, 'the stock look is the stylesheet, not a copy of it');
+  assert.equal(
+    await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg')),
+    '',
+    'selecting the stock theme must leave no inline token behind',
+  );
+
   // The painted set previews as real thumbnails rather than empty swatches, so
   // a picture can be chosen by looking at it. Gradients keep their CSS preview.
   const painted = await sheet.evaluate((panel) =>
@@ -870,7 +960,7 @@ try {
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
       'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +
       'uninstall; the phone board is its own at 320/390/768 and the desktop board at 900; ' +
-      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press',
+      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press; a theme repaints the dashboard, is saved, survives a reload without a flash, and leaves no inline token behind when the stock look is chosen',
   );
 } finally {
   await browser?.close();

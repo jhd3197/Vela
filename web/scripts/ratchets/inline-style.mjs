@@ -16,6 +16,7 @@ import { matchLines, sourceFiles } from './_lib.mjs';
 // are listed so `--report` can say why each one is expected to stay.
 export const GEOMETRY_REASONS = {
   'web/src/desk/grid/DeskGrid.jsx': 'board height and grid step from the measured cell size',
+  'web/src/desk/ThemeRow.jsx': "a theme's own swatch colours, which arrived with the theme",
   'web/src/components/ds/Bars.jsx': 'each bar as tall as the value it is drawing',
   'web/src/components/ds/Meter.jsx': 'the fill, as far along its track as the number it shows',
   'web/src/components/ds/Sparkline.jsx': 'the line stretched to the cell it was given',

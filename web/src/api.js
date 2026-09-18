@@ -328,6 +328,19 @@ export const api = {
     request('/api/security/activity', { method: 'POST', headers: { 'X-Vela-Activity': '1' } }),
 
   getSettings: () => request('/api/settings'),
+
+  // Themes. Vela never fetches one: `importTheme` sends the contents of a file
+  // the user picked, which the browser read locally.
+  getThemes: (options) => request('/api/themes', options),
+  getTheme: (slug, options) => request(`/api/themes/${encodeURIComponent(slug)}`, options),
+  importTheme: (document, { replace = false } = {}) =>
+    request('/api/themes/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(replace ? { theme: document, replace: true } : document),
+    }),
+  removeTheme: (slug) => request(`/api/themes/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
+  themeExportUrl: (slug) => `/api/themes/${encodeURIComponent(slug)}/export`,
   updateSettings: (patch) =>
     request('/api/settings', {
       method: 'PATCH',
