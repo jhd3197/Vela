@@ -398,10 +398,17 @@ try {
   await done.click();
   await arrange.waitFor();
 
-  // The rail raises its dot for the app that asked for attention.
+  // The rail raises its dot for the app that asked for attention. A rail app
+  // entry is a button that opens a window, not a link to the full-screen page,
+  // so it is found by the tip that names it.
+  const railDot = () =>
+    page
+      .locator('.rail .rail-item')
+      .filter({ has: page.locator('.rail-tip', { hasText: 'Widget Fixture' }) })
+      .locator('.rail-dot');
   await page.reload();
   await page.locator('.desk-grid').waitFor();
-  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+  await railDot().waitFor({ timeout: 5000 });
 
   // --- Needs you: acting on an item, and putting it aside ------------------
 
@@ -414,9 +421,7 @@ try {
   await flaggedRow.waitFor();
   await flaggedRow.getByRole('button', { name: 'Later', exact: true }).click();
   await flaggedRow.waitFor({ state: 'detached' });
-  await page
-    .locator('.rail a[href="/app/widget-fixture"] .rail-dot')
-    .waitFor({ state: 'detached', timeout: 5000 });
+  await railDot().waitFor({ state: 'detached', timeout: 5000 });
 
   const afterLater = await page.evaluate(async () => {
     const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
@@ -452,7 +457,7 @@ try {
   await page.reload();
   await page.locator('.desk-grid').waitFor();
   await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).waitFor();
-  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+  await railDot().waitFor({ timeout: 5000 });
 
   // Uninstalling takes the summary and the widget with it, rather than leaving
   // a frame that can never render again.

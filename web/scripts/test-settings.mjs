@@ -22,6 +22,8 @@ try {
   await context.addInitScript(() => localStorage.setItem('vela.welcome.v1', 'done'));
   let settings = { theme: 'light', chat_history: true, ntfy_config: {} };
   let failSave = false;
+  // How many times the notification form actually reached the engine.
+  let ntfySaves = 0;
   // Health: nothing until Run now is pressed, then one broken check that the
   // repair fixes — the two states the section has to get right.
   const brokenCheck = {
@@ -190,6 +192,7 @@ try {
           if (failSave)
             return route.fulfill({ status: 500, json: { detail: 'Fixture save failure' } });
           const patch = route.request().postDataJSON();
+          if (patch.ntfy_config) ntfySaves += 1;
           if (patch.updates) updateState = { ...updateState, ...patch.updates };
           if (patch.backups?.schedule) {
             backupSchedule = {
@@ -277,9 +280,20 @@ try {
     await dialog.getByLabel('Topic', { exact: true }).inputValue(),
     'unsaved-fixture-topic',
   );
-  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  // Two clicks in one tick, which is what a double-clicked Save really is:
+  // both land before React has committed the button's pending state.
+  await dialog.getByRole('button', { name: 'Save', exact: true }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
   await dialog.getByText('Notification settings saved.', { exact: true }).waitFor();
   assert.equal(settings.ntfy_config.topic, 'unsaved-fixture-topic');
+  assert.equal(ntfySaves, 1, 'a double-clicked Save sends one request');
+  assert.equal(
+    await dialog.getByRole('button', { name: 'Save', exact: true }).isDisabled(),
+    true,
+    'a saved form is no longer dirty',
+  );
   await dialog.getByRole('button', { name: 'Chat & privacy' }).click();
   await dialog.getByRole('button', { name: 'Off', exact: true }).click();
   await page.waitForFunction(() => !localStorage.getItem('vela-chat'));
@@ -541,6 +555,12 @@ try {
     [1440, 900],
   ]) {
     await page.setViewportSize({ width, height });
+    // Measure after the browser has laid the new size out. Reading straight
+    // after the resize catches the popup mid-transition and reports an
+    // overflow that is not there a frame later.
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
     const shape = await dialog.evaluate((el) => {
       const box = el.getBoundingClientRect();
       const content = el.querySelector('.settings-content');

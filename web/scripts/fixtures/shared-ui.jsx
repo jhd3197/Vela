@@ -5,11 +5,20 @@ import FormField from '../../src/components/ui/FormField.jsx';
 import LoadingState from '../../src/components/ui/LoadingState.jsx';
 import { useResource } from '../../src/hooks/useResource.js';
 import { useAsyncAction } from '../../src/hooks/useAsyncAction.js';
+import { useForm } from '../../src/hooks/useForm.js';
+import { useConfirm } from '../../src/hooks/useConfirm.js';
+import ConfirmProvider from '../../src/components/ConfirmProvider.jsx';
 import '../../src/styles/main.scss';
 import FoundationFixtures from './foundations.jsx';
 
 // Browser-only fixture; no Vela API calls, user data, or production entry point.
-const fixture = (window.fixture = { reads: [], actions: [], completions: 0, submissions: 0 });
+const fixture = (window.fixture = {
+  reads: [],
+  actions: [],
+  saves: [],
+  completions: 0,
+  submissions: 0,
+});
 
 function Resource({ id, enabled }) {
   const load = useCallback(
@@ -56,6 +65,57 @@ function Action() {
   );
 }
 
+// useForm: one submit at a time, and a server's complaint lands on its field.
+function FormFixture() {
+  const form = useForm({
+    initialValues: { topic: '' },
+    validate: (values) => (values.topic.trim() ? {} : { topic: 'Pick a topic.' }),
+    onSubmit: (values) =>
+      new Promise((resolve, reject) => {
+        fixture.saves.push({ values, resolve, reject });
+      }),
+  });
+  return (
+    <form data-testid="hook-form" onSubmit={form.handleSubmit}>
+      <FormField label="Hook topic" error={form.fieldError('topic')}>
+        <input {...form.fieldProps('topic')} />
+      </FormField>
+      <output data-testid="hook-form-state">
+        {[form.dirty ? 'dirty' : 'clean', form.submitting ? 'saving' : 'idle'].join(' ')}
+      </output>
+      <output data-testid="hook-form-error">{form.formError}</output>
+      <Button type="submit" pending={form.submitting}>
+        Save topic
+      </Button>
+      <Button onClick={() => form.reset({ topic: 'saved' })}>Reset topic</Button>
+    </form>
+  );
+}
+
+// useConfirm: one dialog, an answer, and focus back where it started.
+function ConfirmFixture() {
+  const confirm = useConfirm();
+  const [answer, setAnswer] = useState('');
+  return (
+    <section>
+      <Button
+        onClick={async () => {
+          setAnswer('');
+          const said = await confirm({
+            title: 'Remove the fixture?',
+            message: 'Nothing real is removed.',
+            confirmText: 'Remove it',
+          });
+          setAnswer(said ? 'yes' : 'no');
+        }}
+      >
+        Ask to remove
+      </Button>
+      <output data-testid="confirm-answer">{answer}</output>
+    </section>
+  );
+}
+
 function App() {
   const [id, setId] = useState('first');
   const [enabled, setEnabled] = useState(true);
@@ -83,6 +143,8 @@ function App() {
       <Resource id={id} enabled={enabled} />
       <Button onClick={() => setMounted((value) => !value)}>Toggle action</Button>
       {mounted && <Action />}
+      <FormFixture />
+      <ConfirmFixture />
       <FoundationFixtures />
     </main>
   );
@@ -90,6 +152,8 @@ function App() {
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>
   </React.StrictMode>,
 );

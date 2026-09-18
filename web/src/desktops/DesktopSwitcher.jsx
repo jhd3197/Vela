@@ -12,10 +12,12 @@ import { useDesktops } from './DesktopsProvider.jsx';
 import useAttention, { attentionWord } from './useAttention.js';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
+import { useConfirm } from '../hooks/useConfirm.js';
 
 /** The rail entry: the current desktop, and a menu of the others. */
 export default function DesktopSwitcher({ onNavigate }) {
-  const { desktops, selected, selectedId, select, views } = useDesktops();
+  const { desktops, selected, selectedId, select, views, remove } = useDesktops();
+  const confirm = useConfirm();
   // What every agent desktop is doing, including the ones you are not looking
   // at. A desktop working in the background is the whole point of the feature,
   // so it has to be visible from anywhere.
@@ -96,9 +98,25 @@ export default function DesktopSwitcher({ onNavigate }) {
             onNavigate?.();
           }}
           onClose={close}
-          onAction={(kind, desktop) => {
+          onAction={async (kind, desktop) => {
             setOpen(false);
-            setDialog({ kind, desktop });
+            if (kind !== 'delete') {
+              setDialog({ kind, desktop });
+              return;
+            }
+            // Deleting asks one question and does the work behind the answer,
+            // so it uses the dashboard's confirmation rather than a dialog of
+            // its own. Create and rename need a field, so they keep theirs.
+            await confirm({
+              title: `Delete ${desktop.name}?`,
+              message:
+                'Its widgets, arrangement and wallpaper go. Your apps and everything they have ' +
+                'saved stay exactly where they are — they are shared by every desktop.',
+              confirmText: 'Delete desktop',
+              pendingText: 'Deleting…',
+              onConfirm: () => remove(desktop.id),
+            });
+            trigger.current?.focus();
           }}
         />
       )}
@@ -240,14 +258,13 @@ function DesktopMenu({
   );
 }
 
-/** Create, rename and delete, in the dialog the rest of the dashboard uses. */
+/** Create and rename: the two that need a field. Deleting uses useConfirm. */
 function DesktopDialog({ request, onClose }) {
-  const { create, rename, remove } = useDesktops();
+  const { create, rename } = useDesktops();
   const [name, setName] = useState(request.desktop?.name || '');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const titleId = useId();
-  const cancel = useRef(null);
 
   const submit = async (event) => {
     event?.preventDefault();
@@ -255,9 +272,7 @@ function DesktopDialog({ request, onClose }) {
     setNote('');
     try {
       if (request.kind === 'create') await create(name.trim() || undefined);
-      else if (request.kind === 'rename')
-        await rename(request.desktop.id, name.trim(), request.desktop.revision);
-      else await remove(request.desktop.id);
+      else await rename(request.desktop.id, name.trim(), request.desktop.revision);
       onClose();
     } catch (error) {
       // A rename that lost a race is the common one: the list has already been
@@ -266,37 +281,6 @@ function DesktopDialog({ request, onClose }) {
       setBusy(false);
     }
   };
-
-  if (request.kind === 'delete') {
-    return (
-      <Dialog
-        open
-        pending={busy}
-        aria-labelledby={titleId}
-        initialFocusRef={cancel}
-        onClose={onClose}
-      >
-        <h2 id={titleId}>Delete {request.desktop.name}?</h2>
-        <p>
-          Its widgets, arrangement and wallpaper go. Your apps and everything they have saved stay
-          exactly where they are — they are shared by every desktop.
-        </p>
-        {note && (
-          <p className="inline-error" role="alert">
-            {note}
-          </p>
-        )}
-        <div className="form-actions">
-          <Button ref={cancel} variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={submit} pending={busy}>
-            {busy ? 'Deleting…' : 'Delete desktop'}
-          </Button>
-        </div>
-      </Dialog>
-    );
-  }
 
   const creating = request.kind === 'create';
   return (

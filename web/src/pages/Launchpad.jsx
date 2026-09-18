@@ -28,12 +28,11 @@ import GlobalSearch from '../components/GlobalSearch.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
 import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
-import Dialog from '../components/ui/Dialog.jsx';
-import Button from '../components/ui/Button.jsx';
 import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import useOpenApp from '../desktops/useOpenApp.js';
+import { useConfirm } from '../hooks/useConfirm.js';
 import { hasUpdate } from './Library.jsx';
 import { automationsApi } from '../automationsApi.js';
 import { formatBytes } from '../api.js';
@@ -62,6 +61,7 @@ export default function Launchpad({ onClose }) {
   // A tile opens the app the ordinary way — a window on the desk, or a page
   // where a window is not the right answer — and closes the grid behind it.
   const openApp = useOpenApp();
+  const confirm = useConfirm();
   const developer = useDeveloperTools();
   const navigate = useNavigate();
   const { openSettings } = useSettingsPopup();
@@ -90,7 +90,6 @@ export default function Launchpad({ onClose }) {
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(null); // { item, x, y }
   const [settingsApp, setSettingsApp] = useState(null);
-  const [removing, setRemoving] = useState(null);
   const gridRef = useRef(null);
   const menuOpener = useRef(null);
 
@@ -349,7 +348,12 @@ export default function Launchpad({ onClose }) {
         label: 'Remove',
         icon: Trash,
         danger: true,
-        onSelect: () => setRemoving(app),
+        onSelect: () =>
+          confirm({
+            title: `Remove ${app.name}?`,
+            message: 'This uninstalls the app from this computer. Its data is removed too.',
+            confirmText: 'Remove',
+          }).then((sure) => sure && runAction(app.id, 'uninstall')),
       });
     } else {
       items.push({
@@ -359,7 +363,17 @@ export default function Launchpad({ onClose }) {
       });
     }
     return items;
-  }, [menu, openItem, openFullScreen, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
+  }, [
+    menu,
+    openItem,
+    openFullScreen,
+    addWidgetToDesk,
+    runAction,
+    confirm,
+    pinned,
+    pinApp,
+    unpinApp,
+  ]);
 
   const openMenuAt = useCallback((item, x, y, opener) => {
     menuOpener.current = opener || null;
@@ -621,27 +635,6 @@ export default function Launchpad({ onClose }) {
       />
 
       {settingsApp && <AppSettingsDrawer app={settingsApp} onClose={() => setSettingsApp(null)} />}
-
-      <Dialog
-        open={Boolean(removing)}
-        aria-labelledby="launch-remove-title"
-        onClose={() => setRemoving(null)}
-      >
-        <h2 id="launch-remove-title">Remove {removing?.name}?</h2>
-        <p>This uninstalls the app from this computer. Its data is removed too.</p>
-        <div className="form-actions">
-          <Button
-            className="btn-danger"
-            onClick={() => {
-              runAction(removing.id, 'uninstall');
-              setRemoving(null);
-            }}
-          >
-            Remove
-          </Button>
-          <Button onClick={() => setRemoving(null)}>Cancel</Button>
-        </div>
-      </Dialog>
     </WorkspacePage>
   );
 }

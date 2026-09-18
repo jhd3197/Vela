@@ -37,6 +37,7 @@ import SecuritySection from '../components/security/SecuritySection.jsx';
 import HealthSection from '../components/HealthSection.jsx';
 import UpdatesSection from '../components/UpdatesSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
+import { useForm } from '../hooks/useForm.js';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
 // stops being a popup and becomes a screen inside the app.
@@ -198,72 +199,37 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
   const { pushToast } = useApps();
   const ntfy = settings?.ntfy_config || {};
   const events = ntfy.events || {};
-  const [form, setForm] = useState({ server: '', topic: '', user: '', pass: '' });
-  const [sending, setSending] = useState(false);
+  // Save and Send test are the same submit with one extra step, so the mode
+  // rides in a ref rather than forking the form.
+  const sendTestRef = useRef(false);
+  const [patching, setPatching] = useState(false);
   const [note, setNote] = useState(null); // { kind: 'ok' | 'err', text }
-  const dirty = useRef(false);
-  useEffect(() => {
-    onPendingChange('notifications', sending);
-    return () => onPendingChange('notifications', false);
-  }, [sending, onPendingChange]);
 
-  useEffect(() => {
-    if (settings && !dirty.current) {
-      setForm({
-        server: ntfy.server || '',
-        topic: ntfy.topic || '',
-        user: ntfy.user || '',
-        pass: '',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
-
-  const change = (patch) => {
-    setForm((f) => ({ ...f, ...patch }));
-    dirty.current = true;
-    setNote({ kind: 'ok', text: 'Unsaved changes.' });
-  };
-
-  const patchNtfy = (patch, successText, localPatch) => {
-    if (sending) return;
-    setSending(true);
-    api
-      .updateSettings({ ntfy_config: patch })
-      .then(() => {
-        onPatched({ ntfy_config: localPatch || patch });
-        if (successText) pushToast(successText, 'success');
-        setNote({
-          kind: 'ok',
-          text:
-            successText ||
-            (dirty.current
-              ? 'Event preference saved. Connection details have unsaved changes.'
-              : 'Notification preference saved.'),
-        });
-      })
-      .catch((err) =>
-        setNote({ kind: 'err', text: err.message || 'Could not save notification settings.' }),
-      )
-      .finally(() => setSending(false));
-  };
-
-  const save = async (sendTest) => {
-    if (sending) return;
-    setSending(true);
-    setNote({ kind: 'ok', text: sendTest ? 'Saving and sending…' : 'Saving…' });
-    try {
+  const form = useForm({
+    initialValues: { server: '', topic: '', user: '', pass: '' },
+    onSubmit: async (values) => {
+      const sendTest = sendTestRef.current;
+      setNote({ kind: 'ok', text: sendTest ? 'Saving and sending…' : 'Saving…' });
       const patch = {
-        server: form.server.trim(),
-        topic: form.topic.trim(),
-        user: form.user.trim(),
+        server: values.server.trim(),
+        topic: values.topic.trim(),
+        user: values.user.trim(),
         // The password is write-only: only send it when the user typed one.
-        ...(form.pass ? { pass: form.pass } : {}),
+        ...(values.pass ? { pass: values.pass } : {}),
       };
-      await api.updateSettings({ ntfy_config: patch });
-      onPatched({ ntfy_config: { ...patch, passConfigured: ntfy.passConfigured || !!form.pass } });
-      dirty.current = false;
-      setForm((f) => ({ ...f, pass: '' }));
+      try {
+        await api.updateSettings({ ntfy_config: patch });
+      } catch (error) {
+        // useForm puts the message under the form; this line is the status.
+        setNote(null);
+        throw error;
+      }
+      onPatched({
+        ntfy_config: { ...patch, passConfigured: ntfy.passConfigured || !!values.pass },
+      });
+      // Saved values are the new baseline, and the password field empties: it
+      // is write-only, so what is stored is never what is shown.
+      form.reset({ ...values, pass: '' });
       if (!sendTest) {
         setNote({ kind: 'ok', text: 'Notification settings saved.' });
         return;
@@ -273,14 +239,67 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
         kind: 'ok',
         text: `Accepted by ntfy at ${new Date(receipt.accepted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Check your phone — server acceptance doesn't confirm delivery.`,
       });
-    } catch (err) {
-      setNote({ kind: 'err', text: err.message || 'Test notification failed.' });
-    } finally {
-      setSending(false);
+    },
+  });
+
+  const sending = form.submitting || patching;
+  useEffect(() => {
+    onPendingChange('notifications', sending);
+    return () => onPendingChange('notifications', false);
+  }, [sending, onPendingChange]);
+
+  const { reset, dirty } = form;
+  useEffect(() => {
+    // The record arrives after the first render, and again on every refresh.
+    // Adopting it over unsaved typing is how a settings form loses work.
+    if (settings && !dirty) {
+      reset({
+        server: ntfy.server || '',
+        topic: ntfy.topic || '',
+        user: ntfy.user || '',
+        pass: '',
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  const change = (name) => (event) => {
+    form.setValue(name, event.target.value);
+    setNote({ kind: 'ok', text: 'Unsaved changes.' });
   };
 
-  const live = !!(form.server.trim() && form.topic.trim());
+  const patchNtfy = (patch, successText, localPatch) => {
+    if (sending) return;
+    setPatching(true);
+    setNote(null);
+    api
+      .updateSettings({ ntfy_config: patch })
+      .then(() => {
+        onPatched({ ntfy_config: localPatch || patch });
+        if (successText) pushToast(successText, 'success');
+        setNote({
+          kind: 'ok',
+          text:
+            successText ||
+            (form.dirty
+              ? 'Event preference saved. Connection details have unsaved changes.'
+              : 'Notification preference saved.'),
+        });
+      })
+      .catch((err) =>
+        setNote({ kind: 'err', text: err.message || 'Could not save notification settings.' }),
+      )
+      .finally(() => setPatching(false));
+  };
+
+  const save = (sendTest) => {
+    sendTestRef.current = sendTest;
+    return form.handleSubmit();
+  };
+
+  // A failed submit says so under the form; everything else is a status line.
+  const message = form.formError ? { kind: 'err', text: form.formError } : note;
+  const live = !!(form.values.server.trim() && form.values.topic.trim());
 
   return (
     <section className="panel" id="settings-notifications">
@@ -289,11 +308,11 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
         <StatusPill state={live ? 'ok' : 'idle'} text={live ? 'Configured' : 'Not set up'} />
       </div>
       <p className="panel-note" style={{ marginBottom: 14 }}>
-        {form.topic.trim() ? (
+        {form.values.topic.trim() ? (
           <>
             Subscribe to{' '}
             <b className="mono">
-              {form.server.trim() || 'https://ntfy.sh'}/{form.topic.trim()}
+              {form.values.server.trim() || 'https://ntfy.sh'}/{form.values.topic.trim()}
             </b>{' '}
             in the ntfy app on your phone.
           </>
@@ -306,9 +325,9 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
           <FormField label="Server">
             <input
               id="ntfy-server"
-              value={form.server}
+              value={form.values.server}
               disabled={sending}
-              onChange={(e) => change({ server: e.target.value })}
+              onChange={change('server')}
               placeholder="https://ntfy.sh"
               autoComplete="off"
             />
@@ -318,9 +337,9 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
           <FormField label="Topic">
             <input
               id="ntfy-topic"
-              value={form.topic}
+              value={form.values.topic}
               disabled={sending}
-              onChange={(e) => change({ topic: e.target.value })}
+              onChange={change('topic')}
               placeholder="my-vela-alerts"
               autoComplete="off"
             />
@@ -330,9 +349,9 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
           <FormField label="User (optional)">
             <input
               id="ntfy-user"
-              value={form.user}
+              value={form.values.user}
               disabled={sending}
-              onChange={(e) => change({ user: e.target.value })}
+              onChange={change('user')}
               autoComplete="off"
             />
           </FormField>
@@ -343,9 +362,9 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
             <input
               id="ntfy-pass"
               type="password"
-              value={form.pass}
+              value={form.values.pass}
               disabled={sending}
-              onChange={(e) => change({ pass: e.target.value })}
+              onChange={change('pass')}
               placeholder={ntfy.passConfigured ? 'Configured — type to replace' : '••••••'}
               autoComplete="new-password"
             />
@@ -386,7 +405,7 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
         ))}
       </div>
       <div className="form-actions">
-        <Button size="small" disabled={sending || !dirty.current} onClick={() => save(false)}>
+        <Button size="small" disabled={sending || !form.dirty} onClick={() => save(false)}>
           Save
         </Button>
         <Button
@@ -398,12 +417,12 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
           <PaperPlaneTilt size={14} />
           {sending ? 'Working…' : 'Send test'}
         </Button>
-        {note && (
+        {message && (
           <span
-            className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
-            role={note.kind === 'err' ? 'alert' : 'status'}
+            className={message.kind === 'err' ? 'inline-error' : 'saved-note'}
+            role={message.kind === 'err' ? 'alert' : 'status'}
           >
-            {note.text}
+            {message.text}
           </span>
         )}
       </div>

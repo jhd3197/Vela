@@ -21,6 +21,7 @@ import LoadingState from '../components/ui/LoadingState.jsx';
 import AutomationEditor from './AutomationEditor.jsx';
 import { useResource } from '../hooks/useResource.js';
 import { useAsyncAction } from '../hooks/useAsyncAction.js';
+import { useConfirm } from '../hooks/useConfirm.js';
 import {
   automationsApi,
   RUN_STATUS_LABELS,
@@ -57,6 +58,7 @@ function AutomationList() {
   const { data: blueprints } = useResource(loadBlueprints);
   const navigate = useNavigate();
   const action = useAsyncAction();
+  const confirm = useConfirm();
   const [filter, setFilter] = useState('all');
   const [creating, setCreating] = useState(false);
   const [menuFor, setMenuFor] = useState(null);
@@ -209,13 +211,23 @@ function AutomationList() {
                       refresh();
                     })
                   }
-                  onDelete={() =>
+                  onDelete={async () => {
+                    // Permanent, and it was one click away from the menu.
+                    const sure = await confirm({
+                      title: `Delete ${item.name}?`,
+                      message:
+                        'The automation and its run history go. Anything it already did stays ' +
+                        'done. This cannot be undone.',
+                      confirmText: 'Delete permanently',
+                      pendingText: 'Deleting…',
+                    });
+                    if (!sure) return;
                     action.run(async () => {
                       await automationsApi.remove(item.id);
                       setMenuFor(null);
                       refresh();
-                    })
-                  }
+                    });
+                  }}
                 />
               ))}
             </div>

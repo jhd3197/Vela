@@ -98,15 +98,35 @@ function untilAborted(promise, signal) {
   });
 }
 
+// 204 and its relatives are defined to have no body; constructing a `Response`
+// that gives them one throws.
+const EMPTY_STATUS = new Set([101, 103, 204, 205, 304]);
+
+// Read the body once, here, and give every caller a response of its own built
+// from those bytes. Cloning the response instead would tee its stream, which
+// makes even the single-caller case wait for a second reader that never comes.
+// Reading it once costs nothing extra: every caller was going to read it.
+async function readOnce(response) {
+  const body = EMPTY_STATUS.has(response.status) ? null : await response.arrayBuffer();
+  return () =>
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+}
+
 async function joinInFlightGet(path, start, signal) {
   if (signal?.aborted) throw abortError(signal);
   let entry = inFlightGets.get(path);
   if (!entry) {
     entry = { controller: new AbortController(), waiting: 0, settled: false };
-    entry.promise = start(entry.controller.signal).finally(() => {
-      entry.settled = true;
-      if (inFlightGets.get(path) === entry) inFlightGets.delete(path);
-    });
+    entry.promise = start(entry.controller.signal)
+      .then(readOnce)
+      .finally(() => {
+        entry.settled = true;
+        if (inFlightGets.get(path) === entry) inFlightGets.delete(path);
+      });
     // A request every caller walked away from still rejects when it is
     // abandoned. That rejection has no owner left, and an unowned rejection is
     // a crash in Node and a console error in the browser.
@@ -115,9 +135,9 @@ async function joinInFlightGet(path, start, signal) {
   }
   entry.waiting += 1;
   try {
-    // Every caller reads its own copy of the body, so one of them consuming
-    // the response cannot empty it for the other.
-    return (await untilAborted(entry.promise, signal)).clone();
+    // Every caller gets a response of its own, so one of them consuming the
+    // body cannot empty it for the other.
+    return (await untilAborted(entry.promise, signal))();
   } finally {
     entry.waiting -= 1;
     if (entry.waiting === 0 && !entry.settled) {

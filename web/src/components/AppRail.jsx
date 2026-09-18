@@ -50,6 +50,7 @@ function RailItem({
   onContextMenu,
   longPress,
   className = '',
+  current = false,
   badge,
   attention,
   children,
@@ -79,10 +80,13 @@ function RailItem({
       </NavLink>
     );
   }
+  // A NavLink says which page you are on by itself. A button that opens the
+  // same app has to say it, or the rail looks unvisited to a screen reader.
   return (
     <button
       type="button"
       className={shared.className()}
+      aria-current={current ? 'page' : undefined}
       onClick={onActivate}
       {...longPress}
       onContextMenu={onContextMenu}
@@ -295,6 +299,7 @@ export default function AppRail({ onNavigate }) {
                     key={pin.id}
                     label={pin.app.name}
                     className={location.pathname === `/app/${pin.id}` ? 'rail-item-active' : ''}
+                    current={location.pathname === `/app/${pin.id}`}
                     attention={needsAttention.has(pin.id)}
                     onActivate={() => openFrom(pin.id)}
                     longPress={{}}
@@ -322,6 +327,7 @@ export default function AppRail({ onNavigate }) {
                   className={`rail-item-open${
                     location.pathname === `/app/${app.id}` ? ' rail-item-active' : ''
                   }`}
+                  current={location.pathname === `/app/${app.id}`}
                   attention={needsAttention.has(app.id)}
                   onActivate={() => openFrom(app.id)}
                   longPress={{}}
