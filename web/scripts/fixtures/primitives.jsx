@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Bars,
   Card,
@@ -21,6 +22,28 @@ import { TONES } from './tones.js';
 //
 // Browser-only fixture; no Vela API calls, user data, or production entry point.
 const SERIES = [3, 7, 4, 9, 6, 11, 8];
+
+/**
+ * The segmented control, holding its own selection.
+ *
+ * A controlled component with a fixed value cannot move, and a fixture that
+ * cannot move proves nothing about the keyboard. This is the smallest amount of
+ * state that makes the control behave the way a real caller's would.
+ */
+function BaseChoice({ label }) {
+  const [value, setValue] = useState('dark');
+  return (
+    <SegControl
+      label={label}
+      value={value}
+      onChange={setValue}
+      options={[
+        { value: 'light', label: 'Light' },
+        { value: 'dark', label: 'Dark' },
+      ]}
+    />
+  );
+}
 
 function Gallery({ base }) {
   return (
@@ -57,14 +80,7 @@ function Gallery({ base }) {
           <Tag>wellness</Tag>
         </Card>
       ))}
-      <SegControl
-        label={`Base ${base}`}
-        value="dark"
-        options={[
-          { value: 'light', label: 'Light' },
-          { value: 'dark', label: 'Dark' },
-        ]}
-      />
+      <BaseChoice label={`Base ${base}`} />
       <p className="vela-empty">Nothing here yet.</p>
       <p className="vela-empty vela-empty-error">Could not load this.</p>
     </section>

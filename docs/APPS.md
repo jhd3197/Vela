@@ -139,8 +139,32 @@ separate board: arranging one never rearranges the other.
 
 ## Make the desk yours
 
-**Personalise**, in the desk menu, sets what the desk looks like. Vela ships
-eight painted places — Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila,
+**Personalise**, in the desk menu, sets what the desk looks like.
+
+**Theme** decides what every surface in Vela is made of: the ground, the cards,
+the lines, and the colour that marks what is running. Vela ships seven —
+Vela, Caribe, Tepuy, Cayena, Llano, Sereno and Alto contraste — and the strip
+beside each name is drawn from its own colours, so you can see what you are
+choosing. Picking one changes the dashboard, every app window's title bar and
+the rail at once, with no reload. **Light** and **Dark** stay where they were,
+in Settings › Appearance: a theme decides what light and dark are made of, not
+which of the two you are in. Some themes suggest a wallpaper that suits them;
+Vela says so and changes nothing until you press **Use it**.
+
+**Import a theme…** takes a theme file somebody made. Vela shows you its name,
+who wrote it and how much it would change before any of it is applied, keeps
+only colours, lengths, shadows and fonts from its own list, and tells you what
+it left out. A theme can never load a font or a picture from the internet, and
+Vela never goes looking for themes: one arrives because you chose a file.
+**Export** gives you the one you are using as a file you can edit and bring
+back, and **Remove** takes an imported one away — if it was the one in use, Vela
+goes back to the stock look straight away. Imported themes are included in your
+backups.
+
+Every theme Vela ships is checked, every time Vela is built, so that its text
+stands out from what is behind it. Alto contraste goes further than the rest.
+
+Vela ships eight painted places — Choroní, Páramo, Médanos, Chigüire, Pueblo, Ávila,
 Castillo and Canaima — plus the Sage and Night gradients. **Daily** rotates
 through the painted set, moving to the next picture at midnight. Or pick **Use
 your own** — a JPEG, PNG or WebP up to 8 MB, which stays on your own computer and

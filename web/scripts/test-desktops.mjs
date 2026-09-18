@@ -379,6 +379,19 @@ try {
   await fs.mkdir(shots, { recursive: true });
   await page.screenshot({ path: path.join(shots, 'window-1366.png') });
   assert.match(await window.locator('.window-title').innerText(), /Widget Fixture/);
+  // The title bar takes the header token, not the popover one, so a theme that
+  // decides what a header looks like decides what a window's bar looks like.
+  // Read against the token rather than a colour written here: the assertion has
+  // to keep holding under a theme nobody has written yet.
+  const chrome = await window.locator('.window-bar').evaluate((bar) => ({
+    bar: getComputedStyle(bar).backgroundColor,
+    header: getComputedStyle(document.documentElement).getPropertyValue('--bg-header').trim(),
+  }));
+  assert.equal(
+    chrome.bar.replace(/\s+/g, ''),
+    chrome.header.replace(/\s+/g, '').replace(/,\./g, ',0.'),
+    'the window bar must read --bg-header',
+  );
   // The rail names it, because the rail is the open-window navigator.
   await page.locator('.rail-views .rail-view-item').first().waitFor();
 

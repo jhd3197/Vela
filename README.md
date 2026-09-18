@@ -188,8 +188,10 @@ Borrowed from our previous hub project and extended for everyone:
 ## 🛠️ Develop
 
 The [developer guide](docs/DEVELOPMENT.md) covers source setup, tests and building
-server downloads. The [repository guide](docs/REPOSITORIES.md) maps the hub,
-SDK, contracts, templates and independent apps.
+server downloads. The [design system guide](docs/DESIGN.md) covers how Vela is
+coloured, spaced and drawn, and how to write a theme. The
+[repository guide](docs/REPOSITORIES.md) maps the hub, SDK, contracts, templates
+and independent apps.
 
 This repository owns the Python server, React dashboard and compatibility tests.
 The separate `vela-*` repositories are for app and SDK development; users do not

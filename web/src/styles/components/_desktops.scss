@@ -267,7 +267,11 @@
   align-items: center;
   gap: var(--space-3);
   padding: 0 var(--space-1) 0 var(--space-4);
-  background: var(--bg-pop);
+  /* The header token, not the popover one. `--bg-header` is a wash, so the bar
+     reads as a lighter strip over the window's own surface rather than as a
+     second panel laid on top of it -- and a theme that decides what a header
+     looks like decides what a window's title bar looks like too. */
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   cursor: default;
   user-select: none;

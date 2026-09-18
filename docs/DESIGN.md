@@ -3,8 +3,8 @@
 How Vela is coloured, spaced and drawn, and what a contributor has to know to
 add something that looks like the rest of it.
 
-This is a working draft: the token layer, the guard and the primitives are
-built, and the sections on themes are marked as not yet delivered.
+Everything described here is built. Where a promise is kept by a check rather
+than by care, this says which check.
 
 ## The short version
 
@@ -22,7 +22,7 @@ built, and the sections on themes are marked as not yet delivered.
 
 ### What a theme may set
 
-Thirty-seven canonical tokens, in groups. These are the only names a theme
+Thirty-three canonical tokens, in groups. These are the only names a theme
 document may carry.
 
 | Group | Tokens | Value |
@@ -57,7 +57,9 @@ a button flooded with the accent — a theme with a pale accent needs a dark one
   field and over a wallpaper.
 - **`--accent-strong`.** The one accent value that has to be read as text, so it
   is not a fixed step: the ramp is walked from the base downwards (upwards on a
-  dark ground) until a step clears 4.5:1 against the tint it sits on.
+  dark ground) until a step clears 4.5:1 against the tint it sits on — measured
+  over `--bg`, the darkest surface that tint can sit on, because a step chosen
+  against a white card misses the bar two surfaces over.
 - **`--accent-line`.** Ramp step 300 on a light base, 500 on a dark one.
 - **`--nav-active-text/-bg/-bar`**, which follow the three above.
 - **`--veil` and `--veil-plain`**, the desk's wallpaper overlay built from
@@ -167,10 +169,10 @@ node web/scripts/build-tokens.mjs
 ## Checking a visual change
 
 ```bash
-node web/scripts/compare-screenshots.mjs capture plans/baseline/before 17750
+node web/scripts/compare-screenshots.mjs capture .local/shots/before 17750
 # make the change, rebuild
-node web/scripts/compare-screenshots.mjs capture plans/baseline/after 17750
-node web/scripts/compare-screenshots.mjs compare plans/baseline/before plans/baseline/after plans/baseline/diff
+node web/scripts/compare-screenshots.mjs capture .local/shots/after 17750
+node web/scripts/compare-screenshots.mjs compare .local/shots/before .local/shots/after .local/shots/diff
 ```
 
 Capture both sides on the same port: the dashboard prints the address it is

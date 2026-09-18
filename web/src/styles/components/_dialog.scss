@@ -7,6 +7,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-pop);
+  /* A modal is the top of the elevation scale and had no shadow at all: on a
+     light ground it sat on the page rather than over it. */
+  box-shadow: var(--shadow-lg);
   color: var(--text);
 }
 

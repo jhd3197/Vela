@@ -125,12 +125,16 @@ has slipped:
 
 ## Dashboard structure
 
-The dashboard lives in `web/src/`. Reuse these foundations when adding a feature:
+The dashboard lives in `web/src/`. Reuse these foundations when adding a feature.
+How it is coloured, spaced and drawn — the tokens, the primitive layer and how a
+theme works — is in [the design system guide](DESIGN.md).
 
 | Location | Responsibility |
 | --- | --- |
 | `styles/main.scss` | Stylesheet entry point; ordered Sass `@use` modules |
-| `styles/_tokens.scss` | Shared colors, fonts, radii, shadows and light/dark theme variables |
+| `styles/_tokens.scss` | **Generated** from `design/theme.vela.json`; do not edit by hand |
+| `design/` | The stock theme, the OKLCH maths, the token tables and the runtime applier |
+| `styles/primitives/`, `components/ds/` | The pieces every widget and card is drawn with |
 | `styles/layout/`, `styles/components/`, `styles/pages/` | Shell styles, reusable UI styles, and feature-specific styles |
 | `components/ui/` | Shared controls, page states, `Dialog` and `Drawer` |
 | `components/` | Vela-specific pieces such as app rows, the shell, and release reviews |
@@ -253,6 +257,10 @@ app's name and its state around that frame instead of the app carrying its own
 bar, declare `"view": {"surface": "embedded", "chrome": "hub"}` in `app.json`.
 `compact` (the default) and `seamless` keep their existing standalone chrome, so
 this is an explicit, per-app choice and nothing changes until a manifest opts in.
+
+[The design system guide](DESIGN.md) describes the tokens the server draws
+itself with, and what a theme may change. An app does not receive them: it is
+told `light` or `dark` and nothing more.
 
 For the appearance itself, copy `vela-app.css`, `vela-theme.js` and
 `vela-viewport.js` from a generated app (`create-vela-app`) or from

@@ -712,6 +712,17 @@ try {
   await personalise.click();
   const sheet = page.getByRole('dialog', { name: 'Personalise', exact: true });
   await sheet.waitFor();
+  // A panel sliding in over the page lifts off it, at the top of the elevation
+  // scale, from the token rather than from a shadow written at the call site.
+  const lift = await page
+    .locator('.drawer')
+    .first()
+    .evaluate((drawer) => ({
+      drawer: getComputedStyle(drawer).boxShadow,
+      token: getComputedStyle(document.documentElement).getPropertyValue('--shadow-lg').trim(),
+    }));
+  assert.ok(lift.drawer && lift.drawer !== 'none', 'the drawer draws no elevation');
+  assert.ok(lift.token, '--shadow-lg resolved to nothing');
   const wallpaperOf = () =>
     page.evaluate(
       () => getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
@@ -901,6 +912,34 @@ try {
   await sheet
     .locator('.personalise-theme[data-theme-slug="prestado"]')
     .waitFor({ state: 'detached' });
+
+  // --- the Theme row on a phone, and at 200 % zoom -------------------------
+  //
+  // A swatch strip is the widest thing in the sheet, so it is the first thing
+  // that would push the panel sideways. The sheet is already open, so this
+  // narrows the window around it rather than reopening it by the phone's own
+  // long-press path, which the phone section below already covers. The sheet is
+  // still open from the remove above.
+  for (const [label, size] of [
+    ['a phone', { width: 390, height: 844 }],
+    ['a phone at 200%', { width: 195, height: 422 }],
+  ]) {
+    await page.setViewportSize(size);
+    const strip = sheet.locator('.personalise-theme').first();
+    await strip.waitFor();
+    const overflow = await sheet.evaluate((panel) => ({
+      panel: panel.scrollWidth - panel.clientWidth,
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }));
+    assert.equal(overflow.panel, 0, `the theme row overflows the sheet on ${label}`);
+    assert.equal(overflow.page, 0, `the theme row overflows the page on ${label}`);
+    // And it is reachable: the sheet scrolls to it rather than hiding it.
+    await strip.scrollIntoViewIfNeeded();
+    assert.ok(await strip.isVisible(), `the theme row is not reachable on ${label}`);
+  }
+  // Back to the width the rest of this block works at, with the sheet still
+  // open: the wallpaper checks below carry on in it.
+  await page.setViewportSize({ width: 1366, height: 900 });
 
   // The painted set previews as real thumbnails rather than empty swatches, so
   // a picture can be chosen by looking at it. Gradients keep their CSS preview.

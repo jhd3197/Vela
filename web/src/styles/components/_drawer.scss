@@ -20,6 +20,8 @@
   width: min(480px, 94vw);
   background: var(--bg-pop);
   border-left: 1px solid var(--border);
+  /* A panel sliding in over the page lifts off it, like the dialog next door. */
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   animation: slide-in var(--motion-base) cubic-bezier(0.2, 0.8, 0.3, 1);

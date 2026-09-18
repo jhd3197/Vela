@@ -8,6 +8,22 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Themes: pick how Vela looks, or bring one somebody made.** Personalise
+  gains a Theme row beside Wallpaper. Seven themes ship, each showing its own
+  colours in the picker; choosing one changes the dashboard, every app window's
+  title bar and the rail at once, with no reload, and it is still there after
+  one. Light and dark are unchanged and stay in Settings — a theme decides what
+  light and dark are made of, not which you are in. A theme may suggest a
+  wallpaper; it never changes yours. Import a theme file and Vela shows you what
+  it is and what it would change before applying any of it, keeps only colours,
+  lengths, shadows and fonts from its own list, and tells you what it left out.
+  A theme can never load anything from the internet, and Vela never goes looking
+  for one. Export the theme you are using, edit it, bring it back. Imported
+  themes and your choice are included in backups.
+- **Every theme Vela ships is checked for legibility, every time Vela is
+  built.** Text stands out from the surface behind it, lines and marks stand out
+  from the surfaces they sit on, and a theme that stopped doing either would not
+  ship. One theme, Alto contraste, goes further than the rest.
 - **Every widget on your desk is drawn the same way.** Each card now leads with
   a small tinted icon and its name, and what it shows underneath follows one
   recipe whichever app it came from: a number, a bar, a ring, a chart or a list
@@ -20,9 +36,8 @@ until the release workflow prepares a tested server version.
   Vela wrote itself; no app code runs on your desk, as before. Manifest schema
   0.5.0. Apps that use the four original layouts are unaffected.
 - **Text on the light theme is easier to read.** Muted captions and the marks
-  that show what is running were below the contrast Vela promises, and now
-  clear it. Every colour in the dashboard is now checked against the surface it
-  sits on.
+  that show what is running were below the contrast Vela promises, and now clear
+  it.
 - **Vela now shows everything it is doing for you in one place.** An automation
   run, an agent desktop's task, an update, a backup, an app being installed and
   the health sweep are all listed the same way, in the same words. System gains
