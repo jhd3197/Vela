@@ -8,6 +8,13 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Bundled wallpapers download once instead of shipping in the installer.**
+  Each of the eight painted wallpapers is now published as a single 4K master;
+  the first start downloads the set (about 33 MB) and derives the desk and
+  picker sizes on your own computer, keeping the installer and server bundle
+  smaller while the dashboard still only ever reads the small derived files.
+  Nothing to do on upgrade — an existing server fetches the set on its next
+  start, and a start with no connection simply tries again later.
 - **The README reflects the current release.** Its badges now read the latest
   release, its date and the total download count from GitHub instead of a
   hand-typed version number, the Quick Start names the Marketplace, the

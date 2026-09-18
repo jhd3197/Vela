@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "base_url": "https://github.com/jhd3197/vela/releases/download/wallpapers-v1",
+  "wallpapers": [
+    {
+      "id": "avila",
+      "file": "wallpaper-avila-4x.jpg",
+      "sha256": "580dc1274b9b7bc3a93b4aabdde859971152da9a4d31b1e854a04f57a153f097",
+      "bytes": 4274098
+    },
+    {
+      "id": "canaima",
+      "file": "wallpaper-canaima-4x.jpg",
+      "sha256": "9e9de02775c64a92a7c1a565b1fd6c13c4fb9d1949d474bd0fcd24f1e6684120",
+      "bytes": 3951655
+    },
+    {
+      "id": "castillo",
+      "file": "wallpaper-castillo-4x.jpg",
+      "sha256": "e626023a1720089eaf5c35c9053010d93d587e1fd36683e217d6f92291f9ba02",
+      "bytes": 3940346
+    },
+    {
+      "id": "chiguire",
+      "file": "wallpaper-chiguire-4x.jpg",
+      "sha256": "6ba7b9c33dd2befc6625be778f71955076014fbfbb6b55ed1ee808e24e0ec059",
+      "bytes": 2927429
+    },
+    {
+      "id": "choroni",
+      "file": "wallpaper-choroni-4x.jpg",
+      "sha256": "6100737941bd7f1b4fd6af9f2c1869cf23d6b882d02137ea4ab2b6c6031acd54",
+      "bytes": 5461194
+    },
+    {
+      "id": "medanos",
+      "file": "wallpaper-medanos-4x.jpg",
+      "sha256": "7b652195656ca3f03126f1239a93146e1274ffa868fc5b8a3141afa79838a2f6",
+      "bytes": 4003636
+    },
+    {
+      "id": "paramo",
+      "file": "wallpaper-paramo-4x.jpg",
+      "sha256": "dfe5ab8201a3645e2bff2783f9e54ed5af05487e301b7f93186cb84a9c72d87f",
+      "bytes": 4310056
+    },
+    {
+      "id": "pueblo",
+      "file": "wallpaper-pueblo-4x.jpg",
+      "sha256": "7cc4c1afabd6c299ff62654518196f6e5c68d2af39d909dd5a24af3f0adc8415",
+      "bytes": 5009720
+    }
+  ]
+}

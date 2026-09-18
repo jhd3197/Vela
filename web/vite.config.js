@@ -30,6 +30,12 @@ export default defineConfig({
         target: 'http://localhost:7700',
         changeOrigin: true,
       },
+      // Bundled wallpapers live in the backend's data directory, not in
+      // web/public: the first start downloads and derives them there.
+      '/wallpapers': {
+        target: 'http://localhost:7700',
+        changeOrigin: true,
+      },
     },
   },
 });

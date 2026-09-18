@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 import uvicorn
 
 from .access import set_password
+from .bundled_wallpapers import ensure as ensure_bundled_wallpapers
 from .config import load_config
 
 
@@ -50,6 +51,9 @@ def main():
         proxies = configure()
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    # Same first-start fetch as the desktop server: the bundled wallpapers
+    # download once and every later start finds them in place.
+    ensure_bundled_wallpapers(load_config().data_dir)
     uvicorn.run("vela.api:app", host="0.0.0.0", port=7700,
                 proxy_headers=True, forwarded_allow_ips=proxies,
                 timeout_graceful_shutdown=10)
