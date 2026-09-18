@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
+import { readJson, readLocal } from '../storage.js';
 
 export default function AppDataMigration({ app }) {
   const [raw, setRaw] = useState('');
@@ -20,13 +21,10 @@ export default function AppDataMigration({ app }) {
       const value = spec.keys
         ? JSON.stringify(
             Object.fromEntries(
-              Object.entries(spec.keys).map(([field, key]) => [
-                field,
-                JSON.parse(localStorage.getItem(key)),
-              ]),
+              Object.entries(spec.keys).map(([field, key]) => [field, readJson(key)]),
             ),
           )
-        : localStorage.getItem(spec.key);
+        : readLocal(spec.key);
       if (value === null)
         throw new Error(
           'No earlier data at this browser address. You can upload an export from the old address instead.',

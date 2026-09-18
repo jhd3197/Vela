@@ -5,6 +5,7 @@ import { Bell, ChartBar, Flask, PaperPlaneTilt, WarningCircle } from '@phosphor-
 import { api, relTime } from '../api.js';
 import { useOperationsContext } from '../operations/OperationsProvider.jsx';
 import OperationsList from '../operations/OperationsList.jsx';
+import { readLocal, writeLocal } from '../storage.js';
 
 const POLL_INTERVAL = 30000;
 const SEEN_KEY = 'vela-notifications-seen';
@@ -17,13 +18,7 @@ const KIND_META = {
   status_alert: { icon: WarningCircle, label: 'Status alert' },
 };
 
-function getSeenAt() {
-  try {
-    return localStorage.getItem(SEEN_KEY) || '';
-  } catch {
-    return '';
-  }
-}
+const getSeenAt = () => readLocal(SEEN_KEY, '');
 
 // Live notification bell: the hub's recent-events feed, badged for anything
 // newer than the last time the panel was opened, and — above it — whatever is
@@ -70,11 +65,8 @@ export default function NotificationBell() {
       if (next) {
         // Opening the panel marks everything currently listed as seen.
         const now = new Date().toISOString();
-        try {
-          localStorage.setItem(SEEN_KEY, now);
-        } catch {
-          // Private mode etc. — badge just resets for this session.
-        }
+        // Private mode etc. — the badge just resets for this session.
+        writeLocal(SEEN_KEY, now);
         setSeenAt(now);
       }
       return next;

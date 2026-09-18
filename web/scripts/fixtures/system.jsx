@@ -12,6 +12,7 @@ import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
 import OperationsProvider from '../../src/operations/OperationsProvider.jsx';
+import ConfirmProvider from '../../src/components/ConfirmProvider.jsx';
 import Shell from '../../src/components/Shell.jsx';
 import WorkspacePage from '../../src/components/WorkspacePage.jsx';
 import '../../src/styles/main.scss';
@@ -270,15 +271,17 @@ const router = createMemoryRouter(
   createRoutesFromElements(
     <Route
       element={
-        <EngineProvider>
-          <AppsProvider>
-            <OperationsProvider>
-              <SettingsProvider>
-                <Outlet />
-              </SettingsProvider>
-            </OperationsProvider>
-          </AppsProvider>
-        </EngineProvider>
+        <ConfirmProvider>
+          <EngineProvider>
+            <AppsProvider>
+              <OperationsProvider>
+                <SettingsProvider>
+                  <Outlet />
+                </SettingsProvider>
+              </OperationsProvider>
+            </AppsProvider>
+          </EngineProvider>
+        </ConfirmProvider>
       }
     >
       <Route element={<Shell />}>

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { canStore, readLocal, writeLocal } from './storage.js';
 
 // "Show developer tools": one browser-local presentation preference, shared by
 // navigation, settings, search, app menus and app details.
@@ -17,12 +18,12 @@ let storageDenied = false;
 // Anything other than the stored "on" — absent, corrupt, or written by a
 // future version — reads as off.
 function read() {
-  try {
-    return localStorage.getItem(KEY) === 'on';
-  } catch {
+  const stored = readLocal(KEY);
+  if (stored === null && !canStore()) {
     storageDenied = true;
     return fallback;
   }
+  return stored === 'on';
 }
 
 let value = read();
@@ -40,12 +41,9 @@ export function getDeveloperTools() {
 export function setDeveloperTools(on) {
   const next = Boolean(on);
   fallback = next;
-  try {
-    localStorage.setItem(KEY, next ? 'on' : 'off');
-  } catch {
-    // Private mode or blocked site data: the choice still applies to this tab.
-    storageDenied = true;
-  }
+  // Private mode or blocked site data: the choice still applies to this tab,
+  // and `developerToolsPersist` is what tells the settings panel to say so.
+  if (!writeLocal(KEY, next ? 'on' : 'off')) storageDenied = true;
   announce(next);
 }
 

@@ -183,6 +183,9 @@ try {
   await desktop.page.locator('.welcome-qr svg').waitFor();
   const address = await desktop.page.getByLabel('Vela setup address').inputValue();
   assert.equal(address, desktop.base + '/setup');
+  // The clipboard API does not exist outside a secure context, and a Vela
+  // server on the home network is reached over plain HTTP as often as not. With
+  // it blocked, the selection fallback still copies the address.
   await desktop.page.evaluate(() =>
     Object.defineProperty(navigator, 'clipboard', {
       value: {
@@ -194,8 +197,16 @@ try {
     }),
   );
   await desktop.page.getByRole('button', { name: 'Copy link', exact: true }).click();
-  await desktop.page.getByText('Select and copy the address above.').waitFor();
+  await desktop.page.getByText('Link copied.').waitFor();
   await screenshot(desktop.page, 'qr-desktop');
+
+  // With both blocked there is nothing left to try, and the screen says what to
+  // do by hand rather than claiming it copied.
+  await desktop.page.evaluate(() => {
+    document.execCommand = () => false;
+  });
+  await desktop.page.getByRole('button', { name: 'Copy link', exact: true }).click();
+  await desktop.page.getByText('Select and copy the address above.').waitFor();
   await desktop.page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
   await screenshot(desktop.page, 'qr-desktop-dark');
   for (const width of [390, 320]) {
@@ -258,7 +269,9 @@ try {
       assert.equal(await phone.page.getByRole('heading', { name: 'Open in Safari' }).count(), 0);
     } else {
       await phone.page.getByRole('heading', { name: 'Open in Safari' }).waitFor();
-      await phone.page.evaluate(() =>
+      // Both ways of copying blocked, which is what an in-app browser with no
+      // clipboard permission looks like. The step then says what to do by hand.
+      await phone.page.evaluate(() => {
         Object.defineProperty(navigator, 'clipboard', {
           value: {
             writeText: async () => {
@@ -266,8 +279,9 @@ try {
             },
           },
           configurable: true,
-        }),
-      );
+        });
+        document.execCommand = () => false;
+      });
       await phone.page.getByRole('button', { name: 'Copy link for Safari' }).click();
       await phone.page.getByText('Touch and hold the address above', { exact: false }).waitFor();
     }

@@ -378,6 +378,31 @@ text, deleting to the trash, and — the point of the feature — the share boun
 refusing `..`, an absolute path, a drive letter and an unknown share without
 naming the real path in the refusal.
 
+### Comparing screenshots
+
+A change to who owns a CSS class can move something on a page it was not
+supposed to touch. `web/scripts/compare-screenshots.mjs` is what that is checked
+against: capture before the change, make it, capture after, compare.
+
+```bash
+node web/scripts/compare-screenshots.mjs capture /tmp/before
+# make the change, then rebuild
+npm --prefix web run build
+node web/scripts/compare-screenshots.mjs capture /tmp/after 17734
+node web/scripts/compare-screenshots.mjs compare /tmp/before /tmp/after
+```
+
+`capture` starts its own engine on a temporary data directory and takes six
+surfaces at a desktop and a phone width in both themes; give it a port of its
+own if one is already in use. `compare` prints the share of pixels that differ
+per shot and the worst of them. Capture twice without changing anything first:
+the desk draws a clock, so the floor is not zero, and a real difference is the
+one that stands out above it. Crop and look at anything that does.
+
+This does not reuse `npm --prefix web run shots`, which deliberately attaches to
+a hub on port 7700 to take the README's pictures. Nothing in the test suite ever
+uses the installed server.
+
 Run browser suites sequentially because some use the same fixture server port.
 The shared UI suite uses an isolated Vite fixture without API calls to check
 form semantics, field labels, stale responses, retries, and action submission.

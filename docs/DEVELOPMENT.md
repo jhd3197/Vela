@@ -58,7 +58,9 @@ The dashboard lives in `web/src/`. Reuse these foundations when adding a feature
 | `styles/layout/`, `styles/components/`, `styles/pages/` | Shell styles, reusable UI styles, and feature-specific styles |
 | `components/ui/` | Shared controls, page states, `Dialog` and `Drawer` |
 | `components/` | Vela-specific pieces such as app rows, the shell, and release reviews |
-| `hooks/` | Shared resource loading, polling, and user-triggered action state |
+| `hooks/` | Shared resource loading, polling, form state, confirmation and user-triggered action state |
+| `operations/` | One shape, one status vocabulary and one reader for every kind of background work |
+| `storage.js`, `clipboard.js` | The only places that touch browser storage, the clipboard or `window.open` |
 | `navigation.js` | Dashboard routes, page components, labels, icons and mobile visibility |
 | `engine.jsx` | One engine status provider shared by the shell and dashboard pages |
 | `pages/` | Page composition and feature-specific behavior |
@@ -227,6 +229,130 @@ before updating local state. It handles errors and prevents duplicate pending
 submissions; it never retries an action automatically. See `AppConnection.jsx`
 and `ReleaseImport.jsx` for real consumers. Key an app-specific form by app ID
 so switching apps also ends its old action scope.
+
+### Forms and confirmations
+
+`useForm({ initialValues, validate, onSubmit })` owns a form's values, which
+fields have been touched, which have changed, whether a submit is in flight and
+where a server's complaint belongs. It renders nothing: `ui/FormField` is still
+the field and `ui/Button` still carries `pending`, which this sets.
+
+```jsx
+const form = useForm({
+  initialValues: { topic: '' },
+  validate: (values) => (values.topic.trim() ? {} : { topic: 'Pick a topic.' }),
+  onSubmit: async (values) => api.updateSettings({ ntfy_config: values }),
+});
+
+<form onSubmit={form.handleSubmit}>
+  <FormField label="Topic" error={form.fieldError('topic')}>
+    <input {...form.fieldProps('topic')} />
+  </FormField>
+  {form.formError && <p role="alert">{form.formError}</p>}
+  <Button type="submit" pending={form.submitting} disabled={!form.dirty}>Save</Button>
+</form>
+```
+
+A second submit arriving in the same tick — a double-clicked Save, before React
+has committed the disabled button — is ignored. `validate` returns a
+`{ field: message }` map and reveals every field when it fails; `onSubmit` that
+throws puts the message under the named field, or under the form when it names
+none. `reset(nextValues)` makes a record that arrived, or one that has just
+been saved, the new baseline. `formState.js` is the reducer behind it, with no
+React in it, and `tests/form-state.test.mjs` tests it directly.
+
+`useConfirm()` returns the dashboard's one confirmation dialog:
+
+```jsx
+const confirm = useConfirm();
+if (!(await confirm({ title: `Delete ${name}?`, message: '…', confirmText: 'Delete' }))) return;
+```
+
+`ConfirmProvider` is mounted once in `main.jsx`, outside `AuthGate`, because
+signing out asks too. Pass `onConfirm` when the work should happen inside the
+dialog — it then shows its pending state, stays open if the work fails and says
+why, which is what a delete that can lose a race needs. Outside a provider the
+hook warns and resolves `true`, so a fixture that mounts part of the tree still
+works. Do not use `window.confirm`; the browser-boundary ratchet fails on it.
+
+### Browser storage, the clipboard and a second window
+
+`storage.js` and `clipboard.js` are the only modules allowed to name
+`localStorage`, `sessionStorage`, `navigator.clipboard` or `window.open`.
+Reading or writing either storage area throws outright in private mode, with
+site data blocked and when the quota is full, and `navigator.clipboard` does
+not exist at all over plain HTTP — which is exactly how a Vela server on the
+home network is reached.
+
+```js
+import { readLocal, writeLocal, readJson } from '../storage.js';
+import { copyText, openExternal } from '../clipboard.js';
+
+const theme = readLocal('vela-theme', 'light');   // the fallback on any failure
+const stored = writeLocal('vela-theme', 'dark');  // false when the browser refused
+const board = readJson('vela.board', null);       // null when absent or not JSON
+if (await copyText(link)) setNote('Link copied.'); // selection fallback included
+openExternal(`/apps/${id}/`);                      // always with noopener
+```
+
+`canStore()` says whether this browser will keep anything at all, for the few
+places that have to tell the user their choice will not outlive the tab.
+
+### Background work: one shape
+
+Everything the engine does for a user that takes time — an automation run, an
+agent desktop's task, an update, a backup, an install, the health sweep — is
+presented from one record built in `operations/normalize.js`:
+
+```js
+{ key, kind, title, subtitle, status, needsAttention, progress,
+  startedAt, updatedAt, href, source }
+```
+
+`operations/status.js` is the one status-to-tone-and-label table; a ratchet
+fails the check if another file grows one. `OperationsProvider` reads every
+source once for the whole dashboard, and `useOperationsContext()` is how the
+rail's dot, the notification bell, the desk's Needs you widget and the System
+page's Activity section all read the same list.
+
+To add a kind of background work:
+
+1. Write a normalizer in `operations/normalize.js` that returns the shape, or
+   `null` when there is nothing to report — an idle thing is not an operation.
+   If the source does not have a field, the field is `null`. Do not invent a
+   timestamp or a step count; record the gap in the plan's progress file so the
+   engine can close it.
+2. Add its status spellings to `operations/status.js` if the engine uses words
+   the table does not have yet.
+3. Load it in `operations/useOperations.js` through a `useResource` loader and
+   pass it to `normalizeOperations`. Do not add a polling convention of your own.
+4. Capture a real payload with `python scripts/capture-operations-fixtures.py`
+   and add a case to `tests/operations.test.mjs`. The fixtures come from a
+   disposable engine, never from a hand-written idea of the response.
+
+Every surface then shows it, in the same words, with no further work.
+
+### Ratchet guards
+
+`web/scripts/ratchets/` holds small, dependency-free guards over the source
+tree; `npm --prefix web run check` runs them. [TESTING.md](TESTING.md) covers
+running and updating them. To add one, write a module whose default export is:
+
+```js
+export default {
+  id: 'my-guard',
+  describe: 'What it looks for.',
+  fix: 'What to do instead.',
+  scan() {
+    return [{ file: 'web/src/thing.js', line: 12, key: 'what was found' }];
+  },
+};
+```
+
+`_lib.mjs` has `sourceFiles`, `readLines` and `matchLines`. Node built-ins
+only: a guard must run from a fresh clone before anything is installed. Then
+`node web/scripts/ratchet.mjs --update` records today's numbers, and the guard
+starts working from that day without blocking the tree it was written for.
 
 ### Shared dialogs and drawers
 

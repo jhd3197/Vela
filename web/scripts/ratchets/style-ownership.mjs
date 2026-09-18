@@ -13,6 +13,23 @@
 // this is meant to stop.
 import { readLines, sourceFiles } from './_lib.mjs';
 
+// A partial that is the deliberate last word, with the reason it is one.
+//
+// This is not an exemption from ownership; it is what ownership means when a
+// policy has to apply across components. `layout/_mobile.scss` is imported
+// last on purpose — its own header says so — and it sets touch, scroll and
+// visible-viewport properties that the component partials do not set at all.
+// Moving those rules into each component would scatter one policy across a
+// dozen files and put it back in import-order's hands, which is the problem
+// this guard exists to prevent rather than an instance of it.
+//
+// Adding a partial here needs the same kind of reason: one policy, properties
+// nobody else sets, and a comment in the file saying what it is.
+const POLICY_LAYERS = {
+  'web/src/styles/layout/_mobile.scss':
+    'the touch and visible-viewport policy, imported last on purpose',
+};
+
 const TOP_LEVEL_CLASS = /^\.([A-Za-z][\w-]*)\s*[,{]/;
 
 export default {
@@ -22,6 +39,7 @@ export default {
   scan() {
     const definitions = new Map();
     for (const file of sourceFiles(['.scss'])) {
+      if (POLICY_LAYERS[file]) continue;
       let depth = 0;
       readLines(file).forEach((text, index) => {
         const match = depth === 0 ? TOP_LEVEL_CLASS.exec(text) : null;

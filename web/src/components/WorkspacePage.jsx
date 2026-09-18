@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import Button from './ui/Button.jsx';
 import WorkspaceHeader from './WorkspaceHeader.jsx';
 import { useApps } from '../store.jsx';
+import { readSession, writeSession } from '../storage.js';
 
 // One workspace: an optional context panel, the contextual header, and the
 // main surface. `scroll={false}` hands scrolling to the page itself, which Ask
@@ -28,9 +29,8 @@ export default function WorkspacePage({
     const content = contentRef.current;
     if (!scroll || !content) return;
     if (location.state?.restoreLauncher && hasApps)
-      content.scrollTop = Number(sessionStorage.getItem(`vela.scroll.${location.pathname}`) || 0);
-    const save = () =>
-      sessionStorage.setItem(`vela.scroll.${location.pathname}`, String(content.scrollTop));
+      content.scrollTop = Number(readSession(`vela.scroll.${location.pathname}`, 0));
+    const save = () => writeSession(`vela.scroll.${location.pathname}`, content.scrollTop);
     content.addEventListener('scroll', save);
     return () => content.removeEventListener('scroll', save);
   }, [location.key, location.pathname, location.state?.restoreLauncher, hasApps, scroll]);

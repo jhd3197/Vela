@@ -14,6 +14,7 @@ import Button from './ui/Button.jsx';
 import Dialog from './ui/Dialog.jsx';
 import BotIcon from './bots/BotIcon.jsx';
 import BotsList from './bots/BotsList.jsx';
+import { useConfirm } from '../hooks/useConfirm.js';
 
 // Date groups are derived from each conversation's own timestamp; nothing here
 // is a fabricated bucket.
@@ -81,46 +82,6 @@ function RenameDialog({ conversation, onClose, onSave }) {
           </Button>
         </div>
       </form>
-    </Dialog>
-  );
-}
-
-function DeleteDialog({ conversation, onClose, onConfirm }) {
-  const [pending, setPending] = useState(false);
-  const cancel = useRef(null);
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      pending={pending}
-      initialFocusRef={cancel}
-      aria-labelledby="delete-title"
-    >
-      <h2 id="delete-title">Delete this conversation?</h2>
-      <p className="dialog-note">
-        “{conversation.title}” and its messages are removed from this server permanently. Archiving
-        keeps a conversation and hides it instead.
-      </p>
-      <div className="dialog-actions">
-        <Button ref={cancel} onClick={onClose} disabled={pending}>
-          Cancel
-        </Button>
-        <Button
-          variant="danger"
-          pending={pending}
-          onClick={async () => {
-            setPending(true);
-            try {
-              await onConfirm();
-              onClose();
-            } finally {
-              setPending(false);
-            }
-          }}
-        >
-          Delete permanently
-        </Button>
-      </div>
     </Dialog>
   );
 }
@@ -288,7 +249,17 @@ export default function ConversationPanel({
   onNewRoom,
 }) {
   const [renaming, setRenaming] = useState(null);
-  const [deleting, setDeleting] = useState(null);
+  const confirm = useConfirm();
+  const askToDelete = (conversation) =>
+    confirm({
+      title: 'Delete this conversation?',
+      message:
+        `“${conversation.title}” and its messages are removed from this server permanently. ` +
+        'Archiving keeps a conversation and hides it instead.',
+      confirmText: 'Delete permanently',
+      pendingText: 'Deleting…',
+      onConfirm: () => onDelete(conversation),
+    });
   const botsById = new Map([
     ...(builtin ? [[builtin.id, builtin]] : []),
     ...bots.map((bot) => [bot.id, bot]),
@@ -323,7 +294,7 @@ export default function ConversationPanel({
                 onSelect={onSelect}
                 onRename={setRenaming}
                 onArchive={onArchive}
-                onDelete={setDeleting}
+                onDelete={askToDelete}
               />
             ))}
           </ul>
@@ -466,13 +437,6 @@ export default function ConversationPanel({
           conversation={renaming}
           onClose={() => setRenaming(null)}
           onSave={(title) => onRename(renaming, title)}
-        />
-      )}
-      {deleting && (
-        <DeleteDialog
-          conversation={deleting}
-          onClose={() => setDeleting(null)}
-          onConfirm={() => onDelete(deleting)}
         />
       )}
     </aside>

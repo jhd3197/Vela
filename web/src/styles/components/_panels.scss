@@ -221,3 +221,23 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/* A panel's vertical rhythm, for the blocks whose own rule does not carry it.
+   Two steps, the same two the panels already use: 14px between blocks, and 8px
+   between a line and the line that qualifies it. Named for what the spacing is
+   for rather than for its size, so a block that takes the gap says why it does.
+
+   Last in this module on purpose: `.panel-note` and `.fact-grid` above reset
+   their margin, and these have the same specificity, so they have to come
+   after to mean anything. */
+.panel-lead {
+  margin-bottom: 14px;
+}
+
+.panel-follows {
+  margin-top: 14px;
+}
+
+.panel-qualifies {
+  margin-top: 8px;
+}

@@ -18,6 +18,8 @@ import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
+import { readLocal, writeLocal } from '../storage.js';
+import { openExternal } from '../clipboard.js';
 
 export default function AppView() {
   const { id } = useParams();
@@ -45,9 +47,7 @@ function Workspace({ id, retry }) {
   const surface = summary?.view?.surface || 'embedded';
   const appearance = summary?.view?.appearance || 'auto';
   const running = Boolean(app?.running && app?.url && surface === 'embedded');
-  const [compact, setCompact] = useState(
-    () => localStorage.getItem(`vela.chrome.${id}`) === 'compact',
-  );
+  const [compact, setCompact] = useState(() => readLocal(`vela.chrome.${id}`) === 'compact');
   const requestedMode = summary?.view?.chrome || 'compact';
   // A removed or unknown app has no declared presentation. Recover it inside the
   // shell so the rail offers a clear path back instead of a bare interstitial.
@@ -218,7 +218,7 @@ function Workspace({ id, retry }) {
   }, [menu]);
 
   const toggleCompact = () => {
-    localStorage.setItem(`vela.chrome.${id}`, compact ? 'seamless' : 'compact');
+    writeLocal(`vela.chrome.${id}`, compact ? 'seamless' : 'compact');
     setCompact(!compact);
     setMenu(false);
   };
@@ -250,7 +250,7 @@ function Workspace({ id, retry }) {
       onAppSettings={app?.installed ? () => setSettingsOpen(true) : undefined}
       onHideBar={requestedMode === 'seamless' && !missing ? toggleCompact : undefined}
       onReload={retry}
-      onOpenNewTab={() => window.open(`/apps/${id}/`, '_blank', 'noopener')}
+      onOpenNewTab={() => openExternal(`/apps/${id}/`)}
       canStop={canStop}
       onStop={() => runAction(id, 'stop')}
     />

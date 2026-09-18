@@ -42,6 +42,21 @@ function remove(area, key) {
   }
 }
 
+/**
+ * Whether this browser will keep anything at all. A refused area throws on the
+ * first touch, so asking is the same work as using it. The few places that
+ * need this are the ones that tell the user their choice will not outlive the
+ * tab, rather than letting it be forgotten silently.
+ */
+export function canStore(area = 'local') {
+  try {
+    areas[area]().getItem('vela.storage-probe');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The stored string, or `fallback` when absent or unreadable. */
 export const readLocal = (key, fallback = null) => read('local', key, fallback);
 /** `true` when the value was stored; `false` when the browser refused. */

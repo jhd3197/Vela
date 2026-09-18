@@ -12,6 +12,8 @@
 
 .rail-desktop-item {
   color: var(--text-dim);
+  /* The agent badge is placed against this item's box. */
+  position: relative;
 }
 
 .rail-desktop-mark {
@@ -202,11 +204,8 @@
 
 /* Over the board, under the rail. A window is not part of the desk's
    arrangement, so it does not take part in the grid; it is placed by
-   `window-state.js` in this element's coordinates, which is why the desk is
-   the positioned ancestor. */
-.desk {
-  position: relative;
-}
+   `window-state.js` in this element's coordinates, which is why `.desk` is the
+   positioned ancestor — set where the desk is styled, in pages/_desk.scss. */
 
 .view-host {
   position: absolute;

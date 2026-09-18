@@ -139,7 +139,7 @@ function AutomationList() {
 
         <div className="auto-columns">
           <div className="auto-main">
-            <div className="seg" role="tablist" style={{ alignSelf: 'flex-start' }}>
+            <div className="seg" role="tablist">
               {FILTERS.map((item) => (
                 <button
                   key={item.key}

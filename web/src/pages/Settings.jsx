@@ -38,6 +38,7 @@ import HealthSection from '../components/HealthSection.jsx';
 import UpdatesSection from '../components/UpdatesSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { useForm } from '../hooks/useForm.js';
+import { removeLocal } from '../storage.js';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
 // stops being a popup and becomes a screen inside the app.
@@ -130,7 +131,7 @@ function AiSection({ settings, onPatched, onPendingChange }) {
       </div>
       {ai && (
         <>
-          <dl className="fact-grid" style={{ marginBottom: 14 }}>
+          <dl className="fact-grid panel-lead">
             <div className="fact">
               <dt>Endpoint</dt>
               <dd className="mono">{ai.url || '—'}</dd>
@@ -166,15 +167,11 @@ function AiSection({ settings, onPatched, onPendingChange }) {
             </p>
           )}
           {ai.model_available === false && (
-            <p className="panel-note" style={{ marginTop: 8 }}>
+            <p className="panel-note panel-qualifies">
               The selected model isn't installed yet — pick one above or pull it first.
             </p>
           )}
-          {ai.hint && (
-            <p className="panel-note" style={{ marginTop: 8 }}>
-              {ai.hint}
-            </p>
-          )}
+          {ai.hint && <p className="panel-note panel-qualifies">{ai.hint}</p>}
         </>
       )}
       {!ai && !failed && <p className="panel-note">Checking the local AI runtime…</p>}
@@ -307,7 +304,7 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
         <h2>Notifications</h2>
         <StatusPill state={live ? 'ok' : 'idle'} text={live ? 'Configured' : 'Not set up'} />
       </div>
-      <p className="panel-note" style={{ marginBottom: 14 }}>
+      <p className="panel-note panel-lead">
         {form.values.topic.trim() ? (
           <>
             Subscribe to{' '}
@@ -384,12 +381,7 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
           </div>
         </div>
       </div>
-      <div
-        className="chip-row"
-        role="group"
-        aria-label="Notification events"
-        style={{ marginTop: 14 }}
-      >
+      <div className="chip-row panel-follows" role="group" aria-label="Notification events">
         {NTFY_EVENTS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -777,7 +769,7 @@ function DeskSection({ settings, onPatched, onPendingChange }) {
       <div className="panel-head">
         <h2>Volumes</h2>
       </div>
-      <p className="panel-note" style={{ marginBottom: 14 }}>
+      <p className="panel-note panel-lead">
         Add a folder here to put a Volume widget for it on your desk. Vela only reports how full it
         is — it does not read what is inside.
       </p>
@@ -899,7 +891,7 @@ function FilesSection({ settings, onPatched, onPendingChange }) {
       <div className="panel-head">
         <h2>Files</h2>
       </div>
-      <p className="panel-note" style={{ marginBottom: 14 }}>
+      <p className="panel-note panel-lead">
         Add a folder here and the Files app can show it. Nothing outside these folders is ever
         served, and Vela's own data folder cannot be added. Deleting from Files moves things to a
         trash that is cleared after 30 days.
@@ -1245,11 +1237,8 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
     setSaving(true);
     setSaveError('');
     if (!on) {
-      try {
-        localStorage.removeItem('vela-chat');
-      } catch {
-        // Private mode etc. — nothing else to wipe.
-      }
+      // Private mode etc. — there is then nothing left to wipe.
+      removeLocal('vela-chat');
     }
     onPatched({ chat_history: on });
     api

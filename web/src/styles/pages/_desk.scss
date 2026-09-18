@@ -205,6 +205,10 @@ body[data-desk] .rail-divider {
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+  /* A window on a desktop is placed in this element's coordinates by
+     `window-state.js`, so the desk is the positioned ancestor. See
+     `components/_desktops.scss`. */
+  position: relative;
 }
 
 /* The command surface: one centred field over the wallpaper — a deliberate

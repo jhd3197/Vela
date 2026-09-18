@@ -22,6 +22,9 @@ export const GEOMETRY_REASONS = {
   'web/src/desktops/EmptyPane.jsx': 'pane rectangle from the split bounds',
   'web/src/desktops/motion/GenieOverlay.jsx': 'animation surface sized to the source frame',
   'web/src/components/ui/ContextMenu.jsx': 'menu position from the pointer',
+  'web/src/components/AppIcon.jsx': 'badge text scaled to the icon size it is drawn on',
+  'web/src/components/UpdatesSection.jsx': 'the update download bar, filled from live progress',
+  'web/src/pages/Launchpad.jsx': 'tile artwork at the icon size the desk is set to',
 };
 
 export default {

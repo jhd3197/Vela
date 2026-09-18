@@ -2,13 +2,10 @@
 // prototypes) or "dark" (the Home dashboard prototype). Persisted locally;
 // applied as data-theme on <html> so every CSS variable flips at once.
 const KEY = 'vela-theme';
+import { readLocal, writeLocal } from './storage.js';
 
 export function getTheme() {
-  try {
-    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+  return readLocal(KEY) === 'dark' ? 'dark' : 'light';
 }
 
 export function applyTheme(theme) {
@@ -18,11 +15,8 @@ export function applyTheme(theme) {
 }
 
 export function setTheme(theme) {
-  try {
-    localStorage.setItem(KEY, theme);
-  } catch {
-    // Private mode etc. — theme still applies for this session.
-  }
+  // A browser that refuses to keep it still shows it for this session.
+  writeLocal(KEY, theme);
   applyTheme(theme);
 }
 
