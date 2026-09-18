@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Workspace: context panel, contextual header, content ---------- */
 
 .workspace {
@@ -33,9 +34,9 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-4);
   padding: var(--header-pad);
-  padding-top: calc(11px + env(safe-area-inset-top));
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
   min-height: 56px;
   background: var(--bg-header);
   backdrop-filter: blur(18px);
@@ -50,7 +51,7 @@
 }
 
 .workspace-title {
-  font-size: 15px;
+  font-size: var(--text-base);
   font-weight: 500;
   letter-spacing: -0.01em;
   overflow: hidden;
@@ -59,7 +60,7 @@
 }
 
 .workspace-subtitle {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -70,7 +71,7 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-4);
   flex: none;
 }
 
@@ -92,5 +93,5 @@
 
 .workspace-content-fixed > .banner {
   flex-shrink: 0;
-  margin: 14px 26px 0;
+  margin: var(--space-5) var(--space-8) 0;
 }

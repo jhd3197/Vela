@@ -1,8 +1,9 @@
+// tokens: spacing
 .modal-dialog {
   width: min(460px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   overflow: auto;
-  padding: 24px;
+  padding: var(--space-7);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-pop);
@@ -30,22 +31,15 @@ dialog.drawer-overlay::backdrop {
   background: transparent;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .drawer-overlay,
-  .drawer {
-    animation: none;
-  }
-}
-
 /* ---------- Keyboard shortcut sheet ---------- */
 
 .shortcut-sheet {
   max-width: min(420px, calc(100vw - 32px));
-  padding: 22px 24px;
+  padding: var(--space-7) var(--space-7);
 }
 
 .shortcut-sheet h2 {
-  margin: 0 0 14px;
+  margin: 0 0 var(--space-5);
   font-size: 18px;
 }
 
@@ -55,25 +49,25 @@ dialog.drawer-overlay::backdrop {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
 .shortcut-list li {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-5);
 }
 
 .shortcut-combo {
   flex: 0 0 132px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .shortcut-keys {
   display: inline-flex;
-  gap: 3px;
+  gap: var(--space-1);
 }
 
 .shortcut-keys kbd {
@@ -83,7 +77,7 @@ dialog.drawer-overlay::backdrop {
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 5px;
-  padding: 2px 6px;
+  padding: 2px var(--space-2);
   min-width: 18px;
   text-align: center;
 }

@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Labelled navigation (phone drawer) and status dots ---------- */
 
 .nav-drawer {
@@ -7,7 +8,7 @@
 }
 
 .nav-drawer .section-head {
-  margin: 14px 0 4px;
+  margin: var(--space-5) 0 var(--space-1);
 }
 
 .nav-drawer .section-head:first-child {
@@ -19,8 +20,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border: none;
   background: none;
   font-family: inherit;
@@ -29,7 +30,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-dim);
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 500;
   transition:
     background 140ms ease,
@@ -67,10 +68,4 @@
 
 .dot-ok {
   background: var(--green);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nav-item {
-    transition: none;
-  }
 }

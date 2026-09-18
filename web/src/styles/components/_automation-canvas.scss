@@ -94,12 +94,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .automation-canvas .tr-canvas-v2--panning .tr-canvas-v2__world {
-    transition: none;
-  }
-}
-
 /* Vela's catalog has no Model Context Protocol steps: the server strips
    `meta.mcpServers` on save and refuses `mcp-tool-call` node types, so this
    import tile leads nowhere. Hiding it removes a dead end from the picker; the

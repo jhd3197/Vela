@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Shared mobile rules ----------
 
    This module is imported last on purpose. The rules below are deliberate
@@ -98,7 +99,9 @@ h4 {
 
 /* Ask: the transcript gives up the space, the composer stays reachable. */
 .ask-workspace {
-  padding-bottom: calc(12px + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px)));
+  padding-bottom: calc(
+    var(--space-4) + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px))
+  );
 }
 
 /* Dialogs and drawers live in the top layer, outside the shell's own layout,
@@ -135,14 +138,9 @@ dialog.drawer-overlay {
 }
 
 .drawer-footer {
-  padding-bottom: calc(16px + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px)));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal-dialog,
-  .appview-dialog {
-    transition: none;
-  }
+  padding-bottom: calc(
+    var(--space-6) + max(env(safe-area-inset-bottom), var(--vela-keyboard-inset, 0px))
+  );
 }
 
 /* A full-screen surface is not a popup: it owns the whole visible rectangle

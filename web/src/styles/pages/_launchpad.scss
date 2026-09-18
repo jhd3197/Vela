@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Launchpad: a full-screen app grid over the wallpaper ---------- */
 
 /* The Launchpad rides on the desk's wallpaper flags (set by the page), so the
@@ -32,10 +33,10 @@
   margin: 0 auto;
   /* The search shares the 56px line with the floating bell: 4px down puts
      the 48px field on the icons' centre. */
-  padding: calc(4px + env(safe-area-inset-top, 0px)) 28px 64px;
+  padding: calc(var(--space-1) + env(safe-area-inset-top, 0px)) var(--space-8) 64px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: var(--space-8);
 }
 
 .launchpad-hero {
@@ -48,7 +49,7 @@
   flex: 0 1 560px;
   height: 48px;
   border-radius: 24px;
-  padding: 0 14px 0 18px;
+  padding: 0 var(--space-5) 0 var(--space-6);
   background: rgba(var(--on-wall-rgb), 0.16);
   box-shadow: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.24);
   border-color: transparent;
@@ -76,13 +77,13 @@
 .launch-sections {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--space-8);
 }
 
 .launch-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
 }
 
 .launch-section-label {
@@ -97,15 +98,15 @@
 .launch-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 24px 12px;
+  gap: var(--space-7) var(--space-4);
 }
 
 .launch-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
-  padding: 8px 4px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-1);
   border: none;
   background: none;
   border-radius: var(--radius);
@@ -202,7 +203,7 @@
 .launch-empty {
   color: rgba(var(--on-wall-rgb), 0.86);
   text-align: center;
-  font-size: 15px;
+  font-size: var(--text-base);
   padding: 40px 0;
 }
 
@@ -222,9 +223,9 @@
   /* The bell floats at the right of the search line, so the field stops
      short of it and sticks on that same line. */
   .launchpad-inner {
-    padding: calc(4px + env(safe-area-inset-top, 0px)) 16px
+    padding: calc(var(--space-1) + env(safe-area-inset-top, 0px)) var(--space-6)
       calc(48px + env(safe-area-inset-bottom, 0px));
-    gap: 20px;
+    gap: var(--space-7);
   }
 
   .launchpad-hero {
@@ -243,11 +244,11 @@
     /* minmax(0, …) lets a track shrink below the icon on a narrow phone so the
        four columns always fit beside the rail instead of forcing a scroll. */
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px 4px;
+    gap: var(--space-6) var(--space-1);
   }
 
   .launch-tile {
-    padding: 6px 2px;
+    padding: var(--space-2) 2px;
   }
 
   .launch-label {
@@ -266,15 +267,15 @@
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 22px;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-7);
 }
 
 .launch-tab {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 15px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
   border: none;
   border-radius: 999px;
   background: rgba(var(--on-wall-rgb), 0.12);
@@ -305,10 +306,10 @@
   place-items: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 var(--space-2);
   border-radius: 999px;
   background: rgba(var(--on-wall-rgb), 0.22);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -319,8 +320,8 @@
 /* The phone's one line about this server, where the desk would show its status
    strip. It sits above the hero field, over the blurred wallpaper. */
 .launchpad-server {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-4);
   color: rgba(var(--on-wall-rgb), 0.78);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   text-align: center;
 }

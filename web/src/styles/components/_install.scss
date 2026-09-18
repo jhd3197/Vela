@@ -1,18 +1,19 @@
+// tokens: spacing
 /* ---------- Add to Home Screen ---------- */
 
 .a2hs-steps {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-4);
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
 }
 
 .a2hs-steps li {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-4);
   font-size: 13.5px;
   color: var(--text-dim);
 }
@@ -37,7 +38,7 @@
 }
 
 .a2hs-note {
-  margin: 10px 0 0;
+  margin: var(--space-4) 0 0;
   font-size: 13px;
   color: var(--text-faint);
 }
@@ -48,5 +49,5 @@
 }
 
 .a2hs .btn {
-  margin-top: 12px;
+  margin-top: var(--space-4);
 }

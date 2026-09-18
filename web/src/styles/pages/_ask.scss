@@ -1,3 +1,4 @@
+// tokens: spacing
 /* The transcript scrolls independently of the header and composer. */
 @use '../breakpoints' as bp;
 
@@ -7,16 +8,16 @@
   width: 100%;
   max-width: 1100px;
   margin-inline: auto;
-  padding: 16px 26px 14px;
+  padding: var(--space-6) var(--space-8) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-5);
 }
 .ask-status {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin: 3px 0 0;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
   font-size: 12px;
   color: var(--text-dim);
 }
@@ -42,17 +43,17 @@
 .chat-transcript {
   max-width: 780px;
   margin-inline: auto;
-  padding: 24px 12px 28px;
+  padding: var(--space-7) var(--space-4) var(--space-8);
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--space-8);
 }
 .chat-transcript-empty {
   min-height: 100%;
   justify-content: center;
 }
 .chat-intro {
-  padding: 20px 0 36px;
+  padding: var(--space-7) 0 36px;
   color: var(--text-dim);
 }
 .chat-intro-mark {
@@ -63,14 +64,14 @@
   border-radius: 18px;
   background: var(--accent-soft);
   color: var(--accent-strong);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-7);
 }
 .chat-eyebrow {
   font-size: 12px;
   color: var(--text-dim);
 }
 .chat-intro h2 {
-  margin: 8px 0 14px;
+  margin: var(--space-3) 0 var(--space-5);
   color: var(--text);
   font-size: clamp(26px, 3vw, 38px);
   font-weight: 500;
@@ -79,26 +80,26 @@
   text-wrap: balance;
 }
 .chat-intro p {
-  margin: 0 0 28px;
+  margin: 0 0 var(--space-8);
   max-width: 470px;
-  font-size: 14px;
+  font-size: var(--text-md);
   line-height: 1.7;
 }
 .chat-starters {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
 }
 .chat-starters button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   border: 1px solid var(--border);
   background: var(--bg-card);
   color: var(--text-dim);
   font: inherit;
   font-size: 12px;
-  padding: 11px 13px;
+  padding: var(--space-4) var(--space-5);
   border-radius: 10px;
   cursor: pointer;
   transition:
@@ -113,7 +114,7 @@
 .chat-turn {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
 }
 .chat-user {
   display: flex;
@@ -121,26 +122,26 @@
 }
 .chat-bubble {
   max-width: 85%;
-  padding: 12px 17px;
+  padding: var(--space-4) var(--space-6);
   border-radius: 18px 18px 4px 18px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--text-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .chat-assistant {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-4);
 }
 .chat-avatar {
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent-strong);
   flex-shrink: 0;
@@ -151,8 +152,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  font-size: 14px;
+  gap: var(--space-4);
+  font-size: var(--text-md);
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
@@ -166,23 +167,23 @@
   color: var(--text-dim);
   font-size: 12px;
   font-weight: 400;
-  margin-left: 8px;
+  margin-left: var(--space-3);
 }
 .message-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-1);
 }
 .msg-push {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   border: 0;
   background: transparent;
   color: var(--text-dim);
   font: inherit;
   font-size: 11px;
-  padding: 6px 8px;
+  padding: var(--space-2) var(--space-3);
   border-radius: 6px;
   cursor: pointer;
   transition: background 140ms ease;
@@ -205,27 +206,27 @@
   margin-bottom: 0;
 }
 .chat-markdown p {
-  margin: 0 0 14px;
+  margin: 0 0 var(--space-5);
   white-space: pre-wrap;
 }
 .chat-markdown :is(h1, h2, h3, h4) {
-  margin: 22px 0 10px;
+  margin: var(--space-7) 0 var(--space-4);
   font-size: 18px;
   font-weight: 600;
 }
 .chat-markdown :is(ul, ol) {
-  padding-left: 24px;
-  margin-block: 12px;
+  padding-left: var(--space-7);
+  margin-block: var(--space-4);
 }
 .chat-markdown li + li {
-  margin-top: 5px;
+  margin-top: var(--space-2);
 }
 .chat-markdown code {
   font-family: var(--mono);
   font-size: 0.9em;
   background: var(--bg-card);
   border-radius: 4px;
-  padding: 2px 5px;
+  padding: 2px var(--space-2);
 }
 .chat-markdown pre {
   max-width: 100%;
@@ -233,7 +234,7 @@
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--space-6);
 }
 .chat-markdown pre code {
   background: none;
@@ -242,21 +243,21 @@
 }
 .chat-markdown blockquote {
   margin-inline: 0;
-  padding-left: 16px;
+  padding-left: var(--space-6);
   border-left: 3px solid var(--accent-line);
   color: var(--text-dim);
 }
 .chat-table {
   overflow-x: auto;
   max-width: 100%;
-  margin-block: 16px;
+  margin-block: var(--space-6);
 }
 .chat-table table {
   border-collapse: collapse;
   font-size: 13px;
 }
 .chat-table :is(th, td) {
-  padding: 9px 14px;
+  padding: var(--space-3) var(--space-5);
   border: 1px solid var(--border);
   text-align: left;
 }
@@ -267,8 +268,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
   color: var(--red);
   background: var(--red-soft);
   border-radius: 10px;
@@ -289,10 +290,10 @@
 }
 .tool-details summary {
   cursor: pointer;
-  padding: 5px 0;
+  padding: var(--space-2) 0;
 }
 .tool-details[open] summary {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-3);
 }
 /* Tool activity chips: name, plain-language label, live status, duration. */
 
@@ -302,19 +303,19 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .tool-call {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-3);
   max-width: 520px;
-  padding: 7px 11px;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 
 .tool-glyph {
@@ -329,7 +330,7 @@
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .tool-name .mono {
@@ -339,7 +340,7 @@
 
 .tool-label {
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -348,9 +349,9 @@
 .tool-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   flex-shrink: 0;
 }
 
@@ -380,7 +381,7 @@
   display: inline-block;
   width: 7px;
   height: 15px;
-  margin-left: 3px;
+  margin-left: var(--space-1);
   vertical-align: -2px;
   background: var(--accent);
   border-radius: 1px;
@@ -389,7 +390,7 @@
 
 .inline-error {
   margin: 0;
-  padding: 10px 14px;
+  padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
   background: var(--red-soft);
@@ -405,7 +406,7 @@
 }
 .chat-composer {
   position: relative;
-  padding: 14px 14px 10px;
+  padding: var(--space-5) var(--space-5) var(--space-4);
   border: 1px solid var(--border-strong);
   border-radius: 18px;
   background: var(--bg-card);
@@ -426,9 +427,9 @@
   outline: none;
   background: transparent;
   color: var(--text);
-  padding: 3px 4px;
+  padding: var(--space-1) var(--space-1);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-md);
   line-height: 1.6;
 }
 .chat-composer textarea::placeholder {
@@ -437,14 +438,14 @@
 .composer-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-top: 8px;
+  gap: var(--space-4);
+  padding-top: var(--space-3);
 }
 .composer-mention {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 8px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: 7px;
   background: var(--bg-inset);
@@ -498,8 +499,8 @@
 .composer-hint {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 4px 0;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-1) 0;
   font-size: 10px;
   color: var(--text-dim);
 }
@@ -510,7 +511,7 @@
   width: min(440px, 100%);
   z-index: 12;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--bg-pop);
   box-shadow: var(--shadow-pop);
   overflow: hidden;
@@ -518,8 +519,8 @@
 .mention-heading {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 12px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   font-size: 12px;
   font-weight: 600;
 }
@@ -531,18 +532,18 @@
 .mention-picker [role='listbox'] {
   max-height: min(260px, 28dvh);
   overflow-y: auto;
-  padding: 0 5px;
+  padding: 0 var(--space-2);
 }
 .mention-picker [role='option'] {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-4);
   width: 100%;
   border: 0;
   border-radius: 8px;
   background: none;
   color: var(--text);
-  padding: 9px;
+  padding: var(--space-3);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -567,14 +568,14 @@
   overflow-wrap: anywhere;
 }
 .mention-foot {
-  padding: 10px 12px;
+  padding: var(--space-4) var(--space-4);
   border-top: 1px solid var(--border);
   font-size: 10px;
   color: var(--text-dim);
 }
 .mention-picker p {
   font-size: 12px;
-  padding: 8px 12px;
+  padding: var(--space-3) var(--space-4);
 }
 @media (pointer: coarse) {
   .composer-send,
@@ -586,25 +587,25 @@
 }
 @media (max-width: bp.$phone) {
   .ask-workspace {
-    gap: 10px;
-    padding: 12px 16px 10px;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-6) var(--space-4);
   }
   .chat-transcript {
-    padding: 16px 2px 24px;
-    gap: 22px;
+    padding: var(--space-6) 2px var(--space-7);
+    gap: var(--space-7);
   }
   .chat-intro {
-    padding: 12px 4px 20px;
+    padding: var(--space-4) var(--space-1) var(--space-7);
   }
   .chat-intro-mark {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-6);
     width: 44px;
     height: 44px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
   .chat-intro p {
     font-size: 13px;
-    margin-bottom: 20px;
+    margin-bottom: var(--space-7);
   }
   .chat-starters {
     flex-direction: column;
@@ -621,7 +622,7 @@
     height: 24px;
   }
   .chat-assistant {
-    gap: 8px;
+    gap: var(--space-3);
   }
   .chat-text {
     font-size: 13px;
@@ -641,15 +642,15 @@
     backdrop-filter: none;
   }
   .ask-workspace {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
   }
   /* One rounded field: mention, text and send on a single line that grows
      with the draft. */
   .chat-composer {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
-    padding: 6px 6px 6px 8px;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
     border-radius: 24px;
     box-shadow: none;
   }
@@ -657,7 +658,7 @@
     order: 1;
     flex: 1;
     min-height: 36px;
-    padding: 8px 4px;
+    padding: var(--space-3) var(--space-1);
     font-size: 16px;
     line-height: 1.35;
   }
@@ -694,14 +695,6 @@
     display: none;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ask-workspace *,
-  .ask-workspace *::before,
-  .ask-workspace *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
 
 /* ---------- Conversation panel ---------- */
 
@@ -718,26 +711,26 @@
 }
 
 .conversation-panel-drawer .conversation-panel-head {
-  padding-top: 14px;
+  padding-top: var(--space-5);
 }
 
 .conversation-panel-head {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 10px;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-4);
 }
 
 .conversation-panel-title {
-  font-size: 15px;
+  font-size: var(--text-base);
   font-weight: 500;
 }
 
 .conversation-panel-model {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
   min-width: 0;
   font-size: 11px;
   color: var(--text-faint);
@@ -752,29 +745,29 @@
 
 .conversation-panel-new {
   flex: none;
-  padding: 0 12px 10px;
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .conversation-panel-search {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px 10px;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
 
   .searchbox {
     flex: 1;
     min-width: 0;
-    padding: 5px 10px;
+    padding: var(--space-2) var(--space-4);
   }
 
   .searchbox input {
-    font-size: 12.5px;
+    font-size: var(--text-sm);
   }
 
   .chip {
     flex: none;
-    padding: 4px 9px;
+    padding: var(--space-1) var(--space-3);
     font-size: 11px;
   }
 }
@@ -783,7 +776,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 8px;
+  padding: 0 var(--space-3) var(--space-3);
 
   ul {
     list-style: none;
@@ -792,14 +785,14 @@
   }
 
   .panel-note {
-    padding: 8px 4px;
-    font-size: 12.5px;
+    padding: var(--space-3) var(--space-1);
+    font-size: var(--text-sm);
     line-height: 1.5;
   }
 }
 
 .conversation-group .section-head {
-  margin: 12px 4px 4px;
+  margin: var(--space-4) var(--space-1) var(--space-1);
 }
 
 .conversation-row {
@@ -820,7 +813,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 8px 10px;
+  padding: var(--space-3) var(--space-4);
   border: none;
   background: none;
   font-family: inherit;
@@ -874,7 +867,7 @@
   right: 0;
   z-index: 30;
   min-width: 150px;
-  padding: 5px;
+  padding: var(--space-2);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -885,12 +878,12 @@
   button {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 9px;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
     border: none;
     background: none;
     font-family: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-sm);
     color: var(--text);
     text-align: left;
     border-radius: 6px;
@@ -905,7 +898,7 @@
 .conversation-panel-foot {
   flex: none;
   margin: 0;
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  padding: var(--space-4) var(--space-5) calc(var(--space-4) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-faint);

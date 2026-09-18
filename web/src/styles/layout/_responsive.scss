@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Responsive ---------- */
 @use '../breakpoints' as bp;
 
@@ -17,17 +18,17 @@
      with no hamburger. One inset, applied once, on top of the shared top
      padding. */
   .rail {
-    padding-top: calc(var(--rail-top, 28px) + env(safe-area-inset-top));
+    padding-top: calc(var(--rail-top, var(--space-8)) + env(safe-area-inset-top));
   }
 
   .workspace-header {
-    padding: 10px 14px;
-    padding-top: calc(10px + env(safe-area-inset-top));
-    gap: 8px;
+    padding: var(--space-4) var(--space-5);
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+    gap: var(--space-3);
   }
 
   .workspace-content {
-    padding: 16px 16px calc(28px + env(safe-area-inset-bottom));
+    padding: var(--space-6) var(--space-6) calc(var(--space-8) + env(safe-area-inset-bottom));
   }
 
   .workspace-content-fixed {
@@ -38,7 +39,7 @@
      rather than squeezing every control. */
   .workspace-header {
     flex-wrap: wrap;
-    row-gap: 8px;
+    row-gap: var(--space-3);
   }
 
   .workspace-header > .searchbox {
@@ -108,7 +109,7 @@
   }
 
   .workspace-content {
-    padding-block: 14px;
+    padding-block: var(--space-5);
   }
 }
 
@@ -130,11 +131,11 @@
      their padding, and a control wraps its label rather than widening the
      column. */
   .workspace-content {
-    padding-inline: 12px;
+    padding-inline: var(--space-4);
   }
 
   .panel {
-    padding: 16px 14px;
+    padding: var(--space-6) var(--space-5);
   }
 
   .btn {

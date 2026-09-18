@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Notification bell ---------- */
 
 .notif-wrap {
@@ -14,7 +15,7 @@
   right: 2px;
   min-width: 15px;
   height: 15px;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
   border-radius: 8px;
   background: var(--red);
   color: var(--on-accent);
@@ -40,7 +41,7 @@
 }
 
 .notif-head {
-  padding: 12px 14px 8px;
+  padding: var(--space-4) var(--space-5) var(--space-3);
   border-bottom: 1px solid var(--border);
 }
 
@@ -52,12 +53,12 @@
 
 /* What is waiting on a person, above what has already happened. */
 .notif-attention {
-  padding: 8px 10px;
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
 }
 
 .notif-section {
-  margin: 0 4px 6px;
+  margin: 0 var(--space-1) var(--space-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -73,7 +74,7 @@
 .notif-list {
   list-style: none;
   margin: 0;
-  padding: 6px;
+  padding: var(--space-2);
   max-height: 340px;
   overflow-y: auto;
   display: flex;
@@ -84,8 +85,8 @@
 .notif-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 9px;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-3);
   border-radius: 7px;
 }
 
@@ -126,7 +127,7 @@
 
 .notif-empty {
   margin: 0;
-  padding: 22px 14px;
+  padding: var(--space-7) var(--space-5);
   color: var(--text-faint);
   font-size: 13px;
   text-align: center;
@@ -134,9 +135,9 @@
 
 .notif-foot {
   display: block;
-  padding: 10px 14px;
+  padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--border);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   text-align: center;
   text-decoration: none;

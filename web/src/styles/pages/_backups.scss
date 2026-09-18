@@ -1,7 +1,8 @@
+// tokens: spacing
 /* ---------- Backups ---------- */
 
 .backup-row {
-  gap: 12px;
+  gap: var(--space-4);
 }
 
 .backup-row .ph {
@@ -26,7 +27,7 @@
 }
 
 .backup-meta {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--text-faint);
   overflow-wrap: anywhere;
 }

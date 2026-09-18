@@ -1,3 +1,4 @@
+// tokens: spacing
 @use '../wallpapers';
 
 /* ---------- Drawer (app detail) ---------- */
@@ -21,7 +22,7 @@
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  animation: slide-in 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: slide-in var(--motion-base) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 /* A page's own panel on a phone (Ask's conversations) opens from the left
@@ -49,27 +50,20 @@
   padding-top: env(safe-area-inset-top);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .drawer-overlay,
-  .drawer {
-    animation: none;
-  }
-}
-
 .drawer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 22px 24px 18px;
-  padding-top: calc(22px + env(safe-area-inset-top));
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-7) var(--space-6);
+  padding-top: calc(var(--space-7) + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
 }
 
 .drawer-title-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-5);
   min-width: 0;
 }
 
@@ -82,7 +76,7 @@
 /* Which desktop a scoped sheet is changing. Quiet, because the answer is
    usually "the one I am looking at" and only matters when it is not. */
 .drawer-scope {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
@@ -91,7 +85,7 @@
 
 .drawer-meta {
   margin: 2px 0 0;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
 }
 
@@ -101,7 +95,7 @@
   background: none;
   color: var(--text-faint);
   cursor: pointer;
-  padding: 6px;
+  padding: var(--space-2);
   border-radius: 6px;
   display: grid;
   place-items: center;
@@ -118,27 +112,27 @@
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: var(--space-7) var(--space-7);
 }
 
 .drawer-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .drawer-running-note {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
 }
 
 .drawer-section {
-  margin-bottom: 22px;
+  margin-bottom: var(--space-7);
 }
 
 .drawer-section-title {
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-4);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -147,15 +141,15 @@
 }
 
 .drawer-description {
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
   color: var(--text-dim);
 }
 
 .drawer-facts {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 5px 18px;
+  gap: var(--space-2) var(--space-6);
   margin: 0;
   font-size: 13px;
 }
@@ -176,13 +170,13 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .drawer-platforms li {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-4);
   font-size: 13px;
   min-width: 0;
 }
@@ -206,7 +200,7 @@
 
 .drawer-log {
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--space-4) var(--space-5);
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -226,32 +220,32 @@
 }
 
 .drawer-footer {
-  padding: 16px 24px calc(16px + env(safe-area-inset-bottom));
+  padding: var(--space-6) var(--space-7) calc(var(--space-6) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
 }
 
 .drawer-footer .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
 }
 /* ---------- Personalise ---------- */
 
 .personalise-section + .personalise-section {
-  margin-top: 22px;
+  margin-top: var(--space-7);
 }
 
 .personalise-walls {
-  margin-top: 10px;
+  margin-top: var(--space-4);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 10px;
+  gap: var(--space-4);
 }
 
 .personalise-wall {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--space-2);
   padding: 0;
   border: none;
   background: none;
@@ -298,16 +292,16 @@
 .personalise-wall-name {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .personalise-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 11px 0;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--border);
   font-size: 13.5px;
 }
@@ -324,7 +318,7 @@
 
 .personalise-row small {
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .personalise-row input[type='checkbox'] {
@@ -337,8 +331,8 @@
 /* Naming the place the weather is for. A field and its button on one row. */
 .personalise-place {
   display: flex;
-  gap: 8px;
-  margin: 11px 0 0;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
 }
 
 .personalise-place .field {
@@ -350,15 +344,15 @@
 .welcome-names {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  margin: 0 0 20px;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-7);
   text-align: left;
 }
 
 .welcome-names .field-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text-dim);
 }

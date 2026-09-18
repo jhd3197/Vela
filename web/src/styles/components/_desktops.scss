@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- Desktops: the rail switcher and its menu ---------- */
 
 /* The anchor for the menu. The rail itself is a narrow column, so the list
@@ -21,7 +22,7 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: inherit;
 }
@@ -39,7 +40,7 @@
   top: 0;
   z-index: 60;
   width: 232px;
-  padding: 8px;
+  padding: var(--space-3);
   border-radius: 12px;
   background: var(--bg-pop);
   box-shadow: var(--shadow-pop);
@@ -47,7 +48,7 @@
 }
 
 .desktop-menu-head {
-  margin: 2px 6px 6px;
+  margin: 2px var(--space-2) var(--space-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -83,12 +84,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-3);
   appearance: none;
   border: none;
   background: none;
   cursor: pointer;
-  padding: 8px 6px 8px 10px;
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
   border-radius: 8px;
   color: var(--text);
   font-size: 13.5px;
@@ -110,7 +111,7 @@
   flex: none;
   display: flex;
   gap: 2px;
-  padding-right: 4px;
+  padding-right: var(--space-1);
 }
 
 /* Quiet until the row is under the pointer or holds focus, so the list reads
@@ -120,7 +121,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  padding: 5px;
+  padding: var(--space-2);
   border-radius: 6px;
   color: var(--text-faint);
   opacity: 0;
@@ -152,17 +153,17 @@
 
 .desktop-menu-new {
   width: 100%;
-  margin-top: 6px;
+  margin-top: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   appearance: none;
   border: none;
   border-top: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
   background: none;
   cursor: pointer;
-  padding: 10px;
+  padding: var(--space-4);
   color: var(--text-dim);
   font-size: 13.5px;
 }
@@ -249,11 +250,6 @@
 /* Reduced motion never reaches this — the lifecycle settles without drawing —
    but a window that is somehow mid-transform when the preference changes should
    arrive rather than crawl. */
-@media (prefers-reduced-motion: reduce) {
-  .window-frame.is-travelling {
-    transition: none !important;
-  }
-}
 
 /* Selection is a shadow and an edge, never colour alone. */
 .window-frame.is-selected {
@@ -269,8 +265,8 @@
   height: 38px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px 0 10px;
+  gap: var(--space-3);
+  padding: 0 var(--space-1) 0 var(--space-4);
   background: var(--bg-pop);
   border-bottom: 1px solid var(--border);
   cursor: default;
@@ -305,7 +301,7 @@
 
 .window-status {
   flex: none;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--text-faint);
 }
 
@@ -361,8 +357,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px;
+  gap: var(--space-4);
+  padding: var(--space-7);
   text-align: center;
   color: var(--text-dim);
   font-size: 13.5px;
@@ -451,7 +447,7 @@
   height: 34px;
   border-radius: 11px;
   background: color-mix(in srgb, var(--text) 10%, transparent);
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -478,7 +474,7 @@
     inset-inline: 2px;
     border-radius: 2px;
     background: color-mix(in srgb, var(--border) 80%, transparent);
-    transition: background 120ms ease;
+    transition: background var(--motion-fast) ease;
   }
 
   /* The grab region, reaching past the visual width in both directions. */
@@ -516,9 +512,9 @@
 
 .empty-pane-body {
   display: grid;
-  gap: 10px;
+  gap: var(--space-4);
   justify-items: center;
-  padding: 24px;
+  padding: var(--space-7);
   text-align: center;
 
   p {
@@ -530,22 +526,22 @@
 
 .empty-pane-picker {
   display: grid;
-  gap: 8px;
-  padding: 18px;
+  gap: var(--space-3);
+  padding: var(--space-6);
   width: 100%;
   max-width: 420px;
 
   h3 {
     font-size: 12px;
     letter-spacing: 0.04em;
-    margin: 6px 0 0;
+    margin: var(--space-2) 0 0;
     text-transform: uppercase;
     color: var(--text-dim);
   }
 
   ul {
     display: grid;
-    gap: 4px;
+    gap: var(--space-1);
     list-style: none;
     margin: 0;
     padding: 0;
@@ -560,8 +556,8 @@
     cursor: pointer;
     display: flex;
     font: inherit;
-    gap: 8px;
-    padding: 7px 8px;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
     text-align: start;
     width: 100%;
 
@@ -586,12 +582,6 @@
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   z-index: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .split-divider::before {
-    transition: none;
-  }
 }
 
 /* The warp. Above the window it is standing in for, below the rail, the owner's

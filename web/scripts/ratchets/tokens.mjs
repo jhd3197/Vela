@@ -33,8 +33,14 @@ const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\((?!\s*var\(--)/g;
 // `padding: 12px`, `gap: 10px 4px`, `margin-top: 22px` — the three properties
 // that carry rhythm. A width or a height is a dimension and is left alone.
 const RHYTHM = /^\s*(padding|gap|margin)(-(top|right|bottom|left|inline|block)\w*)?\s*:([^;]*);/;
-const PIXELS = /(\d+(?:\.\d+)?)px/g;
+// A negative value is a nudge that pulls something back -- half an element's
+// own height, usually -- rather than rhythm between two things, so it is not
+// held to the scale.
+const PIXELS = /(?<![\d.-])(\d+(?:\.\d+)?)px/g;
 const SPACING_MARK = '// tokens: spacing';
+// The ends of `--space-1` … `--space-8`, which is the range a value can be on.
+const SCALE_FLOOR = 3;
+const SCALE_CEILING = 28;
 
 export default {
   id: 'tokens',
@@ -70,9 +76,13 @@ export default {
         const rhythm = RHYTHM.exec(text);
         if (!rhythm) return;
         for (const pixels of rhythm[4].matchAll(PIXELS)) {
-          // A hairline or a two-pixel nudge is not on any scale and is not a
-          // violation; the scale starts at 3.
-          if (Number(pixels[1]) >= 3) {
+          // The scale runs 3px to 28px. Below it a hairline or a two-pixel
+          // nudge is not rhythm and rounding one up is how a 1px rule becomes a
+          // visible band. Above it there is no step to reach for: an 80px
+          // offset under an empty state is a dimension the layout chose, and
+          // crushing it to 28px would be a layout change wearing a token.
+          const value = Number(pixels[1]);
+          if (value >= SCALE_FLOOR && value <= SCALE_CEILING) {
             findings.push({ file, line, key: `${rhythm[1]}: ${pixels[0]} is not on the scale` });
           }
         }
