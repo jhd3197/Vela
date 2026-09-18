@@ -6,6 +6,10 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.18 - 2026-09-18
+
+No additional release notes were provided.
+
 ## 0.1.17 - 2026-09-18
 
 ### Added
