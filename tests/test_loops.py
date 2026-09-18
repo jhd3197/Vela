@@ -31,17 +31,21 @@ ROOT = Path(__file__).resolve().parent.parent
 #: Every registered loop must stop well inside this.
 STOP_BUDGET = 2.0
 
+#: A failure deadline, not a promise about how fast a CI runner schedules ticks.
+TICK_TIMEOUT = 5.0
+
 
 def run(coroutine):
     return asyncio.run(coroutine)
 
 
-class BackgroundLoopTests(unittest.TestCase):
+class BackgroundLoopTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.built = []
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         for background in self.built:
+            await background.stop()
             loop_registry.forget(background)
 
     def make(self, *args, **kwargs):
@@ -49,136 +53,122 @@ class BackgroundLoopTests(unittest.TestCase):
         self.built.append(background)
         return background
 
-    def test_it_ticks_on_its_interval(self):
+    async def test_it_ticks_on_its_interval(self):
         ticks = []
-
-        async def body():
-            background = self.make("test.ticks", 0.01, lambda: ticks.append(1))
-            background.start()
-            await asyncio.sleep(0.08)
-            await background.stop()
-
-        run(body())
-        self.assertGreaterEqual(len(ticks), 3)
-
-    def test_two_starts_run_one_loop(self):
-        ticks = []
-
-        async def body():
-            background = self.make("test.idempotent", 0.01, lambda: ticks.append(1))
-            background.start()
-            first = background._task
-            background.start()
-            self.assertIs(background._task, first)
-            await asyncio.sleep(0.05)
-            await background.stop()
-
-        run(body())
-        self.assertTrue(ticks)
-
-    def test_a_tick_that_raises_is_logged_once_and_the_loop_carries_on(self):
-        ticks = []
+        reached = asyncio.Event()
 
         def tick():
             ticks.append(1)
-            raise RuntimeError("no")
+            if len(ticks) >= 3:
+                reached.set()
 
-        async def body():
-            background = self.make("test.raises", 0.01, tick)
-            with self.assertLogs("vela.loop", level=logging.ERROR) as logged:
-                background.start()
-                await asyncio.sleep(0.06)
-                await background.stop()
-            return logged.output
-
-        output = run(body())
-        self.assertGreaterEqual(len(ticks), 3, "a raising tick ended the loop")
-        self.assertEqual(len(output), len(ticks), "one record per failed tick")
-        self.assertIn("test.raises", output[0])
-
-    def test_stop_returns_within_the_budget_even_mid_interval(self):
-        async def body():
-            background = self.make("test.stops", 3600, lambda: None)
-            background.start()
-            await asyncio.sleep(0.01)
-            started = time.monotonic()
-            await background.stop()
-            return time.monotonic() - started, background.running
-
-        elapsed, running = run(body())
-        self.assertLess(elapsed, STOP_BUDGET)
-        self.assertFalse(running)
-
-    def test_stopping_one_that_never_started_does_nothing(self):
-        background = self.make("test.never", 1, lambda: None)
-        run(background.stop())
+        background = self.make("test.ticks", 0.01, tick)
+        background.start()
+        await asyncio.wait_for(reached.wait(), TICK_TIMEOUT)
+        await background.stop()
+        self.assertGreaterEqual(len(ticks), 3)
         self.assertFalse(background.running)
 
-    def test_run_while_refuses_to_start_and_ends_a_running_loop(self):
+    async def test_two_starts_run_one_loop(self):
+        ticked = asyncio.Event()
+        background = self.make("test.idempotent", 0.01, ticked.set)
+        background.start()
+        first = background._task
+        background.start()
+        self.assertIs(background._task, first)
+        await asyncio.wait_for(ticked.wait(), TICK_TIMEOUT)
+
+    async def test_a_tick_that_raises_is_logged_once_and_the_loop_carries_on(self):
+        ticks = []
+        reached = asyncio.Event()
+
+        def tick():
+            ticks.append(1)
+            if len(ticks) >= 3:
+                reached.set()
+            raise RuntimeError("no")
+
+        # Three ticks deliberately take longer than the old 60 ms sleep.
+        background = self.make("test.raises", 0.05, tick)
+        with self.assertLogs("vela.loop", level=logging.ERROR) as logged:
+            background.start()
+            try:
+                await asyncio.wait_for(reached.wait(), TICK_TIMEOUT)
+            finally:
+                await background.stop()
+
+        self.assertGreaterEqual(len(ticks), 3, "a raising tick ended the loop")
+        self.assertEqual(len(logged.output), len(ticks), "one record per failed tick")
+        self.assertIn("test.raises", logged.output[0])
+
+    async def test_stop_returns_within_the_budget_even_mid_interval(self):
+        ticked = asyncio.Event()
+        background = self.make("test.stops", 3600, ticked.set)
+        background.start()
+        await asyncio.wait_for(ticked.wait(), TICK_TIMEOUT)
+        started = time.monotonic()
+        await background.stop()
+        self.assertLess(time.monotonic() - started, STOP_BUDGET)
+        self.assertFalse(background.running)
+
+    async def test_stopping_one_that_never_started_does_nothing(self):
+        background = self.make("test.never", 1, lambda: None)
+        await background.stop()
+        self.assertFalse(background.running)
+
+    async def test_run_while_refuses_to_start_and_ends_a_running_loop(self):
         allowed = {"value": False}
+        ticked = asyncio.Event()
+
+        background = self.make("test.audience", 0.01, ticked.set,
+                               run_while=lambda: allowed["value"])
+        background.start()
+        self.assertFalse(background.running, "it started with no audience")
+        allowed["value"] = True
+        background.start()
+        await asyncio.wait_for(ticked.wait(), TICK_TIMEOUT)
+        allowed["value"] = False
+        await asyncio.wait_for(asyncio.shield(background._task), TICK_TIMEOUT)
+        self.assertFalse(background.running, "it kept running after the audience left")
+
+    async def test_first_delay_holds_the_first_tick_back(self):
         ticks = []
+        started = asyncio.Event()
 
-        async def body():
-            background = self.make("test.audience", 0.01, lambda: ticks.append(1),
-                                   run_while=lambda: allowed["value"])
-            background.start()
-            self.assertFalse(background.running, "it started with no audience")
-            allowed["value"] = True
-            background.start()
-            await asyncio.sleep(0.05)
-            allowed["value"] = False
-            await asyncio.sleep(0.05)
-            self.assertFalse(background.running, "it kept running after the audience left")
-            await background.stop()
+        background = self.make("test.delayed", 0.01, lambda: ticks.append(1),
+                               first_delay_s=3600, on_start=started.set)
+        background.start()
+        await asyncio.wait_for(started.wait(), TICK_TIMEOUT)
+        await background.stop()
+        self.assertEqual(ticks, [])
 
-        run(body())
-        self.assertTrue(ticks)
-
-    def test_first_delay_holds_the_first_tick_back(self):
-        ticks = []
-
-        async def body():
-            background = self.make("test.delayed", 0.01, lambda: ticks.append(1),
-                                   first_delay_s=0.2)
-            background.start()
-            await asyncio.sleep(0.05)
-            during = len(ticks)
-            await background.stop()
-            return during
-
-        during = run(body())
-        self.assertEqual(during, 0)
-
-    def test_on_start_runs_before_the_first_delay(self):
+    async def test_on_start_runs_before_the_first_delay(self):
         order = []
+        ticked = asyncio.Event()
 
-        async def body():
-            background = self.make("test.on_start", 0.01, lambda: order.append("tick"),
-                                   first_delay_s=0.05,
-                                   on_start=lambda: order.append("start"))
-            background.start()
-            await asyncio.sleep(0.12)
-            await background.stop()
+        def tick():
+            order.append("tick")
+            ticked.set()
 
-        run(body())
+        background = self.make("test.on_start", 0.01, tick,
+                               first_delay_s=0.05,
+                               on_start=lambda: order.append("start"))
+        background.start()
+        await asyncio.wait_for(ticked.wait(), TICK_TIMEOUT)
+        await background.stop()
         self.assertEqual(order[0], "start")
         self.assertIn("tick", order)
 
-    def test_an_async_tick_is_awaited(self):
-        ticks = []
+    async def test_an_async_tick_is_awaited(self):
+        ticked = asyncio.Event()
 
         async def tick():
             await asyncio.sleep(0)
-            ticks.append(1)
+            ticked.set()
 
-        async def body():
-            background = self.make("test.async", 0.01, tick)
-            background.start()
-            await asyncio.sleep(0.05)
-            await background.stop()
-
-        run(body())
-        self.assertTrue(ticks)
+        background = self.make("test.async", 0.01, tick)
+        background.start()
+        await asyncio.wait_for(ticked.wait(), TICK_TIMEOUT)
 
 
 class BackgroundThreadTests(unittest.TestCase):
@@ -199,45 +189,70 @@ class BackgroundThreadTests(unittest.TestCase):
 
     def test_it_ticks_and_stops(self):
         ticks = []
-        background = self.make("test.thread", 0.01, lambda: ticks.append(1))
+        reached = threading.Event()
+
+        def tick():
+            ticks.append(1)
+            if len(ticks) >= 3:
+                reached.set()
+
+        background = self.make("test.thread", 0.01, tick)
         background.start()
-        time.sleep(0.08)
+        self.assertTrue(reached.wait(TICK_TIMEOUT), "the thread did not reach three ticks")
         self.assertTrue(background.running)
         background.stop()
         self.assertFalse(background.running)
         self.assertGreaterEqual(len(ticks), 3)
 
     def test_stop_interrupts_the_wait_rather_than_finishing_it(self):
-        background = self.make("test.thread_stop", 3600, lambda: None)
+        ticked = threading.Event()
+        background = self.make("test.thread_stop", 3600, ticked.set)
         background.start()
-        time.sleep(0.02)
+        self.assertTrue(ticked.wait(TICK_TIMEOUT), "the thread never started")
         started = time.monotonic()
         background.stop()
         self.assertLess(time.monotonic() - started, STOP_BUDGET)
 
     def test_two_starts_run_one_thread(self):
         seen = set()
-        background = self.make("test.thread_once", 0.01,
-                               lambda: seen.add(threading.current_thread().name))
+        ticked = threading.Event()
+
+        def tick():
+            seen.add(threading.current_thread().ident)
+            ticked.set()
+
+        background = self.make("test.thread_once", 0.01, tick)
         background.start()
+        first = background._thread
         background.start()
-        time.sleep(0.05)
+        self.assertIs(background._thread, first)
+        self.assertTrue(ticked.wait(TICK_TIMEOUT), "the thread never ticked")
         background.stop()
         self.assertEqual(len(seen), 1)
 
     def test_a_tick_that_raises_does_not_end_the_thread(self):
         ticks = []
+        reached = threading.Event()
 
         def tick():
             ticks.append(1)
+            if len(ticks) >= 3:
+                reached.set()
             raise RuntimeError("no")
 
-        background = self.make("test.thread_raises", 0.01, tick)
-        with self.assertLogs("vela.loop", level=logging.ERROR):
+        # Three ticks deliberately take longer than the old 60 ms sleep.
+        background = self.make("test.thread_raises", 0.05, tick)
+        with self.assertLogs("vela.loop", level=logging.ERROR) as logged:
             background.start()
-            time.sleep(0.06)
-            background.stop()
+            try:
+                self.assertTrue(reached.wait(TICK_TIMEOUT), "a raising tick ended the thread")
+            finally:
+                # Join before leaving assertLogs so the last error is included,
+                # even when the event deadline or an assertion fails.
+                background.stop()
         self.assertGreaterEqual(len(ticks), 3)
+        self.assertEqual(len(logged.output), len(ticks), "one record per failed tick")
+        self.assertIn("test.thread_raises", logged.output[0])
 
 
 class RegistryTests(unittest.TestCase):

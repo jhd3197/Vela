@@ -91,6 +91,11 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- **Release checks tolerate slower background scheduling.** Loop tests now
+  wait for the ticks they verify instead of requiring several ticks within
+  milliseconds. They still check recovery after errors, error logging and
+  prompt shutdown, and clean up workers even when an assertion fails. This
+  fixes the intermittent macOS test failure that blocked patch publication.
 - **The server download starts again.** The routers that serve the dashboard's
   API are now listed in one table and loaded by name, which the packaged build
   could not see, so a downloaded server exited at startup instead of coming up.
