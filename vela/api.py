@@ -11,7 +11,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request, Response
+from fastapi import Body, FastAPI, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -22,20 +22,20 @@ from .conversations import ConversationStore
 from .rooms import Rooms
 from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, validate_schedule
 from .config import Config, load_config
-from .desk import CORE_WIDGET_TYPES, DeskError
-from .desktops import Desktops, DesktopConflict, DesktopError, Gateway, router as desktops_router
+from .desk import CORE_WIDGET_TYPES
+from .desktops import Desktops, DesktopError, Gateway, router as desktops_router
 from .agent_runs.service import AgentRuns
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
-from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
+from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, Files, validate_shares
 from .snooze import SnoozeStore
-from .weather import Weather, WeatherError
+from .weather import Weather
 from .doctor import Doctor, summarise
 from .errors import CLIENT_LIMIT_PER_MINUTE, ErrorStore
 from .support_bundle import SupportBundle
-from .updates import (DEFAULT_UPDATES, MODES, UpdateChecker, UpdateError, UpdateJob,
+from .updates import (DEFAULT_UPDATES, MODES, UpdateChecker, UpdateJob,
                       capability, rollback_available, startup_report)
 from .manifest import SUPPORTED_PLATFORMS
-from .notify import Notifier, NotifyError, NotifyScheduler
+from .notify import Notifier, NotifyScheduler
 from .registry import Registry
 from .runners import current_platform, get_runner
 from .settings import SettingsStore, normalize_identity, sanitize_pins
@@ -46,11 +46,13 @@ from .wallpaper import MAX_WALLPAPER_BYTES, Wallpaper, WallpaperError
 from .widgets import Widgets
 from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
+from .errors_http import (Conflict, InvalidRequest, NotFound, Precondition,
+                          TooLarge, Unprocessable, VelaError)
 from .agent_runs.approvals import ApprovalPending
 from .app_services import AppServices
-from .lifecycle import Lifecycle, LifecycleError
+from .lifecycle import Lifecycle
 from .logging_setup import audit, request_actor
-from .logs import DEFAULT_LINES, LogError, LogStore
+from .logs import DEFAULT_LINES, LogStore
 from .connections import Connections
 from .catalog import Catalog
 from .releases import Releases
@@ -441,9 +443,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def stop_phone_access():
         await phone_access.stop()
 
-    @app.exception_handler(AppServiceError)
-    async def app_error(request, exc):
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status)
+    @app.exception_handler(VelaError)
+    async def vela_error(request, exc: VelaError):
+        """Every expected failure, rendered once.
+
+        `detail` is what it always was; `code` and `status` ride along. A few
+        errors carry a header that means something to the caller — a desk
+        conflict names the revision to reload — so the error brings it rather
+        than each route remembering to attach one.
+        """
+        return JSONResponse(exc.to_body(), status_code=exc.status,
+                            headers=exc.headers)
 
     @app.exception_handler(ApprovalPending)
     async def approval_pending(request, exc):
@@ -460,10 +470,6 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             },
             status_code=202,
         )
-
-    @app.exception_handler(LifecycleError)
-    async def lifecycle_error(request, exc):
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     @app.exception_handler(Exception)
     async def record_unhandled(request, exc):
@@ -711,7 +717,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         try:
             return snooze.snooze(app_id, widget_id)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise Unprocessable(str(exc), code="widgets.snooze_rejected") from exc
 
     @app.delete("/api/widgets/{app_id}/{widget_id}/snooze")
     def wake_widget(app_id: str, widget_id: str) -> dict:
@@ -743,7 +749,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def get_manifest_or_404(app_id: str):
         manifest = registry.get(app_id)
         if manifest is None:
-            raise HTTPException(status_code=404, detail=f"unknown app: {app_id}")
+            raise NotFound(f"unknown app: {app_id}", code="apps.unknown")
         return manifest
 
     def _request_shutdown() -> None:
@@ -802,17 +808,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if connected_apps.owns(app_id): return connected_apps.get(app_id)
         description = registry.describe(app_id)
         if description is None:
-            raise HTTPException(status_code=404, detail=f"unknown app: {app_id}")
+            raise NotFound(f"unknown app: {app_id}", code="apps.unknown")
         return description
 
     @app.get("/api/apps/{app_id}/icon")
     def get_icon(app_id: str) -> FileResponse:
         manifest = get_manifest_or_404(app_id)
         if not manifest.icon:
-            raise HTTPException(status_code=404, detail=f"app {app_id} has no icon")
+            raise NotFound(f"app {app_id} has no icon", code="apps.no_icon")
         icon_path = (manifest.path / manifest.icon).resolve()
         if not icon_path.is_file() or not icon_path.is_relative_to(manifest.path.resolve()):
-            raise HTTPException(status_code=404, detail=f"icon not found for app: {app_id}")
+            raise NotFound(f"icon not found for app: {app_id}", code="apps.icon_missing")
         return FileResponse(icon_path)
 
     @app.post("/api/apps/{app_id}/install")
@@ -884,14 +890,6 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def system_metrics_snapshot() -> dict:
         return system_metrics.snapshot()
 
-    def _desktop_conflict(exc: DesktopConflict) -> HTTPException:
-        """409 carrying the revision to reload, as `/api/desk` has always done."""
-        return HTTPException(
-            status_code=409,
-            detail=exc.detail,
-            headers={"X-Vela-Desk-Revision": str(exc.revision)},
-        )
-
     def _known_widget_types() -> set[str]:
         """Core types plus one per widget each installed app declares.
 
@@ -914,10 +912,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # one of them cannot delete it from under the other.
     @app.get("/api/wallpaper")
     def get_wallpaper():
-        try:
-            path, media_type = desktops.wallpaper_file(desktops.default_id())
-        except DesktopError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        path, media_type = desktops.wallpaper_file(desktops.default_id())
         # It changes only when the user replaces it, and the page asks for it
         # again on every desk load, so it is worth caching in the browser.
         return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-cache"})
@@ -926,25 +921,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def put_wallpaper(request: Request):
         # Raw bytes with the type in the header, the same shape as the release
         # upload, so the server needs no multipart parser for one picture.
-        try:
-            extension = desktops.extension_for(request.headers.get("content-type", ""))
-            content = bytearray()
-            async for chunk in request.stream():
-                content.extend(chunk)
-                if len(content) > MAX_WALLPAPER_BYTES:
-                    raise WallpaperError(413, "A wallpaper is at most 8 MB")
-            return desktops.save_wallpaper(desktops.default_id(), bytes(content), extension)
-        except WallpaperError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
-        except DesktopError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        extension = desktops.extension_for(request.headers.get("content-type", ""))
+        content = bytearray()
+        async for chunk in request.stream():
+            content.extend(chunk)
+            if len(content) > MAX_WALLPAPER_BYTES:
+                raise WallpaperError(413, "A wallpaper is at most 8 MB")
+        return desktops.save_wallpaper(desktops.default_id(), bytes(content), extension)
 
     @app.delete("/api/wallpaper")
     def delete_wallpaper() -> dict:
-        try:
-            return desktops.remove_wallpaper(desktops.default_id())
-        except DesktopError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return desktops.remove_wallpaper(desktops.default_id())
 
     # ---- files ---------------------------------------------------------
     #
@@ -952,26 +939,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # `files.resolve` is the only thing that turns those into a real path. There
     # is deliberately no route that accepts a whole path.
 
-    def _files_error(exc: FileError):
-        return HTTPException(status_code=exc.status, detail=exc.detail)
-
     @app.get("/api/files")
     def list_shares() -> dict:
         return {"shares": files.shares(), "trashDays": TRASH_DAYS, "maxUpload": MAX_UPLOAD_BYTES}
 
     @app.get("/api/files/{share_id}")
     def list_share(share_id: str, path: str = "") -> dict:
-        try:
-            return files.list(share_id, path)
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.list(share_id, path)
 
     @app.get("/api/files/{share_id}/download")
     def download_file(share_id: str, path: str = "", inline: bool = False):
-        try:
-            target, kind = files.open_file(share_id, path)
-        except FileError as exc:
-            raise _files_error(exc)
+        target, kind = files.open_file(share_id, path)
         # Everything is sent as a download unless the browser asked to show it
         # and it is a type a browser renders without running anything. An SVG is
         # an image that can carry script, so it is never shown inline.
@@ -986,46 +964,34 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.post("/api/files/{share_id}/folder")
     def create_folder(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
-        try:
-            return files.mkdir(
-                share_id,
-                str(payload.get("path") or ""),
-                str(payload.get("name") or ""),
-                actor=request_actor(auth, request),
-            )
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.mkdir(
+            share_id,
+            str(payload.get("path") or ""),
+            str(payload.get("name") or ""),
+            actor=request_actor(auth, request),
+        )
 
     @app.post("/api/files/{share_id}/rename")
     def rename_entry(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
-        try:
-            return files.rename(
-                share_id,
-                str(payload.get("path") or ""),
-                str(payload.get("name") or ""),
-                actor=request_actor(auth, request),
-            )
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.rename(
+            share_id,
+            str(payload.get("path") or ""),
+            str(payload.get("name") or ""),
+            actor=request_actor(auth, request),
+        )
 
     @app.post("/api/files/{share_id}/move")
     def move_entry(share_id: str, request: Request, payload: dict[str, Any] = Body(...)) -> dict:
-        try:
-            return files.move(
-                share_id,
-                str(payload.get("path") or ""),
-                str(payload.get("into") or ""),
-                actor=request_actor(auth, request),
-            )
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.move(
+            share_id,
+            str(payload.get("path") or ""),
+            str(payload.get("into") or ""),
+            actor=request_actor(auth, request),
+        )
 
     @app.delete("/api/files/{share_id}")
     def delete_entry(share_id: str, request: Request, path: str = "") -> dict:
-        try:
-            return files.delete(share_id, path, actor=request_actor(auth, request))
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.delete(share_id, path, actor=request_actor(auth, request))
 
     @app.post("/api/files/{share_id}/upload")
     async def upload_file(share_id: str, request: Request, path: str = "", name: str = "") -> dict:
@@ -1041,12 +1007,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         async for chunk in request.stream():
             total += len(chunk)
             if total > MAX_UPLOAD_BYTES:
-                raise HTTPException(status_code=413, detail="That file is larger than 2 GB.")
+                raise TooLarge("That file is larger than 2 GB.",
+                               code="files.upload_too_large")
             collected.append(chunk)
-        try:
-            return files.save_upload(share_id, path, name, collected, actor=actor)
-        except FileError as exc:
-            raise _files_error(exc)
+        return files.save_upload(share_id, path, name, collected, actor=actor)
 
     @app.get("/api/files-trash")
     def list_trash() -> dict:
@@ -1061,10 +1025,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.post("/api/weather/locate")
     def locate_weather(payload: dict[str, Any] = Body(...)) -> dict:
         """Turn a typed place into coordinates, once, so the place is not stored."""
-        try:
-            return weather.locate(str(payload.get("place") or ""))
-        except WeatherError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return weather.locate(str(payload.get("place") or ""))
 
     @app.get("/api/usage")
     def get_usage() -> dict:
@@ -1088,18 +1049,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.put("/api/desk")
     def put_desk(payload: dict[str, Any] = Body(...)) -> dict:
-        try:
-            return desktops.save_boards(
-                desktops.default_id(), payload.get("boards"), payload.get("revision")
-            )
-        except DesktopConflict as exc:
-            # Someone else saved first. The dashboard reloads and says so
-            # rather than overwriting an arrangement it never saw.
-            raise _desktop_conflict(exc)
-        except DesktopError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
-        except DeskError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+        # Nothing is translated here. A `DesktopConflict` — someone else saved
+        # first — is a 409 carrying the revision to reload on its own header, so
+        # the dashboard says so rather than overwriting an arrangement it never
+        # saw; a `DeskError` is a 422. Both reach the one error handler.
+        return desktops.save_boards(
+            desktops.default_id(), payload.get("boards"), payload.get("revision")
+        )
 
     # How a desk is dressed belongs to a desktop; which folders it may show and
     # whether it asks about the weather stay global. The settings route keeps
@@ -1136,14 +1092,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             try:
                 desk["volumes"] = validate_volumes(desk["volumes"])
             except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc))
+                raise Unprocessable(str(exc), code="settings.volumes_invalid") from exc
         # The avatar letter follows the display name rather than being sent, so
         # an identity patch is normalised before it is stored.
         if "identity" in update:
             try:
                 update["identity"] = normalize_identity(update["identity"])
             except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc))
+                raise Unprocessable(str(exc), code="settings.identity_invalid") from exc
         # A share names a folder on this computer, so it is checked before it is
         # stored rather than failing later inside the Files app.
         share_update = update.get("files")
@@ -1151,13 +1107,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             try:
                 share_update["shares"] = validate_shares(share_update["shares"], config.data_dir)
             except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc))
+                raise Unprocessable(str(exc), code="settings.shares_invalid") from exc
         # Rail pins are a list of app ids; store the shape, not the meaning —
         # the dashboard drops ids that no longer name a real app.
         rail = update.get("rail")
         if isinstance(rail, dict) and "pinned" in rail:
             if not isinstance(rail["pinned"], list):
-                raise HTTPException(status_code=422, detail="rail.pinned must be a list of ids")
+                raise Unprocessable("rail.pinned must be a list of ids",
+                                    code="settings.rail_pinned_invalid")
             rail["pinned"] = sanitize_pins(rail["pinned"])
         # A backup schedule names a time this computer will act on, so it is
         # checked before it is stored rather than failing quietly at 03:00.
@@ -1170,15 +1127,18 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 cleaned["check"] = bool(update_settings["check"])
             if "mode" in update_settings:
                 if update_settings["mode"] not in MODES:
-                    raise HTTPException(status_code=422, detail="updates.mode is notify or auto")
+                    raise Unprocessable("updates.mode is notify or auto",
+                                        code="settings.updates_mode_invalid")
                 cleaned["mode"] = update_settings["mode"]
             if "hour" in update_settings:
                 try:
                     hour = int(update_settings["hour"])
-                except (TypeError, ValueError):
-                    raise HTTPException(status_code=422, detail="updates.hour is an hour of the day")
+                except (TypeError, ValueError) as exc:
+                    raise Unprocessable("updates.hour is an hour of the day",
+                                        code="settings.updates_hour_invalid") from exc
                 if not 0 <= hour <= 23:
-                    raise HTTPException(status_code=422, detail="updates.hour is an hour of the day")
+                    raise Unprocessable("updates.hour is an hour of the day",
+                                        code="settings.updates_hour_invalid")
                 cleaned["hour"] = hour
             update["updates"] = cleaned
         backup_settings = update.get("backups")
@@ -1186,13 +1146,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             try:
                 backup_settings["schedule"] = validate_schedule(backup_settings["schedule"])
             except BackupError as exc:
-                raise HTTPException(status_code=422, detail=str(exc))
+                raise Unprocessable(str(exc),
+                                    code="settings.backup_schedule_invalid") from exc
             backups.set_keep(backup_settings["schedule"]["keep"])
         if appearance:
-            try:
-                desktops.save_appearance(desktops.default_id(), appearance)
-            except DesktopError as exc:
-                raise HTTPException(status_code=exc.status, detail=exc.detail)
+            desktops.save_appearance(desktops.default_id(), appearance)
         settings.patch(update)
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:
@@ -1207,25 +1165,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def notify_test(payload: dict[str, Any] | None = Body(None)) -> dict:
         if payload and isinstance(payload.get("ntfy_config"), dict):
             settings.patch({"ntfy_config": payload["ntfy_config"]})
-        try:
-            receipt = await notifier.publish(
-                "Vela",
-                "Notification test — if you can read this, delivery is working.",
-                tags=["bell"],
-                kind="test",
-            )
-        except NotifyError as exc:
-            raise HTTPException(status_code=502, detail=str(exc))
+        receipt = await notifier.publish(
+            "Vela",
+            "Notification test — if you can read this, delivery is working.",
+            tags=["bell"],
+            kind="test",
+        )
         return {"ok": True, **receipt}
 
     @app.post("/api/notify/publish")
     async def notify_publish(payload: NotifyPublishRequest) -> dict:
-        try:
-            receipt = await notifier.publish(
-                payload.title, payload.message, tags=payload.tags, priority=payload.priority
-            )
-        except NotifyError as exc:
-            raise HTTPException(status_code=502, detail=str(exc))
+        receipt = await notifier.publish(
+            payload.title, payload.message, tags=payload.tags, priority=payload.priority
+        )
         return {"ok": True, **receipt}
 
     @app.get("/api/notifications")
@@ -1238,9 +1190,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     def _history_enabled() -> None:
         if not settings.get("chat_history"):
-            raise HTTPException(
-                status_code=409,
-                detail="Chat history is turned off in Settings, so conversations are not saved.",
+            raise Conflict(
+                "Chat history is turned off in Settings, so conversations are not saved.",
+                code="chat.history_off",
             )
 
     # ---- bots ----------------------------------------------------------
@@ -1408,7 +1360,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             or payload.messages[-1].role != "user"
             or not payload.messages[-1].content.strip()
         ):
-            raise HTTPException(status_code=400, detail="messages must end with a user message")
+            raise InvalidRequest("messages must end with a user message",
+                                 code="chat.no_user_message")
         text = payload.messages[-1].content.strip()
         client_id = request.client.host if request.client else "local"
         keep = bool(settings.get("chat_history"))
@@ -1417,8 +1370,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         if payload.conversationId and keep:
             try:
                 conversation = conversations.get(payload.conversationId)
-            except AppServiceError:
-                raise HTTPException(status_code=404, detail="conversation not found")
+            except AppServiceError as exc:
+                raise NotFound("conversation not found",
+                               code="chat.conversation_unknown") from exc
 
         is_room = bool(conversation and conversation.get("kind") == "room")
 
@@ -1426,14 +1380,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # arriving twice, and must not produce a second set of answers.
         run_id = ""
         if keep and conversation is not None:
-            try:
-                opened = conversations.start_run(conversation["id"], payload.requestId)
-            except AppServiceError as exc:
-                raise HTTPException(status_code=exc.status, detail=exc.detail)
+            opened = conversations.start_run(conversation["id"], payload.requestId)
             if opened.get("duplicate"):
-                raise HTTPException(
-                    status_code=409,
-                    detail="That message was already sent. Reload to see the answer.",
+                raise Conflict(
+                    "That message was already sent. Reload to see the answer.",
+                    code="chat.duplicate_send",
                 )
             run_id = opened["id"]
 
@@ -1557,7 +1508,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         result = await asyncio.to_thread(doctor.repair, key, actor=request_actor(auth, request))
         if result.get("check") is None:
             # No such check, or nothing registered to repair it.
-            raise HTTPException(status_code=422, detail=result.get("detail", "That repair is not available."))
+            raise Unprocessable(result.get("detail", "That repair is not available."),
+                                code="doctor.repair_unavailable")
         return result
 
     # Errors. The dashboard reports its own failures here; app frames are not
@@ -1591,13 +1543,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         resolved = True if payload is None else bool(payload.get("resolved", True))
         row = errors.resolve(error_id, resolved)
         if row is None:
-            raise HTTPException(status_code=404, detail="No such error")
+            raise NotFound("No such error", code="errors.unknown")
         return row
 
     @app.delete("/api/errors/{error_id}", status_code=204)
     def delete_error(error_id: int) -> Response:
         if not errors.delete(error_id):
-            raise HTTPException(status_code=404, detail="No such error")
+            raise NotFound("No such error", code="errors.unknown")
         return Response(status_code=204)
 
     # Support bundles. Built on this computer, for the user to share
@@ -1611,14 +1563,15 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         try:
             return await asyncio.to_thread(support.build)
         except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Could not build the bundle: {exc}")
+            raise VelaError(f"Could not build the bundle: {exc}",
+                            code="support.build_failed") from exc
 
     @app.get("/api/support-bundle/{name}")
     def download_bundle(name: str) -> FileResponse:
         try:
             path = support.path(name)
-        except (FileNotFoundError, OSError):
-            raise HTTPException(status_code=404, detail="No such bundle")
+        except (FileNotFoundError, OSError) as exc:
+            raise NotFound("No such bundle", code="support.unknown_bundle") from exc
         return FileResponse(path, media_type="application/zip", filename=name)
 
     @app.get("/api/logs")
@@ -1628,31 +1581,22 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.get("/api/logs/{name}")
     def read_log(name: str, lines: int = DEFAULT_LINES, from_end: bool = True,
                  pattern: str = "") -> dict:
-        try:
-            if pattern:
-                return logs.search(name, pattern, lines=lines)
-            return logs.read(name, lines=lines, from_end=from_end)
-        except LogError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
+        if pattern:
+            return logs.search(name, pattern, lines=lines)
+        return logs.read(name, lines=lines, from_end=from_end)
 
     @app.get("/api/logs/{name}/download")
     def download_log(name: str) -> FileResponse:
-        try:
-            path = logs.path(name)
-        except LogError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        return FileResponse(path, media_type="text/plain", filename=name)
+        return FileResponse(logs.path(name), media_type="text/plain", filename=name)
 
     @app.delete("/api/logs/{name}")
     def clear_log(name: str, request: Request) -> dict:
         # Clearing a log destroys evidence, so it takes a deliberate header
         # rather than a bare DELETE a stray link could produce.
         if request.headers.get("x-vela-confirm") != "clear":
-            raise HTTPException(status_code=428, detail="Confirm clearing this log")
-        try:
-            return logs.clear(name, actor=request_actor(auth, request))
-        except LogError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
+            raise Precondition("Confirm clearing this log",
+                               code="logs.confirm_required")
+        return logs.clear(name, actor=request_actor(auth, request))
 
     # Updates. One anonymous request to the GitHub releases API, at most every
     # six hours, and only while the check is on.
@@ -1676,20 +1620,15 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # Replacing Vela with another copy of Vela is not something a stray
         # request may start.
         if request.headers.get("x-vela-confirm") != "update":
-            raise HTTPException(status_code=428, detail="Confirm installing this update")
-        try:
-            return await asyncio.to_thread(update_job.apply, stop=_request_shutdown)
-        except UpdateError as exc:
-            raise HTTPException(status_code=409, detail=str(exc))
+            raise Precondition("Confirm installing this update",
+                               code="updates.confirm_required")
+        return await asyncio.to_thread(update_job.apply, stop=_request_shutdown)
 
     @app.post("/api/updates/rollback")
     async def rollback_update(request: Request) -> dict:
         if request.headers.get("x-vela-confirm") != "rollback":
-            raise HTTPException(status_code=428, detail="Confirm going back")
-        try:
-            return await asyncio.to_thread(update_job.rollback, stop=_request_shutdown)
-        except UpdateError as exc:
-            raise HTTPException(status_code=409, detail=str(exc))
+            raise Precondition("Confirm going back", code="updates.confirm_rollback")
+        return await asyncio.to_thread(update_job.rollback, stop=_request_shutdown)
 
     @app.get("/api/backups")
     def list_backups() -> dict:
@@ -1700,14 +1639,14 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         try:
             return backups.create()
         except BackupError as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+            raise VelaError(str(exc), code="backups.create_failed") from exc
 
     @app.post("/api/backups/{name}/verify")
     def verify_backup(name: str) -> dict:
         try:
             return backups.verify(name)
         except BackupError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
+            raise NotFound(str(exc), code="backups.unknown") from exc
 
     @app.get("/api/backups/stats")
     def backup_stats() -> dict:
@@ -1721,7 +1660,8 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # Restoring replaces live files and stops running apps. It takes a
         # deliberate header so no stray link or retry can start one.
         if request.headers.get("x-vela-confirm") != "restore":
-            raise HTTPException(status_code=428, detail="Confirm restoring this backup")
+            raise Precondition("Confirm restoring this backup",
+                               code="backups.confirm_restore")
         # Agent desktops are stopped before anything is replaced, and every
         # grant, session and browser they held goes with them. A task still
         # dispatching into app data that is being swapped underneath it is the
@@ -1733,7 +1673,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 actor=request_actor(auth, request),
             )
         except BackupError as exc:
-            raise HTTPException(status_code=409, detail=str(exc))
+            raise Conflict(str(exc), code="backups.restore_failed") from exc
         # What was in flight is interrupted, not resumed: the effects it already
         # had cannot be undone by starting it again.
         interrupted = agent_runs.prepare()["interrupted"]
@@ -1755,7 +1695,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         candidate = (root / file_path).resolve()
         if candidate.is_file() and candidate.is_relative_to(root):
             return FileResponse(candidate)
-        raise HTTPException(status_code=404, detail="Unknown wallpaper")
+        raise NotFound("Unknown wallpaper", code="wallpapers.unknown")
 
     # /apps/* is matched before the SPA fallback below; the fallback must
     # never swallow app requests.
@@ -1763,7 +1703,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.api_route("/api/{unknown_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
     def unknown_api(unknown_path: str):
-        raise HTTPException(status_code=404, detail="Unknown API endpoint")
+        raise NotFound("Unknown API endpoint", code="api.unknown_endpoint")
 
     index = config.web_dist / "index.html"
     if config.web_dist.is_dir() and index.is_file():
@@ -1777,7 +1717,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         def agent_host(full_path: str) -> FileResponse:
             page = config.web_dist / "agent-host.html"
             if not page.is_file():
-                raise HTTPException(status_code=404, detail="The agent host was not built")
+                raise NotFound("The agent host was not built", code="agent_host.missing")
             return FileResponse(page)
 
         @app.get("/{full_path:path}", include_in_schema=False)

@@ -11,6 +11,7 @@ import httpx
 from .config import Config, dir_size
 from .registry import Registry
 from .settings import SettingsStore
+from .errors_http import Upstream
 
 SCHEDULE_INTERVAL_SECONDS = 15 * 60
 DIGEST_HOUR = 9
@@ -26,8 +27,10 @@ UPDATE_INTERVAL_SECONDS = 24 * 60 * 60
 EVENT_BUFFER_SIZE = 50
 
 
-class NotifyError(Exception):
+class NotifyError(Upstream):
     """Base class for ntfy publish failures."""
+
+    code = "notify.publish_failed"
 
 
 class NotifyConfigError(NotifyError):

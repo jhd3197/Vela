@@ -29,6 +29,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 from .logging_setup import audit
+from .errors_http import VelaError
 
 #: The largest upload accepted, streamed rather than held in memory.
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
@@ -66,12 +67,13 @@ _KINDS = {
 }
 
 
-class FileError(Exception):
+class FileError(VelaError):
     """A refused request, with the status and the reason to show the user."""
 
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status, self.detail = status, detail
+    code = "files.refused"
+
+    def __init__(self, status: int, detail: str, *, code: str | None = None):
+        super().__init__(detail, code=code, status=status)
 
 
 def kind_of(name: str) -> str:

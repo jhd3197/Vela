@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .logging_setup import AUDIT_LOG, SERVER_LOG, audit
+from .errors_http import NotFound
 
 # A name may address a log file and nothing else: no separators, no drive
 # letters, no `..`. Rotation suffixes (`server.log.1`) are part of the name.
@@ -25,8 +26,10 @@ DEFAULT_LINES = 200
 _BLOCK = 64 * 1024
 
 
-class LogError(Exception):
+class LogError(NotFound):
     """A log could not be read, and why, in words worth showing a person."""
+
+    code = "logs.unreadable"
 
 
 def _kind(name: str) -> str:

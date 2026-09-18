@@ -43,6 +43,7 @@ import httpx
 from .config import Config
 from .logging_setup import audit
 from .version import is_newer, parse_tag
+from .errors_http import Conflict
 
 LOG = logging.getLogger(__name__)
 
@@ -301,8 +302,10 @@ KEEP_DOWNLOAD_DAYS = 7
 CHUNK = 256 * 1024
 
 
-class UpdateError(Exception):
+class UpdateError(Conflict):
     """An update could not go ahead, with the reason to show the user."""
+
+    code = "updates.refused"
 
 
 def read_journal(config: Config) -> dict[str, Any]:

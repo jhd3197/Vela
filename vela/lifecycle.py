@@ -8,12 +8,24 @@ import uuid
 from .manifest import load_manifest
 from .package_files import replace_dir
 from .state import pid_alive
+from .errors_http import VelaError
 
 
-class LifecycleError(Exception):
-    def __init__(self, status_code, detail):
-        super().__init__(detail)
-        self.status_code, self.detail = status_code, detail
+class LifecycleError(VelaError):
+    """An install, launch or stop that cannot go ahead, with its status.
+
+    Keeps the `status_code` name its callers read; `status` is the base's.
+    """
+
+    code = "lifecycle.refused"
+
+    def __init__(self, status_code, detail, *, code: str | None = None):
+        super().__init__(detail, code=code, status=status_code)
+
+    @property
+    def status_code(self) -> int:
+        """The name this class has always exposed. Same value as `status`."""
+        return self.status
 
 
 def _port_available(port):

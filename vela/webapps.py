@@ -12,10 +12,11 @@ import json
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
+from .errors_http import Conflict, NotAllowed, NotFound, Upstream
 from .manifest import Manifest
 from .pwa import build_service_worker, build_web_manifest
 from .registry import Registry
@@ -49,12 +50,12 @@ def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
     def get_manifest_or_404(app_id: str) -> Manifest:
         manifest = registry.get(app_id)
         if manifest is None:
-            raise HTTPException(status_code=404, detail=f"unknown app: {app_id}")
+            raise NotFound(f"unknown app: {app_id}", code="apps.unknown")
         return manifest
 
     def serve_static(app_id: str, manifest: Manifest, file_path: str) -> Response:
         if not registry.is_installed(app_id):
-            raise HTTPException(status_code=404, detail=f"app {app_id} is not installed")
+            raise NotFound(f"app {app_id} is not installed", code="apps.not_installed")
         base = registry.installed_path(app_id).resolve()
         if not file_path:
             file_path = manifest.web.entry
@@ -65,24 +66,26 @@ def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
             )
         if file_path == "sw.js":
             if manifest.schema_version == 2:
-                raise HTTPException(status_code=404, detail="v2 views do not support service workers")
+                raise NotFound("v2 views do not support service workers",
+                               code="apps.no_service_worker")
             return Response(
                 content=build_service_worker(manifest, base),
                 media_type="application/javascript",
             )
         target = (base / file_path).resolve()
         if not target.is_file() or not target.is_relative_to(base):
-            raise HTTPException(status_code=404, detail=f"no such file in app {app_id}: {file_path}")
+            raise NotFound(f"no such file in app {app_id}: {file_path}",
+                           code="apps.file_unknown")
         return FileResponse(target)
 
     async def proxy_request(app_id: str, file_path: str, request: Request) -> Response:
         entry = state.get(app_id)
         running = bool(entry and pid_alive(entry.get("pid", -1), entry.get("pid_ctime")))
         if not running:
-            raise HTTPException(status_code=409, detail=f"app {app_id} is not running")
+            raise Conflict(f"app {app_id} is not running", code="apps.not_running")
         port = entry.get("port")
         if port is None:
-            raise HTTPException(status_code=404, detail=f"app {app_id} does not serve HTTP")
+            raise NotFound(f"app {app_id} does not serve HTTP", code="apps.no_http")
 
         headers = [
             (name, value)
@@ -99,7 +102,8 @@ def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
         try:
             upstream = await client.send(upstream_request, stream=True)
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"app {app_id} is unreachable: {exc}") from exc
+            raise Upstream(f"app {app_id} is unreachable: {exc}",
+                           code="apps.unreachable") from exc
         response_headers = {
             name: value
             for name, value in upstream.headers.items()
@@ -117,15 +121,15 @@ def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
         # source folder under apps/ is gone.
         manifest = get_manifest_or_404(app_id)
         if not registry.is_installed(app_id):
-            raise HTTPException(status_code=404, detail=f"app {app_id} is not installed")
+            raise NotFound(f"app {app_id} is not installed", code="apps.not_installed")
         if file_path == "_vela/sdk.js" and manifest.schema_version == 2:
             response = FileResponse(Path(__file__).resolve().parent / "assets/sdk.js", media_type="application/javascript")
         elif manifest.web is not None:
             if manifest.active_runtime(registry.platform) == "process" and not state.is_running(app_id):
-                raise HTTPException(status_code=409, detail="Required app process is stopped")
+                raise Conflict("Required app process is stopped", code="apps.process_stopped")
             # v2 static assets may require a managed process to be running.
             if request.method not in ("GET", "HEAD"):
-                raise HTTPException(status_code=405, detail="web apps are served statically")
+                raise NotAllowed("web apps are served statically", code="apps.static_only")
             response = serve_static(app_id, manifest, file_path)
         else:
             response = await proxy_request(app_id, file_path, request)

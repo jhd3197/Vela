@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from ..errors_http import VelaError
 
 #: The schema version of `desktops.sqlite`. An older Vela cannot read a newer
 #: one; the upgrade notes say to restore the pre-upgrade backup rather than
@@ -53,21 +54,29 @@ RETIRED_WALLPAPERS = {"lake": "choroni"}
 DEFAULT_WALLPAPER = "choroni"
 
 
-class DesktopError(Exception):
+class DesktopError(VelaError):
     """A desktop operation that cannot proceed, with the reason to show."""
 
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status = status
-        self.detail = detail
+    code = "desktop.refused"
+
+    def __init__(self, status: int, detail: str, *, code: str | None = None):
+        super().__init__(detail, code=code, status=status)
 
 
 class DesktopConflict(DesktopError):
-    """Someone else saved first. Carries the revision the caller should reload."""
+    """Someone else saved first. Carries the revision the caller should reload.
+
+    The revision rides back on `X-Vela-Desk-Revision`, which `/api/desk` has
+    always sent; the header is carried on the error so the one error handler
+    renders it rather than each route remembering to.
+    """
+
+    code = "desktop.conflict"
 
     def __init__(self, detail: str, revision: int):
         super().__init__(409, detail)
         self.revision = revision
+        self.headers = {"X-Vela-Desk-Revision": str(revision)}
 
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
