@@ -6,6 +6,24 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.15 - 2026-09-18
+
+No additional release notes were provided.
+
+## 0.1.14 - 2026-09-17
+
+No additional release notes were provided.
+
+## 0.1.13 - 2026-09-16
+
+No additional release notes were provided.
+
+## 0.1.12 - 2026-09-16
+
+No additional release notes were provided.
+
+## 0.1.11 - 2026-09-16
+
 ### Changed
 
 - **Bundled wallpapers download once instead of shipping in the installer.**
