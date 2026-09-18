@@ -13,6 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { desktopsApi } from './desktopsApi.js';
 import useDesktopViews from './useDesktopViews.js';
 import { DEFAULT_WALLPAPER } from '../desk/wallpaper.js';
+import { readLocal, removeLocal, writeLocal } from '../storage.js';
 
 const DesktopsContext = createContext(null);
 
@@ -20,24 +21,16 @@ const STORAGE_KEY = 'vela:selected-desktop';
 
 const DEFAULT_LOOK = { wallpaper: DEFAULT_WALLPAPER, dim: true, labels: true, revision: null };
 
+// Private browsing, or storage the browser refuses, means the selection lasts
+// for this page rather than for this device — a degraded experience and not a
+// broken one, which is why neither of these reports a failure.
 function readStored() {
-  try {
-    return localStorage.getItem(STORAGE_KEY) || null;
-  } catch {
-    // Private browsing, or storage the browser refuses. The selection then
-    // lasts for this page rather than for this device, which is a degraded
-    // experience and not a broken one.
-    return null;
-  }
+  return readLocal(STORAGE_KEY) || null;
 }
 
 function writeStored(id) {
-  try {
-    if (id) localStorage.setItem(STORAGE_KEY, id);
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // See `readStored`.
-  }
+  if (id) writeLocal(STORAGE_KEY, id);
+  else removeLocal(STORAGE_KEY);
 }
 
 /**

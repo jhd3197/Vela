@@ -11,12 +11,35 @@ After [developer setup](DEVELOPMENT.md), run from the repository root:
 npm --prefix web run check
 ```
 
-The same command runs in CI: lint, formatting verification, Node tests, Python
-tests, then the dashboard build. It stops at the first failure. Use
-`npm --prefix web run format` to fix formatting, or run individual checks while
-iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
-tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
-`npm --prefix web run build`. Browser acceptance remains a separate step.
+The same command runs in CI: lint, formatting verification, the ratchet guards,
+Node tests, Python tests, then the dashboard build. It stops at the first
+failure. Use `npm --prefix web run format` to fix formatting, or run individual
+checks while iterating: `npm --prefix web run lint`, `node --test
+tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
+tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
+step.
+
+### Ratchet guards
+
+`node web/scripts/ratchet.mjs` runs the structural guards in
+`web/scripts/ratchets/` against `web/scripts/ratchets/baseline.json`, which
+records how many findings each file is allowed. A file that is not in the
+baseline is allowed none, so the first violation in a clean file fails with the
+file and the line named. A count that fell fails too, asking for the baseline to
+be lowered — that is what keeps a cleanup from quietly growing back.
+
+```bash
+node web/scripts/ratchet.mjs            # check, as the aggregate check runs it
+node web/scripts/ratchet.mjs --report   # every finding, including line escapes
+node web/scripts/ratchet.mjs --update   # rewrite the baseline after a cleanup
+node web/scripts/ratchet.mjs --only browser-boundary
+```
+
+A line that must stay as it is carries `// ratchet: allow <guard id> <reason>`;
+the escape is counted and `--report` lists it. `--update` refuses to raise a
+count unless `--allow-growth <guard id>` says so on the same command line, which
+leaves the decision in the Git history. Writing a guard is in
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 `web/scripts/test-desktops.mjs` covers the dashboard side against a real engine
 on its own port: the migrated desk as Desktop 1, a second workspace with its own
@@ -354,6 +377,31 @@ page's own control, walking into a folder and back, previewing a text file as
 text, deleting to the trash, and — the point of the feature — the share boundary
 refusing `..`, an absolute path, a drive letter and an unknown share without
 naming the real path in the refusal.
+
+### Comparing screenshots
+
+A change to who owns a CSS class can move something on a page it was not
+supposed to touch. `web/scripts/compare-screenshots.mjs` is what that is checked
+against: capture before the change, make it, capture after, compare.
+
+```bash
+node web/scripts/compare-screenshots.mjs capture /tmp/before
+# make the change, then rebuild
+npm --prefix web run build
+node web/scripts/compare-screenshots.mjs capture /tmp/after 17734
+node web/scripts/compare-screenshots.mjs compare /tmp/before /tmp/after
+```
+
+`capture` starts its own engine on a temporary data directory and takes six
+surfaces at a desktop and a phone width in both themes; give it a port of its
+own if one is already in use. `compare` prints the share of pixels that differ
+per shot and the worst of them. Capture twice without changing anything first:
+the desk draws a clock, so the floor is not zero, and a real difference is the
+one that stands out above it. Crop and look at anything that does.
+
+This does not reuse `npm --prefix web run shots`, which deliberately attaches to
+a hub on port 7700 to take the README's pictures. Nothing in the test suite ever
+uses the installed server.
 
 Run browser suites sequentially because some use the same fixture server port.
 The shared UI suite uses an isolated Vite fixture without API calls to check

@@ -108,7 +108,7 @@ try {
   // Many apps: the pinned tools stay put, and the running apps that are not
   // pinned appear under OPEN in a stable name order.
   await page.goto(base);
-  await page.locator('.rail-apps a').first().waitFor();
+  await page.locator('.rail-apps .rail-item').first().waitFor();
   await page.addStyleTag({
     content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
   });
@@ -145,10 +145,14 @@ try {
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
 
   // --- pin, unpin and reorder from the rail's own menus -------------------
+  // An installed app's rail entry is a button that opens a window; only the
+  // core tools are still links. Both carry `.rail-item` and a tip.
   const openTile = (name) =>
-    page.locator(`.rail-apps-open a`, { has: page.locator('.rail-tip', { hasText: name }) });
+    page.locator(`.rail-apps-open .rail-item`, {
+      has: page.locator('.rail-tip', { hasText: name }),
+    });
   const pinnedTile = (name) =>
-    page.locator(`.rail-apps-group[aria-label="Pinned apps"] a`, {
+    page.locator(`.rail-apps-group[aria-label="Pinned apps"] .rail-item`, {
       has: page.locator('.rail-tip', { hasText: name }),
     });
 
@@ -193,7 +197,7 @@ try {
 
   // Keyboard: focus a rail app, then Tab moves through the rail. Hovering
   // reveals the tooltip that names the icon.
-  const first = page.locator('.rail-apps-open a').first();
+  const first = page.locator('.rail-apps-open .rail-item').first();
   await first.hover();
   assert.equal(
     await first.locator('.rail-tip').evaluate((el) => getComputedStyle(el).opacity),
@@ -201,13 +205,12 @@ try {
     'hovering a rail icon reveals its name',
   );
   await first.focus();
-  const before = await page.evaluate(() => document.activeElement.getAttribute('href'));
+  // A rail entry is a link or a button depending on what it opens, so identify
+  // whatever has focus by the name it carries rather than by an href.
+  const focusedName = () => page.evaluate(() => document.activeElement.textContent);
+  const before = await focusedName();
   await page.keyboard.press('Tab');
-  assert.notEqual(
-    before,
-    await page.evaluate(() => document.activeElement.getAttribute('href')),
-    'Tab moves through the rail',
-  );
+  assert.notEqual(before, await focusedName(), 'Tab moves through the rail');
 
   // 200% browser zoom on a 1366x900 window is a 683x450 layout viewport.
   await page.setViewportSize({ width: 683, height: 450 });
@@ -249,7 +252,10 @@ try {
   assert.ok(beside.railRight <= beside.mainLeft + 1, JSON.stringify(beside));
   await shot('home-phone-rail');
   await noOverflow('home phone');
-  await page.locator('.rail-apps a[href="/app/gamma"]').click();
+  await page
+    .locator('.rail-apps .rail-item')
+    .filter({ has: page.locator('.rail-tip', { hasText: 'Gamma' }) })
+    .click();
   await page.locator('.appview').waitFor();
   await page.locator('.app-workspace .app-titlebar').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Back to Apps' }).count(), 0);
@@ -261,19 +267,22 @@ try {
   assert.equal(await page.locator('.rail').isVisible(), true);
   await shot('library-phone-rail');
 
+  // An installed app's rail entry is a button, named by the tip it carries.
+  const railApp = (name) =>
+    page
+      .locator('.rail-apps .rail-item')
+      .filter({ has: page.locator('.rail-tip', { hasText: name }) });
+
   // An app workspace keeps one rail beside it at phone widths, with no
   // hamburger and no second rail, so Desk and Settings stay one tap away.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(base);
-    await page.locator('.rail-apps a[href="/app/workspace"]').click();
+    await railApp('Workspace app').click();
     await page.locator('.app-workspace .app-titlebar').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
-    assert.equal(
-      await page.locator('.rail a[href="/app/workspace"]').getAttribute('aria-current'),
-      'page',
-    );
+    assert.equal(await railApp('Workspace app').getAttribute('aria-current'), 'page');
     assert.equal(await page.locator('.rail a[href="/"]').count(), 1);
     // Exact: the foot avatar's label mentions General settings, and a loose
     // match would count it as a second Settings control.
@@ -294,7 +303,7 @@ try {
     await noOverflow(`hub app at ${width}px`);
     if (width === 390) await shot('hub-app-phone-rail');
 
-    await page.locator('.rail-apps a[href="/app/standalone"]').click();
+    await railApp('Standalone app').click();
     await page.locator('.appview-compact.appview-hosted').waitFor();
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.locator('.app-titlebar').count(), 1);
@@ -303,12 +312,13 @@ try {
   // Pin an app from its own window menu; it joins the rail's pinned group.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(base);
-  await page.locator('.rail-apps a[href="/app/workspace"]').click();
+  await railApp('Workspace app').click();
   await page.locator('.app-titlebar').waitFor();
   await page.getByRole('button', { name: 'App menu' }).click();
   await page.getByRole('menuitem', { name: 'Pin to rail' }).click();
   await page
-    .locator('.rail-apps-group[aria-label="Pinned apps"] a[href="/app/workspace"]')
+    .locator('.rail-apps-group[aria-label="Pinned apps"] .rail-item')
+    .filter({ has: page.locator('.rail-tip', { hasText: 'Workspace app' }) })
     .waitFor();
 
   // The shortcut sheet opens with ? and closes with Escape.

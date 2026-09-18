@@ -398,10 +398,17 @@ try {
   await done.click();
   await arrange.waitFor();
 
-  // The rail raises its dot for the app that asked for attention.
+  // The rail raises its dot for the app that asked for attention. A rail app
+  // entry is a button that opens a window, not a link to the full-screen page,
+  // so it is found by the tip that names it.
+  const railDot = () =>
+    page
+      .locator('.rail .rail-item')
+      .filter({ has: page.locator('.rail-tip', { hasText: 'Widget Fixture' }) })
+      .locator('.rail-dot');
   await page.reload();
   await page.locator('.desk-grid').waitFor();
-  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+  await railDot().waitFor({ timeout: 5000 });
 
   // --- Needs you: acting on an item, and putting it aside ------------------
 
@@ -410,13 +417,31 @@ try {
   // itself is untouched, which is why the server still publishes it.
   const needsYou = page.getByRole('region', { name: 'Needs you', exact: true });
   await needsYou.waitFor();
+
+  // Needs you and the rail's Settings dot read the same health sweep, through
+  // the one operations list, so they agree with the engine and with each other
+  // whichever way the sweep came out on this machine.
+  const sweep = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    return (await fetch('/api/doctor', { headers: { Authorization: `Bearer ${token}` } })).json();
+  });
+  const failing = (sweep.checks || []).filter((check) => check.status === 'fail').length;
+  assert.equal(
+    await needsYou.locator('.desk-status-cell', { hasText: 'Health check' }).count(),
+    failing ? 1 : 0,
+    `the sweep reported ${failing} failing check(s); Needs you must say the same`,
+  );
+  assert.equal(
+    await page.locator('.rail-foot .rail-dot').count(),
+    failing ? 1 : 0,
+    'the rail dot reads the same sweep as the widget',
+  );
   const flaggedRow = needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' });
   await flaggedRow.waitFor();
   await flaggedRow.getByRole('button', { name: 'Later', exact: true }).click();
   await flaggedRow.waitFor({ state: 'detached' });
-  await page
-    .locator('.rail a[href="/app/widget-fixture"] .rail-dot')
-    .waitFor({ state: 'detached', timeout: 5000 });
+  await railDot().waitFor({ state: 'detached', timeout: 5000 });
 
   const afterLater = await page.evaluate(async () => {
     const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
@@ -452,7 +477,7 @@ try {
   await page.reload();
   await page.locator('.desk-grid').waitFor();
   await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).waitFor();
-  await page.locator('.rail a[href="/app/widget-fixture"] .rail-dot').waitFor({ timeout: 5000 });
+  await railDot().waitFor({ timeout: 5000 });
 
   // Uninstalling takes the summary and the widget with it, rather than leaving
   // a frame that can never render again.

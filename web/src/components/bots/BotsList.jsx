@@ -10,41 +10,8 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import Button from '../ui/Button.jsx';
-import Dialog from '../ui/Dialog.jsx';
 import BotIcon from './BotIcon.jsx';
-
-function DeleteDialog({ bot, onClose, onConfirm }) {
-  const [pending, setPending] = useState(false);
-  return (
-    <Dialog open onClose={onClose} pending={pending} aria-labelledby="delete-bot-title">
-      <h2 id="delete-bot-title">Delete {bot.name}?</h2>
-      <p>
-        Chats this bot already answered keep their history, and still show that {bot.name} wrote
-        them. You will not be able to send it anything new.
-      </p>
-      <div className="dialog-actions">
-        <Button onClick={onClose} disabled={pending}>
-          Cancel
-        </Button>
-        <Button
-          variant="danger"
-          pending={pending}
-          onClick={async () => {
-            setPending(true);
-            try {
-              await onConfirm();
-              onClose();
-            } finally {
-              setPending(false);
-            }
-          }}
-        >
-          Delete bot
-        </Button>
-      </div>
-    </Dialog>
-  );
-}
+import { useConfirm } from '../../hooks/useConfirm.js';
 
 function BotRow({ bot, onChat, onEdit, onDuplicate, onArchive, onDelete }) {
   const [menu, setMenu] = useState(false);
@@ -119,7 +86,17 @@ export default function BotsList({
   onArchive,
   onDelete,
 }) {
-  const [deleting, setDeleting] = useState(null);
+  const confirm = useConfirm();
+  const askToDelete = (bot) =>
+    confirm({
+      title: `Delete ${bot.name}?`,
+      message:
+        `Chats this bot already answered keep their history, and still show that ${bot.name} ` +
+        'wrote them. You will not be able to send it anything new.',
+      confirmText: 'Delete bot',
+      pendingText: 'Deleting…',
+      onConfirm: () => onDelete(bot),
+    });
 
   return (
     <div className="bots-list">
@@ -163,18 +140,10 @@ export default function BotsList({
             onEdit={onEdit}
             onDuplicate={onDuplicate}
             onArchive={onArchive}
-            onDelete={setDeleting}
+            onDelete={askToDelete}
           />
         ))}
       </ul>
-
-      {deleting && (
-        <DeleteDialog
-          bot={deleting}
-          onClose={() => setDeleting(null)}
-          onConfirm={() => onDelete(deleting)}
-        />
-      )}
     </div>
   );
 }

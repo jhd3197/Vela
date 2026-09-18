@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Export, PlusSquare, Compass } from '@phosphor-icons/react';
 import { isIOSSafari } from '../phone-setup.js';
 import Button from './ui/Button.jsx';
+import { copyText } from '../clipboard.js';
 
 export default function IOSInstallSteps({ children }) {
   const [showSteps, setShowSteps] = useState(isIOSSafari);
@@ -9,12 +10,11 @@ export default function IOSInstallSteps({ children }) {
   const link = new URL('/setup', window.location.origin).href;
 
   async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopyStatus('Link copied. Open Safari and paste it into the address bar.');
-    } catch {
-      setCopyStatus('Touch and hold the address above, copy it, then paste it into Safari.');
-    }
+    setCopyStatus(
+      (await copyText(link))
+        ? 'Link copied. Open Safari and paste it into the address bar.'
+        : 'Touch and hold the address above, copy it, then paste it into Safari.',
+    );
   }
 
   if (!showSteps) {

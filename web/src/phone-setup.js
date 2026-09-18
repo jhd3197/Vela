@@ -1,21 +1,17 @@
+import { readLocal, writeLocal } from './storage.js';
+
 export const WELCOME_KEY = 'vela.welcome.v1';
 let dismissed = false;
 
 export function welcomeDismissed() {
-  try {
-    return dismissed || localStorage.getItem(WELCOME_KEY) === 'done';
-  } catch {
-    return dismissed;
-  }
+  return dismissed || readLocal(WELCOME_KEY) === 'done';
 }
 
 export function dismissWelcome() {
+  // Kept in memory as well, so blocked storage still remembers the dismissal
+  // for this page session.
   dismissed = true;
-  try {
-    localStorage.setItem(WELCOME_KEY, 'done');
-  } catch {
-    // Private/blocked storage still remembers dismissal for this page session.
-  }
+  writeLocal(WELCOME_KEY, 'done');
 }
 
 // Only share the authenticated server origin, never the current URL's tokens,

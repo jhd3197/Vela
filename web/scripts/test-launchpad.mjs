@@ -223,10 +223,10 @@ try {
   await menu.waitFor();
   assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), [
     'Open',
-    // A window on the desktop being looked at, as opposed to the full-screen
-    // page `Open` goes to. The two are different presentations, not a choice
+    // The other presentation: `Open` puts a window on the desktop being looked
+    // at, this goes to the full-screen page. Two presentations, not a choice
     // between doing something and doing nothing.
-    'Open in a window',
+    'Open full screen',
     'Pin to rail',
     'Add widget to desk',
     'App settings',
@@ -238,7 +238,12 @@ try {
   // menu then offers to unpin it.
   await page.getByRole('menuitem', { name: 'Pin to rail' }).click();
   await page.getByRole('menu').waitFor({ state: 'detached' });
-  await page.locator('.rail-apps-group[aria-label="Pinned apps"] a[href="/app/notes"]').waitFor();
+  // A pinned app is a rail button that opens a window, not a link to the
+  // full-screen page; it is named by the tip it carries.
+  await page
+    .locator('.rail-apps-group[aria-label="Pinned apps"] .rail-item')
+    .filter({ has: page.locator('.rail-tip', { hasText: 'Notes' }) })
+    .waitFor();
   await notes.click({ button: 'right' });
   assert.ok(
     (await page.getByRole('menu').getByRole('menuitem').allInnerTexts()).includes(

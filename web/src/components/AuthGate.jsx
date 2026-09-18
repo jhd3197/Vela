@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { acceptHubSession } from '../api.js';
+import { useConfirm } from '../hooks/useConfirm.js';
 
 const AuthContext = createContext({ remote: false, logout() {} });
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthGate({ children }) {
+  const confirm = useConfirm();
   const [authenticated, setAuthenticated] = useState(false);
   const [started, setStarted] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -70,7 +72,12 @@ export default function AuthGate({ children }) {
     }
   };
   const logout = async () => {
-    if (!window.confirm('Sign out of Vela? Save any unfinished work first.')) return;
+    const sure = await confirm({
+      title: 'Sign out of Vela?',
+      message: 'Save any unfinished work first.',
+      confirmText: 'Sign out',
+    });
+    if (!sure) return;
     const response = await fetch('/api/logout', {
       method: 'POST',
       headers: { 'X-Vela-Bootstrap': '1' },

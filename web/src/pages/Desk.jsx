@@ -41,6 +41,7 @@ import {
   useWidgetTypes,
 } from '../desk/registry.js';
 import AppWidget from '../desk/widgets/AppWidget.jsx';
+import { useConfirm } from '../hooks/useConfirm.js';
 import {
   colsOf,
   defaultBoards,
@@ -108,12 +109,12 @@ export default function Desk() {
   const [announcement, setAnnouncement] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  // The wallpaper menu (right-click / long-press / the top-right ⋯) and the
-  // reset confirmation. The buttons that used to crowd the search field live
-  // here now, like a desktop's own right-click menu.
+  const confirm = useConfirm();
+  // The wallpaper menu: right-click, long-press or the top-right ⋯. The buttons
+  // that used to crowd the search field live here now, like a desktop's own
+  // right-click menu.
   const [deskMenu, setDeskMenu] = useState(null);
   const [widgetMenu, setWidgetMenu] = useState(null);
-  const [confirmReset, setConfirmReset] = useState(false);
   const addButton = useRef(null);
   const deskMenuButton = useRef(null);
 
@@ -210,7 +211,21 @@ export default function Desk() {
     },
     { label: 'Personalise', icon: PaintBrush, onSelect: () => setPersonalise(true) },
     { separator: true },
-    { label: 'Reset desk', icon: ArrowUUpLeft, onSelect: () => setConfirmReset(true) },
+    {
+      label: 'Reset desk',
+      icon: ArrowUUpLeft,
+      onSelect: async () => {
+        const sure = await confirm({
+          title: 'Reset this desk?',
+          message:
+            'This replaces the current layout with the one Vela ships. Your other board is ' +
+            'unchanged.',
+          confirmText: 'Reset desk',
+          variant: 'primary',
+        });
+        if (sure) await resetDesk();
+      },
+    },
   ];
   const openDeskMenu = (x, y, opener) => {
     deskMenuButton.current = opener || null;
@@ -637,29 +652,6 @@ export default function Desk() {
         label="Widget options"
         onClose={() => setWidgetMenu(null)}
       />
-
-      <Dialog
-        open={confirmReset}
-        aria-labelledby="desk-reset-title"
-        onClose={() => setConfirmReset(false)}
-      >
-        <h2 id="desk-reset-title">Reset this desk?</h2>
-        <p>
-          This replaces the current layout with the one Vela ships. Your other board is unchanged.
-        </p>
-        <div className="form-actions">
-          <Button
-            variant="primary"
-            onClick={async () => {
-              setConfirmReset(false);
-              await resetDesk();
-            }}
-          >
-            Reset desk
-          </Button>
-          <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
-        </div>
-      </Dialog>
 
       <Dialog
         open={confirmLeave || blocked}

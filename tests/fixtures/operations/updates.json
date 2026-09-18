@@ -1,0 +1,19 @@
+{
+  "endpoint": "GET /api/updates",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "A server that has not checked for an update.",
+  "payload": {
+    "current": "0.1.15",
+    "latest": null,
+    "available": false,
+    "notes": "",
+    "asset": null,
+    "checksum": null,
+    "capability": "source",
+    "checkedAt": null,
+    "error": null,
+    "check": true,
+    "mode": "notify",
+    "hour": 3
+  }
+}

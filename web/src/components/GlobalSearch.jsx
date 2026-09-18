@@ -7,6 +7,7 @@ import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import useOpenApp from '../desktops/useOpenApp.js';
+import { readJson, readSession, writeSession } from '../storage.js';
 
 // Settings destinations the palette can reach. Developer entries stay out of
 // the results while the preference is off; searching for them then points at
@@ -43,18 +44,16 @@ const SETTINGS_ENTRIES = [
   },
 ];
 
+// What was typed into the launcher, kept for this tab so returning to it does
+// not lose the search.
+const QUERY_KEY = 'vela.launcher.query';
+
 // Mini-apps keep their data in same-origin localStorage under vela.* keys, so
 // the palette can search their content client-side. Reads are defensive:
 // missing, non-JSON, or wrong-shaped values are skipped silently.
 function readList(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = readJson(key, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 const DATA_SOURCES = [
@@ -140,16 +139,14 @@ export default function GlobalSearch({
   const openApp = useOpenApp();
   const developer = useDeveloperTools();
   const controlled = value !== undefined;
-  const [internalQuery, setInternalQuery] = useState(
-    () => sessionStorage.getItem('vela.launcher.query') || '',
-  );
+  const [internalQuery, setInternalQuery] = useState(() => readSession(QUERY_KEY, ''));
   const query = controlled ? value : internalQuery;
   const setQuery = (next) => {
     if (controlled) onQueryChange?.(next);
     else setInternalQuery(next);
   };
   useEffect(() => {
-    if (!controlled) sessionStorage.setItem('vela.launcher.query', internalQuery);
+    if (!controlled) writeSession(QUERY_KEY, internalQuery);
   }, [controlled, internalQuery]);
   const [open, setOpen] = useState(false);
   // A compact header (Ask, app workspaces) keeps the same palette behind an

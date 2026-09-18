@@ -48,6 +48,8 @@ import WorkspacePage from '../components/WorkspacePage.jsx';
 import BotIcon from '../components/bots/BotIcon.jsx';
 import BotEditor from '../components/bots/BotEditor.jsx';
 import RoomDialog from '../components/bots/RoomDialog.jsx';
+import { readJson, readLocal, removeLocal, writeLocal } from '../storage.js';
+import { copyText } from '../clipboard.js';
 import { SPLIT as NARROW } from '../breakpoints.js';
 const Markdown = lazy(() => import('../components/ChatMarkdown.jsx'));
 
@@ -91,33 +93,12 @@ function toolMeta(name) {
   return TOOLS.find((t) => t.name === name) ?? { name, label: 'Working', icon: Wrench };
 }
 
-function readStored(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? fallback : raw;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStored(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage unavailable; the in-memory value still applies for this session.
-  }
-}
-
 function legacyTranscript() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
-    if (!Array.isArray(raw)) return null;
-    return raw.filter(
-      (m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
-    );
-  } catch {
-    return null;
-  }
+  const raw = readJson(LEGACY_KEY, null);
+  if (!Array.isArray(raw)) return null;
+  return raw.filter(
+    (m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
+  );
 }
 
 function CopyMessage({ message }) {
@@ -132,12 +113,7 @@ function CopyMessage({ message }) {
       type="button"
       className="msg-push"
       onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(message);
-          setState('Copied');
-        } catch {
-          setState('Could not copy');
-        }
+        setState((await copyText(message)) ? 'Copied' : 'Could not copy');
       }}
     >
       <Copy size={14} aria-hidden />
@@ -292,7 +268,7 @@ export default function Ask() {
 
   // Bots and rooms. `conversation` holds the kind/bot binding for whatever is
   // open, so the transcript and composer know who they are talking to.
-  const [tab, setTab] = useState(() => readStored(TAB_KEY, 'chats'));
+  const [tab, setTab] = useState(() => readLocal(TAB_KEY, 'chats'));
   const [builtin, setBuiltin] = useState(null);
   const [bots, setBots] = useState([]);
   const [botsLoading, setBotsLoading] = useState(true);
@@ -309,7 +285,7 @@ export default function Ask() {
   // starts closed there rather than covering the conversation.
   const [narrow, setNarrow] = useState(() => matchMedia(NARROW).matches);
   const [panelOpen, setPanelOpen] = useState(
-    () => readStored(PANEL_KEY, 'open') !== 'closed' && !matchMedia(NARROW).matches,
+    () => readLocal(PANEL_KEY, 'open') !== 'closed' && !matchMedia(NARROW).matches,
   );
 
   const logRef = useRef(null);
@@ -420,7 +396,7 @@ export default function Ask() {
     return () => ac.abort();
   }, [refreshBots]);
 
-  useEffect(() => writeStored(TAB_KEY, tab), [tab]);
+  useEffect(() => writeLocal(TAB_KEY, tab), [tab]);
 
   useEffect(() => {
     const update = (event) => setSettings((current) => ({ ...current, ...event.detail }));
@@ -438,11 +414,9 @@ export default function Ask() {
     if (!legacy) return;
     importLegacyChat(legacy.slice(-100))
       .then((result) => {
-        try {
-          localStorage.removeItem(LEGACY_KEY);
-        } catch {
-          /* Storage unavailable; the server marker still prevents a repeat. */
-        }
+        // Storage unavailable is not a problem here: the server marker is
+        // what prevents a repeat.
+        removeLocal(LEGACY_KEY);
         if (result?.imported) refreshList();
       })
       .catch(() => {
@@ -455,11 +429,7 @@ export default function Ask() {
     if (!settings || historyEnabled) return;
     setConversations([]);
     setListLoading(false);
-    try {
-      localStorage.removeItem(LEGACY_KEY);
-    } catch {
-      /* Storage unavailable. */
-    }
+    removeLocal(LEGACY_KEY);
   }, [settings, historyEnabled]);
 
   useEffect(() => {
@@ -544,7 +514,7 @@ export default function Ask() {
 
   // Only the desktop column remembers its state; the drawer always starts closed.
   useEffect(() => {
-    if (!narrow) writeStored(PANEL_KEY, panelOpen ? 'open' : 'closed');
+    if (!narrow) writeLocal(PANEL_KEY, panelOpen ? 'open' : 'closed');
   }, [panelOpen, narrow]);
 
   // Crossing the breakpoint must not leave a drawer open over the transcript
@@ -553,7 +523,7 @@ export default function Ask() {
     const query = matchMedia(NARROW);
     const update = () => {
       setNarrow(query.matches);
-      setPanelOpen(query.matches ? false : readStored(PANEL_KEY, 'open') !== 'closed');
+      setPanelOpen(query.matches ? false : readLocal(PANEL_KEY, 'open') !== 'closed');
     };
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);

@@ -23,22 +23,10 @@ import TaskFiles from './TaskFiles.jsx';
 import { carriesApp, readAppReference } from './app-reference.js';
 import { desktopsApi } from './desktopsApi.js';
 import useAgentEvents from './useAgentEvents.js';
-
-/** A task's state in the words the rest of the interface uses. */
-const STATE_WORDS = {
-  queued: 'Waiting its turn',
-  starting: 'Starting',
-  running: 'Working',
-  waiting_approval: 'Needs you',
-  paused: 'Paused',
-  taking_over: 'Handing over',
-  human_control: 'Yours',
-  succeeded: 'Done',
-  failed: 'Stopped',
-  cancelled: 'Stopped by you',
-  interrupted: 'Interrupted',
-  outcome_unknown: 'Outcome unknown',
-};
+// A task's state in the words the rest of the interface uses. They live with
+// the rest of the status vocabulary so this window and the operations list
+// cannot drift apart.
+import { agentStateLabel } from '../operations/status.js';
 
 function Elapsed({ budget }) {
   const used = budget?.activeSeconds?.used;
@@ -277,7 +265,7 @@ export default function AgentWindow({ desktopId }) {
           <header>
             <h3 id="task-current">{active.instruction}</h3>
             <p className="task-state" role="status">
-              {STATE_WORDS[active.state] || active.state} <Elapsed budget={active.budget} />
+              {agentStateLabel(active.state)} <Elapsed budget={active.budget} />
             </p>
           </header>
           <div className="form-actions">
@@ -360,7 +348,7 @@ export default function AgentWindow({ desktopId }) {
           <ol>
             {finished.slice(0, 8).map((run) => (
               <li key={run.id} data-state={run.state}>
-                <p className="task-state">{STATE_WORDS[run.state] || run.state}</p>
+                <p className="task-state">{agentStateLabel(run.state)}</p>
                 <p className="task-instruction">{run.instruction}</p>
                 {run.result?.summary && <p className="task-summary">{run.result.summary}</p>}
                 {/* Read from the receipts, never from the wording. A summary

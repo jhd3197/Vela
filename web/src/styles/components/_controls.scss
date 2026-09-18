@@ -242,6 +242,10 @@
 }
 
 .pill {
+  /* Inline-flex because a pill often carries a dot or an icon beside its word. */
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;

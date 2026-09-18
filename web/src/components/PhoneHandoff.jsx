@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { useResource } from '../hooks/useResource.js';
 import { phoneSetupUrl } from '../phone-setup.js';
 import Button from './ui/Button.jsx';
+import { copyText } from '../clipboard.js';
 
 export default function PhoneHandoff({ onPendingChange }) {
   const { data, error, loading, refresh } = useResource(api.getPhoneAccess);
@@ -51,12 +52,7 @@ export default function PhoneHandoff({ onPendingChange }) {
   }
 
   async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied('Link copied.');
-    } catch {
-      setCopied('Select and copy the address above.');
-    }
+    setCopied((await copyText(url)) ? 'Link copied.' : 'Select and copy the address above.');
   }
 
   if (loading && !access)

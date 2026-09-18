@@ -21,13 +21,9 @@ import LoadingState from '../components/ui/LoadingState.jsx';
 import AutomationEditor from './AutomationEditor.jsx';
 import { useResource } from '../hooks/useResource.js';
 import { useAsyncAction } from '../hooks/useAsyncAction.js';
-import {
-  automationsApi,
-  RUN_STATUS_LABELS,
-  RUN_STATUS_TONE,
-  WORKFLOW_STATUS_LABELS,
-  triggerLabel,
-} from '../automationsApi.js';
+import { useConfirm } from '../hooks/useConfirm.js';
+import { statusLabel, statusTone } from '../operations/status.js';
+import { automationsApi, WORKFLOW_STATUS_LABELS, triggerLabel } from '../automationsApi.js';
 import { relTime } from '../api.js';
 
 const FILTERS = [
@@ -57,6 +53,7 @@ function AutomationList() {
   const { data: blueprints } = useResource(loadBlueprints);
   const navigate = useNavigate();
   const action = useAsyncAction();
+  const confirm = useConfirm();
   const [filter, setFilter] = useState('all');
   const [creating, setCreating] = useState(false);
   const [menuFor, setMenuFor] = useState(null);
@@ -142,7 +139,7 @@ function AutomationList() {
 
         <div className="auto-columns">
           <div className="auto-main">
-            <div className="seg" role="tablist" style={{ alignSelf: 'flex-start' }}>
+            <div className="seg" role="tablist">
               {FILTERS.map((item) => (
                 <button
                   key={item.key}
@@ -209,13 +206,23 @@ function AutomationList() {
                       refresh();
                     })
                   }
-                  onDelete={() =>
+                  onDelete={async () => {
+                    // Permanent, and it was one click away from the menu.
+                    const sure = await confirm({
+                      title: `Delete ${item.name}?`,
+                      message:
+                        'The automation and its run history go. Anything it already did stays ' +
+                        'done. This cannot be undone.',
+                      confirmText: 'Delete permanently',
+                      pendingText: 'Deleting…',
+                    });
+                    if (!sure) return;
                     action.run(async () => {
                       await automationsApi.remove(item.id);
                       setMenuFor(null);
                       refresh();
-                    })
-                  }
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -274,12 +281,12 @@ function AutomationList() {
                     <Icon
                       size={14}
                       weight="fill"
-                      className={`run-tone-${RUN_STATUS_TONE[item.status] || 'neutral'}`}
+                      className={`run-tone-${statusTone(item.status)}`}
                     />
                     <span className="activity-item-text">
                       <span>{item.workflowName || 'Removed automation'}</span>
                       <span className="activity-item-sub">
-                        {RUN_STATUS_LABELS[item.status] || item.status} · {relTime(item.queuedAt)}
+                        {statusLabel(item.status)} · {relTime(item.queuedAt)}
                       </span>
                     </span>
                   </Link>
@@ -428,8 +435,7 @@ function AutomationCard({
 
       {item.lastRun && (
         <p className="auto-lastrun">
-          Last run: {RUN_STATUS_LABELS[item.lastRun.status] || item.lastRun.status} ·{' '}
-          {relTime(item.lastRun.queuedAt)}
+          Last run: {statusLabel(item.lastRun.status)} · {relTime(item.lastRun.queuedAt)}
           {item.lastRun.error ? ` · ${item.lastRun.error}` : ''}
         </p>
       )}

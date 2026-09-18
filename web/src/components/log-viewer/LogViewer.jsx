@@ -3,12 +3,12 @@ import { api } from '../../api.js';
 import { useResource } from '../../hooks/useResource.js';
 import { useApps } from '../../store.jsx';
 import Button from '../ui/Button.jsx';
-import Dialog from '../ui/Dialog.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
 import LoadingState from '../ui/LoadingState.jsx';
 import LogContent from './LogContent.jsx';
 import LogFileList from './LogFileList.jsx';
 import LogToolbar from './LogToolbar.jsx';
+import { useConfirm } from '../../hooks/useConfirm.js';
 
 const LIVE_INTERVAL = 3000;
 
@@ -20,12 +20,11 @@ export default function LogViewer({ selected, onSelect }) {
   const [lines, setLines] = useState(200);
   const [pattern, setPattern] = useState('');
   const [live, setLive] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const searchRef = useRef(null);
   const contentRef = useRef(null);
-  const cancelRef = useRef(null);
+  const confirm = useConfirm();
 
   const { data: listing, error: listError, refresh: refreshList } = useResource(api.getLogs);
   const logs = listing?.logs || null;
@@ -102,10 +101,17 @@ export default function LogViewer({ selected, onSelect }) {
 
   const clear = async () => {
     if (!active) return;
+    const sure = await confirm({
+      title: `Clear ${active}?`,
+      message:
+        'The lines in this log are deleted from this computer. Vela keeps writing to the same ' +
+        'file, so new activity still appears. Rotated copies are not touched.',
+      confirmText: 'Clear log',
+    });
+    if (!sure) return;
     setClearing(true);
     try {
       await api.clearLog(active);
-      setConfirming(false);
       pushToast(`${active} cleared.`, 'success');
       await Promise.all([refresh(), refreshList()]);
     } catch (error) {
@@ -152,7 +158,7 @@ export default function LogViewer({ selected, onSelect }) {
           onLive={setLive}
           onRefresh={refresh}
           onDownload={download}
-          onClear={() => setConfirming(true)}
+          onClear={clear}
           downloading={downloading}
           clearing={clearing}
           disabled={!active}
@@ -179,27 +185,6 @@ export default function LogViewer({ selected, onSelect }) {
           empty={searching ? 'Nothing in this log matches that.' : 'This log is empty.'}
         />
       </section>
-
-      <Dialog
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        pending={clearing}
-        initialFocusRef={cancelRef}
-      >
-        <h2>Clear {active}?</h2>
-        <p className="panel-note">
-          The lines in this log are deleted from this computer. Vela keeps writing to the same file,
-          so new activity still appears. Rotated copies are not touched.
-        </p>
-        <div className="actions">
-          <Button ref={cancelRef} onClick={() => setConfirming(false)} disabled={clearing}>
-            Cancel
-          </Button>
-          <Button variant="danger" pending={clearing} onClick={clear}>
-            Clear log
-          </Button>
-        </div>
-      </Dialog>
     </div>
   );
 }

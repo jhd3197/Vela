@@ -20,6 +20,9 @@ function run(command, args, cwd = root) {
 }
 
 for (const script of ['lint', 'format:check']) run(process.execPath, [npm, 'run', script], web);
+// Structural guards over the source tree. They are cheap and they fail with a
+// file and a line, so they run before the test suites rather than after.
+run(process.execPath, [path.join(web, 'scripts/ratchet.mjs')], web);
 const tests = readdirSync(path.join(root, 'tests')).filter((name) => name.endsWith('.test.mjs'));
 run(process.execPath, ['--test', ...tests.map((name) => path.join(root, 'tests', name))]);
 run(python, ['-m', 'unittest', 'discover', '-s', 'tests']);

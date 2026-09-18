@@ -369,7 +369,9 @@ try {
   const tile = page.locator('.launch-tile', { hasText: 'Widget Fixture' }).first();
   await tile.waitFor();
   await tile.click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Open in a window' }).click();
+  // `Open` is the window; `Open full screen` is the page. The window is what
+  // this suite is about.
+  await page.getByRole('menuitem', { name: 'Open', exact: true }).click();
 
   const window = page.locator('.window-frame').first();
   await window.waitFor();

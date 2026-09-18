@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import { Bell, ChartBar, Flask, PaperPlaneTilt, WarningCircle } from '@phosphor-icons/react';
 import { api, relTime } from '../api.js';
+import { useOperationsContext } from '../operations/OperationsProvider.jsx';
+import OperationsList from '../operations/OperationsList.jsx';
+import { readLocal, writeLocal } from '../storage.js';
 
 const POLL_INTERVAL = 30000;
 const SEEN_KEY = 'vela-notifications-seen';
@@ -15,19 +18,17 @@ const KIND_META = {
   status_alert: { icon: WarningCircle, label: 'Status alert' },
 };
 
-function getSeenAt() {
-  try {
-    return localStorage.getItem(SEEN_KEY) || '';
-  } catch {
-    return '';
-  }
-}
+const getSeenAt = () => readLocal(SEEN_KEY, '');
 
-// Live notification bell: polls the hub's recent-events feed, badges anything
-// newer than the last time the panel was opened, and lists the latest events
-// with an icon per kind.
+// Live notification bell: the hub's recent-events feed, badged for anything
+// newer than the last time the panel was opened, and — above it — whatever is
+// waiting on a person right now, from the one list the rail's dot, the desk
+// and the System page also read. An event is something that happened; an
+// operation is something that has not finished, and the second is what a badge
+// is actually for.
 export default function NotificationBell() {
   const { openSettings } = useSettingsPopup();
+  const { needsAttention } = useOperationsContext();
   const { data } = useResource(api.getNotifications, { intervalMs: POLL_INTERVAL });
   const items = data?.notifications ?? null;
   const [open, setOpen] = useState(false);
@@ -49,11 +50,14 @@ export default function NotificationBell() {
     };
   }, []);
 
-  const unread = useMemo(() => {
+  const unseen = useMemo(() => {
     if (!items) return 0;
     const seen = Date.parse(seenAt) || 0;
     return items.filter((n) => (Date.parse(n.timestamp) || 0) > seen).length;
   }, [items, seenAt]);
+  // Opening the panel marks the events as seen; it does not answer anything,
+  // so what needs a person keeps counting until it is dealt with.
+  const unread = unseen + needsAttention.length;
 
   const toggle = () => {
     setOpen((prev) => {
@@ -61,11 +65,8 @@ export default function NotificationBell() {
       if (next) {
         // Opening the panel marks everything currently listed as seen.
         const now = new Date().toISOString();
-        try {
-          localStorage.setItem(SEEN_KEY, now);
-        } catch {
-          // Private mode etc. — badge just resets for this session.
-        }
+        // Private mode etc. — the badge just resets for this session.
+        writeLocal(SEEN_KEY, now);
         setSeenAt(now);
       }
       return next;
@@ -89,6 +90,12 @@ export default function NotificationBell() {
           <div className="notif-head">
             <h2>Notifications</h2>
           </div>
+          {needsAttention.length > 0 && (
+            <div className="notif-attention">
+              <h3 className="notif-section">Needs you</h3>
+              <OperationsList operations={needsAttention} />
+            </div>
+          )}
           {items === null && <p className="notif-empty">Checking…</p>}
           {items !== null && items.length === 0 && (
             <p className="notif-empty">No notifications yet.</p>

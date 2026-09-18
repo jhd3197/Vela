@@ -1,0 +1,12 @@
+{
+  "endpoint": "GET /api/updates/job",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "No update has been applied on this server.",
+  "payload": {
+    "state": "idle",
+    "percent": 0,
+    "message": "",
+    "version": null,
+    "rollback": false
+  }
+}

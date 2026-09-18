@@ -6,6 +6,49 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Vela now shows everything it is doing for you in one place.** An automation
+  run, an agent desktop's task, an update, a backup, an app being installed and
+  the health sweep are all listed the same way, in the same words. System gains
+  an Activity section listing what needs you, what is running and what has just
+  finished; the notification bell counts what is waiting on a person and lists
+  it above the recent events; and the desk's "Needs you" widget shows it beside
+  the apps that asked for you. All four read one list, so they cannot disagree.
+
+### Changed
+
+- **Deleting an automation asks first.** "Delete permanently" in an
+  automation's menu used to remove it and its history on the click, with no
+  confirmation. It now asks, like removing an app or deleting a desktop.
+- **Signing out, removing an app, deleting a desktop, deleting a bot, deleting
+  a conversation, clearing a log, resetting the desk and closing a window with
+  unsaved work all ask in the same dialog.** Signing out used the browser's own
+  prompt; the rest each had a dialog of their own. What they say is unchanged.
+- **For contributors: four shared foundations in the dashboard.** The check
+  command now runs ratchet guards over the source tree — style ownership, the
+  browser-API boundary, the status vocabulary and inline styles — each against a
+  committed baseline that may only shrink. `web/src/operations/` gives every
+  kind of background work one shape and one status vocabulary. `useForm` and
+  `useConfirm` own form state and confirmation. `web/src/storage.js` and
+  `web/src/clipboard.js` are the only places that touch browser storage, the
+  clipboard or `window.open`. Two concurrent identical GETs now share one
+  request, which took one desk load in development from 43 requests to 25 while
+  showing more than it did. See `docs/DEVELOPMENT.md` and `docs/TESTING.md`.
+
+### Fixed
+
+- **Copy buttons work on a server reached over plain HTTP.** "Copy link" on the
+  phone-handoff and iOS install screens, and "Copy" on an Ask message, used the
+  clipboard API, which browsers do not provide outside a secure context — so on
+  a home-network server over HTTP they silently did nothing. They now fall back
+  to selecting the text and copying it.
+- **A double-clicked Save sends one request.** A second click that arrived
+  before the button could disable itself sent the form twice.
+- **The rail says which app's page you are on again.** A pinned or running app's
+  rail entry stopped carrying that mark for screen readers when it became a
+  button that opens a window.
+
 ## 0.1.16 - 2026-09-18
 
 No additional release notes were provided.

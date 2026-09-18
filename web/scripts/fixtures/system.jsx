@@ -11,6 +11,8 @@ import { routablePages } from '../../src/navigation.js';
 import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
+import OperationsProvider from '../../src/operations/OperationsProvider.jsx';
+import ConfirmProvider from '../../src/components/ConfirmProvider.jsx';
 import Shell from '../../src/components/Shell.jsx';
 import WorkspacePage from '../../src/components/WorkspacePage.jsx';
 import '../../src/styles/main.scss';
@@ -29,6 +31,44 @@ const apps = [
     schemaVersion: 2,
   },
 ];
+
+// Background work, in the shapes the real endpoints return. The suite moves
+// `runs[0].status` to prove that System, the bell and the rail are reading one
+// list rather than three.
+const fixture = (window.__operations = {
+  runs: [
+    {
+      id: 'run-1',
+      workflowId: 'wf-1',
+      workflowName: 'Nightly greeting',
+      revision: 2,
+      status: 'waiting',
+      trigger: 'manual',
+      queuedAt: '2026-09-16T09:40:00+00:00',
+      startedAt: '2026-09-16T09:40:01+00:00',
+      finishedAt: null,
+      error: null,
+    },
+  ],
+  attention: { desktops: {} },
+  updates: { current: '0.1.10', latest: null, available: false, checkedAt: null },
+  updateJob: { state: 'idle', percent: 0, message: '', version: null, rollback: false },
+  backups: [{ name: '20260916-030000', size: 40960, created_at: '2026-09-16T03:00:00' }],
+  doctor: {
+    ranAt: '2026-09-16T09:00:00',
+    checks: [
+      {
+        key: 'data-dir',
+        title: 'Room to work',
+        status: 'ok',
+        detail: '120 GB free.',
+        repairable: false,
+        ranAt: '2026-09-16T09:00:00',
+      },
+    ],
+    update: { available: false, latest: null, current: '0.1.10' },
+  },
+});
 
 const serverLines = [
   ...Array.from(
@@ -192,6 +232,12 @@ window.fetch = async (input, init) => {
     return json({ bundles });
   }
 
+  if (url.includes('/api/automations/runs')) return json({ runs: fixture.runs });
+  if (url.includes('/api/desktops/attention')) return json(fixture.attention);
+  if (url.includes('/api/updates/job')) return json(fixture.updateJob);
+  if (url.includes('/api/updates')) return json(fixture.updates);
+  if (url.includes('/api/backups')) return json({ backups: fixture.backups });
+  if (url.includes('/api/doctor')) return json(fixture.doctor);
   if (url.includes('/api/apps')) return json({ apps });
   if (url.includes('/api/engine'))
     return json({
@@ -225,13 +271,17 @@ const router = createMemoryRouter(
   createRoutesFromElements(
     <Route
       element={
-        <EngineProvider>
-          <AppsProvider>
-            <SettingsProvider>
-              <Outlet />
-            </SettingsProvider>
-          </AppsProvider>
-        </EngineProvider>
+        <ConfirmProvider>
+          <EngineProvider>
+            <AppsProvider>
+              <OperationsProvider>
+                <SettingsProvider>
+                  <Outlet />
+                </SettingsProvider>
+              </OperationsProvider>
+            </AppsProvider>
+          </EngineProvider>
+        </ConfirmProvider>
       }
     >
       <Route element={<Shell />}>

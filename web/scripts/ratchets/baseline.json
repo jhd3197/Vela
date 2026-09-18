@@ -1,0 +1,18 @@
+{
+  "browser-boundary": {},
+  "foundations": {},
+  "inline-style": {
+    "web/src/components/AppIcon.jsx": 1,
+    "web/src/components/ui/ContextMenu.jsx": 1,
+    "web/src/components/UpdatesSection.jsx": 1,
+    "web/src/desk/grid/DeskGrid.jsx": 2,
+    "web/src/desk/widgets/primitives.jsx": 2,
+    "web/src/desktops/EmptyPane.jsx": 1,
+    "web/src/desktops/motion/GenieOverlay.jsx": 1,
+    "web/src/desktops/SplitDivider.jsx": 1,
+    "web/src/desktops/WindowFrame.jsx": 2,
+    "web/src/pages/Launchpad.jsx": 1
+  },
+  "status-vocabulary": {},
+  "style-ownership": {}
+}

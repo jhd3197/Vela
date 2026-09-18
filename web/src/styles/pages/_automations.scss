@@ -152,6 +152,12 @@
   min-width: 0;
 }
 
+/* The filter tabs are as wide as their options, not as wide as the column the
+   flex column would otherwise stretch them to. */
+.auto-main > .seg {
+  align-self: flex-start;
+}
+
 .activity-rail {
   display: flex;
   flex-direction: column;

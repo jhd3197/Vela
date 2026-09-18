@@ -22,6 +22,8 @@ import DesktopRoute from './desktops/DesktopRoute.jsx';
 import PhoneSetup from './pages/PhoneSetup.jsx';
 import AppView from './pages/AppView.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import ConfirmProvider from './components/ConfirmProvider.jsx';
+import OperationsProvider from './operations/OperationsProvider.jsx';
 import { installErrorReporting } from './errors.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { initTheme } from './theme.js';
@@ -41,26 +43,35 @@ const router = createBrowserRouter(
       <Route path="/setup" element={<PhoneSetup />} />
       <Route
         element={
-          <AuthGate>
-            <SecurityProvider>
-              <EngineProvider>
-                <AppsProvider>
-                  <ThemeSync />
-                  {/* Above the routes: the rail, the desk and the Launchpad all
-                      need to agree about which desktop is being looked at. */}
-                  <DesktopsProvider>
-                    <SettingsProvider>
-                      {/* All apps draws over the page, so its host wraps the
-                          routes rather than being one of them. */}
-                      <AppsOverlayProvider>
-                        <Outlet />
-                      </AppsOverlayProvider>
-                    </SettingsProvider>
-                  </DesktopsProvider>
-                </AppsProvider>
-              </EngineProvider>
-            </SecurityProvider>
-          </AuthGate>
+          // Outside the auth gate, not inside it: signing out asks "are you
+          // sure?" too, and there is one dialog for the whole dashboard.
+          <ConfirmProvider>
+            <AuthGate>
+              <SecurityProvider>
+                <EngineProvider>
+                  <AppsProvider>
+                    <ThemeSync />
+                    {/* Above the routes: the rail, the desk and the Launchpad
+                        all need to agree about which desktop is being looked
+                        at. */}
+                    <DesktopsProvider>
+                      {/* What the engine is doing, read once for the rail's
+                          dot, the bell, the desk and the System page. */}
+                      <OperationsProvider>
+                        <SettingsProvider>
+                          {/* All apps draws over the page, so its host wraps
+                              the routes rather than being one of them. */}
+                          <AppsOverlayProvider>
+                            <Outlet />
+                          </AppsOverlayProvider>
+                        </SettingsProvider>
+                      </OperationsProvider>
+                    </DesktopsProvider>
+                  </AppsProvider>
+                </EngineProvider>
+              </SecurityProvider>
+            </AuthGate>
+          </ConfirmProvider>
         }
       >
         <Route element={<Shell />}>

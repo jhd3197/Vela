@@ -14,42 +14,156 @@ export function acceptHubSession(token) {
   hubSession = token ? Promise.resolve(token) : null;
 }
 
+function hubToken() {
+  if (!hubSession) {
+    hubSession = fetch('/api/session', {
+      headers: { 'X-Vela-Bootstrap': '1' },
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          if (response.status === 401) dispatchEvent(new Event('vela:auth-required'));
+          throw new ApiError('Sign in to Vela to continue.', response.status);
+        }
+        return (await response.json()).token;
+      })
+      .catch((error) => {
+        hubSession = null;
+        throw error;
+      });
+  }
+  return hubSession;
+}
+
+async function sendWithToken(path, options) {
+  const headers = new Headers(options.headers);
+  headers.set('Authorization', `Bearer ${await hubToken()}`);
+  return fetch(path, { ...options, headers });
+}
+
 // A 401 usually means this browser's hub token went stale, so one retry with a
 // fresh token is right. It is wrong for a route that checks a credential: there
 // a 401 is the answer, and retrying would spend two of the five attempts the
 // engine allows. Those callers pass `retryUnauthorized: false`.
-export async function hubFetch(path, { retryUnauthorized = true, ...options } = {}) {
-  const getToken = () => {
-    if (!hubSession) {
-      hubSession = fetch('/api/session', {
-        headers: { 'X-Vela-Bootstrap': '1' },
-        cache: 'no-store',
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            if (response.status === 401) dispatchEvent(new Event('vela:auth-required'));
-            throw new ApiError('Sign in to Vela to continue.', response.status);
-          }
-          return (await response.json()).token;
-        })
-        .catch((error) => {
-          hubSession = null;
-          throw error;
-        });
-    }
-    return hubSession;
-  };
-  const send = async () => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${await getToken()}`);
-    return fetch(path, { ...options, headers });
-  };
-  let response = await send();
+async function sendWithRetry(path, options, retryUnauthorized) {
+  let response = await sendWithToken(path, options);
   if (response.status === 401 && retryUnauthorized) {
     hubSession = null;
-    response = await send();
+    response = await sendWithToken(path, options);
   }
   return response;
+}
+
+// In-flight GET coalescing. Origin: the `isCoalescable` block in ServerKit
+// `frontend/src/services/api/client.js` (MIT, same owner).
+//
+// Two callers asking for the same path at the same moment share one network
+// request. This is NOT a cache: the entry is dropped the moment the request
+// settles, so nobody ever reads a stale body. It only collapses the overlap,
+// which is where the duplicates actually come from — React's StrictMode
+// double-invokes every effect in development, and two independent components
+// own the same endpoint (the rail and the desk status bar both read
+// `/api/app-widgets`, the rail and Launchpad both read `/api/settings`).
+const inFlightGets = new Map();
+
+// The only request header the dashboard's reads carry. It says how to encode
+// the answer, not which answer to give, so two callers that both send it are
+// asking the same question. Anything else — `X-Vela-Confirm`, a bootstrap
+// header, a range — can change what comes back and is never shared.
+const SHARED_HEADERS = new Map([['accept', 'application/json']]);
+
+function isCoalescable(options) {
+  if ((options.method || 'GET').toUpperCase() !== 'GET') return false;
+  if (options.body != null) return false;
+  for (const [name, value] of new Headers(options.headers || {})) {
+    if (SHARED_HEADERS.get(name) !== value) return false;
+  }
+  return true;
+}
+
+function abortError(signal) {
+  return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+}
+
+// The caller's own signal settles the caller's promise and nothing else. It
+// must not cancel a request somebody else is still waiting for — and it must
+// still cancel one nobody is, which is why the join counts its waiters.
+function untilAborted(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(abortError(signal));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(abortError(signal));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+// 204 and its relatives are defined to have no body; constructing a `Response`
+// that gives them one throws.
+const EMPTY_STATUS = new Set([101, 103, 204, 205, 304]);
+
+// Read the body once, here, and give every caller a response of its own built
+// from those bytes. Cloning the response instead would tee its stream, which
+// makes even the single-caller case wait for a second reader that never comes.
+// Reading it once costs nothing extra: every caller was going to read it.
+async function readOnce(response) {
+  const body = EMPTY_STATUS.has(response.status) ? null : await response.arrayBuffer();
+  return () =>
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+}
+
+async function joinInFlightGet(path, start, signal) {
+  if (signal?.aborted) throw abortError(signal);
+  let entry = inFlightGets.get(path);
+  if (!entry) {
+    entry = { controller: new AbortController(), waiting: 0, settled: false };
+    entry.promise = start(entry.controller.signal)
+      .then(readOnce)
+      .finally(() => {
+        entry.settled = true;
+        if (inFlightGets.get(path) === entry) inFlightGets.delete(path);
+      });
+    // A request every caller walked away from still rejects when it is
+    // abandoned. That rejection has no owner left, and an unowned rejection is
+    // a crash in Node and a console error in the browser.
+    entry.promise.catch(() => {});
+    inFlightGets.set(path, entry);
+  }
+  entry.waiting += 1;
+  try {
+    // Every caller gets a response of its own, so one of them consuming the
+    // body cannot empty it for the other.
+    return (await untilAborted(entry.promise, signal))();
+  } finally {
+    entry.waiting -= 1;
+    if (entry.waiting === 0 && !entry.settled) {
+      // Everyone who joined has given up. Drop the entry before aborting, so a
+      // caller arriving now starts a fresh request rather than joining a dying
+      // one.
+      if (inFlightGets.get(path) === entry) inFlightGets.delete(path);
+      entry.controller.abort();
+    }
+  }
+}
+
+export function hubFetch(path, { retryUnauthorized = true, ...options } = {}) {
+  // A route that turned the retry off is checking a credential; its answer is
+  // about the credential it was given, so it is never shared.
+  if (!retryUnauthorized || !isCoalescable(options)) {
+    return sendWithRetry(path, options, retryUnauthorized);
+  }
+  const { signal, ...shared } = options;
+  // The retry runs inside the shared promise, so a token that went stale is
+  // refreshed once and both callers get the retried body.
+  return joinInFlightGet(
+    path,
+    (sharedSignal) => sendWithRetry(path, { ...shared, signal: sharedSignal }, true),
+    signal,
+  );
 }
 
 async function request(path, options = {}) {

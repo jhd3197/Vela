@@ -11,8 +11,6 @@
 // arrangement, and close is the only one that ends a view.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon.jsx';
-import Button from '../components/ui/Button.jsx';
-import Dialog from '../components/ui/Dialog.jsx';
 import { useApps } from '../store.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import AppWindow from './AppWindow.jsx';
@@ -25,6 +23,7 @@ import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
 import { SPLIT_MIN_WIDTH, placeView, restorePatch, splitBounds, workArea } from './window-state.js';
+import { useConfirm } from '../hooks/useConfirm.js';
 
 /** What to call a view that has not been given a title. */
 function labelFor(view, apps) {
@@ -54,7 +53,7 @@ export default function DesktopViewHost({ views, desktop }) {
   // Unsaved work lives inside the app's frame; the app tells the host about it
   // and the host is what asks before closing.
   const [dirty, setDirty] = useState({});
-  const [confirm, setConfirm] = useState(null);
+  const confirm = useConfirm();
   // Which half a drag is currently offering, and the divider position being
   // previewed. Both are local: the person is still deciding.
   const [snapping, setSnapping] = useState(null);
@@ -165,13 +164,22 @@ export default function DesktopViewHost({ views, desktop }) {
   }, [asked, area.width]);
 
   const requestClose = useCallback(
-    (view) => {
+    async (view) => {
       // Close is the only one of the three controls that ends anything, so it
       // is the only one that asks.
-      if (dirty[view.id]?.dirty) setConfirm(view);
-      else views.close(view.id);
+      if (!dirty[view.id]?.dirty) {
+        views.close(view.id);
+        return;
+      }
+      const sure = await confirm({
+        title: `Close ${labelFor(view, apps)}?`,
+        message: 'It has unsaved work. Closing the window ends its session.',
+        confirmText: 'Close anyway',
+        cancelText: 'Keep it open',
+      });
+      if (sure) views.close(view.id);
     },
-    [dirty, views],
+    [apps, confirm, dirty, views],
   );
 
   if (!views.loaded || !views.ordered.length) return null;
@@ -349,28 +357,6 @@ export default function DesktopViewHost({ views, desktop }) {
         onDone={motion.settle}
         onProgress={motion.progressed}
       />
-
-      {confirm && (
-        <Dialog open aria-labelledby="window-unsaved-title" onClose={() => setConfirm(null)}>
-          <h2 id="window-unsaved-title">Close {labelFor(confirm, apps)}?</h2>
-          <p>It has unsaved work. Closing the window ends its session.</p>
-          <div className="form-actions">
-            <Button
-              variant="danger"
-              onClick={() => {
-                const view = confirm;
-                setConfirm(null);
-                views.close(view.id);
-              }}
-            >
-              Close anyway
-            </Button>
-            <Button variant="ghost" onClick={() => setConfirm(null)}>
-              Keep it open
-            </Button>
-          </div>
-        </Dialog>
-      )}
     </div>
   );
 }
