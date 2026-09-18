@@ -63,7 +63,7 @@ try {
   const activity = page.locator('.panel', { has: page.getByRole('heading', { name: 'Activity' }) });
   await activity.waitFor();
   const bell = page.getByRole('button', { name: /^Notifications/ });
-  const waitingRow = activity.locator('.desk-status-cell', { hasText: 'Nightly greeting' });
+  const waitingRow = activity.locator('.vela-row', { hasText: 'Nightly greeting' });
   await waitingRow.waitFor();
   assert.equal(await waitingRow.count(), 1, 'the waiting run is listed once');
   assert.match(await waitingRow.innerText(), /Waiting for you/);
@@ -82,10 +82,7 @@ try {
   await bell.click();
   const panel = page.getByRole('dialog', { name: 'Notifications' });
   await panel.getByRole('heading', { name: 'Needs you' }).waitFor();
-  assert.equal(
-    await panel.locator('.desk-status-cell', { hasText: 'Nightly greeting' }).count(),
-    1,
-  );
+  assert.equal(await panel.locator('.vela-row', { hasText: 'Nightly greeting' }).count(), 1);
   await page.keyboard.press('Escape');
 
   // Finish the run: it leaves the waiting list and the bell together.
@@ -98,7 +95,7 @@ try {
   });
   assert.equal(await bell.getAttribute('aria-label'), 'Notifications');
   await activity
-    .locator('.desk-status-cell', { hasText: 'Nightly greeting' })
+    .locator('.vela-row', { hasText: 'Nightly greeting' })
     .filter({ hasText: 'Finished' })
     .waitFor();
   await shot('system-activity');

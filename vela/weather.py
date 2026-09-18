@@ -24,6 +24,7 @@ import time
 from typing import Any
 
 import httpx
+from .errors_http import VelaError
 
 LOG = logging.getLogger("vela.weather")
 
@@ -72,12 +73,13 @@ WMO = {
 }
 
 
-class WeatherError(Exception):
+class WeatherError(VelaError):
     """A geocoding failure, with the reason to show the user."""
 
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status, self.detail = status, detail
+    code = "weather.refused"
+
+    def __init__(self, status: int, detail: str, *, code: str | None = None):
+        super().__init__(detail, code=code, status=status)
 
 
 def describe(code: Any) -> str:

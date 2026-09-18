@@ -8,6 +8,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from .widgets import validate_declarations as validate_widget_declarations
+from .errors_http import Unprocessable
 
 SUPPORTED_PLATFORMS = ("posix", "windows", "android")
 PLATFORM_KEYS = SUPPORTED_PLATFORMS + ("web",)
@@ -21,8 +22,16 @@ SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widget
 _V2_SCHEMA = json.loads((Path(__file__).resolve().parent / "assets/manifest-v2.schema.json").read_text(encoding="utf-8"))
 
 
-class ManifestError(ValueError):
-    """Raised when an app.json manifest is missing or invalid."""
+class ManifestError(Unprocessable, ValueError):
+    """Raised when an app.json manifest is missing or invalid.
+
+    `ValueError` is named again for the readers who catch it by that name; the
+    base already provides it. An invalid package is the caller's to fix, so a
+    manifest that escapes to a route answers 422 rather than falling to the
+    unhandled recorder.
+    """
+
+    code = "manifest.invalid"
 
 
 @dataclass(frozen=True)

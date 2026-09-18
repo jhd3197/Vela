@@ -343,10 +343,30 @@ Declaration lives in the manifest, so the user sees it at install:
 ```
 
 `id` matches `^[a-z][a-z0-9-]{0,31}$` and is unique within the app; at most four
-widgets per app; `layout` is `stat`, `progress`, `list` or `actions`; `size` is
-`s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets` without the capability
-fails validation. The install review shows the capability as "Show summaries on
-your desk" and names the declared widgets.
+widgets per app; `size` is `s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets`
+without the capability fails validation. The install review shows the capability
+as "Show summaries on your desk" and names the declared widgets.
+
+`layout` is one of six, and decides which fields of the summary the desk reads:
+
+| `layout`    | Drawn as                                              | Reads                          |
+| ----------- | ----------------------------------------------------- | ------------------------------ |
+| `stat`      | One large number with its unit, delta and caption     | `value`, `unit`, `delta`, `caption` |
+| `progress`  | A labelled bar                                        | `progress`, `value`, `unit`, `caption` |
+| `list`      | Rows of label and detail                              | `rows`                         |
+| `actions`   | A stat, with the app's granted actions under it       | `value`, `unit`, `delta`, `caption`, `actions` |
+| `chart`     | Vertical bars, the last one strongest                 | `series`, `domain`, `caption`, `value` |
+| `keyvalue`  | Label left, value right                               | `rows`                         |
+
+`chart` and `keyvalue` were added in schema `0.5.0`, adopted by the hub as
+snapshot `ca7bf862a8cad52b`. An older hub refuses them at validation with its
+existing "layout must be one of" message, so an app that wants to run on both
+should keep to the original four. The SDK is agnostic: `Vela.widgets.publish`
+passes JSON through, and no SDK version is required for either.
+
+A `chart` at size `s` is drawn as a line rather than as bars — one cell is not
+wide enough for a row of them — so publish the same `series` either way and let
+the desk decide.
 
 The published summary is a flat JSON object of at most 4 KB. Every field is
 optional — `{}` is valid and means "nothing to report yet":
@@ -359,6 +379,8 @@ optional — `{}` is valid and means "nothing to report yet":
   "caption": "queued since 02:14",
   "progress": 32,
   "rows": [{ "label": "…", "detail": "…" }],
+  "series": [3, 7, 4, 9, 6, 11, 8],
+  "domain": [0, 12],
   "actions": [{ "action": "sync", "label": "Sync now" }],
   "attention": true,
   "badge": "73",
@@ -368,8 +390,13 @@ optional — `{}` is valid and means "nothing to report yet":
 
 `value`, `unit`, `delta`, `caption` and every row and action label are text of at
 most 200 characters; `progress` is 0–100; `rows` holds at most eight
-`{label, detail}` pairs; `actions` at most three, each naming one of the app's
-own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
+`{label, detail}` pairs; `series` holds between two and twenty-four finite
+numbers (one point is a number, not a series; twenty-four is a day by the hour,
+and more bars than that in a widget two cells wide is a texture rather than a
+reading); `domain` is `[min, max]` with `min` below `max`, and is the range the
+series is read against — without one the desk scales to the series itself, which
+both flattens a series under one spike and inflates a flat one into meaningless
+mountains; `actions` at most three, each naming one of the app's own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
 of at most three characters drawn on the app's icon in the Launchpad — an app
 with several widgets is badged once, from the first summary of its that carries
 one, and a longer value is refused rather than clipped into a number that reads
@@ -639,9 +666,38 @@ resolved one starts a new row, because that is news. Retention is 500 rows or
 30 days, whichever comes first.
 
 Unhandled server exceptions are recorded by an exception handler that re-raises,
-so the caller still gets the `500` it would have got. Ordinary `HTTPException`
-answers (a `404`, a `422`) are not errors and are not recorded. App frames are
-not hooked: an app's errors are the app's.
+so the caller still gets the `500` it would have got. An ordinary refused request
+(a `404`, a `422`) is not an error and is not recorded. App frames are not
+hooked: an app's errors are the app's.
+
+#### The shape of every error body
+
+Every refusal the engine returns carries the same three fields, and optionally a
+fourth:
+
+```json
+{
+  "detail": "unknown app: notes",
+  "code": "apps.unknown",
+  "status": 404,
+  "details": { }
+}
+```
+
+- `detail` is the sentence to show a person. It is unchanged from every previous
+  version of Vela, and it is the field a caller should read.
+- `code` is `group.reason`: a stable, lowercase, dotted name for *which* refusal
+  this is, for a caller that wants to branch on one without matching on English.
+- `status` repeats the HTTP status, so a body that has been logged or forwarded
+  still says what it was.
+- `details` is present only when a refusal has structured context to add.
+
+`code` and `status` are additive and were introduced together; a caller that
+only reads `detail` and the HTTP status is unaffected, and that includes the SDK
+and the dashboard. New codes may appear as new refusals are added, and an
+existing code does not change meaning. A request rejected by request-body
+validation before it reaches a handler still answers FastAPI's own `422` shape,
+where `detail` is a list rather than a string.
 
 A support bundle contains `README.txt`, `meta.json`, `settings.json`,
 `doctor.json`, `apps.json`, `desk.json`, `errors.json`, `automations.json` and
@@ -1101,42 +1157,26 @@ manifest loads); live files are never touched.
 If `web/dist/` exists, the backend serves it at `/` (SPA fallback to `index.html`
 for non-`/api` routes). If not, `/` returns a small JSON notice pointing at the API.
 
-## Backend Layout (target)
+## Backend Layout
 
-```
-vela/
-  __init__.py
-  config.py          # data dir, paths, env overrides
-  manifest.py        # manifest load/validate
-  registry.py        # available vs installed apps (installed copy wins)
-  state.py           # state.json + PID/creation-time liveness checks
-  runners/
-    __init__.py      # get_runner() platform dispatch
-    base.py          # Runner ABC: launch/stop/status
-    posix.py         # macOS/Linux subprocess runner
-    windows.py       # Windows runner (for dev machines)
-    android.py       # stub raising NotImplementedError with clear message
-  api.py             # FastAPI app wiring everything
-  settings.py        # settings.json store with secret redaction
-  notify.py          # ntfy publish client + 15-min digest/status-alert scheduler
-  assistant.py       # Ollama tool-calling assistant (hub-scoped tools, SSE emits)
-  conversations.py   # Durable Ask conversations (chat.sqlite), retention and bounds
-  backups.py         # timestamped backups, retention, isolated restore drill
-  pwa.py             # on-the-fly manifest.webmanifest + sw.js generation for web apps
-  webapps.py         # serving installed web apps under /apps/{id}/
-  __main__.py        # `python -m vela` starts uvicorn on 7700
-apps/
-  hello-vela/        # static page via http.server AND a web app ("web" platform entry)
-  system-info/       # tiny python HTTP server returning system info JSON
-web/                 # React frontend (Vite)
-```
+The tree, what mounts what and where a refusal is rendered are described in
+[DEVELOPMENT.md](DEVELOPMENT.md#backend-layout). In outline: `vela/api.py` is
+the app factory and defines no route; `vela/router_registry.py` is the ordered
+mount table; `vela/routers/` holds one module per group of routes, alongside the
+two routers that predate it (`vela/automations/api.py`, `vela/desktops/api.py`)
+and `vela/webapps.py`, which serves installed apps.
 
-Route precedence: `/api/*` and `/apps/*` are matched BEFORE the SPA fallback â€” the
-frontend's SPA fallback must never swallow `/apps/{id}/...` requests. Note that the
-hub shell's OWN routes (`/apps`, `/library`, `/environments`, `/settings`, `/app/:id`)
-must not collide with backend app serving at `/apps/{id}/` (plural, with an id) â€”
-the backend only claims `/apps/{id}/...` for KNOWN app ids; `/apps` (bare) belongs to
-the SPA. The embedded app route is `/app/{id}` (singular) to avoid any ambiguity.
+`docs/API_SURFACE.md` is the committed inventory of every `METHOD /path` the
+engine serves, generated from the served OpenAPI spec. A route added, removed or
+renamed is a diff in that file in the same commit.
+
+Route precedence: `/api/*` and `/apps/*` are matched BEFORE the SPA fallback —
+the frontend's SPA fallback must never swallow `/apps/{id}/...` requests. Note
+that the hub shell's OWN routes (`/apps`, `/library`, `/environments`,
+`/settings`, `/app/:id`) must not collide with backend app serving at
+`/apps/{id}/` (plural, with an id) — the backend only claims `/apps/{id}/...`
+for KNOWN app ids; `/apps` (bare) belongs to the SPA. The embedded app route is
+`/app/{id}` (singular) to avoid any ambiguity.
 
 ## Frontend Expectations — the Hub Shell
 

@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { Check, Trash, UploadSimple } from '@phosphor-icons/react';
 import { api } from '../api.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
+import ThemeRow from './ThemeRow.jsx';
 import { BUNDLED_WALLPAPERS, DEFAULT_WALLPAPER, dailyWallpaper } from './wallpaper.js';
 import Drawer from '../components/ui/Drawer.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -160,6 +161,16 @@ export default function PersonaliseSheet({ desk, onChange, onClose, askOn, onTog
         </button>
       </div>
       <div className="drawer-body">
+        <section className="personalise-section">
+          <h3 className="section-head">Theme</h3>
+          <ThemeRow wallpaper={desk.wallpaper} onUseWallpaper={(id) => patch({ wallpaper: id })} />
+          <p className="panel-note">
+            A theme decides what light and dark are made of. Which of the two you are in stays in
+            Settings &rsaquo; Appearance. A theme never changes your wallpaper on its own, and never
+            loads anything from the internet.
+          </p>
+        </section>
+
         <section className="personalise-section">
           <h3 className="section-head">Wallpaper</h3>
           <div className="personalise-walls" role="group" aria-label="Wallpaper">

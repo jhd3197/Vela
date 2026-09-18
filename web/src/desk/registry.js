@@ -54,8 +54,13 @@ export function getWidgetType(types, id) {
 export function deriveWidgetTitle(widget, type) {
   const cfg = widget?.cfg || {};
   if (cfg.title) return cfg.title;
-  if (type?.title) return type.title(cfg);
-  return type?.name || widget?.type || 'Widget';
+  // A type may name itself from its own configuration -- a Volume widget is
+  // called after the volume it points at, so a desk with three of them does
+  // not read "Volume" three times. Until it has been pointed at one there is
+  // nothing to derive, and falling through to the type's name is what keeps
+  // the frame from having no accessible name at all.
+  const derived = type?.title ? type.title(cfg) : '';
+  return derived || type?.name || widget?.type || 'Widget';
 }
 
 /**
@@ -92,6 +97,10 @@ export function useWidgetTypes(apps, appRender) {
           app,
           widgetId: declared.id,
           layout: declared.layout,
+          // The size the app asked for, not the cells it got: a chart drawn
+          // one cell across is a line rather than a row of slivers, and only
+          // the declaration says which the app meant.
+          size: declared.size,
           render: appRender,
         });
       }

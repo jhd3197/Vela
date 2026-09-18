@@ -50,6 +50,16 @@ try {
       isMobile: viewport.width < 500,
       hasTouch: viewport.width < 500,
     });
+    // The desk greets a first visit, and this suite reaches the desk when an
+    // app opens in a window there. The welcome screen is the dashboard suite's
+    // subject, not this one's.
+    await context.addInitScript(() => {
+      try {
+        localStorage.setItem('vela.welcome.v1', 'done');
+      } catch {
+        // A sandboxed app frame has no same-origin storage, and needs none.
+      }
+    });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -282,11 +292,31 @@ try {
     await leaveByRail();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
     await page.waitForURL(`${base}/library`);
-    // Reopen the running app from All apps to check the back-button guard.
-    await page.locator('.rail').getByRole('button', { name: 'All apps' }).click();
-    await page.locator('.apps-overlay .launchpad').waitFor();
-    await page.locator('.launch-tile', { hasText: 'Chat Fixture' }).first().click();
-    await page.waitForURL(`${base}/app/chat-fixture`);
+    // Reopen the running app from All apps, then check the back-button guard on
+    // the page. A tile opens the app the ordinary way, which is a window on the
+    // desk at a desktop width and the full-screen page on a phone, so the two
+    // widths reach the page by different gestures.
+    const openAllApps = async () => {
+      await page.locator('.rail').getByRole('button', { name: 'All apps' }).click();
+      await page.locator('.apps-overlay .launchpad').waitFor();
+    };
+    const chatTile = () => page.locator('.launch-tile', { hasText: 'Chat Fixture' }).first();
+    const cameFrom = page.url();
+    await openAllApps();
+    await chatTile().click();
+    if (viewport.width < 500) {
+      await page.waitForURL(`${base}/app/chat-fixture`);
+    } else {
+      // A window on the desk: a second presentation of the app that is already
+      // running, not a navigation to its page.
+      await page.locator('.window-frame').first().waitFor();
+      await page.waitForURL(`${base}/`);
+      // The page is still there, and it is what `Open full screen` asks for.
+      await openAllApps();
+      await chatTile().click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Open full screen', exact: true }).click();
+      await page.waitForURL(`${base}/app/chat-fixture`);
+    }
     await page
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Message' })
@@ -294,7 +324,8 @@ try {
     await page.goBack();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: 'Discard and leave', exact: true }).click();
-    await page.waitForURL(`${base}/library`);
+    // Back, guarded, then allowed: it lands where the app page was opened from.
+    await page.waitForURL(viewport.width < 500 ? cameFrom : `${base}/`);
     await page.goto(`${base}/app/failed-fixture`);
     await page.getByText('Couldn’t open the app', { exact: true }).waitFor({ timeout: 15000 });
     await page.screenshot({ path: path.join(shots, `failed-${viewport.width}.png`) });

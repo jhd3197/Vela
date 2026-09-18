@@ -1,3 +1,4 @@
+// tokens: spacing
 /* ---------- App tiles ---------- */
 
 /* The launcher's tiles and their loading placeholders. They began on the Home
@@ -7,14 +8,14 @@
 .tiles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
-  gap: 14px;
+  gap: var(--space-5);
 }
 
 .tile-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
+  gap: var(--space-4);
+  padding: var(--space-5);
   border-radius: var(--radius);
   text-decoration: none;
   text-align: left;
@@ -50,7 +51,7 @@
 
 .tile-card-name {
   font-weight: 500;
-  font-size: 15px;
+  font-size: var(--text-base);
 }
 
 .tile-card-meta {
@@ -65,8 +66,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
-  padding: 14px;
+  gap: var(--space-3);
+  padding: var(--space-5);
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--text-faint);
@@ -83,7 +84,7 @@
 
 .tile-add-name {
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 
 .tile-add-sub {
@@ -123,10 +124,4 @@
 
 .tile-card-skeleton {
   pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
-  }
 }

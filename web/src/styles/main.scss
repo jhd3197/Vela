@@ -3,6 +3,22 @@
 
 @use 'tokens';
 @use 'base';
+
+// The primitive layer. Early, so a component partial below can override a
+// primitive for its own surface without fighting import order to do it.
+@use 'primitives/tone';
+@use 'primitives/card';
+@use 'primitives/stat';
+@use 'primitives/meter';
+@use 'primitives/ring';
+@use 'primitives/bars';
+@use 'primitives/kv';
+@use 'primitives/rows';
+@use 'primitives/pill';
+@use 'primitives/tag';
+@use 'primitives/seg';
+@use 'primitives/sparkline';
+@use 'primitives/clock';
 @use 'layout/page';
 @use 'layout/rail';
 @use 'layout/workspace';

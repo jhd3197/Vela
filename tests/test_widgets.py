@@ -22,7 +22,10 @@ from vela.api import create_app
 from vela.config import Config
 from vela.manifest import ManifestError, validate_manifest
 from vela.widgets import (
+    MAX_SERIES,
     MAX_SUMMARY_BYTES,
+    MIN_SERIES,
+    WIDGET_LAYOUTS,
     WidgetError,
     validate_declarations,
     validate_summary,
@@ -70,7 +73,7 @@ class DeclarationTests(unittest.TestCase):
         cases = {
             "widget id must match": [{**WIDGETS[0], "id": "Sync"}],
             "duplicate widget id": [WIDGETS[0], WIDGETS[0]],
-            "layout must be one of": [{**WIDGETS[0], "layout": "chart"}],
+            "layout must be one of": [{**WIDGETS[0], "layout": "gauge"}],
             "size must be s, m or l": [{**WIDGETS[0], "size": "xl"}],
             "needs a name": [{**WIDGETS[0], "name": ""}],
             "unknown fields": [{**WIDGETS[0], "colour": "red"}],
@@ -87,7 +90,7 @@ class DeclarationTests(unittest.TestCase):
     def test_a_bad_declaration_fails_the_whole_manifest(self):
         with self.assertRaises(ManifestError):
             validate_manifest(
-                manifest_with_widgets([{**WIDGETS[0], "layout": "chart"}]),
+                manifest_with_widgets([{**WIDGETS[0], "layout": "gauge"}]),
                 "chat-fixture",
                 Path("chat-fixture"),
             )
@@ -123,6 +126,73 @@ class SummaryTests(unittest.TestCase):
         # Nothing to badge is the absence of one, not an empty circle.
         self.assertNotIn("badge", validate_summary({"badge": ""}))
         self.assertNotIn("badge", validate_summary({"badge": "   "}))
+
+    def test_a_chart_publishes_a_series_and_the_range_to_read_it_against(self):
+        checked = validate_summary(
+            {"series": [3, 7, 4, 9, 6, 11, 8], "domain": [0, 12], "caption": "syncs per day"}
+        )
+        self.assertEqual(checked["series"], [3.0, 7.0, 4.0, 9.0, 6.0, 11.0, 8.0])
+        self.assertEqual(checked["domain"], [0.0, 12.0])
+        # A domain is optional: without one the desk scales to the series.
+        self.assertNotIn("domain", validate_summary({"series": [1, 2]}))
+
+    def test_a_series_is_bounded_at_both_ends(self):
+        # One point is a number, not a series; the desk would draw a single bar
+        # against nothing.
+        with self.assertRaises(WidgetError) as few:
+            validate_summary({"series": [1]})
+        self.assertIn(str(MIN_SERIES), str(few.exception))
+        self.assertEqual(few.exception.status, 422)
+        # Twenty-four is a day by the hour. More bars than that in a widget two
+        # cells wide is a texture, not a reading.
+        self.assertEqual(
+            len(validate_summary({"series": list(range(MAX_SERIES))})["series"]), MAX_SERIES
+        )
+        with self.assertRaises(WidgetError) as many:
+            validate_summary({"series": list(range(MAX_SERIES + 1))})
+        self.assertIn(str(MAX_SERIES), str(many.exception))
+
+    def test_a_series_holds_finite_numbers_and_nothing_else(self):
+        for bad in ([1, "2"], [1, None], [1, {"x": 1}], [1, [2]]):
+            with self.assertRaises(WidgetError, msg=bad) as refused:
+                validate_summary({"series": bad})
+            self.assertIn("numbers", str(refused.exception))
+        # `True` is an int in Python and would plot as 1, which is a
+        # measurement nobody took.
+        with self.assertRaises(WidgetError):
+            validate_summary({"series": [True, False]})
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            with self.assertRaises(WidgetError) as refused:
+                validate_summary({"series": [1, bad]})
+            self.assertIn("finite", str(refused.exception))
+
+    def test_a_domain_is_a_min_below_a_max(self):
+        for bad in ([5], [5, 5, 5], [5, 5], [9, 2], ["a", "b"], [1, float("nan")], 5):
+            with self.assertRaises(WidgetError, msg=bad) as refused:
+                validate_summary({"domain": bad})
+            self.assertEqual(refused.exception.status, 422)
+            self.assertIn("domain", str(refused.exception))
+
+    def test_a_chart_still_lives_inside_the_size_cap(self):
+        # The cap is the whole trust model: a series cannot be the way around
+        # it. Twenty-four long doubles, formatted, stay far inside 4 KB.
+        payload = {"series": [1.23456789012345] * MAX_SERIES}
+        self.assertEqual(len(validate_summary(payload)["series"]), MAX_SERIES)
+        self.assertLess(len(json.dumps(payload).encode("utf-8")), MAX_SUMMARY_BYTES)
+
+    def test_a_keyvalue_widget_publishes_the_rows_a_list_does(self):
+        # `keyvalue` is a way of drawing rows, not a new field: an app that
+        # already publishes a list can change one word in its manifest.
+        rows = [{"label": "Groceries", "detail": "$412"}]
+        self.assertEqual(validate_summary({"rows": rows})["rows"], rows)
+
+    def test_the_two_new_layouts_are_declarable(self):
+        self.assertIn("chart", WIDGET_LAYOUTS)
+        self.assertIn("keyvalue", WIDGET_LAYOUTS)
+        # And the four that came before still are, so an app written against
+        # the older contract installs unchanged.
+        for layout in ("stat", "progress", "list", "actions"):
+            self.assertIn(layout, WIDGET_LAYOUTS)
 
     def test_nothing_to_report_is_a_valid_summary(self):
         self.assertEqual(validate_summary({}), {})

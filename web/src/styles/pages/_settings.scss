@@ -1,3 +1,4 @@
+// tokens: spacing
 /* The two name fields in General, stacked so each keeps its own label. */
 .settings-row-stack {
   align-items: flex-start;
@@ -6,14 +7,14 @@
 .identity-fields {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
   min-width: 240px;
 }
 
 .identity-fields .field-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text-dim);
 }

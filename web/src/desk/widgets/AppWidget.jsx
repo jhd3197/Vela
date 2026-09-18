@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button.jsx';
 import useOpenApp from '../../desktops/useOpenApp.js';
 import { useDeskData } from '../DeskDataProvider.jsx';
 import { formatRelativeTime } from '../metrics.js';
+import { Bars, Card, KeyValue, Sparkline } from '../../components/ds/index.js';
 import { DeskEmpty, WidgetList, WidgetMeter, WidgetStat } from './primitives.jsx';
 
 // A summary older than this reads as "as of …" rather than as the current
@@ -23,7 +24,39 @@ function isStale(record) {
   return Number.isFinite(updated) && Date.now() - updated > STALE_MS;
 }
 
-function Body({ layout, summary }) {
+function Body({ layout, summary, size }) {
+  if (layout === 'chart') {
+    const series = summary.series || [];
+    if (series.length < 2) {
+      return <DeskEmpty>{summary.caption || 'Nothing to chart yet.'}</DeskEmpty>;
+    }
+    // Bars need width. At the smallest size the widget is one cell across, so
+    // the same series is drawn as a line instead of as a row of slivers.
+    const Chart = size === 's' ? Sparkline : Bars;
+    return (
+      <>
+        {summary.value ? (
+          <WidgetStat value={summary.value} unit={summary.unit} delta={summary.delta} />
+        ) : null}
+        <Chart
+          series={series}
+          domain={summary.domain || null}
+          caption={size === 's' ? undefined : summary.caption}
+          label={size === 's' ? summary.caption : undefined}
+        />
+        {size === 's' && summary.caption ? (
+          <p className="vela-stat-caption">{summary.caption}</p>
+        ) : null}
+      </>
+    );
+  }
+  if (layout === 'keyvalue') {
+    return summary.rows?.length ? (
+      <KeyValue rows={summary.rows.map((row) => ({ label: row.label, value: row.detail }))} />
+    ) : (
+      <DeskEmpty>{summary.caption || 'Nothing to show.'}</DeskEmpty>
+    );
+  }
   if (layout === 'progress') {
     return (
       <>
@@ -32,7 +65,7 @@ function Body({ layout, summary }) {
           label={summary.value || ''}
           detail={summary.unit || ''}
         />
-        {summary.caption ? <p className="desk-stat-caption">{summary.caption}</p> : null}
+        {summary.caption ? <p className="vela-stat-caption">{summary.caption}</p> : null}
       </>
     );
   }
@@ -75,45 +108,55 @@ export default function AppWidget({ type }) {
   const granted = new Set(record?.grantedActions || []);
   const offered = (summary?.actions || []).filter((action) => granted.has(action.action));
 
+  // The same card a widget Vela wrote itself is drawn on, with the app's own
+  // icon in the slot a core widget puts a Phosphor glyph in. The app is named
+  // in the trailing note rather than in the heading: the heading is what the
+  // widget is, which is what the reader came for, and the desk's rule that a
+  // line is never anonymous is kept either way.
   return (
-    <>
-      <div className="desk-app-head">
+    <Card
+      plain
+      tone={summary?.attention ? 'amber' : 'accent'}
+      icon={
         <button
           type="button"
           className="desk-app-open"
           aria-label={`Open ${app.name}`}
           onClick={open}
         >
-          <AppIcon app={app} size={24} />
+          <AppIcon app={app} size={20} />
         </button>
-        <span className="desk-app-name">{app.name}</span>
-        <span className="desk-app-widget">{type.name}</span>
-        {summary?.attention ? (
+      }
+      title={type.name}
+      meta={
+        summary?.attention ? (
           <span className="desk-app-attention" title="Needs you">
-            <span className="desk-status-dot" data-state="bad" />
+            <span className="vela-row-dot" data-state="bad" />
+            <span className="desk-app-name">{app.name}</span>
           </span>
-        ) : null}
-      </div>
-
+        ) : (
+          <span className="desk-app-name">{app.name}</span>
+        )
+      }
+      footer={
+        type.layout === 'actions' && offered.length
+          ? offered.map((action) => (
+              <Button key={action.action} size="small" onClick={open}>
+                {action.label}
+              </Button>
+            ))
+          : null
+      }
+    >
       {summary ? (
-        <Body layout={type.layout} summary={summary} />
+        <Body layout={type.layout} summary={summary} size={type.size} />
       ) : (
         <DeskEmpty>Open {app.name} to update this.</DeskEmpty>
       )}
 
       {summary && isStale(record) ? (
-        <p className="desk-stat-caption">as of {formatRelativeTime(record.updatedAt)}</p>
+        <p className="vela-stat-caption">as of {formatRelativeTime(record.updatedAt)}</p>
       ) : null}
-
-      {type.layout === 'actions' && offered.length ? (
-        <div className="desk-app-actions">
-          {offered.map((action) => (
-            <Button key={action.action} size="small" onClick={open}>
-              {action.label}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-    </>
+    </Card>
   );
 }

@@ -10,6 +10,36 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Themes: pick how Vela looks, or bring one somebody made.** Personalise
+  gains a Theme row beside Wallpaper. Seven themes ship, each showing its own
+  colours in the picker; choosing one changes the dashboard, every app window's
+  title bar and the rail at once, with no reload, and it is still there after
+  one. Light and dark are unchanged and stay in Settings — a theme decides what
+  light and dark are made of, not which you are in. A theme may suggest a
+  wallpaper; it never changes yours. Import a theme file and Vela shows you what
+  it is and what it would change before applying any of it, keeps only colours,
+  lengths, shadows and fonts from its own list, and tells you what it left out.
+  A theme can never load anything from the internet, and Vela never goes looking
+  for one. Export the theme you are using, edit it, bring it back. Imported
+  themes and your choice are included in backups.
+- **Every theme Vela ships is checked for legibility, every time Vela is
+  built.** Text stands out from the surface behind it, lines and marks stand out
+  from the surfaces they sit on, and a theme that stopped doing either would not
+  ship. One theme, Alto contraste, goes further than the rest.
+- **Every widget on your desk is drawn the same way.** Each card now leads with
+  a small tinted icon and its name, and what it shows underneath follows one
+  recipe whichever app it came from: a number, a bar, a ring, a chart or a list
+  of rows. Health shows how many of its checks passed as a ring; Flows shows the
+  week's automation runs as a chart; Backups shows how long until the next one.
+- **Apps can publish a chart or a table to the desk.** An app's widget may now
+  declare `chart` — up to twenty-four numbers, drawn as bars with the most
+  recent one strongest — or `keyvalue`, a list of label-and-value rows. Both are
+  drawn by Vela from the JSON the app publishes, on the same card as a widget
+  Vela wrote itself; no app code runs on your desk, as before. Manifest schema
+  0.5.0. Apps that use the four original layouts are unaffected.
+- **Text on the light theme is easier to read.** Muted captions and the marks
+  that show what is running were below the contrast Vela promises, and now clear
+  it.
 - **Vela now shows everything it is doing for you in one place.** An automation
   run, an agent desktop's task, an update, a backup, an app being installed and
   the health sweep are all listed the same way, in the same words. System gains
@@ -27,6 +57,13 @@ until the release workflow prepares a tested server version.
   a conversation, clearing a log, resetting the desk and closing a window with
   unsaved work all ask in the same dialog.** Signing out used the browser's own
   prompt; the rest each had a dialog of their own. What they say is unchanged.
+- **For contributors: the dashboard's colour and spacing come from one place.**
+  `web/src/styles/_tokens.scss` is generated from `web/src/design/theme.vela.json`
+  and is no longer edited by hand; tonal ramps are derived in OKLCH on one shared
+  lightness scale. No stylesheet outside it writes a colour, padding, gap and
+  margin read a spacing scale, and a new ratchet guard keeps both true. Reduced
+  motion is honoured from one rule rather than from fourteen. The pieces the
+  dashboard is drawn with live in `web/src/components/ds/`. See `docs/DESIGN.md`.
 - **For contributors: four shared foundations in the dashboard.** The check
   command now runs ratchet guards over the source tree — style ownership, the
   browser-API boundary, the status vocabulary and inline styles — each against a
@@ -37,9 +74,28 @@ until the release workflow prepares a tested server version.
   clipboard or `window.open`. Two concurrent identical GETs now share one
   request, which took one desk load in development from 43 requests to 25 while
   showing more than it did. See `docs/DEVELOPMENT.md` and `docs/TESTING.md`.
+- **For contributors and app developers: four shared foundations in the
+  engine.** Routes now live in `vela/routers/`, one module per group, mounted
+  from the ordered table in `vela/router_registry.py`; `vela/api.py` is the app
+  factory and defines none of them. A service refuses a request by raising a
+  typed error from `vela/errors_http.py`, which one handler renders, so no
+  service module imports FastAPI to say no. Every process-lifetime loop is a
+  `BackgroundLoop` or `BackgroundThread` from `vela/loop.py` with a name in one
+  registry, an idempotent start, a bounded stop and errors that reach the log.
+  `docs/API_SURFACE.md` is now the committed list of every route the engine
+  serves: a route change regenerates it in the same commit. For app developers,
+  every error body now carries `code` (a stable `group.reason` name for the
+  refusal) and `status` alongside `detail`; `detail` is unchanged, so nothing
+  that reads it needs to change. See `docs/DEVELOPMENT.md` and
+  `docs/CONTRACT.md`.
 
 ### Fixed
 
+- **The server download starts again.** The routers that serve the dashboard's
+  API are now listed in one table and loaded by name, which the packaged build
+  could not see, so a downloaded server exited at startup instead of coming up.
+  The build now reads that same table, and a test fails if a new router is ever
+  left out of a download.
 - **Copy buttons work on a server reached over plain HTTP.** "Copy link" on the
   phone-handoff and iOS install screens, and "Copy" on an Ask message, used the
   clipboard API, which browsers do not provide outside a secure context — so on
@@ -47,6 +103,10 @@ until the release workflow prepares a tested server version.
   to selecting the text and copying it.
 - **A double-clicked Save sends one request.** A second click that arrived
   before the button could disable itself sent the form twice.
+- **Typing straight after picking a mention puts the words where you typed
+  them.** In Ask, choosing an app or a bot from the `@` picker and then pressing
+  Shift+Enter moved the caret back in front of the new line a moment later, so
+  the rest of the message went above the break instead of below it.
 - **The rail says which app's page you are on again.** A pinned or running app's
   rail entry stopped carrying that mark for screen readers when it became a
   button that opens a window.

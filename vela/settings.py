@@ -9,7 +9,12 @@ from typing import Any
 from .config import write_json_atomic
 
 DEFAULT_SETTINGS: dict[str, Any] = {
+    # Two settings, deliberately separate. `theme` is the base -- light or dark
+    # -- which is the choice a person makes by time of day. `theme_id` names the
+    # theme, which decides what light and dark are made of. `vela` is the stock
+    # look and means "no inline tokens, the stylesheet as generated".
     "theme": "dark",
+    "theme_id": "vela",
     "chat_model": None,
     "chat_history": True,
     "ntfy_config": {

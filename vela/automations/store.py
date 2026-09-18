@@ -441,13 +441,31 @@ class Store:
             rows = db.execute("SELECT * FROM runs WHERE status='waiting'").fetchall()
         return [dict(row) for row in rows]
 
-    def run_statistics(self, since):
+    def run_statistics(self, since, week_since=None):
+        """Counts since `since`, and a run count per day since `week_since`.
+
+        The per-day counts are what the desk's Flows widget draws as bars. They
+        ride on this query rather than on a second endpoint: the widget already
+        polls this one, and a chart of the week is not worth a second request.
+        """
         with self.connection() as db:
             row = db.execute(
                 'SELECT count(*) AS total, '
                 "SUM(status='succeeded') AS succeeded, "
                 "SUM(status IN ('failed','timed_out','interrupted')) AS failed "
                 'FROM runs WHERE queued_at >= ?', (since,)).fetchone()
+            per_day = None
+            if week_since is not None:
+                # `queued_at` is stored in UTC; the caller passes the UTC
+                # instant its own local week began, and groups by the UTC date
+                # so a run keeps the day it was counted into.
+                per_day = {
+                    item['day']: item['runs']
+                    for item in db.execute(
+                        "SELECT substr(queued_at, 1, 10) AS day, count(*) AS runs "
+                        'FROM runs WHERE queued_at >= ? GROUP BY day ORDER BY day',
+                        (week_since,)).fetchall()
+                }
             duration = db.execute(
                 'SELECT started_at, finished_at FROM runs WHERE queued_at >= ? '
                 'AND started_at IS NOT NULL AND finished_at IS NOT NULL LIMIT 500',
@@ -465,6 +483,10 @@ class Store:
             'succeeded': row['succeeded'] or 0,
             'failed': row['failed'] or 0,
             'averageSeconds': round(sum(elapsed) / len(elapsed), 2) if elapsed else None,
+            # Only for a caller that asked. The automations listing reads these
+            # statistics too, and a key it never requested would be a change to
+            # a payload that had no reason to change.
+            **({} if per_day is None else {'perDay': per_day}),
         }
 
     # ------------------------------------------------------------- grants --

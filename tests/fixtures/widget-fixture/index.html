@@ -26,6 +26,17 @@
             { label: 'Ideas', detail: 'yesterday' },
           ],
         }),
+        Vela.widgets.publish('week', {
+          series: [3, 7, 4, 9, 6, 11, 8],
+          domain: [0, 12],
+          caption: 'syncs per day',
+        }),
+        Vela.widgets.publish('ledger', {
+          rows: [
+            { label: 'Groceries', detail: '$412' },
+            { label: 'Subscriptions', detail: '$96' },
+          ],
+        }),
       ]);
     })
     .then(function () {

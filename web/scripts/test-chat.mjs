@@ -477,9 +477,13 @@ try {
   // Search narrows the list to conversations that actually match.
   const search = page.getByRole('searchbox', { name: 'Search conversations' });
   await search.fill('Second');
-  await settle(() => true, 'search settle');
+  // The list is filtered by a request, so wait for it to narrow rather than
+  // reading the count while the unfiltered list is still on screen. The entry
+  // being searched for is present either way, so waiting for it proves nothing.
+  const listed = () => panel.locator('.conversation-open').count();
+  await settle(async () => (await listed()) === 1, 'the search narrowed the list');
   await entry('Second conversation question').waitFor();
-  assert.equal(await panel.locator('.conversation-open').count(), 1);
+  assert.equal(await listed(), 1);
   await search.fill('no such conversation');
   await page.getByText('No conversation matches', { exact: false }).waitFor();
   await search.fill('');

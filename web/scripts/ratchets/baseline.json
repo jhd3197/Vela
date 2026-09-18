@@ -3,10 +3,13 @@
   "foundations": {},
   "inline-style": {
     "web/src/components/AppIcon.jsx": 1,
+    "web/src/components/ds/Bars.jsx": 1,
+    "web/src/components/ds/Meter.jsx": 1,
+    "web/src/components/ds/Sparkline.jsx": 1,
     "web/src/components/ui/ContextMenu.jsx": 1,
     "web/src/components/UpdatesSection.jsx": 1,
     "web/src/desk/grid/DeskGrid.jsx": 2,
-    "web/src/desk/widgets/primitives.jsx": 2,
+    "web/src/desk/ThemeRow.jsx": 1,
     "web/src/desktops/EmptyPane.jsx": 1,
     "web/src/desktops/motion/GenieOverlay.jsx": 1,
     "web/src/desktops/SplitDivider.jsx": 1,
@@ -14,5 +17,6 @@
     "web/src/pages/Launchpad.jsx": 1
   },
   "status-vocabulary": {},
-  "style-ownership": {}
+  "style-ownership": {},
+  "tokens": {}
 }

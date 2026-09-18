@@ -47,14 +47,94 @@ generated output, dependency trees and the lockfile are excluded.
 
 See [the repository guide](REPOSITORIES.md) for sibling app development.
 
+## Backend layout
+
+The engine lives in `vela/`. Reuse these foundations when adding a route, a
+refusal or a loop.
+
+| Location | Responsibility |
+| --- | --- |
+| `api.py` | The app factory. Builds the services, mounts the routers, registers the exception handlers and drives startup and shutdown. It defines no route. |
+| `router_registry.py` | The ordered mount table, as data: one `RouterSpec` per router, with the prefix, the tags and the services that router's factory takes. |
+| `routers/` | One module per group of routes. Each exposes `router(...) -> APIRouter`. |
+| `automations/api.py`, `desktops/api.py` | The two routers that predate `routers/`. Same factory shape, listed in the same registry. |
+| `webapps.py` | The router that serves installed apps under `/apps/{id}/...`. |
+| `errors_http.py` | `VelaError` and its subclasses: the typed refusals a service raises. |
+| `loop.py`, `loop_registry.py` | `BackgroundLoop` and `BackgroundThread`, and the register of process-lifetime loops. |
+
+### Adding a route
+
+Put it in the module under `routers/` that owns its path group, or add a module
+and a `RouterSpec` for it. A factory takes the services it uses as arguments —
+nothing reaches into `app.state` — and the registry names them, so a router that
+asks for a service that does not exist fails when the server is built rather
+than when the route is first called.
+
+Then regenerate the surface inventory in the same commit:
+
+```powershell
+$env:VELA_UPDATE_API_SURFACE=1; python -m unittest tests.test_api_surface
+```
+
+`docs/API_SURFACE.md` is the committed list of every `METHOD /path` the engine
+serves. Regenerating it is how a deliberate route change becomes a reviewable
+diff; a diff you did not intend is a defect in the route, not in the doc.
+
+### Refusing a request
+
+Raise a `vela/errors_http.py` error. `create_app` renders every one of them
+through a single handler, so no module below the HTTP boundary imports FastAPI
+to say no:
+
+```python
+from .errors_http import NotFound
+
+raise NotFound(f"unknown app: {app_id}", code="apps.unknown")
+```
+
+The body is `{"detail", "code", "status"}`, plus `"details"` when a raise site
+has structured context to add. `detail` is the sentence a person reads and is
+the field callers have always used; `code` is `group.reason` and belongs to the
+raise site, chosen from what the code does rather than from the message. A
+service that already has its own error class — `FileError`, `DesktopError`,
+`LifecycleError` — subclasses the base and keeps its own constructor.
+
+### Loops that run for as long as the server does
+
+Build a `BackgroundLoop` (asyncio) or a `BackgroundThread` (blocking work).
+Both take a name, an interval, a tick and an optional `first_delay_s` and
+`run_while`; `start()` is idempotent, `stop()` interrupts the wait rather than
+finishing it, and a tick that raises is logged with the loop's name and the loop
+carries on. Every instance registers itself, `create_app` stops what it built,
+and the name goes in `EXPECTED_LOOPS` in `vela/loop_registry.py` — which is what
+makes a new loop a reviewed addition.
+
+A queue consumer, a per-subprocess reader or a task that runs once per agent run
+is not a process-lifetime loop and does not belong here.
+
+### The structural tests
+
+Three tests keep the layout honest, and each one fails on a tree where the rule
+has slipped:
+
+| Test | What it refuses |
+| --- | --- |
+| `tests/test_api_surface.py` | A served route that is not in `docs/API_SURFACE.md` |
+| `tests/test_router_registry.py` | A router module nothing mounts, a duplicate mount, a prefix that disagrees with the router |
+| `tests/test_api_boundaries.py` | FastAPI imported by a service module, an `HTTPException` anywhere in `vela/`, a route defined in `api.py`, a typed error raised without a code |
+
 ## Dashboard structure
 
-The dashboard lives in `web/src/`. Reuse these foundations when adding a feature:
+The dashboard lives in `web/src/`. Reuse these foundations when adding a feature.
+How it is coloured, spaced and drawn — the tokens, the primitive layer and how a
+theme works — is in [the design system guide](DESIGN.md).
 
 | Location | Responsibility |
 | --- | --- |
 | `styles/main.scss` | Stylesheet entry point; ordered Sass `@use` modules |
-| `styles/_tokens.scss` | Shared colors, fonts, radii, shadows and light/dark theme variables |
+| `styles/_tokens.scss` | **Generated** from `design/theme.vela.json`; do not edit by hand |
+| `design/` | The stock theme, the OKLCH maths, the token tables and the runtime applier |
+| `styles/primitives/`, `components/ds/` | The pieces every widget and card is drawn with |
 | `styles/layout/`, `styles/components/`, `styles/pages/` | Shell styles, reusable UI styles, and feature-specific styles |
 | `components/ui/` | Shared controls, page states, `Dialog` and `Drawer` |
 | `components/` | Vela-specific pieces such as app rows, the shell, and release reviews |
@@ -177,6 +257,10 @@ app's name and its state around that frame instead of the app carrying its own
 bar, declare `"view": {"surface": "embedded", "chrome": "hub"}` in `app.json`.
 `compact` (the default) and `seamless` keep their existing standalone chrome, so
 this is an explicit, per-app choice and nothing changes until a manifest opts in.
+
+[The design system guide](DESIGN.md) describes the tokens the server draws
+itself with, and what a theme may change. An app does not receive them: it is
+told `light` or `dark` and nothing more.
 
 For the appearance itself, copy `vela-app.css`, `vela-theme.js` and
 `vela-viewport.js` from a generated app (`create-vela-app`) or from

@@ -1,0 +1,104 @@
+// tokens: spacing
+/* The card every widget is drawn on.
+ *
+ * The prototype's recipe, top to bottom: a header row with a tinted icon and a
+ * 14px/500 title, an optional trailing note, then the body, then an optional
+ * footer. A desk widget, a Marketplace entry and a Settings section are all
+ * this card, which is the point -- a widget an app published should be
+ * indistinguishable in chrome from one Vela drew itself.
+ *
+ * The card does not set its own surface on the desk: `.desk-frame` already
+ * paints the glass over the wallpaper, and a second fill inside it would show
+ * as a lighter rectangle. `data-plain` is how a card says it is sitting inside
+ * something that has already drawn the surface.
+ */
+
+.vela-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+
+.vela-card[data-plain] {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.vela-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The icon is the only place a card floods anything with its tone, and it is
+   20px across. Accent as a line everywhere else. */
+.vela-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--tone, var(--accent));
+  background: var(--tone-soft, var(--accent-soft));
+  line-height: 0;
+}
+
+.vela-card-title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pushed to the far end of the header: a time, a count, a pill. */
+.vela-card-meta {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.vela-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.vela-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+/* A muted one-liner for "nothing here yet", and the same line phrased as a
+   failure. Every primitive falls back to these rather than drawing an empty
+   chart, because a bar chart of nothing reads as a measurement of zero. */
+.vela-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.vela-empty-error {
+  color: var(--red);
+}

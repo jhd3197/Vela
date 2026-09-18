@@ -1,9 +1,12 @@
+// tokens: spacing
+@use '../wallpapers';
+
 /* ---------- Drawer (app detail) ---------- */
 
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 22, 33, 0.45);
+  background: rgba(var(--scrim-rgb), 0.45);
   backdrop-filter: blur(2px);
   z-index: 40;
   animation: fade-in 150ms ease;
@@ -17,9 +20,11 @@
   width: min(480px, 94vw);
   background: var(--bg-pop);
   border-left: 1px solid var(--border);
+  /* A panel sliding in over the page lifts off it, like the dialog next door. */
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
-  animation: slide-in 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: slide-in var(--motion-base) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 /* A page's own panel on a phone (Ask's conversations) opens from the left
@@ -47,27 +52,20 @@
   padding-top: env(safe-area-inset-top);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .drawer-overlay,
-  .drawer {
-    animation: none;
-  }
-}
-
 .drawer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 22px 24px 18px;
-  padding-top: calc(22px + env(safe-area-inset-top));
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-7) var(--space-6);
+  padding-top: calc(var(--space-7) + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
 }
 
 .drawer-title-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-5);
   min-width: 0;
 }
 
@@ -80,7 +78,7 @@
 /* Which desktop a scoped sheet is changing. Quiet, because the answer is
    usually "the one I am looking at" and only matters when it is not. */
 .drawer-scope {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
@@ -89,7 +87,7 @@
 
 .drawer-meta {
   margin: 2px 0 0;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
 }
 
@@ -99,7 +97,7 @@
   background: none;
   color: var(--text-faint);
   cursor: pointer;
-  padding: 6px;
+  padding: var(--space-2);
   border-radius: 6px;
   display: grid;
   place-items: center;
@@ -116,27 +114,27 @@
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: var(--space-7) var(--space-7);
 }
 
 .drawer-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .drawer-running-note {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--text-faint);
 }
 
 .drawer-section {
-  margin-bottom: 22px;
+  margin-bottom: var(--space-7);
 }
 
 .drawer-section-title {
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-4);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -145,15 +143,15 @@
 }
 
 .drawer-description {
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
   color: var(--text-dim);
 }
 
 .drawer-facts {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 5px 18px;
+  gap: var(--space-2) var(--space-6);
   margin: 0;
   font-size: 13px;
 }
@@ -174,13 +172,13 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .drawer-platforms li {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-4);
   font-size: 13px;
   min-width: 0;
 }
@@ -204,7 +202,7 @@
 
 .drawer-log {
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--space-4) var(--space-5);
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -224,32 +222,112 @@
 }
 
 .drawer-footer {
-  padding: 16px 24px calc(16px + env(safe-area-inset-bottom));
+  padding: var(--space-6) var(--space-7) calc(var(--space-6) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
 }
 
 .drawer-footer .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
 }
 /* ---------- Personalise ---------- */
 
 .personalise-section + .personalise-section {
-  margin-top: 22px;
+  margin-top: var(--space-7);
+}
+
+/* ---------- the theme picker ---------- */
+
+/* Built like the wallpaper picker next to it, because they are the same kind
+   of choice: a strip you can see, a name under it, and a tick on the one you
+   are using. The strip is drawn from the theme's own tokens rather than from a
+   picture, so a theme shows what it will actually do. */
+.personalise-themes {
+  margin-top: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: var(--space-4);
+}
+
+.personalise-theme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.personalise-theme:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.personalise-theme-strip {
+  display: flex;
+  height: 44px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.personalise-theme-swatch {
+  flex: 1;
+}
+
+.personalise-theme-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+
+.personalise-theme.is-selected .personalise-theme-name {
+  color: var(--nav-active-text);
+  font-weight: 500;
+}
+
+.personalise-theme.is-selected .personalise-theme-strip {
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 0 0 2px var(--accent);
+}
+
+.personalise-theme-tag {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+/* What an imported theme says about itself before any of it is applied. */
+.personalise-review {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.personalise-review-name {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
 }
 
 .personalise-walls {
-  margin-top: 10px;
+  margin-top: var(--space-4);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 10px;
+  gap: var(--space-4);
 }
 
 .personalise-wall {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--space-2);
   padding: 0;
   border: none;
   background: none;
@@ -276,11 +354,11 @@
    there is no rule per picture here; the gradients and the uploaded image are
    drawn by CSS because they have no thumbnail file. */
 .personalise-wall[data-wallpaper='sage'] .personalise-wall-preview {
-  background-image: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
+  background-image: wallpapers.paint(wallpapers.$sage);
 }
 
 .personalise-wall[data-wallpaper='night'] .personalise-wall-preview {
-  background-image: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
+  background-image: wallpapers.paint(wallpapers.$night);
 }
 
 /* The sheet is shown the selected desktop's own image, so the address comes
@@ -296,16 +374,16 @@
 .personalise-wall-name {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .personalise-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 11px 0;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--border);
   font-size: 13.5px;
 }
@@ -322,7 +400,7 @@
 
 .personalise-row small {
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .personalise-row input[type='checkbox'] {
@@ -335,8 +413,8 @@
 /* Naming the place the weather is for. A field and its button on one row. */
 .personalise-place {
   display: flex;
-  gap: 8px;
-  margin: 11px 0 0;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
 }
 
 .personalise-place .field {
@@ -348,15 +426,15 @@
 .welcome-names {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  margin: 0 0 20px;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-7);
   text-align: left;
 }
 
 .welcome-names .field-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text-dim);
 }

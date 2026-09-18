@@ -1,0 +1,93 @@
+// tokens: spacing
+/* A list of things, each with a name, a line of detail and a trailing time.
+ *
+ * What "Running now" and "Needs you" are made of. A row may lead with a dot in
+ * its own tone -- cyan for running, amber for waiting -- and may end with
+ * something the widget puts there, usually a time or a button.
+ */
+
+.vela-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.vela-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.vela-row-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone, var(--green));
+}
+
+.vela-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vela-row-label {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vela-row-detail {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* A time, a count, or the app's own granted action buttons. They sit right,
+   wrap under on a narrow widget, and never squeeze the name out of the row. */
+.vela-row-tail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* The dashboard's own status vocabulary, which `operations/status.js` speaks
+   and a ratchet guards. A dot lit by state rather than by tone maps through
+   here, so a widget keeps saying `ok`, `off` or `bad` while the primitive keeps
+   speaking in tones. */
+.vela-row-dot[data-state='ok'] {
+  background: var(--green);
+}
+
+.vela-row-dot[data-state='off'] {
+  background: var(--text-faint);
+}
+
+.vela-row-dot[data-state='bad'] {
+  background: var(--red);
+}
+
+/* A row that opens something. No chrome of its own -- the row is the target. */
+.vela-row-open {
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}

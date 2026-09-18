@@ -1,7 +1,8 @@
+// tokens: spacing
 .connected-app-dialog {
   width: min(520px, calc(100vw - 32px));
   h2 {
-    margin: 0 0 12px;
+    margin: 0 0 var(--space-4);
   }
   > p {
     color: var(--text-dim);
@@ -12,10 +13,10 @@
 .connected-app-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 24px;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
   label {
-    margin-top: 8px;
+    margin-top: var(--space-3);
     font-weight: 600;
   }
   input {
@@ -25,7 +26,7 @@
   input[type='color'] {
     width: 64px;
     height: 40px;
-    padding: 4px;
+    padding: var(--space-1);
   }
   .panel-note {
     margin: 0;
@@ -36,8 +37,8 @@
 .connected-app-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .connected-app-address {
@@ -45,8 +46,8 @@
 }
 
 .connected-app-remove {
-  margin-top: 24px;
-  padding-top: 16px;
+  margin-top: var(--space-7);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--border);
   p {
     font-size: 13px;
@@ -61,8 +62,8 @@
 .connected-app-help {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 20px;
-  padding: 10px 16px;
+  gap: var(--space-1) var(--space-7);
+  padding: var(--space-4) var(--space-6);
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-dim);

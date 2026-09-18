@@ -35,11 +35,57 @@ node web/scripts/ratchet.mjs --update   # rewrite the baseline after a cleanup
 node web/scripts/ratchet.mjs --only browser-boundary
 ```
 
+Two of the guards belong to the design system. `tokens` refuses a colour written
+anywhere but the generated token sheet, a hand edit to that sheet, and a raw
+pixel `padding`, `gap` or `margin` between 3px and 28px in a partial that has
+declared itself migrated. `themes` regenerates every bundled theme from its
+recipe and measures its contrast, so a theme that drifts or stops being readable
+fails here rather than on somebody's screen. Both sit at zero: the design system
+has no baselined findings, only counted line escapes for art.
+
+```bash
+node web/scripts/build-tokens.mjs   # after changing web/src/design/
+node web/scripts/build-themes.mjs   # after changing a theme recipe
+```
+
+`build-themes.mjs` writes nothing while any bundled theme fails the gate.
+
 A line that must stay as it is carries `// ratchet: allow <guard id> <reason>`;
 the escape is counted and `--report` lists it. `--update` refuses to raise a
 count unless `--allow-growth <guard id>` says so on the same command line, which
 leaves the decision in the Git history. Writing a guard is in
 [DEVELOPMENT.md](DEVELOPMENT.md).
+
+`web/scripts/compare-screenshots.mjs` is what a visual change is checked
+against: capture before, make the change, capture after, compare. It starts its
+own disposable engine and never touches an installed server.
+
+```bash
+node web/scripts/compare-screenshots.mjs capture .local/shots/before 17750
+node web/scripts/compare-screenshots.mjs capture .local/shots/after 17750
+node web/scripts/compare-screenshots.mjs compare .local/shots/before .local/shots/after .local/shots/diff
+```
+
+Capture both sides on the same port, because the dashboard prints the address it
+is served on; the clock is frozen at capture time for the same reason. The
+comparison reports how far the changed pixels moved as well as how many moved,
+and both matter: a large soft gradient re-dithers between builds, which counts a
+quarter of the desk as changed while a max delta of 2 says nothing looks
+different. Then open the diff image. A percentage alone has never closed a
+change. The tool applies the base by attribute, so it measures the stock theme;
+a non-stock theme needs the base set through the API.
+
+`web/scripts/test-shared-ui.mjs` carries the design system's browser evidence: a
+gallery of every primitive in every tone and both bases, asserting each mark
+resolves to the colour its tone names; every contrast pair of every bundled
+theme measured as the browser computes it, not as the maths predicts it; reduced
+motion stopping everything on the page; and the segmented control showing its
+focus ring and moving on the arrow keys.
+
+`web/scripts/fixtures/theme-*.json` are the import cases, one per outcome — a
+value carrying `url(`, one trying to close its own declaration, a font Vela
+would have to fetch, a schema version from the future, a slug that is not one,
+and the name of a theme that ships.
 
 `web/scripts/test-desktops.mjs` covers the dashboard side against a real engine
 on its own port: the migrated desk as Desktop 1, a second workspace with its own

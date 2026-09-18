@@ -10,13 +10,22 @@ import uuid
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from pathlib import Path
+from .errors_http import VelaError
 
 
-class AppServiceError(Exception):
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status = status
-        self.detail = detail
+class AppServiceError(VelaError):
+    """A refusal an app or the dashboard is told about, with its status.
+
+    Predates `vela.errors_http` and keeps its `(status, detail)` constructor:
+    every caller passes the status positionally, and an app's SDK reads the
+    status and `detail`. Inheriting the base is what puts `code` in the body.
+    """
+
+    code = "app.error"
+
+    def __init__(self, status: int, detail: str, *, code: str | None = None,
+                 details=None):
+        super().__init__(detail, code=code, status=status, details=details)
 
 
 class AppStorage:

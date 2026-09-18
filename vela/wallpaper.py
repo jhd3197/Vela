@@ -11,6 +11,7 @@ dashboard and cost nothing.
 from __future__ import annotations
 
 from pathlib import Path
+from .errors_http import VelaError
 
 #: An 8 MB photograph is already generous for a desk background, and it is the
 #: point past which loading it starts to be noticeable on a phone.
@@ -33,11 +34,13 @@ _SIGNATURES = {
 }
 
 
-class WallpaperError(Exception):
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status = status
-        self.detail = detail
+class WallpaperError(VelaError):
+    """A picture Vela will not store, with the status and the reason."""
+
+    code = "wallpaper.refused"
+
+    def __init__(self, status: int, detail: str, *, code: str | None = None):
+        super().__init__(detail, code=code, status=status)
 
 
 class Wallpaper:

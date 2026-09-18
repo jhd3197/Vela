@@ -27,8 +27,37 @@ import {
   VolumeWidget,
 } from './widgets/SystemWidgets.jsx';
 import { WidgetClock } from './widgets/primitives.jsx';
+import WidgetCard from './widgets/WidgetCard.jsx';
 
-export const CORE_WIDGET_TYPES = [
+/**
+ * The prototype's recipe, applied once.
+ *
+ * Every card on the Home mockup carries a tinted icon and a 14px heading, so
+ * every widget here does too rather than ten widgets each remembering to. The
+ * header is the widget's own content and not the frame's chrome: in view mode
+ * `WidgetFrame` draws nothing at all, so this is what tells you which card is
+ * which -- and it scrolls and wraps with the body, as the mockup's does.
+ *
+ * `bare` is for a widget that is its own heading. The clock is the only one:
+ * the time is the content, and a row reading "Clock" above it would be saying
+ * what the reader can already see.
+ */
+function withCard({ tone = 'accent', bare = false, render: Render }) {
+  if (bare) return Render;
+  return function CardedWidget(props) {
+    return (
+      <WidgetCard
+        type={props.type}
+        title={props.type?.title?.(props.cfg || {}) || undefined}
+        tone={tone}
+      >
+        <Render {...props} />
+      </WidgetCard>
+    );
+  };
+}
+
+const CORE_WIDGETS = [
   {
     id: 'clock',
     name: 'Clock',
@@ -39,6 +68,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    bare: true,
     render: ({ cfg, ctx }) => (
       <WidgetClock showSeconds={cfg.seconds === true} weather={ctx?.weather} />
     ),
@@ -53,6 +83,7 @@ export const CORE_WIDGET_TYPES = [
     h: 2,
     min: [2, 1],
     defaultCfg: {},
+    tone: 'accent',
     render: AppsWidget,
   },
   {
@@ -65,6 +96,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'cyan',
     render: RunningWidget,
   },
   {
@@ -77,6 +109,7 @@ export const CORE_WIDGET_TYPES = [
     h: 2,
     min: [2, 1],
     defaultCfg: {},
+    tone: 'accent',
     render: AskWidget,
   },
   {
@@ -89,6 +122,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'amber',
     render: NeedsYouWidget,
   },
   {
@@ -101,6 +135,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'neutral',
     render: SystemWidget,
   },
   {
@@ -117,6 +152,7 @@ export const CORE_WIDGET_TYPES = [
     // The board stores a path, so the frame is named after the volume it is
     // pointed at rather than reading "Volume" three times on one desk.
     title: (cfg) => cfg.label || '',
+    tone: 'cyan',
     render: VolumeWidget,
   },
   {
@@ -129,6 +165,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'accent',
     render: FlowsWidget,
   },
   {
@@ -141,6 +178,7 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'green',
     render: HealthWidget,
   },
   {
@@ -153,6 +191,17 @@ export const CORE_WIDGET_TYPES = [
     h: 1,
     min: [1, 1],
     defaultCfg: {},
+    tone: 'cyan',
     render: BackupsWidget,
   },
 ];
+
+/**
+ * The types the desk actually renders: the list above with the recipe applied.
+ * `withCard` is done here rather than inside each widget so a widget file stays
+ * about its own data, and so a widget added later cannot forget the header.
+ */
+export const CORE_WIDGET_TYPES = CORE_WIDGETS.map((type) => ({
+  ...type,
+  render: withCard(type),
+}));

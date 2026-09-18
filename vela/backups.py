@@ -40,6 +40,12 @@ KEEP_BACKUPS = 10
 #: backup is not a copy of a browser session.
 BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.sqlite")
 
+#: Directories a backup copies whole, file by file. `themes/` holds the
+#: themes a user imported -- somebody else's work that they chose to keep, and
+#: nowhere else on the disk. Bundled themes are not here: they ship with the
+#: server and would only go stale inside a backup.
+BACKED_UP_DIRECTORIES = ("themes",)
+
 #: The SQLite databases a backup copies through the engine rather than the file
 #: system, so a write in progress cannot produce a torn copy.
 BACKED_UP_DATABASES = ("app-data.sqlite", "desktops.sqlite")
@@ -53,6 +59,22 @@ KEEP_SAFETY = 3
 _NAME_RE = re.compile(r"^(?:pre-restore-)?\d{8}-\d{6}(?:-\d+)?$")
 _TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
+
+
+def _theme_reads(path) -> bool:
+    """Whether a backed-up theme still reads as one this version accepts.
+
+    Imported inside the function: `vela.themes` reads the token whitelist the
+    dashboard's build exports, and backups must keep working on a server whose
+    assets are being rebuilt.
+    """
+    try:
+        from .themes import validate_document
+
+        validate_document(json.loads(path.read_text(encoding="utf-8")))
+        return True
+    except Exception:  # noqa: BLE001 - any failure means "not a theme any more"
+        return False
 
 
 class BackupError(Exception):
@@ -102,6 +124,14 @@ class BackupStore:
                 finally:
                     target_db.close()
                     source_db.close()
+            for folder in BACKED_UP_DIRECTORIES:
+                source_dir = self._config.data_dir / folder
+                if not source_dir.is_dir():
+                    continue
+                for item in sorted(source_dir.glob("*.json")):
+                    destination = target / folder
+                    destination.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(item, destination / item.name)
             if installed.is_dir():
                 for app_dir in sorted(installed.iterdir()):
                     manifest_file = app_dir / "app.json"
@@ -264,12 +294,30 @@ class BackupStore:
         safety = self.create(prefix=SAFETY_PREFIX)
 
         restored: list[str] = []
+        skipped: list[str] = []
         try:
             for filename in BACKED_UP_FILES:
                 copy = source / filename
                 if copy.is_file():
                     shutil.copy2(copy, self._config.data_dir / filename)
                     restored.append(filename)
+            # A theme is read again on the way back in. One that this version
+            # no longer accepts is left out and named in the report rather than
+            # restored into a dashboard that would skip it silently for ever --
+            # and rather than being dropped without saying so, because it is
+            # somebody's work.
+            for folder in BACKED_UP_DIRECTORIES:
+                copied = source / folder
+                if not copied.is_dir():
+                    continue
+                destination = self._config.data_dir / folder
+                destination.mkdir(parents=True, exist_ok=True)
+                for item in sorted(copied.glob("*.json")):
+                    if folder == "themes" and not _theme_reads(item):
+                        skipped.append(f"{folder}/{item.name}")
+                        continue
+                    shutil.copy2(item, destination / item.name)
+                    restored.append(f"{folder}/{item.name}")
             installed = source / "installed"
             if installed.is_dir():
                 for app_dir in sorted(installed.iterdir()):
@@ -297,10 +345,19 @@ class BackupStore:
             except Exception:  # noqa: BLE001 - the app can be opened by hand
                 failed.append(app)
 
-        audit("restore", f"backup={name} safety={safety['name']} files={len(restored)}", actor=actor)
+        audit(
+            "restore",
+            f"backup={name} safety={safety['name']} files={len(restored)} "
+            f"skipped={len(skipped)}",
+            actor=actor,
+        )
         return {
             "name": name,
             "restored": restored,
+            # Anything in the backup this version could not take back, named.
+            # A restore that quietly drops somebody's theme is a restore that
+            # lied about what it did.
+            "skipped": skipped,
             "safety": safety["name"],
             "stopped": stopped,
             "restarted": restarted,

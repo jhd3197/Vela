@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from vela import __version__
+from vela.router_registry import ROUTERS
 from vela.updates import platform_architecture
 import importlib.util
 
@@ -64,6 +65,20 @@ def browser_assets():
         return options, notes
     options += ['--add-data', f'{worker}:scripts/browser-worker']
     return options, notes
+
+
+def router_imports():
+    """Name every router module `create_app` loads by string at runtime.
+
+    `vela/router_registry.py` holds the mount order as data and imports each
+    module with `import_module`, which PyInstaller's static analysis cannot
+    follow. Reading the same list here keeps the bundle complete when a router
+    is added or renamed, instead of failing at startup with ModuleNotFoundError.
+    """
+    options = []
+    for module in sorted({spec.module for spec in ROUTERS}):
+        options += ['--hidden-import', module]
+    return options
 
 
 def browser_notices(bundle):
@@ -120,6 +135,9 @@ def main():
         '--distpath', str(output / 'dist'), '--workpath', str(output / 'work'),
         '--specpath', str(output), '--paths', str(ROOT),
         '--hidden-import', 'vela.api', '--collect-submodules', 'uvicorn',
+        # `create_app` imports its routers by name from the registry, so
+        # PyInstaller cannot follow them; name them from the same list.
+        *router_imports(),
         # psutil is imported lazily by vela/system_metrics.py, so PyInstaller
         # cannot see it by following imports.
         '--hidden-import', 'psutil',

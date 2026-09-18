@@ -12,7 +12,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--text-base);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   transition:
@@ -106,5 +106,34 @@ a {
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+/* Reduced motion, decided once.
+ *
+ * Someone who has asked their operating system for less movement has asked the
+ * whole dashboard, not the parts a stylesheet remembered to name. Sixteen
+ * partials used to each turn their own transitions off, which meant every
+ * widget added since the last sweep kept its fade.
+ *
+ * Two halves. The motion tokens go to zero, so anything reading `--motion-*`
+ * simply has no duration. The universal rule catches everything else -- the
+ * keyframes, and any transition still written with its own number -- at a
+ * duration short enough to be invisible but not zero, because a zero-length
+ * animation does not fire `animationend` and a few listeners wait for it. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

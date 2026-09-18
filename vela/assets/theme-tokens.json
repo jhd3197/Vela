@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "generated_by": "web/scripts/build-tokens.mjs",
+  "tokens": {
+    "--bg": "color",
+    "--bg-rail": "color",
+    "--bg-workspace": "color",
+    "--bg-panel": "color",
+    "--bg-header": "color",
+    "--bg-card": "color",
+    "--bg-field": "color",
+    "--bg-inset": "color",
+    "--bg-pop": "color",
+    "--text": "color",
+    "--text-dim": "color",
+    "--text-faint": "color",
+    "--border": "color",
+    "--border-strong": "color",
+    "--neutral": "color",
+    "--accent": "color",
+    "--cyan": "color",
+    "--green": "color",
+    "--amber": "color",
+    "--red": "color",
+    "--radius-sm": "length",
+    "--radius-md": "length",
+    "--radius-lg": "length",
+    "--font": "font",
+    "--mono": "font",
+    "--shadow-sm": "shadow",
+    "--shadow-md": "shadow",
+    "--shadow-lg": "shadow",
+    "--glow": "gradient",
+    "--scrim": "color",
+    "--glass": "color",
+    "--on-wall": "color",
+    "--on-accent": "color"
+  },
+  "groups": {
+    "ground": [
+      "--bg",
+      "--bg-rail",
+      "--bg-workspace",
+      "--bg-panel",
+      "--bg-header",
+      "--bg-card",
+      "--bg-field",
+      "--bg-inset",
+      "--bg-pop"
+    ],
+    "text": [
+      "--text",
+      "--text-dim",
+      "--text-faint"
+    ],
+    "border": [
+      "--border",
+      "--border-strong"
+    ],
+    "role": [
+      "--neutral",
+      "--accent",
+      "--cyan",
+      "--green",
+      "--amber",
+      "--red"
+    ],
+    "radius": [
+      "--radius-sm",
+      "--radius-md",
+      "--radius-lg"
+    ],
+    "font": [
+      "--font",
+      "--mono"
+    ],
+    "shadow": [
+      "--shadow-sm",
+      "--shadow-md",
+      "--shadow-lg"
+    ],
+    "glow": [
+      "--glow"
+    ],
+    "wall": [
+      "--scrim",
+      "--glass"
+    ],
+    "ink": [
+      "--on-wall",
+      "--on-accent"
+    ]
+  },
+  "aliases": {
+    "--radius": "--radius-md",
+    "--shadow-card": "--shadow-md",
+    "--shadow-pop": "--shadow-lg"
+  },
+  "fonts": [
+    "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "Georgia, 'Times New Roman', serif",
+    "ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace"
+  ],
+  "swatches": [
+    "--bg",
+    "--bg-card",
+    "--accent",
+    "--cyan",
+    "--text",
+    "--border"
+  ],
+  "ramp": {
+    "roles": [
+      "neutral",
+      "accent",
+      "cyan"
+    ],
+    "steps": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+    ],
+    "stops": [
+      0.971,
+      0.93,
+      0.869,
+      0.779,
+      0.68,
+      0.579,
+      0.48,
+      0.38,
+      0.29
+    ]
+  }
+}

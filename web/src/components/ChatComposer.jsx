@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUp, At, Square, SquaresFour, UsersThree } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
@@ -52,6 +52,24 @@ export default function ChatComposer({
       document.getElementById(`app-mention-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, mention]);
 
+  // Where the caret belongs after the box's text was changed for the person
+  // rather than by them — inserting a mention, or opening the picker.
+  //
+  // It has to be put back in the same frame the new text is painted in. On a
+  // requestAnimationFrame it can land a keystroke late instead: someone who
+  // picks a mention and immediately types a newline gets the caret yanked back
+  // in front of it, and their next words go before the break rather than after.
+  // A layout effect runs as soon as the DOM carries the new value and before
+  // anything else can be typed.
+  const caret = useRef(null);
+  useLayoutEffect(() => {
+    if (caret.current === null) return;
+    const at = caret.current;
+    caret.current = null;
+    field.current?.focus();
+    field.current?.setSelectionRange(at, at);
+  });
+
   useEffect(() => {
     const el = field.current;
     el.style.height = 'auto';
@@ -83,10 +101,7 @@ export default function ChatComposer({
         { id: match.entity.id, label },
       ]);
     setMention(null);
-    requestAnimationFrame(() => {
-      field.current?.focus();
-      field.current?.setSelectionRange(cursor, cursor);
-    });
+    caret.current = cursor;
   }
 
   function send() {
@@ -107,10 +122,7 @@ export default function ChatComposer({
     setInput(next);
     const cursor = start + prefix.length;
     detect(next, cursor);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(cursor, cursor);
-    });
+    caret.current = cursor;
   }
 
   function keyDown(event) {

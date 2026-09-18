@@ -1,0 +1,68 @@
+// tokens: spacing
+/* Tone, for every primitive.
+ *
+ * A primitive is told what it means -- `data-tone="amber"` on a meter, a pill,
+ * a card's icon -- and reads `--tone` and `--tone-soft` rather than naming a
+ * role itself. That is what lets one rule in `_meter.scss` draw a healthy bar
+ * and a failing one, and what lets a widget change what it is saying without
+ * changing which class it wears.
+ *
+ * Accent is the default because the prototype's cards are drawn in it, and
+ * because a primitive with nothing particular to say should not be shouting a
+ * status colour.
+ *
+ * Origin: ServerKit `frontend/src/components/ds/Pill.jsx`, which took a
+ * `tone` prop and looked the colour up in JavaScript. Here the lookup is a
+ * selector, so a tone survives being rendered on the server, being copied into
+ * another component, and being set by a widget that never imports anything.
+ */
+
+[data-tone] {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  --tone-strong: var(--accent-strong);
+}
+
+[data-tone='neutral'] {
+  --tone: var(--neutral-600);
+  --tone-soft: var(--bg-inset);
+  --tone-strong: var(--text);
+}
+
+[data-tone='cyan'] {
+  --tone: var(--cyan);
+  --tone-soft: var(--cyan-100);
+  --tone-strong: var(--cyan-700);
+}
+
+[data-tone='green'] {
+  --tone: var(--green);
+  --tone-soft: var(--green-soft);
+  --tone-strong: var(--green);
+}
+
+[data-tone='amber'] {
+  --tone: var(--amber);
+  --tone-soft: var(--amber-soft);
+  --tone-strong: var(--amber);
+}
+
+[data-tone='red'] {
+  --tone: var(--red);
+  --tone-soft: var(--red-soft);
+  --tone-strong: var(--red);
+}
+
+/* On a dark ground the 100 step of a ramp is a near-white, which is the wrong
+   end for a tint. The soft tones that come from a ramp rather than from an
+   alpha take their dark-base step here. */
+[data-theme='dark'] {
+  [data-tone='cyan'] {
+    --tone-soft: color-mix(in srgb, var(--cyan) 14%, transparent);
+    --tone-strong: var(--cyan-300);
+  }
+
+  [data-tone='neutral'] {
+    --tone-strong: var(--text);
+  }
+}

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from .errors_http import Unprocessable
 
 BOARD_VERSION = 1
 #: Columns per board, and the only board names there are.
@@ -45,8 +46,10 @@ CORE_WIDGET_TYPES = (
 )
 
 
-class DeskError(Exception):
+class DeskError(Unprocessable):
     """A board that cannot be stored, with the reason to show the user."""
+
+    code = "desk.invalid"
 
 
 def default_boards() -> dict[str, Any]:

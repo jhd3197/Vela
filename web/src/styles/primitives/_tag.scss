@@ -1,0 +1,25 @@
+// tokens: spacing
+/* A small outlined label: a category, a version, a count.
+ *
+ * The outlined sibling of the pill. Where a pill says what state something is
+ * in, a tag says what kind of thing it is, and a board full of tinted pills
+ * stops meaning anything -- so the tag carries a line and no fill.
+ */
+
+.vela-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.vela-tag[data-tone] {
+  border-color: var(--tone, var(--accent));
+  color: var(--tone-strong, var(--accent-strong));
+}

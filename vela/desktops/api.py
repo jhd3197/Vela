@@ -12,15 +12,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..agent_runs.artifacts import MAX_UPLOAD_BYTES as MAX_ARTIFACT_UPLOAD
-from ..app_storage import AppServiceError
-from ..desk import DeskError
+from ..errors_http import NotFound, TooLarge, Unavailable
 from ..wallpaper import MAX_WALLPAPER_BYTES, WallpaperError
-from .models import MAX_NAME, DesktopConflict, DesktopError
+from .models import MAX_NAME
 
 
 class CreateDesktop(BaseModel):
@@ -169,15 +168,6 @@ class SaveLayout(BaseModel):
     clear: list[str] = Field(default_factory=list, max_length=4)
 
 
-def conflict(exc: DesktopConflict) -> HTTPException:
-    """409 with the revision to reload, the same header `/api/desk` has used."""
-    return HTTPException(
-        status_code=409,
-        detail=exc.detail,
-        headers={"X-Vela-Desk-Revision": str(exc.revision)},
-    )
-
-
 def router(desktops, *, runs=None) -> APIRouter:
     """The desktop routes, and — when a run service exists — its task routes.
 
@@ -187,23 +177,15 @@ def router(desktops, *, runs=None) -> APIRouter:
     """
     api = APIRouter(prefix="/api/desktops", tags=["desktops"])
 
-    def _fail(exc: DesktopError) -> HTTPException:
-        if isinstance(exc, DesktopConflict):
-            return conflict(exc)
-        return HTTPException(status_code=exc.status, detail=exc.detail)
-
     @api.get("")
     def list_desktops() -> dict:
         return desktops.list()
 
     @api.post("", status_code=201)
     def create_desktop(payload: CreateDesktop | None = None) -> dict:
-        try:
-            return desktops.create((payload.name if payload else None))
-        except DesktopError as exc:
-            raise _fail(exc)
-
+        return desktops.create((payload.name if payload else None))
     # Declared before "/{desktop_id}" so it is not shadowed by it.
+
     @api.get("/runtime")
     def runtime_status() -> dict:
         return desktops.runtime_status()
@@ -237,24 +219,15 @@ def router(desktops, *, runs=None) -> APIRouter:
 
     @api.get("/{desktop_id}")
     def get_desktop(desktop_id: str) -> dict:
-        try:
-            return desktops.get(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.get(desktop_id)
 
     @api.patch("/{desktop_id}")
     def rename_desktop(desktop_id: str, payload: RenameDesktop) -> dict:
-        try:
-            return desktops.rename(desktop_id, payload.name, payload.revision)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.rename(desktop_id, payload.name, payload.revision)
 
     @api.delete("/{desktop_id}")
     def delete_desktop(desktop_id: str) -> dict:
-        try:
-            result = desktops.delete(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        result = desktops.delete(desktop_id)
         # Its tasks go with it. A run record naming a workspace that no longer
         # exists is a record nobody can act on.
         if runs is not None:
@@ -263,92 +236,57 @@ def router(desktops, *, runs=None) -> APIRouter:
 
     @api.get("/{desktop_id}/boards")
     def get_boards(desktop_id: str) -> dict:
-        try:
-            return desktops.boards(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.boards(desktop_id)
 
     @api.put("/{desktop_id}/boards")
     def put_boards(desktop_id: str, payload: SaveBoards) -> dict:
-        try:
-            return desktops.save_boards(desktop_id, payload.boards, payload.revision)
-        except DesktopConflict as exc:
-            raise conflict(exc)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except DeskError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+        return desktops.save_boards(desktop_id, payload.boards, payload.revision)
 
     @api.get("/{desktop_id}/appearance")
     def get_appearance(desktop_id: str) -> dict:
-        try:
-            return desktops.appearance(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.appearance(desktop_id)
 
     @api.put("/{desktop_id}/appearance")
     def put_appearance(desktop_id: str, payload: SaveAppearance) -> dict:
         patch = payload.model_dump(exclude_none=True)
         patch.pop("revision", None)
-        try:
-            return desktops.save_appearance(desktop_id, patch, payload.revision)
-        except DesktopError as exc:
-            raise _fail(exc)
-
+        return desktops.save_appearance(desktop_id, patch, payload.revision)
     # Views and layout. Opening a window is not saving an arrangement, so only
     # the layout route carries a revision; selecting and moving windows happen
     # constantly and must not conflict with a drag someone else is finishing.
 
     @api.get("/{desktop_id}/views")
     def get_views(desktop_id: str) -> dict:
-        try:
-            return desktops.views(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.views(desktop_id)
 
     @api.post("/{desktop_id}/views", status_code=201)
     def open_view(desktop_id: str, payload: OpenView) -> dict:
-        try:
-            return desktops.open_view(
-                desktop_id,
-                payload.kind,
-                {"appId": payload.appId, "surface": payload.surface, "url": payload.url},
-                title=payload.title,
-                state=payload.state,
-                bounds=payload.bounds,
-                reuse=not payload.newView,
-            )
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.open_view(
+            desktop_id,
+            payload.kind,
+            {"appId": payload.appId, "surface": payload.surface, "url": payload.url},
+            title=payload.title,
+            state=payload.state,
+            bounds=payload.bounds,
+            reuse=not payload.newView,
+        )
 
     @api.patch("/{desktop_id}/views/{view_id}")
     def update_view(desktop_id: str, view_id: str, payload: UpdateView) -> dict:
         patch = payload.model_dump(by_alias=True, exclude_unset=True)
-        try:
-            return desktops.update_view(desktop_id, view_id, patch)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.update_view(desktop_id, view_id, patch)
 
     @api.delete("/{desktop_id}/views/{view_id}")
     def close_view(desktop_id: str, view_id: str) -> dict:
-        try:
-            return desktops.close_view(desktop_id, view_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.close_view(desktop_id, view_id)
 
     @api.post("/{desktop_id}/selected-view")
     def select_view(desktop_id: str, payload: SelectView) -> dict:
-        try:
-            return desktops.select_view(desktop_id, payload.viewId)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.select_view(desktop_id, payload.viewId)
 
     @api.get("/{desktop_id}/layout")
     def get_layout(desktop_id: str) -> dict:
-        try:
-            return desktops.layout(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.layout(desktop_id)
 
     @api.put("/{desktop_id}/layout")
     def put_layout(desktop_id: str, payload: SaveLayout) -> dict:
@@ -358,11 +296,7 @@ def router(desktops, *, runs=None) -> APIRouter:
         # tell "I did not mention this" from "I want this cleared".
         for key in patch.pop("clear", []):
             patch[key] = None
-        try:
-            return desktops.save_layout(desktop_id, patch, payload.revision)
-        except DesktopError as exc:
-            raise _fail(exc)
-
+        return desktops.save_layout(desktop_id, patch, payload.revision)
     # What this desktop may touch, and what it has actually been allowed to do.
     # Configuration and authority are separate on purpose: changing the first
     # removes every instance of the second, because narrowing what an agent may
@@ -370,73 +304,46 @@ def router(desktops, *, runs=None) -> APIRouter:
 
     @api.get("/{desktop_id}/policy")
     def get_policy(desktop_id: str) -> dict:
-        try:
-            return desktops.policy(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.policy(desktop_id)
 
     @api.put("/{desktop_id}/policy")
     def put_policy(desktop_id: str, payload: SavePolicy) -> dict:
         document = payload.model_dump(exclude_unset=True)
         document.pop("revision", None)
-        try:
-            return desktops.save_policy(desktop_id, document, payload.revision)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.save_policy(desktop_id, document, payload.revision)
 
     @api.post("/{desktop_id}/enable-agent")
     async def enable_agent(desktop_id: str) -> dict:
-        try:
-            return await desktops.enable_agent(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return await desktops.enable_agent(desktop_id)
 
     @api.post("/{desktop_id}/disable-agent")
     async def disable_agent(desktop_id: str) -> dict:
-        try:
-            return await desktops.disable_agent(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return await desktops.disable_agent(desktop_id)
 
     @api.get("/{desktop_id}/grants")
     def list_grants(desktop_id: str) -> dict:
-        try:
-            return desktops.list_grants(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.list_grants(desktop_id)
 
     @api.post("/{desktop_id}/grants", status_code=201)
     def issue_grant(desktop_id: str, payload: IssueGrant) -> dict:
-        try:
-            return desktops.grant(desktop_id, payload.model_dump())
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.grant(desktop_id, payload.model_dump())
 
     @api.delete("/{desktop_id}/grants/{grant_id}")
     def revoke_grant(desktop_id: str, grant_id: str) -> dict:
-        try:
-            return desktops.revoke_grant(desktop_id, grant_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.revoke_grant(desktop_id, grant_id)
 
     @api.delete("/{desktop_id}/grants")
     def revoke_all(desktop_id: str, runId: str | None = None) -> dict:
-        try:
-            if runId:
-                return desktops.revoke_run(desktop_id, runId)
-            desktops.get(desktop_id)
-            return desktops.revoke_desktop(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        if runId:
+            return desktops.revoke_run(desktop_id, runId)
+        desktops.get(desktop_id)
+        return desktops.revoke_desktop(desktop_id)
 
     @api.get("/{desktop_id}/approvals")
     def list_approvals(desktop_id: str) -> dict:
         """What this desktop is waiting for you to answer."""
-        try:
-            desktops.get(desktop_id)
-            return {"approvals": desktops.approvals.pending(desktop_id)}
-        except DesktopError as exc:
-            raise _fail(exc)
+        desktops.get(desktop_id)
+        return {"approvals": desktops.approvals.pending(desktop_id)}
 
     @api.post("/{desktop_id}/approvals/{request_id}")
     def resolve_approval(desktop_id: str, request_id: str, payload: ResolveApproval) -> dict:
@@ -447,31 +354,22 @@ def router(desktops, *, runs=None) -> APIRouter:
         resolve approvals" a fact about the system rather than a claim about a
         page.
         """
-        try:
-            desktops.get(desktop_id)
-            return desktops.approvals.resolve(
-                request_id,
-                payload.decision,
-                desktop_id=desktop_id,
-                expected_digest=payload.requestDigest,
-                scope_future=bool(payload.scopeFuture),
-            )
-        except DesktopError as exc:
-            raise _fail(exc)
+        desktops.get(desktop_id)
+        return desktops.approvals.resolve(
+            request_id,
+            payload.decision,
+            desktop_id=desktop_id,
+            expected_digest=payload.requestDigest,
+            scope_future=bool(payload.scopeFuture),
+        )
 
     @api.post("/{desktop_id}/agent-sessions", status_code=201)
     def open_agent_session(desktop_id: str, payload: OpenAgentSession) -> dict:
-        try:
-            return desktops.open_agent_session(desktop_id, payload.model_dump())
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.open_agent_session(desktop_id, payload.model_dump())
 
     @api.get("/{desktop_id}/wallpaper")
     def get_wallpaper(desktop_id: str):
-        try:
-            path, media_type = desktops.wallpaper_file(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        path, media_type = desktops.wallpaper_file(desktop_id)
         # It changes only when the user replaces it, and the page asks for it
         # again on every desk load, so it is worth caching in the browser.
         return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-cache"})
@@ -480,35 +378,24 @@ def router(desktops, *, runs=None) -> APIRouter:
     async def put_wallpaper(desktop_id: str, request: Request) -> dict:
         # Raw bytes with the type in the header, the same shape as the existing
         # wallpaper route, so the server needs no multipart parser for one picture.
-        try:
-            extension = desktops.extension_for(request.headers.get("content-type", ""))
-            content = bytearray()
-            async for chunk in request.stream():
-                content.extend(chunk)
-                if len(content) > MAX_WALLPAPER_BYTES:
-                    raise WallpaperError(413, "A wallpaper is at most 8 MB")
-            return desktops.save_wallpaper(desktop_id, bytes(content), extension)
-        except WallpaperError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
-        except DesktopError as exc:
-            raise _fail(exc)
+        extension = desktops.extension_for(request.headers.get("content-type", ""))
+        content = bytearray()
+        async for chunk in request.stream():
+            content.extend(chunk)
+            if len(content) > MAX_WALLPAPER_BYTES:
+                raise WallpaperError(413, "A wallpaper is at most 8 MB")
+        return desktops.save_wallpaper(desktop_id, bytes(content), extension)
 
     @api.delete("/{desktop_id}/wallpaper")
     def delete_wallpaper(desktop_id: str) -> dict:
-        try:
-            return desktops.remove_wallpaper(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.remove_wallpaper(desktop_id)
 
     # -------------------------------------------------- watch and control --
 
     @api.get("/{desktop_id}/viewer")
     def viewer_status(desktop_id: str) -> dict:
         """Who is watching, and who — if anyone — is typing."""
-        try:
-            return _runs().viewer.status(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return _runs().viewer.status(desktop_id)
 
     @api.get("/{desktop_id}/views/{view_id}/frame")
     async def view_frame(desktop_id: str, view_id: str, maxAgeMs: int = 400) -> dict:
@@ -517,19 +404,13 @@ def router(desktops, *, runs=None) -> APIRouter:
         A desktop capture would contain the owner's approval prompt, which is
         exactly what must never be in anything the agent's side can influence.
         """
-        try:
-            frame = await _runs().viewer.frame(desktop_id, view_id, max_age_ms=maxAgeMs)
-        except DesktopError as exc:
-            raise _fail(exc)
+        frame = await _runs().viewer.frame(desktop_id, view_id, max_age_ms=maxAgeMs)
         return {key: value for key, value in frame.items() if key != "file"}
 
     @api.get("/{desktop_id}/views/{view_id}/frame/{digest}")
     def view_frame_bytes(desktop_id: str, view_id: str, digest: str):
         """The bytes, behind owner authentication and never cached."""
-        try:
-            path = _runs().viewer.frame_file(desktop_id, view_id, digest)
-        except DesktopError as exc:
-            raise _fail(exc)
+        path = _runs().viewer.frame_file(desktop_id, view_id, digest)
         return FileResponse(
             path,
             media_type="image/png",
@@ -543,45 +424,27 @@ def router(desktops, *, runs=None) -> APIRouter:
     @api.post("/{desktop_id}/takeover", status_code=201)
     async def take_over(desktop_id: str, payload: TakeOver | None = None) -> dict:
         """Stop the agent, change the generation, then hand control over."""
-        try:
-            return await _runs().viewer.take_over(
-                desktop_id, view_id=payload.viewId if payload else None
-            )
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().viewer.take_over(
+            desktop_id, view_id=payload.viewId if payload else None
+        )
 
     @api.post("/{desktop_id}/takeover/{lease_id}/input")
     async def send_input(desktop_id: str, lease_id: str, payload: ViewerInput) -> dict:
-        try:
-            return await _runs().viewer.send_input(
-                desktop_id, lease_id, payload.model_dump(exclude_none=True)
-            )
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().viewer.send_input(
+            desktop_id, lease_id, payload.model_dump(exclude_none=True)
+        )
 
     @api.delete("/{desktop_id}/takeover/{lease_id}")
     def release_control(desktop_id: str, lease_id: str) -> dict:
         """Give control back. The task stays paused until you say carry on."""
-        try:
-            return _runs().viewer.release(desktop_id, lease_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return _runs().viewer.release(desktop_id, lease_id)
 
     # ------------------------------------------------------------- files --
 
     @api.get("/{desktop_id}/files")
     def list_files(desktop_id: str, runId: str | None = None) -> dict:
         """What this desktop was given, what it came back with, and the limits."""
-        try:
-            return _runs().files(desktop_id, run_id=runId)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return _runs().files(desktop_id, run_id=runId)
 
     @api.post("/{desktop_id}/files", status_code=201)
     async def add_file(desktop_id: str, request: Request) -> dict:
@@ -596,21 +459,18 @@ def router(desktops, *, runs=None) -> APIRouter:
         run_id = request.headers.get("x-vela-run") or None
         declared = request.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > MAX_ARTIFACT_UPLOAD:
-            raise HTTPException(status_code=413, detail="That file is too large to attach.")
+            raise TooLarge("That file is too large to attach.",
+                           code="desktops.attachment_too_large")
         body = bytearray()
         async for chunk in request.stream():
             body.extend(chunk)
             if len(body) > MAX_ARTIFACT_UPLOAD:
-                raise HTTPException(status_code=413, detail="That file is too large to attach.")
-        try:
-            desktops.store.get(desktop_id)
-            return desktops.artifacts.accept_upload(
-                desktop_id, [bytes(body)], name=name, media_type=media_type, run_id=run_id
-            )
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+                raise TooLarge("That file is too large to attach.",
+                               code="desktops.attachment_too_large")
+        desktops.store.get(desktop_id)
+        return desktops.artifacts.accept_upload(
+            desktop_id, [bytes(body)], name=name, media_type=media_type, run_id=run_id
+        )
 
     @api.get("/{desktop_id}/files/{artifact_id}")
     def read_file(desktop_id: str, artifact_id: str):
@@ -619,13 +479,8 @@ def router(desktops, *, runs=None) -> APIRouter:
         Never rendered inline. A file that arrived from a website is not
         something to open in the dashboard's own origin.
         """
-        try:
-            desktops.store.get(desktop_id)
-            path, record = desktops.artifacts.file(desktop_id, artifact_id)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        desktops.store.get(desktop_id)
+        path, record = desktops.artifacts.file(desktop_id, artifact_id)
         return FileResponse(
             path,
             media_type="application/octet-stream",
@@ -639,12 +494,10 @@ def router(desktops, *, runs=None) -> APIRouter:
 
     @api.delete("/{desktop_id}/files/{artifact_id}")
     def remove_file(desktop_id: str, artifact_id: str) -> dict:
-        try:
-            desktops.store.get(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        desktops.store.get(desktop_id)
         if not desktops.artifacts.remove(desktop_id, artifact_id):
-            raise HTTPException(status_code=404, detail="That file is not on this desktop.")
+            raise NotFound("That file is not on this desktop.",
+                           code="desktops.file_unknown")
         return {"ok": True}
 
     @api.delete("/{desktop_id}/files")
@@ -655,42 +508,31 @@ def router(desktops, *, runs=None) -> APIRouter:
         happened on somebody else's server is a person looking, and a timer is
         not a person looking.
         """
-        try:
-            return desktops.resolve_uncertain(desktop_id, digest)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.resolve_uncertain(desktop_id, digest)
 
     # --------------------------------------------------- website sessions --
 
     @api.get("/{desktop_id}/session")
     def website_session(desktop_id: str) -> dict:
         """What sign-ins are being kept for this desktop, as counts."""
-        try:
-            return desktops.session_state(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return desktops.session_state(desktop_id)
 
     @api.post("/{desktop_id}/session")
     async def keep_website_session(desktop_id: str) -> dict:
         """Keep this desktop's signed-in websites for its next browser."""
-        try:
-            return await desktops.remember_session(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return await desktops.remember_session(desktop_id)
 
     @api.delete("/{desktop_id}/session")
     async def erase_website_session(desktop_id: str) -> dict:
         """Erase them, from the file and from the browser that is open."""
-        try:
-            return await desktops.forget_session(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return await desktops.forget_session(desktop_id)
 
     # ------------------------------------------------------------- tasks --
 
     def _runs():
         if runs is None:
-            raise HTTPException(status_code=503, detail="Agent tasks are not available yet.")
+            raise Unavailable("Agent tasks are not available yet.",
+                              code="desktops.runs_unavailable")
         return runs
 
     @api.post("/{desktop_id}/tasks", status_code=202)
@@ -700,37 +542,19 @@ def router(desktops, *, runs=None) -> APIRouter:
         The task is the server's from here. Closing this page, losing the
         network or switching desktops does not touch it.
         """
-        try:
-            return await _runs().submit(desktop_id, payload.model_dump())
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().submit(desktop_id, payload.model_dump())
 
     @api.get("/{desktop_id}/tasks")
     def list_tasks(desktop_id: str, limit: int = 50, offset: int = 0) -> dict:
-        try:
-            return _runs().list(desktop_id, limit=limit, offset=offset)
-        except DesktopError as exc:
-            raise _fail(exc)
+        return _runs().list(desktop_id, limit=limit, offset=offset)
 
     @api.get("/{desktop_id}/tasks/{run_id}")
     def get_task(desktop_id: str, run_id: str) -> dict:
-        try:
-            return _runs().get(desktop_id, run_id)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return _runs().get(desktop_id, run_id)
 
     @api.post("/{desktop_id}/tasks/{run_id}/control")
     async def control_task(desktop_id: str, run_id: str, payload: ControlTask) -> dict:
-        try:
-            return await _runs().control(desktop_id, run_id, payload.action)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().control(desktop_id, run_id, payload.action)
 
     @api.post("/{desktop_id}/tasks/{run_id}/retry", status_code=201)
     async def retry_task(desktop_id: str, run_id: str) -> dict:
@@ -739,22 +563,12 @@ def router(desktops, *, runs=None) -> APIRouter:
         Never a resumption: what the old run did, it did. This queues a fresh
         attempt and records which one it came from.
         """
-        try:
-            return await _runs().retry(desktop_id, run_id)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().retry(desktop_id, run_id)
 
     @api.post("/{desktop_id}/queue/resume")
     async def resume_queue(desktop_id: str) -> dict:
         """Carry on with what is queued, after seeing why it stopped."""
-        try:
-            return await _runs().resume_queue(desktop_id)
-        except DesktopError as exc:
-            raise _fail(exc)
-        except AppServiceError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.detail)
+        return await _runs().resume_queue(desktop_id)
 
     @api.get("/{desktop_id}/events")
     def read_events(desktop_id: str, after: int = 0, limit: int = 200) -> dict:
@@ -764,9 +578,5 @@ def router(desktops, *, runs=None) -> APIRouter:
         recovers from a dropped connection on its own, and adding a transport
         that needs its own authentication is Phase 10's work, not this one's.
         """
-        try:
-            return _runs().events(desktop_id, after=after, limit=limit)
-        except DesktopError as exc:
-            raise _fail(exc)
-
+        return _runs().events(desktop_id, after=after, limit=limit)
     return api

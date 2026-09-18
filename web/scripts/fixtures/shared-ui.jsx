@@ -10,6 +10,7 @@ import { useConfirm } from '../../src/hooks/useConfirm.js';
 import ConfirmProvider from '../../src/components/ConfirmProvider.jsx';
 import '../../src/styles/main.scss';
 import FoundationFixtures from './foundations.jsx';
+import PrimitiveFixtures from './primitives.jsx';
 
 // Browser-only fixture; no Vela API calls, user data, or production entry point.
 const fixture = (window.fixture = {
@@ -146,6 +147,7 @@ function App() {
       <FormFixture />
       <ConfirmFixture />
       <FoundationFixtures />
+      <PrimitiveFixtures />
     </main>
   );
 }
