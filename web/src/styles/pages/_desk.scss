@@ -725,52 +725,30 @@ body[data-desk] .rail-divider {
 
 /* ---------- app-provided widgets ---------- */
 
-/* A summary always carries the app it came from: the icon opens it, and the
-   widget's own name sits beside the app's. */
-.desk-app-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
+/* An app's widget is drawn on the same card as one Vela wrote itself, so the
+   card owns the header and only three things are left to say here: the icon is
+   a button that opens the app, the app's name is the trailing note, and a
+   summary asking for attention shows a dot beside it. */
 
 .desk-app-open {
   flex: none;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
   line-height: 0;
 }
 
 .desk-app-name {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desk-app-widget {
-  color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .desk-app-attention {
-  margin-left: auto;
-  display: grid;
-  place-items: center;
-}
-
-.desk-app-actions {
-  margin-top: auto;
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
 }
 

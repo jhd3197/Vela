@@ -15,6 +15,7 @@ removes them.
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -24,7 +25,7 @@ from .app_storage import AppServiceError
 #: The manifest side of the contract.
 WIDGET_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 MAX_WIDGETS_PER_APP = 4
-WIDGET_LAYOUTS = ("stat", "progress", "list", "actions")
+WIDGET_LAYOUTS = ("stat", "progress", "list", "actions", "chart", "keyvalue")
 WIDGET_SIZES = ("s", "m", "l")
 
 #: The published payload's limits. 4 KB is generous for a stat and a handful of
@@ -36,6 +37,11 @@ MAX_BADGE = 3
 MAX_STRING = 200
 MAX_ROWS = 8
 MAX_ACTIONS = 3
+#: A chart the desk draws as bars in a widget two cells wide. Two points is the
+#: fewest that can be a series rather than a number; twenty-four is a day by the
+#: hour, and more bars than that in that space is a texture, not a reading.
+MIN_SERIES = 2
+MAX_SERIES = 24
 
 _SCALARS = (str, int, float, bool)
 
@@ -99,7 +105,7 @@ def validate_summary(payload: Any) -> dict[str, Any]:
         raise WidgetError(413, f"a summary is at most {MAX_SUMMARY_BYTES} bytes")
 
     allowed = {"value", "unit", "delta", "caption", "progress", "rows", "actions",
-               "attention", "badge", "expiresAt"}
+               "series", "domain", "attention", "badge", "expiresAt"}
     unknown = set(payload) - allowed
     if unknown:
         raise WidgetError(422, f"unknown summary fields: {', '.join(sorted(unknown))}")
@@ -116,6 +122,39 @@ def validate_summary(payload: Any) -> dict[str, Any]:
         if not 0 <= progress <= 100:
             raise WidgetError(422, "progress must be between 0 and 100")
         out["progress"] = round(float(progress), 1)
+
+    if "series" in payload:
+        series = payload["series"]
+        if not isinstance(series, list):
+            raise WidgetError(422, "series must be a list of numbers")
+        if not MIN_SERIES <= len(series) <= MAX_SERIES:
+            raise WidgetError(
+                422, f"series holds between {MIN_SERIES} and {MAX_SERIES} numbers")
+        numbers = []
+        for point in series:
+            # `True` is an int in Python and would plot as 1, which is a
+            # measurement nobody took.
+            if isinstance(point, bool) or not isinstance(point, (int, float)):
+                raise WidgetError(422, "series holds numbers")
+            if not math.isfinite(point):
+                raise WidgetError(422, "series holds finite numbers")
+            numbers.append(float(point))
+        out["series"] = numbers
+
+    if "domain" in payload:
+        domain = payload["domain"]
+        if not isinstance(domain, list) or len(domain) != 2:
+            raise WidgetError(422, "domain is [min, max]")
+        bounds = []
+        for edge in domain:
+            if isinstance(edge, bool) or not isinstance(edge, (int, float)):
+                raise WidgetError(422, "domain is [min, max]")
+            if not math.isfinite(edge):
+                raise WidgetError(422, "domain holds finite numbers")
+            bounds.append(float(edge))
+        if bounds[0] >= bounds[1]:
+            raise WidgetError(422, "domain must be [min, max] with min below max")
+        out["domain"] = bounds
 
     if "rows" in payload:
         rows = payload["rows"]
@@ -184,6 +223,9 @@ def validate_summary(payload: Any) -> dict[str, Any]:
     for value in out.values():
         if isinstance(value, list):
             for item in value:
+                # `series` and `domain` are lists of numbers, not of rows.
+                if not isinstance(item, dict):
+                    continue
                 if any(not isinstance(field, _SCALARS) for field in item.values()):
                     raise WidgetError(422, "summaries hold text, not nested objects")
     return out

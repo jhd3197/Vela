@@ -343,10 +343,30 @@ Declaration lives in the manifest, so the user sees it at install:
 ```
 
 `id` matches `^[a-z][a-z0-9-]{0,31}$` and is unique within the app; at most four
-widgets per app; `layout` is `stat`, `progress`, `list` or `actions`; `size` is
-`s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets` without the capability
-fails validation. The install review shows the capability as "Show summaries on
-your desk" and names the declared widgets.
+widgets per app; `size` is `s` (1x1), `m` (2x1) or `l` (2x2). Declaring `widgets`
+without the capability fails validation. The install review shows the capability
+as "Show summaries on your desk" and names the declared widgets.
+
+`layout` is one of six, and decides which fields of the summary the desk reads:
+
+| `layout`    | Drawn as                                              | Reads                          |
+| ----------- | ----------------------------------------------------- | ------------------------------ |
+| `stat`      | One large number with its unit, delta and caption     | `value`, `unit`, `delta`, `caption` |
+| `progress`  | A labelled bar                                        | `progress`, `value`, `unit`, `caption` |
+| `list`      | Rows of label and detail                              | `rows`                         |
+| `actions`   | A stat, with the app's granted actions under it       | `value`, `unit`, `delta`, `caption`, `actions` |
+| `chart`     | Vertical bars, the last one strongest                 | `series`, `domain`, `caption`, `value` |
+| `keyvalue`  | Label left, value right                               | `rows`                         |
+
+`chart` and `keyvalue` were added in schema `0.5.0`, adopted by the hub as
+snapshot `ca7bf862a8cad52b`. An older hub refuses them at validation with its
+existing "layout must be one of" message, so an app that wants to run on both
+should keep to the original four. The SDK is agnostic: `Vela.widgets.publish`
+passes JSON through, and no SDK version is required for either.
+
+A `chart` at size `s` is drawn as a line rather than as bars — one cell is not
+wide enough for a row of them — so publish the same `series` either way and let
+the desk decide.
 
 The published summary is a flat JSON object of at most 4 KB. Every field is
 optional — `{}` is valid and means "nothing to report yet":
@@ -359,6 +379,8 @@ optional — `{}` is valid and means "nothing to report yet":
   "caption": "queued since 02:14",
   "progress": 32,
   "rows": [{ "label": "…", "detail": "…" }],
+  "series": [3, 7, 4, 9, 6, 11, 8],
+  "domain": [0, 12],
   "actions": [{ "action": "sync", "label": "Sync now" }],
   "attention": true,
   "badge": "73",
@@ -368,8 +390,13 @@ optional — `{}` is valid and means "nothing to report yet":
 
 `value`, `unit`, `delta`, `caption` and every row and action label are text of at
 most 200 characters; `progress` is 0–100; `rows` holds at most eight
-`{label, detail}` pairs; `actions` at most three, each naming one of the app's
-own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
+`{label, detail}` pairs; `series` holds between two and twenty-four finite
+numbers (one point is a number, not a series; twenty-four is a day by the hour,
+and more bars than that in a widget two cells wide is a texture rather than a
+reading); `domain` is `[min, max]` with `min` below `max`, and is the range the
+series is read against — without one the desk scales to the series itself, which
+both flattens a series under one spike and inflates a flat one into meaningless
+mountains; `actions` at most three, each naming one of the app's own actions; `attention` is the boolean the rail's dot reads; `badge` is a count
 of at most three characters drawn on the app's icon in the Launchpad — an app
 with several widgets is badged once, from the first summary of its that carries
 one, and a longer value is refused rather than clipped into a number that reads

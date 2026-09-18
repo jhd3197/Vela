@@ -97,6 +97,10 @@ export function useWidgetTypes(apps, appRender) {
           app,
           widgetId: declared.id,
           layout: declared.layout,
+          // The size the app asked for, not the cells it got: a chart drawn
+          // one cell across is a line rather than a row of slivers, and only
+          // the declaration says which the app meant.
+          size: declared.size,
           render: appRender,
         });
       }

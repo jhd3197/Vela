@@ -41,6 +41,18 @@
       "name": "Queued changes",
       "layout": "list",
       "size": "l"
+    },
+    {
+      "id": "week",
+      "name": "This week",
+      "layout": "chart",
+      "size": "m"
+    },
+    {
+      "id": "ledger",
+      "name": "Ledger",
+      "layout": "keyvalue",
+      "size": "m"
     }
   ]
 }

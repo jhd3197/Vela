@@ -8,6 +8,21 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Every widget on your desk is drawn the same way.** Each card now leads with
+  a small tinted icon and its name, and what it shows underneath follows one
+  recipe whichever app it came from: a number, a bar, a ring, a chart or a list
+  of rows. Health shows how many of its checks passed as a ring; Flows shows the
+  week's automation runs as a chart; Backups shows how long until the next one.
+- **Apps can publish a chart or a table to the desk.** An app's widget may now
+  declare `chart` — up to twenty-four numbers, drawn as bars with the most
+  recent one strongest — or `keyvalue`, a list of label-and-value rows. Both are
+  drawn by Vela from the JSON the app publishes, on the same card as a widget
+  Vela wrote itself; no app code runs on your desk, as before. Manifest schema
+  0.5.0. Apps that use the four original layouts are unaffected.
+- **Text on the light theme is easier to read.** Muted captions and the marks
+  that show what is running were below the contrast Vela promises, and now
+  clear it. Every colour in the dashboard is now checked against the surface it
+  sits on.
 - **Vela now shows everything it is doing for you in one place.** An automation
   run, an agent desktop's task, an update, a backup, an app being installed and
   the health sweep are all listed the same way, in the same words. System gains
@@ -25,6 +40,13 @@ until the release workflow prepares a tested server version.
   a conversation, clearing a log, resetting the desk and closing a window with
   unsaved work all ask in the same dialog.** Signing out used the browser's own
   prompt; the rest each had a dialog of their own. What they say is unchanged.
+- **For contributors: the dashboard's colour and spacing come from one place.**
+  `web/src/styles/_tokens.scss` is generated from `web/src/design/theme.vela.json`
+  and is no longer edited by hand; tonal ramps are derived in OKLCH on one shared
+  lightness scale. No stylesheet outside it writes a colour, padding, gap and
+  margin read a spacing scale, and a new ratchet guard keeps both true. Reduced
+  motion is honoured from one rule rather than from fourteen. The pieces the
+  dashboard is drawn with live in `web/src/components/ds/`. See `docs/DESIGN.md`.
 - **For contributors: four shared foundations in the dashboard.** The check
   command now runs ratchet guards over the source tree — style ownership, the
   browser-API boundary, the status vocabulary and inline styles — each against a

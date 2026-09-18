@@ -447,7 +447,9 @@
               "stat",
               "progress",
               "list",
-              "actions"
+              "actions",
+              "chart",
+              "keyvalue"
             ]
           },
           "size": {

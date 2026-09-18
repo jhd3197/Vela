@@ -420,7 +420,12 @@ try {
   assert.ok(installed.capabilities.includes('widgets'), JSON.stringify(installed));
   assert.deepEqual(
     installed.widgets.map((widget) => widget.id),
-    ['sync', 'queued'],
+    ['sync', 'queued', 'week', 'ledger'],
+  );
+  assert.deepEqual(
+    installed.widgets.map((widget) => widget.layout),
+    ['stat', 'list', 'chart', 'keyvalue'],
+    'the two new layouts must survive manifest validation',
   );
 
   // Opening the app runs its publish through the bridge.
@@ -468,6 +473,40 @@ try {
   // Rendered by the host, from the published summary, always naming the app.
   const text = await widget.innerText();
   assert.match(text, /Widget Fixture/);
+
+  // --- the two layouts an app can publish a chart and a table with ---------
+  await add.click();
+  await library.waitFor();
+  await library.getByRole('button', { name: /^This week/ }).click();
+  await library.waitFor({ state: 'detached' });
+  const chart = page.getByRole('region', { name: 'This week', exact: true });
+  await chart.waitFor();
+  const bars = chart.locator('.vela-bar');
+  assert.equal(await bars.count(), 7, 'a chart draws one bar per published point');
+  // The last bar carries the strongest step, whatever its value: it is today.
+  assert.equal(await bars.last().getAttribute('data-weight'), 'last');
+  // The published domain is [0, 12] and the tallest point is 11, so no bar is
+  // full height -- a series scaled to itself would have made one.
+  const heights = await bars.evaluateAll((nodes) =>
+    nodes.map((node) => Number.parseFloat(node.style.height)),
+  );
+  assert.ok(Math.max(...heights) < 100, `the published domain was ignored: ${heights}`);
+  await chart.getByText('syncs per day').waitFor();
+
+  await add.click();
+  await library.waitFor();
+  await library.getByRole('button', { name: /^Ledger/ }).click();
+  await library.waitFor({ state: 'detached' });
+  const ledger = page.getByRole('region', { name: 'Ledger', exact: true });
+  await ledger.waitFor();
+  assert.equal(await ledger.locator('.vela-kv-row').count(), 2);
+  await ledger.getByText('Groceries').waitFor();
+  await ledger.getByText('$412').waitFor();
+  // Both are drawn on the same card as a widget Vela wrote itself.
+  for (const region of [chart, ledger]) {
+    assert.equal(await region.locator('.vela-card').count(), 1);
+    assert.match(await region.innerText(), /Widget Fixture/);
+  }
   assert.match(text, /73/);
   assert.match(text, /queued since 02:14/);
   await done.click();
