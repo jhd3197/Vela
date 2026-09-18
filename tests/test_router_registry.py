@@ -8,6 +8,7 @@ can reach.
 Run with: python -m unittest discover -s tests. Uses disposable data only.
 """
 import atexit
+import importlib.util
 import os
 import tempfile
 import unittest
@@ -59,6 +60,16 @@ def served_routes(container) -> set[tuple[str, str]]:
     return found
 
 
+def _build_script():
+    """The packaging script, loaded as a module so its own list can be read."""
+    spec = importlib.util.spec_from_file_location(
+        "vela_build_server", ROOT / "scripts" / "build-server.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _disposable_app():
     directory = tempfile.TemporaryDirectory(prefix="vela-registry-")
     atexit.register(directory.cleanup)
@@ -89,6 +100,27 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("vela.automations.api", listed)
         self.assertIn("vela.desktops.api", listed)
         self.assertIn("vela.webapps", listed)
+
+    def test_the_download_carries_every_module_the_registry_imports(self):
+        """A frozen build cannot follow `import_module`, so the build names them.
+
+        The registry imports each router by string. PyInstaller follows real
+        import statements, so before the build script read this list a packaged
+        server started, reached `create_app`, and died with
+        `ModuleNotFoundError: No module named 'vela.routers'` — a failure no
+        test in a checkout can see, because a checkout imports from the tree.
+        """
+        build = _build_script()
+        named = set()
+        options = build.router_imports()
+        for flag, value in zip(options[::2], options[1::2]):
+            self.assertEqual(flag, "--hidden-import")
+            named.add(value)
+        missing = {spec.module for spec in ROUTERS} - named
+        self.assertFalse(
+            missing,
+            f"the download would not carry these routers: {sorted(missing)}",
+        )
 
     def test_every_spec_loads_a_factory(self):
         for spec in ROUTERS:

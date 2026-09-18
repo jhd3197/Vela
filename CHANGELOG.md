@@ -89,6 +89,11 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- **The server download starts again.** The routers that serve the dashboard's
+  API are now listed in one table and loaded by name, which the packaged build
+  could not see, so a downloaded server exited at startup instead of coming up.
+  The build now reads that same table, and a test fails if a new router is ever
+  left out of a download.
 - **Copy buttons work on a server reached over plain HTTP.** "Copy link" on the
   phone-handoff and iOS install screens, and "Copy" on an Ask message, used the
   clipboard API, which browsers do not provide outside a secure context — so on
