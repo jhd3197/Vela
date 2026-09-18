@@ -21,7 +21,7 @@
   flex: 1;
   width: 100%;
   border: none;
-  background: #fff;
+  background: #fff; // ratchet: allow tokens an app paints its own canvas; this is only what shows before it does
 }
 
 .appview-interstitial {
@@ -132,7 +132,7 @@
   background: var(--bg);
   border: 1px solid var(--border);
   gap: 14px;
-  box-shadow: 0 2px 12px #0002;
+  box-shadow: 0 2px 12px rgba(var(--scrim-rgb), 0.13);
 }
 .appview-menu {
   position: absolute;
@@ -144,7 +144,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg);
-  box-shadow: 0 8px 24px #0003;
+  box-shadow: 0 8px 24px rgba(var(--scrim-rgb), 0.2);
 }
 .appview-menu strong {
   padding: 10px;
@@ -181,8 +181,8 @@
   gap: 14px;
   padding: 24px;
   text-align: center;
-  color: #fff;
-  background: rgba(18, 20, 32, 0.62);
+  color: var(--on-wall);
+  background: rgba(var(--scrim-rgb), 0.62);
   backdrop-filter: blur(6px);
 }
 .appview-loading h2 {
@@ -191,7 +191,7 @@
 }
 .appview-loading p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(var(--on-wall-rgb), 0.85);
 }
 .appview-loading-actions {
   display: flex;
@@ -201,8 +201,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.28);
-  border-top-color: #fff;
+  border: 3px solid rgba(var(--on-wall-rgb), 0.28);
+  border-top-color: var(--on-wall);
   animation: appview-spin 0.8s linear infinite;
 }
 @keyframes appview-spin {
@@ -297,8 +297,8 @@
 }
 
 .app-pill-starting {
-  background: rgba(216, 138, 46, 0.14);
-  color: #b5771f;
+  background: var(--amber-soft);
+  color: var(--amber);
 }
 
 .app-pill-unsupported,
@@ -311,8 +311,8 @@
    a light strip. The bar carries `data-theme="dark"`, which re-defines the
    tokens its own controls read. */
 .app-titlebar-dark {
-  background: #1b1e2e;
-  border-bottom-color: color-mix(in srgb, #e9e9ed 14%, transparent);
+  background: var(--bg-card);
+  border-bottom-color: var(--border);
 }
 .appview-failure {
   position: absolute;
@@ -336,7 +336,7 @@
   color: var(--text);
 }
 .appview-dialog::backdrop {
-  background: #0008;
+  background: rgba(var(--scrim-rgb), 0.53);
 }
 .appview-dialog h2 {
   font-size: 20px;

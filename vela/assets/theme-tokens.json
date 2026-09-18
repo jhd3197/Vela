@@ -30,7 +30,11 @@
     "--shadow-sm": "shadow",
     "--shadow-md": "shadow",
     "--shadow-lg": "shadow",
-    "--glow": "gradient"
+    "--glow": "gradient",
+    "--scrim": "color",
+    "--glass": "color",
+    "--on-wall": "color",
+    "--on-accent": "color"
   },
   "groups": {
     "ground": [
@@ -77,6 +81,14 @@
     ],
     "glow": [
       "--glow"
+    ],
+    "wall": [
+      "--scrim",
+      "--glass"
+    ],
+    "ink": [
+      "--on-wall",
+      "--on-accent"
     ]
   },
   "aliases": {

@@ -10,7 +10,7 @@
 }
 
 .modal-dialog::backdrop {
-  background: #0008;
+  background: rgba(var(--scrim-rgb), 0.53);
 }
 
 // Reset native dialog dimensions while retaining the existing drawer design.

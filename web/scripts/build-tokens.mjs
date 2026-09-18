@@ -22,6 +22,7 @@ import {
   ALIASES,
   CANONICAL,
   CANONICAL_TOKENS,
+  CHANNEL_TOKENS,
   FONT_ALLOW_LIST,
   GROUP_TYPES,
   RAMPED_ROLES,
@@ -86,6 +87,15 @@ function block(tokens, base) {
     write(name);
   }
 
+  lines.push(
+    '\n  /* The same three colours as bare channels, for `rgba(var(--scrim-rgb), 0.5)`.\n' +
+      '     A veil over a photograph has to composite and interpolate exactly as it\n' +
+      '     always did; `color-mix()` reaches the colour but not the gradient. */',
+  );
+  CHANNEL_TOKENS.forEach((name) => write(`${name}-rgb`));
+  write('--veil');
+  write('--veil-plain');
+
   lines.push('\n  /* Legacy names the stylesheet still reads, kept as aliases. */');
   Object.keys(ALIASES).forEach(write);
 
@@ -125,7 +135,8 @@ export function sheet() {
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-:root {${block(theme.tokens.light, 'light').join('\n')}
+:root,
+[data-theme='light'] {${block(theme.tokens.light, 'light').join('\n')}
 ${scales().join('\n')}
 
   color-scheme: light;

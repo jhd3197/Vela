@@ -29,29 +29,32 @@
   }
 }
 
+/* A bot's colour is its identity, picked once and kept. It is not a surface
+   the theme paints, so it does not move when the theme does -- the same bot
+   is the same colour under every theme, which is the point of having one. */
 .bot-color-indigo {
-  @include bot-color(#796cbf, #5d5294, #b7aff0);
+  @include bot-color(#796cbf, #5d5294, #b7aff0); // ratchet: allow tokens identity
 }
 .bot-color-violet {
-  @include bot-color(#9b5bd6, #7838b4, #cfa8f0);
+  @include bot-color(#9b5bd6, #7838b4, #cfa8f0); // ratchet: allow tokens identity
 }
 .bot-color-teal {
-  @include bot-color(#2f9e8f, #1f7469, #7fd8ca);
+  @include bot-color(#2f9e8f, #1f7469, #7fd8ca); // ratchet: allow tokens identity
 }
 .bot-color-amber {
-  @include bot-color(#c98a2b, #96631a, #edbe74);
+  @include bot-color(#c98a2b, #96631a, #edbe74); // ratchet: allow tokens identity
 }
 .bot-color-rose {
-  @include bot-color(#cf5b78, #a53a56, #f0a3b6);
+  @include bot-color(#cf5b78, #a53a56, #f0a3b6); // ratchet: allow tokens identity
 }
 .bot-color-slate {
-  @include bot-color(#69708a, #4c5268, #b0b6cc);
+  @include bot-color(#69708a, #4c5268, #b0b6cc); // ratchet: allow tokens identity
 }
 .bot-color-emerald {
-  @include bot-color(#3b9c5e, #277243, #8ddaa6);
+  @include bot-color(#3b9c5e, #277243, #8ddaa6); // ratchet: allow tokens identity
 }
 .bot-color-sky {
-  @include bot-color(#3a8ac9, #24659b, #93c8ee);
+  @include bot-color(#3a8ac9, #24659b, #93c8ee); // ratchet: allow tokens identity
 }
 
 /* ---- panel tabs ---------------------------------------------------- */
@@ -324,7 +327,7 @@
 }
 
 .bot-draft-error {
-  color: var(--danger, #b3344f);
+  color: var(--danger, var(--red));
 }
 
 .bot-tool {
@@ -490,7 +493,7 @@
     }
 
     &[data-state='failed'] small {
-      color: var(--danger, #b3344f);
+      color: var(--danger, var(--red));
     }
 
     &[data-state='complete'] {
@@ -518,7 +521,7 @@
 .chat-failed {
   display: block;
   margin-top: 5px;
-  color: var(--danger, #b3344f);
+  color: var(--danger, var(--red));
   font-size: 0.79rem;
 }
 

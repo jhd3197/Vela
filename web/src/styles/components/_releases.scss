@@ -7,13 +7,13 @@
   overflow: auto;
   margin: auto;
   padding: 28px;
-  color: var(--text-primary, #eee);
-  background: var(--bg-elevated, #191a22);
-  border: 1px solid var(--border, #393944);
+  color: var(--text);
+  background: var(--bg-pop);
+  border: 1px solid var(--border);
   border-radius: 16px;
 }
 .release-dialog::backdrop {
-  background: #0009;
+  background: rgba(var(--scrim-rgb), 0.6);
 }
 .release-dialog h2 {
   margin: 0 0 20px;
@@ -28,7 +28,7 @@
   font-weight: 600;
 }
 .release-name span {
-  color: #aaa;
+  color: var(--text-faint);
   font-size: 15px;
 }
 .release-dialog dl {
@@ -38,7 +38,7 @@
   line-height: 1.5;
 }
 .release-dialog dt {
-  color: #aaa;
+  color: var(--text-faint);
 }
 .release-dialog dd {
   margin: 0;

@@ -25,7 +25,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const SHEET = 'web/src/styles/_tokens.scss';
-const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g;
+// `rgba(var(--scrim-rgb), 0.5)` is a token read at an alpha, not a literal. The
+// three channel tokens exist so a veil over a photograph keeps the compositing
+// it always had, and flagging them would push the stylesheet back to writing
+// the numbers out by hand, which is the thing this guard is for.
+const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\((?!\s*var\(--)/g;
 // `padding: 12px`, `gap: 10px 4px`, `margin-top: 22px` — the three properties
 // that carry rhythm. A width or a height is a dimension and is left alone.
 const RHYTHM = /^\s*(padding|gap|margin)(-(top|right|bottom|left|inline|block)\w*)?\s*:([^;]*);/;

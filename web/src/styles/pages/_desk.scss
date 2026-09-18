@@ -1,3 +1,5 @@
+@use '../wallpapers';
+
 /* ---------- Desk: a widget board over a wallpaper ---------- */
 
 /* The wallpaper belongs to the whole shell so it also sits behind the rail,
@@ -10,29 +12,19 @@ body[data-desk] {
      which keeps it independent of the theme and of dimming. */
   --desk-tone-veil: transparent;
   /* The mockup overlay: darkest at the rail edge, lifting across the board so
-     widget surfaces stay readable without flattening the image. */
-  --desk-overlay: linear-gradient(
-    100deg,
-    rgba(18, 20, 32, 0.5),
-    rgba(18, 20, 32, 0.14) 40%,
-    rgba(18, 20, 32, 0.06) 62%,
-    rgba(18, 20, 32, 0.34)
-  );
-  --desk-surface: rgba(252, 252, 255, 0.8);
-  --desk-surface-line: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
-  --desk-on-wall: rgba(255, 255, 255, 0.9);
+     widget surfaces stay readable without flattening the image. The veil is
+     derived from `--scrim` in the token sheet rather than written here, so its
+     stops stay literal -- a gradient whose stops come from `var()` loses the
+     browser's dithering and bands across a photograph. */
+  --desk-overlay: var(--veil);
+  --desk-surface: rgba(var(--glass-rgb), 0.8);
+  --desk-surface-line: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.7);
+  --desk-on-wall: rgba(var(--on-wall-rgb), 0.9);
 }
 
 [data-theme='dark'] body[data-desk] {
-  --desk-surface: rgba(30, 32, 48, 0.72);
-  --desk-surface-line: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --desk-overlay: linear-gradient(
-    100deg,
-    rgba(10, 11, 20, 0.72),
-    rgba(10, 11, 20, 0.42) 40%,
-    rgba(10, 11, 20, 0.34) 62%,
-    rgba(10, 11, 20, 0.6)
-  );
+  --desk-surface: rgba(var(--glass-rgb), 0.72);
+  --desk-surface-line: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.08);
 }
 
 /* The painted set: eight places drawn for Vela, shipped as images. `sage` and
@@ -75,19 +67,19 @@ body[data-desk][data-desk-wallpaper='canaima'] {
 /* Bright pictures take a touch more veil, dark ones a touch less, so the same
    widget text reads over Chigüire's midday sand and over the Ávila at dusk. */
 body[data-desk][data-desk-tone='light'] {
-  --desk-tone-veil: rgba(16, 18, 28, 0.16);
+  --desk-tone-veil: rgba(var(--scrim-rgb), 0.16);
 }
 
 body[data-desk][data-desk-tone='dark'] {
-  --desk-tone-veil: rgba(255, 255, 255, 0.05);
+  --desk-tone-veil: rgba(var(--on-wall-rgb), 0.05);
 }
 
 body[data-desk][data-desk-wallpaper='sage'] {
-  --desk-wallpaper: linear-gradient(160deg, #cfe0cd 0%, #9db8a4 42%, #5f7d70 100%);
+  --desk-wallpaper: #{wallpapers.paint(wallpapers.$sage)};
 }
 
 body[data-desk][data-desk-wallpaper='night'] {
-  --desk-wallpaper: linear-gradient(160deg, #1b1f3a 0%, #2a2350 45%, #0d0f1c 100%);
+  --desk-wallpaper: #{wallpapers.paint(wallpapers.$night)};
 }
 
 /* Each desktop has its own picture at its own address, which a stylesheet
@@ -100,12 +92,7 @@ body[data-desk][data-desk-wallpaper='custom'] {
    it off is a real choice rather than a preview. */
 body[data-desk][data-desk-dim='off'] {
   --desk-tone-veil: transparent;
-  --desk-overlay: linear-gradient(
-    100deg,
-    rgba(18, 20, 32, 0.24),
-    rgba(18, 20, 32, 0.04) 45%,
-    rgba(18, 20, 32, 0.16)
-  );
+  --desk-overlay: var(--veil-plain);
 }
 
 body[data-desk] .shell::before {
@@ -163,34 +150,34 @@ body[data-desk] .workspace-header .icon-btn {
 }
 
 body[data-desk] .workspace-header .icon-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--on-wall);
+  background: rgba(var(--on-wall-rgb), 0.16);
 }
 
 body[data-desk] .rail {
-  background: rgba(18, 20, 32, 0.52);
-  border-right-color: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--scrim-rgb), 0.52);
+  border-right-color: rgba(var(--on-wall-rgb), 0.1);
 }
 
 /* Over the wallpaper the light theme rail ink would vanish, so the controls
    take the same white as the mockup at every theme. */
 body[data-desk] .rail-item {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(var(--on-wall-rgb), 0.85);
 }
 
 body[data-desk] .rail-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--on-wall);
+  background: rgba(var(--on-wall-rgb), 0.16);
 }
 
 body[data-desk] .rail-item-active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  color: var(--on-wall);
+  background: rgba(var(--on-wall-rgb), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.22);
 }
 
 body[data-desk] .rail-divider {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(var(--on-wall-rgb), 0.22);
 }
 
 /* The floating controls and the search share one 56px line: the header band
@@ -231,7 +218,7 @@ body[data-desk] .rail-divider {
 }
 
 .desk-top .searchbox input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(var(--on-wall-rgb), 0.7);
 }
 
 .desk-top-actions {
@@ -273,8 +260,8 @@ body[data-desk] .rail-divider {
   border-radius: 18px;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+    linear-gradient(to right, rgba(var(--on-wall-rgb), 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(var(--on-wall-rgb), 0.16) 1px, transparent 1px);
 }
 
 .desk-frame {
@@ -288,7 +275,7 @@ body[data-desk] .rail-divider {
   backdrop-filter: blur(22px);
   box-shadow:
     var(--desk-surface-line),
-    0 12px 30px rgba(18, 20, 32, 0.18);
+    0 12px 30px rgba(var(--scrim-rgb), 0.18);
 }
 
 .desk-frame-edit {
@@ -298,7 +285,7 @@ body[data-desk] .rail-divider {
 .desk-frame-selected {
   box-shadow:
     inset 0 0 0 2px var(--accent),
-    0 12px 30px rgba(18, 20, 32, 0.24);
+    0 12px 30px rgba(var(--scrim-rgb), 0.24);
 }
 
 .desk-frame-head {
@@ -575,14 +562,14 @@ body[data-desk] .rail-divider {
 .desk-tiles .tile-add {
   padding: 11px;
   gap: 9px;
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  background: rgba(var(--on-wall-rgb), 0.5);
+  box-shadow: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.55);
 }
 
 [data-theme='dark'] .desk-tiles .tile-card,
 [data-theme='dark'] .desk-tiles .tile-add {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: rgba(var(--on-wall-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--on-wall-rgb), 0.08);
 }
 
 .desk-tiles-bare .tile-card-meta {
@@ -609,7 +596,7 @@ body[data-desk] .rail-divider {
 
 .desk-tiles-icons .tile-card:hover:not(:disabled),
 .desk-tiles-icons .tile-add:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(var(--on-wall-rgb), 0.14);
 }
 
 .desk-tiles-icons .tile-card-meta,
@@ -715,7 +702,7 @@ body[data-desk] .rail-divider {
   place-items: center;
   border: none;
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   cursor: pointer;
 }
@@ -796,13 +783,13 @@ body[data-desk] .rail-divider {
 }
 
 .desk-top-actions .btn {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--on-wall);
+  border-color: rgba(var(--on-wall-rgb), 0.35);
+  background: rgba(var(--on-wall-rgb), 0.1);
 }
 
 .desk-top-actions .btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(var(--on-wall-rgb), 0.2);
 }
 
 .desk-top-actions .btn:disabled {
@@ -1012,7 +999,7 @@ body[data-desk] .rail-divider {
   min-height: 28px;
   padding: 5px 14px;
   border-radius: 999px;
-  background: rgba(20, 22, 34, 0.32);
+  background: rgba(var(--scrim-rgb), 0.32);
   backdrop-filter: blur(10px);
   color: var(--desk-on-wall);
   font-size: 12.5px;
@@ -1034,7 +1021,7 @@ body[data-desk] .desk-grid {
 @media (prefers-reduced-transparency: reduce) {
   .desk-statusbar {
     backdrop-filter: none;
-    background: rgba(20, 22, 34, 0.7);
+    background: rgba(var(--scrim-rgb), 0.7);
   }
 }
 

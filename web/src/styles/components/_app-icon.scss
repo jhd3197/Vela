@@ -64,9 +64,9 @@
   height: 1.75em;
   padding: 0 0.42em;
   border-radius: 999px;
-  background: #5b2edb;
+  background: #5b2edb; // ratchet: allow tokens app tile art, generated from an app id
   box-shadow: 0 0 0 2px var(--bg-card);
-  color: #fff;
+  color: #fff; // ratchet: allow tokens app tile art, generated from an app id
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -74,6 +74,6 @@
 }
 
 [data-theme='dark'] .appicon-badge {
-  background: #7b4dff;
+  background: #7b4dff; // ratchet: allow tokens app tile art, generated from an app id
   box-shadow: 0 0 0 2px var(--bg-card);
 }

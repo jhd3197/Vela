@@ -238,7 +238,7 @@
 /* A warning is not a failure. Amber sits between them and stays legible on
    both grounds without a token of its own. */
 .status-dot-warn {
-  background: #d08a2e;
+  background: var(--amber);
 }
 
 .pill {

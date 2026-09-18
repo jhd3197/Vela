@@ -14,8 +14,8 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  background: #0d0f16;
-  color: #e7e9f2;
+  background: #0d0f16; // ratchet: allow tokens this page ships no dashboard tokens on purpose, see the header
+  color: #e7e9f2; // ratchet: allow tokens this page ships no dashboard tokens on purpose, see the header
   font:
     14px/1.5 system-ui,
     -apple-system,
@@ -33,7 +33,7 @@ body,
   height: 100%;
   border: 0;
   display: block;
-  background: #fff;
+  background: #fff; // ratchet: allow tokens this page ships no dashboard tokens on purpose, see the header
 }
 
 /* A state message, for the two cases worth saying out loud: the app broke, and
@@ -46,9 +46,9 @@ body,
   margin: 0;
   padding: 24px;
   text-align: center;
-  background: #0d0f16;
+  background: #0d0f16; // ratchet: allow tokens this page ships no dashboard tokens on purpose, see the header
 }
 
 .agent-host-state[data-state='error'] {
-  color: #ff9d9d;
+  color: #ff9d9d; // ratchet: allow tokens this page ships no dashboard tokens on purpose, see the header
 }

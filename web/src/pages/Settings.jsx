@@ -1517,7 +1517,11 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                   disabled={saving}
                   onClick={() => pickTheme(t)}
                 >
-                  <span className={`settings-theme-preview preview-${t}`} aria-hidden="true">
+                  <span
+                    className={`settings-theme-preview preview-${t}`}
+                    data-theme={t}
+                    aria-hidden="true"
+                  >
                     <span className="preview-sidebar">
                       <i />
                       <i />

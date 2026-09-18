@@ -13,7 +13,7 @@
 // applier (`apply.js`) walks the same tables, and the build exports the
 // whitelist to `vela/assets/theme-tokens.json` so the server validates against
 // this list rather than a second copy of it.
-import { contrast, firstLegible, flatten, mix, ramp, withAlpha } from './color.js';
+import { contrast, firstLegible, flatten, mix, parse, ramp, withAlpha } from './color.js';
 
 export const SCHEMA_VERSION = 1;
 
@@ -54,6 +54,16 @@ export const CANONICAL = {
   font: ['--font', '--mono'],
   shadow: ['--shadow-sm', '--shadow-md', '--shadow-lg'],
   glow: ['--glow'],
+  // What a wallpaper is seen through. A photograph is not interface colour and
+  // is not a theme's to choose, but the veil over it and the glass that floats
+  // on it are: without these a stylesheet has to write a near-black by hand,
+  // and an applied theme leaves the desk looking like the one it replaced.
+  wall: ['--scrim', '--glass'],
+  // Ink that sits on something the surface tokens do not describe: a
+  // photograph, or a button flooded with the accent. Both are the one place
+  // `--text` is the wrong answer, and both are a theme's to decide -- a theme
+  // with a pale accent needs dark ink on its filled buttons.
+  ink: ['--on-wall', '--on-accent'],
 };
 
 /** The kind of value each group holds, which is what the server validates. */
@@ -66,6 +76,8 @@ export const GROUP_TYPES = {
   font: 'font',
   shadow: 'shadow',
   glow: 'gradient',
+  wall: 'color',
+  ink: 'color',
 };
 
 /** Flat, in the order the sheet writes them. */
@@ -152,6 +164,30 @@ export const SCALES = {
  */
 export const SOFT_ALPHA = { green: 0.12, amber: 0.12, red: 0.1, accent: 0.12 };
 
+/**
+ * The veil a wallpaper is read through, per base: the stops are geometry and
+ * fixed, the colour is the theme's `--scrim`.
+ *
+ * This is derived here rather than written in `_desk.scss` with `var()` stops
+ * because a gradient whose stops come from a custom property loses Chrome's
+ * dithering: the same colours, but banded across a photograph. Emitted with
+ * literal stops, it renders exactly as the hand-written one did and still
+ * follows the theme, which is what a derived token is for.
+ */
+export const VEIL = {
+  light: { angle: '100deg', stops: [[0.5], [0.14, '40%'], [0.06, '62%'], [0.34]] },
+  dark: { angle: '100deg', stops: [[0.72], [0.42, '40%'], [0.34, '62%'], [0.6]] },
+};
+
+/** The same veil with the dimming turned off: present, but barely. */
+export const VEIL_PLAIN = {
+  light: { angle: '100deg', stops: [[0.24], [0.04, '45%'], [0.16]] },
+  dark: { angle: '100deg', stops: [[0.42], [0.08, '45%'], [0.28]] },
+};
+
+/** The colours the stylesheet also needs as bare channels, for `rgba(…)`. */
+export const CHANNEL_TOKENS = ['--scrim', '--glass', '--on-wall'];
+
 /** Which ramp step carries the accent's line weight, per base. */
 const LINE_STEP = { light: 300, dark: 500 };
 
@@ -204,6 +240,32 @@ export function derive(tokens, base) {
     out['--nav-active-text'] = out['--accent-strong'];
     out['--nav-active-bg'] = out['--accent-soft'];
     out['--nav-active-bar'] = tokens['--accent'];
+  }
+
+  // Channel companions for the three colours that are almost always drawn at
+  // an alpha: `rgba(var(--scrim-rgb), 0.5)` is the form the stylesheet already
+  // used, so a veil over a photograph composites and interpolates exactly as it
+  // did. `color-mix()` reaches the same colour but not the same gradient --
+  // Chrome interpolates the mixed stops differently, and over a wallpaper that
+  // shows as a shift across the whole picture.
+  for (const name of CHANNEL_TOKENS) {
+    const value = tokens[name];
+    if (!value) continue;
+    const rgb = parse(value);
+    if (rgb) out[`${name}-rgb`] = [rgb.r, rgb.g, rgb.b].map((c) => Math.round(c * 255)).join(', ');
+  }
+
+  const veil = (recipe) =>
+    `linear-gradient(${recipe.angle}, ` +
+    recipe.stops
+      .map(([opacity, position]) =>
+        [withAlpha(tokens['--scrim'], opacity), position].filter(Boolean).join(' '),
+      )
+      .join(', ') +
+    ')';
+  if (tokens['--scrim'] && VEIL[base]) {
+    out['--veil'] = veil(VEIL[base]);
+    out['--veil-plain'] = veil(VEIL_PLAIN[base]);
   }
 
   for (const [alias, canonical] of Object.entries(ALIASES)) {

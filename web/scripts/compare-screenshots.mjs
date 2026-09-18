@@ -8,6 +8,10 @@
  * before, make the change, capture after, compare. A cascade that shifted
  * shows up as a percentage rather than as a feeling.
  *
+ * Capture both sides on the same port: the dashboard prints the address it is
+ * served on, so a different port is a real pixel difference in a place no
+ * stylesheet owns.
+ *
  * `capture` starts its own disposable engine on a temporary data directory
  * (`scripts/serve-release-fixtures.py`) and reads the built dashboard from
  * `web/dist`. It never touches an installed server or a user's own data, which
@@ -89,6 +93,22 @@ async function capture(directory, port) {
       } catch {
         // Blocked site data: the capture still renders.
       }
+      // Freeze the wall clock. The desk draws the time, so two captures taken a
+      // minute apart differ in the one place nothing about the stylesheet
+      // changed -- and those glyph pixels move by 200 of 255, which swamps the
+      // magnitude reading for the whole screen. A fixed instant makes the
+      // comparison a comparison of the styles.
+      const frozen = new Date('2026-01-01T09:41:00').getTime();
+      const Real = Date;
+      // eslint-disable-next-line no-global-assign
+      Date = class extends Real {
+        constructor(...args) {
+          super(...(args.length ? args : [frozen]));
+        }
+        static now() {
+          return frozen;
+        }
+      };
     });
     for (const [label, width, height] of SIZES) {
       await page.setViewportSize({ width, height });
@@ -161,6 +181,8 @@ async function compare(before, after, diffDirectory) {
             return context.getImageData(0, 0, image.width, image.height).data;
           };
           const [one, two] = [pixels(a), pixels(b)];
+          let worstChannel = 0;
+          let totalDelta = 0;
           const canvas = document.createElement('canvas');
           canvas.width = a.width;
           canvas.height = a.height;
@@ -174,7 +196,16 @@ async function compare(before, after, diffDirectory) {
               Math.abs(one[i + 1] - two[i + 1]) > 1 ||
               Math.abs(one[i + 2] - two[i + 2]) > 1 ||
               Math.abs(one[i + 3] - two[i + 3]) > 1;
-            if (moved) differing += 1;
+            if (moved) {
+              differing += 1;
+              const delta = Math.max(
+                Math.abs(one[i] - two[i]),
+                Math.abs(one[i + 1] - two[i + 1]),
+                Math.abs(one[i + 2] - two[i + 2]),
+              );
+              totalDelta += delta;
+              if (delta > worstChannel) worstChannel = delta;
+            }
             if (!wantDiff) continue;
             if (moved) {
               // Magenta on what moved: no interface in this system is magenta,
@@ -185,7 +216,8 @@ async function compare(before, after, diffDirectory) {
             } else {
               // The rest stays as a faint ghost of the "after" shot, so a
               // change can be found on the screen it happened on.
-              const grey = (two[i] * 0.2126 + two[i + 1] * 0.7152 + two[i + 2] * 0.0722) * 0.35 + 150;
+              const grey =
+                (two[i] * 0.2126 + two[i + 1] * 0.7152 + two[i + 2] * 0.0722) * 0.35 + 150;
               out.data[i] = grey;
               out.data[i + 1] = grey;
               out.data[i + 2] = grey;
@@ -193,9 +225,14 @@ async function compare(before, after, diffDirectory) {
             out.data[i + 3] = 255;
           }
           const percent = (differing / (one.length / 4)) * 100;
-          if (!wantDiff) return { percent, diff: null };
+          // How far the changed pixels moved matters as much as how many did: a
+          // large soft gradient re-dithers between builds, which counts a third
+          // of the screen as changed while nothing about it looks different.
+          const mean = differing ? totalDelta / differing : 0;
+          const measurement = { percent, mean, max: worstChannel };
+          if (!wantDiff) return { ...measurement, diff: null };
           context.putImageData(out, 0, 0);
-          return { percent, diff: canvas.toDataURL('image/png') };
+          return { ...measurement, diff: canvas.toDataURL('image/png') };
         },
         [await load(before), await load(after), Boolean(diffDirectory)],
       );
@@ -207,7 +244,11 @@ async function compare(before, after, diffDirectory) {
         );
       }
       worst = Math.max(worst, percent);
-      console.log(`${percent.toFixed(3).padStart(8)} %  ${name}`);
+      console.log(
+        `${percent.toFixed(3).padStart(8)} %  ` +
+          `mean ${measured.mean.toFixed(1).padStart(5)}  max ${String(measured.max).padStart(3)}  ` +
+          name,
+      );
     }
   } finally {
     await browser.close();

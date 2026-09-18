@@ -97,7 +97,7 @@
 .rail-item-active {
   background: var(--bg-card);
   color: var(--accent-strong);
-  box-shadow: 0 2px 8px rgba(41, 43, 49, 0.08);
+  box-shadow: 0 2px 8px rgba(var(--scrim-rgb), 0.08);
 }
 
 /* The selected item is marked by an edge bar as well as a surface change, so
@@ -149,7 +149,7 @@
   place-items: center;
   font-size: 10px;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--bg-rail);
 }
@@ -259,15 +259,15 @@
 }
 
 body[data-desk] .rail-section-label {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(var(--on-wall-rgb), 0.45);
 }
 
 body[data-desk] .rail-item-open:not(.rail-item-active)::before {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(var(--on-wall-rgb), 0.75);
 }
 
 body[data-desk] .rail-dot {
-  box-shadow: 0 0 0 2px rgba(18, 20, 32, 0.75);
+  box-shadow: 0 0 0 2px rgba(var(--scrim-rgb), 0.75);
 }
 
 /* The foot avatar: one letter standing for whoever this Vela belongs to. It is
@@ -280,7 +280,7 @@ body[data-desk] .rail-dot {
   height: 34px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 14px;
   font-weight: 600;
   line-height: 1;
