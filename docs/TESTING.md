@@ -11,12 +11,35 @@ After [developer setup](DEVELOPMENT.md), run from the repository root:
 npm --prefix web run check
 ```
 
-The same command runs in CI: lint, formatting verification, Node tests, Python
-tests, then the dashboard build. It stops at the first failure. Use
-`npm --prefix web run format` to fix formatting, or run individual checks while
-iterating: `npm --prefix web run lint`, `node --test tests/bridge.test.mjs
-tests/resource.test.mjs`, `python -m unittest discover -s tests`, and
-`npm --prefix web run build`. Browser acceptance remains a separate step.
+The same command runs in CI: lint, formatting verification, the ratchet guards,
+Node tests, Python tests, then the dashboard build. It stops at the first
+failure. Use `npm --prefix web run format` to fix formatting, or run individual
+checks while iterating: `npm --prefix web run lint`, `node --test
+tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
+tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
+step.
+
+### Ratchet guards
+
+`node web/scripts/ratchet.mjs` runs the structural guards in
+`web/scripts/ratchets/` against `web/scripts/ratchets/baseline.json`, which
+records how many findings each file is allowed. A file that is not in the
+baseline is allowed none, so the first violation in a clean file fails with the
+file and the line named. A count that fell fails too, asking for the baseline to
+be lowered — that is what keeps a cleanup from quietly growing back.
+
+```bash
+node web/scripts/ratchet.mjs            # check, as the aggregate check runs it
+node web/scripts/ratchet.mjs --report   # every finding, including line escapes
+node web/scripts/ratchet.mjs --update   # rewrite the baseline after a cleanup
+node web/scripts/ratchet.mjs --only browser-boundary
+```
+
+A line that must stay as it is carries `// ratchet: allow <guard id> <reason>`;
+the escape is counted and `--report` lists it. `--update` refuses to raise a
+count unless `--allow-growth <guard id>` says so on the same command line, which
+leaves the decision in the Git history. Writing a guard is in
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 `web/scripts/test-desktops.mjs` covers the dashboard side against a real engine
 on its own port: the migrated desk as Desktop 1, a second workspace with its own
