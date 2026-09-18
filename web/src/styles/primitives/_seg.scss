@@ -1,0 +1,77 @@
+// tokens: spacing
+/* A segmented control on native radios.
+ *
+ * Origin: ServerKit `frontend/src/components/ds/SegControl.jsx` (MIT, same
+ * owner), which drew its own buttons and wired arrow keys by hand.
+ *
+ * Radios instead, one `<input>` per option with a shared name, because a radio
+ * group already does everything the hand-written version had to be taught:
+ * arrow keys move the selection, Home and End jump to the ends, the label is
+ * announced with its position in the group, and it posts inside a form. The
+ * input is hidden from sight but not from the accessibility tree or the focus
+ * order, so the ring lands on the option the keyboard is actually on.
+ *
+ * The existing `.seg` in `_controls.scss` is untouched; this is the primitive
+ * the `ds/` layer draws with.
+ */
+
+.vela-seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.vela-seg-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
+}
+
+/* Visually gone, still focusable and still announced. `appearance: none` alone
+   leaves a box in some engines, so the input is sized to nothing and clipped
+   rather than hidden -- `display: none` would take it out of the tab order. */
+.vela-seg-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vela-seg-opt:hover {
+  color: var(--text);
+}
+
+.vela-seg-input:checked + .vela-seg-label {
+  color: var(--nav-active-text);
+}
+
+.vela-seg-opt:has(.vela-seg-input:checked) {
+  background: var(--nav-active-bg);
+}
+
+/* The ring goes on the option, not on the one-pixel input nobody can see. */
+.vela-seg-opt:has(.vela-seg-input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vela-seg-opt:has(.vela-seg-input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}

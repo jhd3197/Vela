@@ -137,7 +137,7 @@ export default function WidgetFrame({
           {Render ? (
             <Render widget={widget} cfg={widget.cfg || {}} type={type} ctx={ctx} />
           ) : (
-            <p className="desk-empty">This widget is no longer available.</p>
+            <p className="vela-empty">This widget is no longer available.</p>
           )}
         </WidgetBoundary>
       </div>

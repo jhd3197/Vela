@@ -1,0 +1,47 @@
+// tokens: spacing
+/* A labelled bar. ServerKit's radial gauge is not copied here: a desk widget is
+ * two cells wide and one tall, and a bar reads better at that size. The ring
+ * next door is for the case where a proportion is the whole point.
+ *
+ * The fill takes the tone, so the same markup draws a volume at 30 % and one at
+ * 96 % without the widget choosing a colour. */
+
+.vela-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.vela-meter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.vela-meter-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vela-meter-detail {
+  flex: none;
+}
+
+.vela-meter-track {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.vela-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--tone, var(--accent));
+}

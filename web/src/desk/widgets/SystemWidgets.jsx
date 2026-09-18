@@ -34,14 +34,14 @@ export function SystemWidget() {
   const host = data.host || location.hostname;
   return (
     <>
-      <div className="desk-meter-head">
+      <div className="vela-meter-head">
         <span>{host}</span>
         <span>{error ? 'Last reading' : `up ${formatDuration(data.uptime?.seconds)}`}</span>
       </div>
       {history.length > 1 ? (
         <WidgetChart series={history} domain={[0, 100]} height={34} />
       ) : (
-        <p className="desk-empty">Collecting CPU readings…</p>
+        <p className="vela-empty">Collecting CPU readings…</p>
       )}
       <WidgetMeter
         percent={data.memory?.percent}
@@ -83,7 +83,7 @@ export function VolumeWidget({ cfg = {} }) {
   if (!disk.reachable) {
     return (
       <>
-        <div className="desk-meter-head">
+        <div className="vela-meter-head">
           <span>{disk.label}</span>
         </div>
         <DeskEmpty>Not connected right now.</DeskEmpty>
@@ -97,7 +97,7 @@ export function VolumeWidget({ cfg = {} }) {
         label={disk.label}
         detail={`${formatBytes(disk.used)} / ${formatBytes(disk.total)}`}
       />
-      <p className="desk-stat-caption">{formatBytes(disk.free)} free</p>
+      <p className="vela-stat-caption">{formatBytes(disk.free)} free</p>
     </>
   );
 }
@@ -180,7 +180,7 @@ export function BackupsWidget() {
       ) : (
         <DeskEmpty>No backups yet.</DeskEmpty>
       )}
-      {failed ? <p className="desk-empty desk-empty-error">{failed}</p> : null}
+      {failed ? <p className="vela-empty vela-empty vela-empty-error">{failed}</p> : null}
       <Button size="small" pending={busy} onClick={runBackup}>
         {busy ? 'Backing up…' : 'Back up now'}
       </Button>

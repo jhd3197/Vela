@@ -51,9 +51,9 @@ export default function HealthWidget() {
       <WidgetStat
         value={summary.attention ? `${summary.attention} to look at` : 'All good'}
         caption={worst ? worst.title : `${summary.considered} checks passed`}
-        color={summary.fail ? 'var(--red)' : undefined}
+        tone={summary.fail ? 'red' : undefined}
       />
-      {worst ? <p className="desk-empty">{worst.detail}</p> : null}
+      {worst ? <p className="vela-empty">{worst.detail}</p> : null}
       <Link className="btn btn-small" to="/settings#health">
         {worst ? 'Fix it' : 'Health'}
       </Link>

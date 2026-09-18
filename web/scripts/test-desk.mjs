@@ -230,8 +230,8 @@ try {
   await health.getByRole('button', { name: 'Run checks' }).click();
   // A real engine answers here, so the widget shows whatever this disposable
   // server actually reports rather than a canned result.
-  await health.locator('.desk-stat-value').waitFor();
-  const verdict = await health.locator('.desk-stat-value').innerText();
+  await health.locator('.vela-stat-value').waitFor();
+  const verdict = await health.locator('.vela-stat-value').innerText();
   assert.ok(
     /All good|to look at/.test(verdict),
     `the health widget must report the sweep: ${verdict}`,
@@ -428,7 +428,7 @@ try {
   });
   const failing = (sweep.checks || []).filter((check) => check.status === 'fail').length;
   assert.equal(
-    await needsYou.locator('.desk-status-cell', { hasText: 'Health check' }).count(),
+    await needsYou.locator('.vela-row', { hasText: 'Health check' }).count(),
     failing ? 1 : 0,
     `the sweep reported ${failing} failing check(s); Needs you must say the same`,
   );
@@ -437,7 +437,7 @@ try {
     failing ? 1 : 0,
     'the rail dot reads the same sweep as the widget',
   );
-  const flaggedRow = needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' });
+  const flaggedRow = needsYou.locator('.vela-row', { hasText: 'Widget Fixture' });
   await flaggedRow.waitFor();
   await flaggedRow.getByRole('button', { name: 'Later', exact: true }).click();
   await flaggedRow.waitFor({ state: 'detached' });
@@ -460,7 +460,7 @@ try {
   await page.locator('.desk-grid').waitFor();
   await needsYou.waitFor();
   assert.equal(
-    await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).count(),
+    await needsYou.locator('.vela-row', { hasText: 'Widget Fixture' }).count(),
     0,
     'a snoozed item stays put aside across a reload',
   );
@@ -476,7 +476,7 @@ try {
   });
   await page.reload();
   await page.locator('.desk-grid').waitFor();
-  await needsYou.locator('.desk-status-cell', { hasText: 'Widget Fixture' }).waitFor();
+  await needsYou.locator('.vela-row', { hasText: 'Widget Fixture' }).waitFor();
   await railDot().waitFor({ timeout: 5000 });
 
   // Uninstalling takes the summary and the widget with it, rather than leaving

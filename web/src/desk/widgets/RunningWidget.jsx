@@ -27,7 +27,7 @@ export default function RunningWidget() {
         lead: (
           <button
             type="button"
-            className="desk-status-open"
+            className="vela-row-open"
             aria-label={`Open ${app.name}`}
             onClick={() => openApp(app.id, { returnTo: '/' })}
           >

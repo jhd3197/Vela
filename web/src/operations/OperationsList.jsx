@@ -22,8 +22,8 @@ export default function OperationsList({ operations = [], empty = 'Nothing is ru
           .filter(Boolean)
           .join(' · '),
         lead: (
-          <Link className="desk-status-open" to={item.href} aria-label={`Open ${item.title}`}>
-            <span className="desk-status-dot" data-state={statusDotState(item.status)} />
+          <Link className="vela-row-open" to={item.href} aria-label={`Open ${item.title}`}>
+            <span className="vela-row-dot" data-state={statusDotState(item.status)} />
           </Link>
         ),
       }))}

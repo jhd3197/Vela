@@ -69,7 +69,7 @@ export default function NeedsYouWidget() {
       lead: app ? (
         <button
           type="button"
-          className="desk-status-open"
+          className="vela-row-open"
           aria-label={`Open ${name}`}
           onClick={() => openApp(app.id, { returnTo: '/' })}
         >
@@ -107,8 +107,8 @@ export default function NeedsYouWidget() {
         .join(' · '),
       state: statusDotState(item.status),
       lead: (
-        <Link className="desk-status-open" to={item.href} aria-label={`Open ${item.title}`}>
-          <span className="desk-status-dot" data-state={statusDotState(item.status)} />
+        <Link className="vela-row-open" to={item.href} aria-label={`Open ${item.title}`}>
+          <span className="vela-row-dot" data-state={statusDotState(item.status)} />
         </Link>
       ),
     });

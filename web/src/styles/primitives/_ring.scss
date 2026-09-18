@@ -1,0 +1,56 @@
+// tokens: spacing
+/* A proportion drawn as a ring, with the number in the middle.
+ *
+ * For the case a meter cannot carry: "eleven of twelve checks pass" wants to
+ * read as almost-whole at a glance, and a bar 96 % along reads as a bar. The
+ * geometry is in the SVG (a stroked circle with `stroke-dasharray`); this file
+ * only says how it is coloured and how the label sits.
+ *
+ * The track is the inset surface rather than a tint of the tone, so a ring at
+ * 4 % does not look like a ring at 96 % in a lighter shade.
+ */
+
+.vela-ring {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.vela-ring-figure {
+  grid-area: 1 / 1;
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.vela-ring-track {
+  fill: none;
+  stroke: var(--bg-inset);
+}
+
+.vela-ring-fill {
+  fill: none;
+  stroke: var(--tone, var(--accent));
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--motion-base) var(--ease);
+}
+
+.vela-ring-label {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
+}
+
+.vela-ring-value {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.vela-ring-caption {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}

@@ -1,0 +1,34 @@
+// tokens: spacing
+/* The desk's wall clock.
+ *
+ * Not in `primitives/`: nothing else in Vela draws a clock, and a primitive
+ * with one caller is a layer nobody asked for. It carries the `vela-` prefix
+ * because it sits beside the primitives inside a widget and the two would read
+ * as different kinds of thing otherwise.
+ */
+
+.vela-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 0;
+}
+
+.vela-clock-time {
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+
+.vela-clock-date {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* The weather line, under the date, when the user turned it on. */
+.vela-clock-weather {
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}

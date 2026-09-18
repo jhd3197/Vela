@@ -32,7 +32,7 @@ function Body({ layout, summary }) {
           label={summary.value || ''}
           detail={summary.unit || ''}
         />
-        {summary.caption ? <p className="desk-stat-caption">{summary.caption}</p> : null}
+        {summary.caption ? <p className="vela-stat-caption">{summary.caption}</p> : null}
       </>
     );
   }
@@ -90,7 +90,7 @@ export default function AppWidget({ type }) {
         <span className="desk-app-widget">{type.name}</span>
         {summary?.attention ? (
           <span className="desk-app-attention" title="Needs you">
-            <span className="desk-status-dot" data-state="bad" />
+            <span className="vela-row-dot" data-state="bad" />
           </span>
         ) : null}
       </div>
@@ -102,7 +102,7 @@ export default function AppWidget({ type }) {
       )}
 
       {summary && isStale(record) ? (
-        <p className="desk-stat-caption">as of {formatRelativeTime(record.updatedAt)}</p>
+        <p className="vela-stat-caption">as of {formatRelativeTime(record.updatedAt)}</p>
       ) : null}
 
       {type.layout === 'actions' && offered.length ? (

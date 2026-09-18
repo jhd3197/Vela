@@ -566,7 +566,7 @@ export default function Desk() {
               onViewMenu={(widget, x, y) => setWidgetMenu({ widget, x, y })}
               onAppDrop={dropApp}
               empty={
-                <p className="desk-empty">
+                <p className="vela-empty">
                   Your desk is empty. Use <b>Add widget</b> to put something on it.
                 </p>
               }

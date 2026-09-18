@@ -125,7 +125,7 @@ try {
   // --- a second desktop is a separate workspace ---------------------------
   await createDesktop(page, 'Taxes');
   await waitForDesktop(page, 'Taxes');
-  await page.locator('.desk-empty').waitFor();
+  await page.locator('.vela-empty').waitFor();
   assert.deepEqual(
     await labels(page),
     [],

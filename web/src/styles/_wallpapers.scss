@@ -7,14 +7,21 @@
 // is written out rather than read from a token, and they live here, named once,
 // instead of being repeated in the desk and in the Personalise sheet's swatch.
 //
-// The `@include` sites read them with `nth()`, which is why they are lists: a
-// gradient's stops are geometry and belong at the site, while the colours are
+// The `paint()` sites read them with `list.nth()`, which is why they are lists:
+// a gradient's stops are geometry and belong at the site, while the colours are
 // the picture and belong here.
+
+@use 'sass:list';
 
 $sage: (#cfe0cd, #9db8a4, #5f7d70); // ratchet: allow tokens a picture
 $night: (#1b1f3a, #2a2350, #0d0f1c); // ratchet: allow tokens a picture
 
 /// The gradient a wallpaper list paints, at the angle and stops both sites use.
 @function paint($colours) {
-  @return linear-gradient(160deg, nth($colours, 1) 0%, nth($colours, 2) 42%, nth($colours, 3) 100%);
+  @return linear-gradient(
+    160deg,
+    list.nth($colours, 1) 0%,
+    list.nth($colours, 2) 42%,
+    list.nth($colours, 3) 100%
+  );
 }

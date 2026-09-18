@@ -327,11 +327,11 @@ export default function Files() {
               {error.message || 'Could not read that folder.'}
             </p>
           ) : loading && !listing ? (
-            <p className="desk-empty" role="status">
+            <p className="vela-empty" role="status">
               Loading…
             </p>
           ) : entries.length === 0 ? (
-            <p className="desk-empty" role="status">
+            <p className="vela-empty" role="status">
               {writable ? 'Nothing here yet. Drop a file to add one.' : 'Nothing here.'}
             </p>
           ) : (
@@ -492,7 +492,7 @@ function FilePreview({ share, entry }) {
     );
   if (!url)
     return (
-      <p className="desk-empty" role="status">
+      <p className="vela-empty" role="status">
         Loading…
       </p>
     );

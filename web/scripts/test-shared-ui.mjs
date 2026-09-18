@@ -4,6 +4,100 @@ import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium } from 'playwright';
 import { checkFoundations } from './assert-foundations.mjs';
+import { TONES } from './fixtures/tones.js';
+
+/**
+ * The primitive layer, in every tone and both bases.
+ *
+ * What is checked is not that a mark looks right -- a screenshot does that --
+ * but that the colour it ends up with is the one the token sheet resolves for
+ * that tone. A primitive that hard-coded a violet would render perfectly in the
+ * stock theme and stop following an imported one, and nothing but this
+ * comparison would notice.
+ */
+async function checkPrimitives(page) {
+  for (const base of ['light', 'dark']) {
+    const gallery = page.locator(`[data-gallery="${base}"]`);
+    await gallery.locator('.vela-card').first().waitFor();
+
+    // The base really is applied to this subtree: the two galleries sit on one
+    // page, so a scoping mistake would silently test the same base twice.
+    const ground = await gallery.evaluate((node) =>
+      getComputedStyle(node).getPropertyValue('--bg').trim(),
+    );
+    assert.ok(ground, `the ${base} gallery resolved no --bg`);
+
+    for (const tone of TONES) {
+      const card = gallery.locator(`[data-case="card-${tone}"]`);
+      const measured = await card.evaluate((node) => {
+        const read = (selector, property) => {
+          const found = node.querySelector(selector);
+          return found ? getComputedStyle(found).getPropertyValue(property) : null;
+        };
+        const icon = getComputedStyle(node.querySelector('.vela-card-icon'));
+        return {
+          declared: icon.getPropertyValue('--tone').trim(),
+          soft: icon.getPropertyValue('--tone-soft').trim(),
+          // Marks: a shape the eye finds by position as much as by colour.
+          marks: {
+            icon: icon.color,
+            meterFill: read('.vela-meter-fill', 'background-color'),
+            ringFill: read('.vela-ring-fill', 'stroke'),
+            pillDot: read('.vela-pill-dot', 'background-color'),
+            rowDot: read('.vela-row-dot', 'background-color'),
+          },
+          // Text: has to be read, so it takes the step that clears 4.5:1 on the
+          // tint rather than the tone itself.
+          inks: {
+            tintedValue: read('.vela-kv-row:last-child .vela-kv-value', 'color'),
+            pillLabel: read('.vela-pill', 'color'),
+          },
+        };
+      });
+
+      assert.ok(measured.declared, `${base}/${tone}: the tone resolved to nothing`);
+      assert.ok(measured.soft, `${base}/${tone}: no soft tint`);
+
+      // Every mark in the card is the one colour the tone names. Comparing the
+      // marks to each other rather than to a value written here is what keeps
+      // this true under a theme nobody has written yet.
+      for (const [mark, value] of Object.entries(measured.marks)) {
+        assert.ok(value, `${base}/${tone}: ${mark} drew nothing`);
+        assert.equal(
+          value,
+          measured.marks.icon,
+          `${base}/${tone}: ${mark} is ${value}, but the tone's mark is ${measured.marks.icon}`,
+        );
+      }
+
+      // Text in a tone is the tone's legible step, and the two agree with each
+      // other. For a status role the step and the tone are the same colour --
+      // a green that can be read is already the green -- so this says they
+      // agree, not that they differ.
+      for (const [ink, value] of Object.entries(measured.inks)) {
+        assert.ok(value, `${base}/${tone}: ${ink} drew nothing`);
+        assert.equal(
+          value,
+          measured.inks.tintedValue,
+          `${base}/${tone}: ${ink} is ${value}, but tinted text is ${measured.inks.tintedValue}`,
+        );
+      }
+    }
+
+    // Two tones must not resolve to the same colour, or the tone system is
+    // decoration rather than meaning.
+    const inks = await gallery.evaluate(
+      (node, tones) =>
+        tones.map(
+          (tone) =>
+            getComputedStyle(node.querySelector(`[data-case="card-${tone}"] .vela-card-icon`))
+              .color,
+        ),
+      TONES,
+    );
+    assert.equal(new Set(inks).size, inks.length, `${base}: two tones resolved to one colour`);
+  }
+}
 
 const web = fileURLToPath(new URL('..', import.meta.url));
 const server = await createServer({
@@ -194,12 +288,16 @@ try {
   assert.equal(await focused(ask), true);
 
   await checkFoundations(page);
+  await checkPrimitives(page);
   assert.deepEqual(errors, []);
   console.log(
     'PASS: native form behavior, accessible fields, strict-mode cleanup, stale reads, retry, duplicate actions and unmount safety',
   );
   console.log(
     'PASS: one submit per double-click, server field errors on their field, one confirm dialog with focus returned',
+  );
+  console.log(
+    `PASS: every primitive in ${TONES.length} tones and both bases takes its colour from the token sheet`,
   );
 } finally {
   await browser?.close();

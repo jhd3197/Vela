@@ -56,7 +56,7 @@ export default function WidgetLibrary({ types, cols, onAdd, onClose }) {
       </div>
       <div className="drawer-body">
         {groups.length === 0 && (
-          <p className="desk-empty" role="status">
+          <p className="vela-empty" role="status">
             No widgets match “{query.trim()}”.
           </p>
         )}

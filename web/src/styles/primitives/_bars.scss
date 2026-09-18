@@ -1,0 +1,48 @@
+// tokens: spacing
+/* A short series as vertical bars.
+ *
+ * The prototype's recipe exactly: ordinary bars at accent 300, anything above
+ * the median at 400, and the last bar -- today, the most recent run, the value
+ * that is still moving -- at 600. That is what makes the chart readable without
+ * an axis, a legend or a tooltip: the eye finds the newest bar first and the
+ * tall ones second.
+ *
+ * Heights come from the component as a percentage, because only it knows
+ * whether the series is scaled to its own range or to a fixed domain.
+ */
+
+.vela-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vela-bars-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: 56px;
+  min-width: 0;
+}
+
+.vela-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--accent-300);
+}
+
+.vela-bar[data-weight='high'] {
+  background: var(--accent-400);
+}
+
+/* The last bar, whatever its value. */
+.vela-bar[data-weight='last'] {
+  background: var(--accent-600);
+}
+
+.vela-bars-caption {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}

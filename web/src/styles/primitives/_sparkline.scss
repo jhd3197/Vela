@@ -1,0 +1,12 @@
+// tokens: spacing
+/* A line with a wash under it, filling its cell.
+ *
+ * Hand-rolled SVG rather than a chart dependency: a desk widget needs a line
+ * that fits and nothing else -- no axis, no legend, no tooltip, no 40 KB. Where
+ * `bars` is for a series short enough to count, this is for one too long to.
+ */
+
+.vela-sparkline {
+  width: 100%;
+  flex: none;
+}
