@@ -1,0 +1,15 @@
+{
+  "endpoint": "GET /api/backups",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "One real backup of the disposable data directory.",
+  "payload": {
+    "backups": [
+      {
+        "name": "20260918-004153",
+        "size": 201948,
+        "created_at": "2026-09-18T00:41:53",
+        "safety": false
+      }
+    ]
+  }
+}

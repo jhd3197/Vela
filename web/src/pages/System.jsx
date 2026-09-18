@@ -9,6 +9,8 @@ import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import WorkspacePage from '../components/WorkspacePage.jsx';
 import LogViewer from '../components/log-viewer/LogViewer.jsx';
+import OperationsList from '../operations/OperationsList.jsx';
+import { useOperationsContext } from '../operations/OperationsProvider.jsx';
 import ErrorList from '../components/ErrorList.jsx';
 import SupportBundlePanel from '../components/SupportBundlePanel.jsx';
 
@@ -57,6 +59,10 @@ function Overview({ apps, engine, engineError, onShowErrors }) {
   const running = (apps || []).filter((a) => a.running);
   const load = useCallback((options) => api.errorStats(options), []);
   const { data: errorStats } = useResource(load);
+  // Everything the engine is doing for this person, whichever feature started
+  // it: automation runs, agent tasks, updates, backups, installs and the
+  // health sweep, in the shape `operations/` gives all six.
+  const { active, needsAttention, recent } = useOperationsContext();
   return (
     <>
       <section className="panel engine-card">
@@ -117,6 +123,25 @@ function Overview({ apps, engine, engineError, onShowErrors }) {
           </p>
         </section>
       )}
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Activity</h2>
+        </div>
+        <p className="panel-note">
+          What Vela is doing for you right now. The same list the desk and the bell read.
+        </p>
+        <OperationsList
+          operations={[...needsAttention, ...active.filter((item) => !item.needsAttention)]}
+          empty="Nothing is running."
+        />
+        {recent.length > 0 && (
+          <>
+            <h3 className="panel-subhead">Finished</h3>
+            <OperationsList operations={recent.slice(0, 8)} />
+          </>
+        )}
+      </section>
 
       <SupportBundlePanel />
 

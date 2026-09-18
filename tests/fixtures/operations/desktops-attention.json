@@ -1,0 +1,17 @@
+{
+  "endpoint": "GET /api/desktops/attention",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "One agent desktop, idle.",
+  "payload": {
+    "desktops": {
+      "c823a85031d84131a1ae02645570b742": {
+        "state": "idle",
+        "runId": null,
+        "working": false,
+        "needsYou": 0,
+        "queued": 0,
+        "blocked": null
+      }
+    }
+  }
+}

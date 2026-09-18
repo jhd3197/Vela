@@ -1,16 +1,23 @@
 // What is asking for you.
 //
-// Two sources, both of them things that actually said something: an app that
-// published a summary with `attention: true`, and a health check that failed.
+// Two kinds of thing, both of them things that actually said something: an app
+// that published a summary with `attention: true`, and whatever the engine is
+// doing that is waiting on a person — a failed health check, a run stopped at
+// an approval gate, an agent desktop with a question, an update to install.
+// The second kind comes from `operations/`, so this widget, the rail's dot,
+// the bell and the System page cannot disagree about it.
+//
 // Vela never decides on an app's behalf that something is wrong, so with
 // nothing flagged this says everything is running rather than inventing a list
 // of things to check.
 import { Link } from 'react-router-dom';
 import AppIcon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
-import { api } from '../../api.js';
+import { api, relTime } from '../../api.js';
 import { useApps } from '../../store.jsx';
 import useOpenApp from '../../desktops/useOpenApp.js';
+import { useOperationsContext } from '../../operations/OperationsProvider.jsx';
+import { statusDotState, statusLabel } from '../../operations/status.js';
 import { useDeskData } from '../DeskDataProvider.jsx';
 import { DeskEmpty, WidgetStatus } from './primitives.jsx';
 
@@ -18,7 +25,7 @@ export default function NeedsYouWidget() {
   const { apps, pushToast } = useApps();
   const openApp = useOpenApp();
   const { data, loaded, refresh } = useDeskData('appWidgets');
-  const { data: health } = useDeskData('health');
+  const { needsAttention } = useOperationsContext();
 
   // Later puts one item aside for eight hours. It is a server-side setting, so
   // the list is asked again rather than the row hidden locally: what the desk
@@ -88,32 +95,20 @@ export default function NeedsYouWidget() {
     });
   }
 
-  // A failed check is Vela itself asking for attention, so it belongs in the
-  // same list as an app that asked.
-  for (const check of (health?.checks || []).filter((entry) => entry.status === 'fail')) {
+  // Everything the engine is doing that is waiting on a person: a failed
+  // health sweep, a run at an approval gate, an agent desktop with a question,
+  // a release to install. One list, one wording, one place it comes from.
+  for (const item of needsAttention) {
     rows.push({
-      id: `check:${check.key}`,
-      name: check.title,
-      meta: check.detail,
-      state: 'bad',
+      id: item.key,
+      name: item.title,
+      meta: [item.subtitle || statusLabel(item.status), item.updatedAt && relTime(item.updatedAt)]
+        .filter(Boolean)
+        .join(' · '),
+      state: statusDotState(item.status),
       lead: (
-        <Link className="desk-status-open" to="/settings#health" aria-label="Open Health settings">
-          <span className="desk-status-dot" data-state="bad" />
-        </Link>
-      ),
-    });
-  }
-
-  // A new release is Vela asking for attention too, once.
-  if (health?.update?.available) {
-    rows.push({
-      id: 'update',
-      name: `Vela ${health.update.latest} is available`,
-      meta: `You are running ${health.update.current}`,
-      state: 'warn',
-      lead: (
-        <Link className="desk-status-open" to="/settings#updates" aria-label="Open Updates">
-          <span className="desk-status-dot" data-state="warn" />
+        <Link className="desk-status-open" to={item.href} aria-label={`Open ${item.title}`}>
+          <span className="desk-status-dot" data-state={statusDotState(item.status)} />
         </Link>
       ),
     });

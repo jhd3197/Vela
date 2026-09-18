@@ -1,7 +1,7 @@
 import { CheckCircle, Prohibit, Warning, XCircle } from '@phosphor-icons/react';
 import Button from '../ui/Button.jsx';
-import { RUN_STATUS_LABELS, RUN_STATUS_TONE } from '../../automationsApi.js';
 import { relTime } from '../../api.js';
+import { statusLabel, statusTone } from '../../operations/status.js';
 import { describeOutput } from './describeOutput.js';
 
 const LEVEL_ICON = { error: XCircle, warn: Warning };
@@ -27,8 +27,8 @@ export default function RunDetail({ run, catalog, onCancel, onDecide, pending })
   return (
     <div className="run-detail">
       <header className="run-detail-head">
-        <span className={`run-status run-status-${RUN_STATUS_TONE[run.status] || 'neutral'}`}>
-          {RUN_STATUS_LABELS[run.status] || run.status}
+        <span className={`run-status run-status-${statusTone(run.status)}`}>
+          {statusLabel(run.status)}
         </span>
         <span className="run-detail-meta">
           Version {run.revision} · started {run.startedAt ? relTime(run.startedAt) : 'not yet'}

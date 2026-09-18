@@ -80,27 +80,9 @@ export const automationsApi = {
     ),
 };
 
-export const RUN_STATUS_LABELS = {
-  queued: 'Waiting to start',
-  running: 'Running',
-  waiting: 'Waiting for you',
-  succeeded: 'Finished',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-  interrupted: 'Interrupted',
-  timed_out: 'Took too long',
-};
-
-export const RUN_STATUS_TONE = {
-  queued: 'neutral',
-  running: 'active',
-  waiting: 'warn',
-  succeeded: 'good',
-  failed: 'bad',
-  cancelled: 'neutral',
-  interrupted: 'warn',
-  timed_out: 'bad',
-};
+// A run's words and its tone come from `operations/status.js`, which is the
+// one status vocabulary for every kind of background work. A workflow's own
+// lifecycle — draft, on, paused, archived — is not a run status and stays here.
 
 export const WORKFLOW_STATUS_LABELS = {
   draft: 'Draft',

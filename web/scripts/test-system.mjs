@@ -57,6 +57,52 @@ try {
   assert.ok((await page.locator('.fact-grid .fact').count()) >= 5);
   await shot('system-overview');
 
+  // 2b. Activity: one list of background work, and the bell counts the part of
+  //     it that is waiting on a person. Same operation, two surfaces, one
+  //     source — the point of `operations/`.
+  const activity = page.locator('.panel', { has: page.getByRole('heading', { name: 'Activity' }) });
+  await activity.waitFor();
+  const bell = page.getByRole('button', { name: /^Notifications/ });
+  const waitingRow = activity.locator('.desk-status-cell', { hasText: 'Nightly greeting' });
+  await waitingRow.waitFor();
+  assert.equal(await waitingRow.count(), 1, 'the waiting run is listed once');
+  assert.match(await waitingRow.innerText(), /Waiting for you/);
+  assert.equal(
+    await bell.getAttribute('aria-label'),
+    'Notifications (1 unread)',
+    'a run waiting on a person bumps the bell by one',
+  );
+
+  // The finished backup and the health sweep are the same list, further down.
+  await activity.getByRole('heading', { name: 'Finished' }).waitFor();
+  assert.match(await activity.innerText(), /Backup/);
+  assert.match(await activity.innerText(), /Health check/);
+
+  // The bell's panel shows the same row, from the same list.
+  await bell.click();
+  const panel = page.getByRole('dialog', { name: 'Notifications' });
+  await panel.getByRole('heading', { name: 'Needs you' }).waitFor();
+  assert.equal(
+    await panel.locator('.desk-status-cell', { hasText: 'Nightly greeting' }).count(),
+    1,
+  );
+  await page.keyboard.press('Escape');
+
+  // Finish the run: it leaves the waiting list and the bell together.
+  await page.evaluate(() => {
+    window.__operations.runs[0].status = 'succeeded';
+    window.__operations.runs[0].finishedAt = '2026-09-16T09:41:00+00:00';
+  });
+  await page.waitForFunction(() => !document.querySelector('.notif-wrap .notif-badge'), undefined, {
+    timeout: 30000,
+  });
+  assert.equal(await bell.getAttribute('aria-label'), 'Notifications');
+  await activity
+    .locator('.desk-status-cell', { hasText: 'Nightly greeting' })
+    .filter({ hasText: 'Finished' })
+    .waitFor();
+  await shot('system-activity');
+
   // 3. The Logs tab lists the fixture files, grouped by what wrote them, with
   //    the rotated copy folded under the log it came from.
   await page.locator('.seg-opt', { hasText: 'Logs' }).click();

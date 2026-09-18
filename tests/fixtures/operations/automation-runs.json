@@ -1,0 +1,47 @@
+{
+  "endpoint": "GET /api/automations/runs?limit=10",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "One manual run of a three-step automation.",
+  "payload": {
+    "runs": [
+      {
+        "id": "d6d882f6-eb57-4380-ad3c-9c5edb2a9d13",
+        "workflowId": "94f0b868-cdb1-4e51-8d6a-6b8bf4990c35",
+        "workflowName": "Nightly greeting",
+        "revision": 2,
+        "status": "succeeded",
+        "trigger": "manual",
+        "queuedAt": "2026-09-18T04:41:52.293+00:00",
+        "startedAt": "2026-09-18T04:41:52.304+00:00",
+        "finishedAt": "2026-09-18T04:41:52.513+00:00",
+        "error": null,
+        "runtime": {
+          "catalogVersion": 1,
+          "platform": "windows",
+          "python": "3.12.14",
+          "worker": {
+            "node": "22.17.0",
+            "nodes": [
+              "manual-trigger",
+              "template",
+              "log",
+              "json-stringify",
+              "delay",
+              "merge",
+              "approval-gate",
+              "vela-schedule-trigger",
+              "vela-webhook-trigger",
+              "vela-condition",
+              "vela-notify",
+              "vela-app-action"
+            ],
+            "protocol": 1,
+            "spec": "0.2.2",
+            "tramo": "0.2.2"
+          }
+        },
+        "cancelRequested": false
+      }
+    ]
+  }
+}

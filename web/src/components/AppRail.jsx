@@ -23,6 +23,7 @@ import DesktopRailViews from '../desktops/DesktopRailViews.jsx';
 import useOpenApp from '../desktops/useOpenApp.js';
 import { useAppsOverlay } from '../desktops/AppsOverlay.jsx';
 import ContextMenu from './ui/ContextMenu.jsx';
+import { useOperationsContext } from '../operations/OperationsProvider.jsx';
 
 // Installed apps in a stable, status-independent order so a shortcut never
 // moves while the user is reaching for it.
@@ -128,9 +129,9 @@ export default function AppRail({ onNavigate }) {
     return () => removeEventListener('vela:widgets-changed', onChanged);
   }, [refreshSummaries]);
   // Settings holds Health, so a failed check is what puts a dot on Settings.
-  // Reading the last sweep never starts one.
-  const loadHealth = useCallback((options) => api.getDoctor(options), []);
-  const { data: health } = useResource(loadHealth, { intervalMs: 120000 });
+  // It reads the same health sweep the desk and the System page list, rather
+  // than fetching it again on a timer of its own; reading it never starts one.
+  const { needsAttention } = useOperationsContext();
   // Who this server belongs to. The avatar is the one place the rail says it,
   // so it reads the setting rather than being handed a prop through the shell.
   const loadIdentity = useCallback((options) => api.getSettings(options), []);
@@ -141,8 +142,8 @@ export default function AppRail({ onNavigate }) {
     addEventListener('vela:identity-changed', onChanged);
     return () => removeEventListener('vela:identity-changed', onChanged);
   }, [refreshIdentity]);
-  const healthFailing = (health?.checks || []).some((check) => check.status === 'fail');
-  const needsAttention = useMemo(() => {
+  const healthFailing = needsAttention.some((item) => item.kind === 'doctor');
+  const appsNeedingAttention = useMemo(() => {
     const ids = new Set();
     for (const entry of summaries || []) {
       // A snoozed item is put aside on the desk, so the dot goes with it.
@@ -300,7 +301,7 @@ export default function AppRail({ onNavigate }) {
                     label={pin.app.name}
                     className={location.pathname === `/app/${pin.id}` ? 'rail-item-active' : ''}
                     current={location.pathname === `/app/${pin.id}`}
-                    attention={needsAttention.has(pin.id)}
+                    attention={appsNeedingAttention.has(pin.id)}
                     onActivate={() => openFrom(pin.id)}
                     longPress={{}}
                     onContextMenu={(event) => openMenu({ kind: 'pinned', id: pin.id }, event)}
@@ -328,7 +329,7 @@ export default function AppRail({ onNavigate }) {
                     location.pathname === `/app/${app.id}` ? ' rail-item-active' : ''
                   }`}
                   current={location.pathname === `/app/${app.id}`}
-                  attention={needsAttention.has(app.id)}
+                  attention={appsNeedingAttention.has(app.id)}
                   onActivate={() => openFrom(app.id)}
                   longPress={{}}
                   onContextMenu={(event) => openMenu({ kind: 'open', id: app.id }, event)}

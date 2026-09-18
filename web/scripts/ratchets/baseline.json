@@ -30,10 +30,7 @@
     "web/src/pages/Launchpad.jsx": 1,
     "web/src/pages/Settings.jsx": 7
   },
-  "status-vocabulary": {
-    "web/src/automationsApi.js": 2,
-    "web/src/desktops/AgentWindow.jsx": 1
-  },
+  "status-vocabulary": {},
   "style-ownership": {
     "web/src/styles/components/_agent.scss": 1,
     "web/src/styles/components/_controls.scss": 1,

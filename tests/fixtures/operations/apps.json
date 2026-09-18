@@ -1,0 +1,109 @@
+{
+  "endpoint": "GET /api/apps",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "One installed fixture app and one still in the catalog.",
+  "payload": {
+    "apps": [
+      {
+        "id": "meals",
+        "schemaVersion": 2,
+        "upgradeAvailable": false,
+        "releaseAvailable": null,
+        "legacyStorage": {
+          "keys": {
+            "favorites": "vela.meals.favorites.v1",
+            "plan": "vela.meals.plan.v1"
+          },
+          "field": "imports",
+          "schema": "legacy.schema.json",
+          "initial": {
+            "favorites": {},
+            "plan": [
+              "overnight-oats",
+              "buddha-bowl",
+              "pesto-pasta",
+              "salmon-bowl",
+              "shakshuka",
+              "beef-tacos",
+              "buddha-bowl"
+            ],
+            "imports": [],
+            "outbox": null
+          }
+        },
+        "actionRequests": [
+          {
+            "app": "notes",
+            "action": "create-note"
+          }
+        ],
+        "connection": null,
+        "view": {
+          "surface": "embedded",
+          "chrome": "compact",
+          "appearance": "auto"
+        },
+        "capabilities": [
+          "actions",
+          "storage"
+        ],
+        "widgets": [],
+        "unavailableCapabilities": [],
+        "isolation": "sandbox",
+        "name": "Meals",
+        "version": "1.1.0",
+        "description": "Recipe and nutrition planner with favorites and a weekly meal plan.",
+        "category": "lifestyle",
+        "author": "Vela",
+        "color": "#9184d9",
+        "installed": false,
+        "running": false,
+        "url": null,
+        "supported": true,
+        "runtimes": [
+          "web"
+        ],
+        "runtime": "web"
+      },
+      {
+        "id": "notes",
+        "schemaVersion": 2,
+        "upgradeAvailable": false,
+        "releaseAvailable": null,
+        "legacyStorage": {
+          "key": "vela.notes.v1",
+          "field": "notes",
+          "schema": "legacy.schema.json"
+        },
+        "actionRequests": [],
+        "connection": null,
+        "view": {
+          "surface": "embedded",
+          "chrome": "compact",
+          "appearance": "auto"
+        },
+        "capabilities": [
+          "actions",
+          "storage"
+        ],
+        "widgets": [],
+        "unavailableCapabilities": [],
+        "isolation": "sandbox",
+        "name": "Notes",
+        "version": "1.1.0",
+        "description": "A private notes app \u00e2\u20ac\u201d create, edit, and keep everything on your own machine.",
+        "category": "productivity",
+        "author": "Vela",
+        "color": "#7c4dee",
+        "installed": true,
+        "running": true,
+        "url": "/apps/notes/",
+        "supported": true,
+        "runtimes": [
+          "web"
+        ],
+        "runtime": "web"
+      }
+    ]
+  }
+}

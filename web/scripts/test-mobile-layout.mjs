@@ -309,7 +309,8 @@ try {
   ]) {
     await page.setViewportSize({ width: size.width, height: size.height });
     await page.goto(base);
-    await page.locator('.rail-apps a').first().waitFor();
+    // An installed app's rail entry is a button, a core tool's is a link.
+    await page.locator('.rail-apps .rail-item').first().waitFor();
     await still();
     assert.equal(await page.locator('.rail').isVisible(), true, `${size.label}: rail visible`);
     assert.equal(

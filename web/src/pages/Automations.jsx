@@ -22,13 +22,8 @@ import AutomationEditor from './AutomationEditor.jsx';
 import { useResource } from '../hooks/useResource.js';
 import { useAsyncAction } from '../hooks/useAsyncAction.js';
 import { useConfirm } from '../hooks/useConfirm.js';
-import {
-  automationsApi,
-  RUN_STATUS_LABELS,
-  RUN_STATUS_TONE,
-  WORKFLOW_STATUS_LABELS,
-  triggerLabel,
-} from '../automationsApi.js';
+import { statusLabel, statusTone } from '../operations/status.js';
+import { automationsApi, WORKFLOW_STATUS_LABELS, triggerLabel } from '../automationsApi.js';
 import { relTime } from '../api.js';
 
 const FILTERS = [
@@ -286,12 +281,12 @@ function AutomationList() {
                     <Icon
                       size={14}
                       weight="fill"
-                      className={`run-tone-${RUN_STATUS_TONE[item.status] || 'neutral'}`}
+                      className={`run-tone-${statusTone(item.status)}`}
                     />
                     <span className="activity-item-text">
                       <span>{item.workflowName || 'Removed automation'}</span>
                       <span className="activity-item-sub">
-                        {RUN_STATUS_LABELS[item.status] || item.status} · {relTime(item.queuedAt)}
+                        {statusLabel(item.status)} · {relTime(item.queuedAt)}
                       </span>
                     </span>
                   </Link>
@@ -440,8 +435,7 @@ function AutomationCard({
 
       {item.lastRun && (
         <p className="auto-lastrun">
-          Last run: {RUN_STATUS_LABELS[item.lastRun.status] || item.lastRun.status} ·{' '}
-          {relTime(item.lastRun.queuedAt)}
+          Last run: {statusLabel(item.lastRun.status)} · {relTime(item.lastRun.queuedAt)}
           {item.lastRun.error ? ` · ${item.lastRun.error}` : ''}
         </p>
       )}

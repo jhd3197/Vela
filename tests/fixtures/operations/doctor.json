@@ -1,0 +1,152 @@
+{
+  "endpoint": "GET /api/doctor",
+  "capturedBy": "capture-operations-fixtures.py",
+  "note": "One real sweep on the disposable installation.",
+  "payload": {
+    "checks": [
+      {
+        "key": "agent-files",
+        "title": "Agent desktop files",
+        "status": "ok",
+        "detail": "Agent desktops are holding 0 MB of files.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "agent-runtime",
+        "title": "Agent desktops",
+        "status": "ok",
+        "detail": "Agent desktops can run here, using chromium from 1.63.0, protocol 1.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "agent-sessions",
+        "title": "Agent browsers",
+        "status": "ok",
+        "detail": "1 agent browser(s) open, all for current desktops.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "backups",
+        "title": "Backups",
+        "status": "ok",
+        "detail": "Vela last backed itself up on 18 Sep 00:41.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "data-dir",
+        "title": "Room to work",
+        "status": "ok",
+        "detail": "1.1 TB free where Vela keeps your data.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "node",
+        "title": "Node runtime",
+        "status": "ok",
+        "detail": "Node is available at C:\\nvm4w\\nodejs\\node.EXE.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "orphans",
+        "title": "Installed folders",
+        "status": "ok",
+        "detail": "Every installed folder has its app description.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "port",
+        "title": "Reachable",
+        "status": "ok",
+        "detail": "Answering on 127.0.0.1:7700.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "psutil",
+        "title": "System readings",
+        "status": "ok",
+        "detail": "CPU, memory and disk readings are available.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "settings",
+        "title": "Saved settings",
+        "status": "ok",
+        "detail": "Your settings and app state both read correctly.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "stale-apps",
+        "title": "App state",
+        "status": "ok",
+        "detail": "Every app Vela lists as running really is.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "worker",
+        "title": "Automation runtime",
+        "status": "ok",
+        "detail": "Automations can run on this computer.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "catalog",
+        "title": "App catalog",
+        "status": "skipped",
+        "detail": "No app catalog is configured.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "certificate",
+        "title": "Certificate",
+        "status": "skipped",
+        "detail": "Vela is not using HTTPS on this computer.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "ollama",
+        "title": "Local AI",
+        "status": "skipped",
+        "detail": "No chat model is chosen, so Vela asks nothing of Ollama.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      },
+      {
+        "key": "update",
+        "title": "Vela version",
+        "status": "skipped",
+        "detail": "Vela has not checked for a new version yet.",
+        "repairable": false,
+        "ranAt": "2026-09-18T00:41:53"
+      }
+    ],
+    "ranAt": "2026-09-18T00:41:53",
+    "summary": {
+      "ok": 12,
+      "warn": 0,
+      "fail": 0,
+      "skipped": 4,
+      "considered": 12,
+      "attention": 0,
+      "text": "All 12 checks passed."
+    },
+    "update": {
+      "available": false,
+      "latest": null,
+      "current": "0.1.15"
+    }
+  }
+}

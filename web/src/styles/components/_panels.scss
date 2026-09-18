@@ -26,6 +26,16 @@
   font-weight: 600;
 }
 
+/* A second heading inside one panel, below the rule its `panel-head` sets. */
+.panel-subhead {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 .panel-note {
   margin: 0;
   font-size: 13.5px;

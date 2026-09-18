@@ -21,7 +21,8 @@ import GrantReview from '../components/automations/GrantReview.jsx';
 import RunDetail from '../components/automations/RunDetail.jsx';
 import { useResource } from '../hooks/useResource.js';
 import { useAsyncAction } from '../hooks/useAsyncAction.js';
-import { automationsApi, RUN_STATUS_LABELS, triggerLabel } from '../automationsApi.js';
+import { automationsApi, triggerLabel } from '../automationsApi.js';
+import { statusLabel } from '../operations/status.js';
 import { relTime } from '../api.js';
 
 const LIVE = new Set(['queued', 'running', 'waiting']);
@@ -444,7 +445,7 @@ export default function AutomationEditor() {
                     className={`run-history-row${item.id === runId ? ' run-history-row-active' : ''}`}
                     onClick={() => setRunId(item.id)}
                   >
-                    <span>{RUN_STATUS_LABELS[item.status] || item.status}</span>
+                    <span>{statusLabel(item.status)}</span>
                     <span className="run-history-when">{relTime(item.queuedAt)}</span>
                   </button>
                 </li>
