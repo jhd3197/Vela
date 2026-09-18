@@ -22,8 +22,6 @@ Your server keeps your apps, settings and data in one place, on your own machine
 [![Downloads](https://img.shields.io/github/downloads/jhd3197/vela/total?style=flat-square&color=2ea44f&label=downloads)](https://github.com/jhd3197/vela/releases)
 [![Last release](https://img.shields.io/github/release-date/jhd3197/vela?style=flat-square&label=released)](https://github.com/jhd3197/vela/releases/latest)
 
-[<img src="https://serverkit.ai/badge/install.png" alt="Install in ServerKit" width="240">](#install-with-serverkit)
-
 <br>
 
 [Quick Start](#-quick-start) · [Your Devices](#-your-devices) · [The Idea](#-the-idea) · [Architecture](#-architecture) · [Platforms](#-platforms) · [Changelog](CHANGELOG.md) · [Develop](#-develop) · [Contributing](#-contributing) · [Support](#-support-vela)
