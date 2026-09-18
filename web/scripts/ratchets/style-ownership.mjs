@@ -34,7 +34,12 @@ const TOP_LEVEL_CLASS = /^\.([A-Za-z][\w-]*)\s*[,{]/;
 
 export default {
   id: 'style-ownership',
-  describe: 'A class defined at the top level of more than one SCSS partial.',
+  describe:
+    'A class defined at the top level of more than one SCSS partial, ' +
+    `excepting ${Object.keys(POLICY_LAYERS).length} declared policy layer(s): ` +
+    Object.entries(POLICY_LAYERS)
+      .map(([file, reason]) => `${file} (${reason})`)
+      .join(', '),
   fix: 'Give the class one owning partial and scope page variants under the page root class.',
   scan() {
     const definitions = new Map();
