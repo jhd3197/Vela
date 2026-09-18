@@ -793,15 +793,39 @@ try {
   // An app window asking for a dark title bar under a light base gets *this*
   // theme's dark, not the stock one's -- which is what the scoped half of the
   // applier is for.
-  const scoped = await page.evaluate(() => {
-    const probe = document.createElement('div');
-    probe.dataset.theme = 'dark';
-    document.body.append(probe);
-    const value = getComputedStyle(probe).getPropertyValue('--bg-card').trim();
-    probe.remove();
-    return value;
+  //
+  // Both bases are checked, and against the theme rather than against "not
+  // empty". An element re-asserting a base matches `[data-theme='…']` in the
+  // generated stylesheet directly, and a value declared on an element beats one
+  // inherited from the root -- so without the applied theme scoped under *both*
+  // selectors, such an element silently falls back to the stock look while
+  // everything around it wears the chosen one. A weaker assertion here missed
+  // exactly that.
+  const scoped = await page.evaluate(async () => {
+    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
+    const { token } = await session.json();
+    const response = await fetch('/api/themes/contraste', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const theme = await response.json();
+    const measured = {};
+    for (const base of theme.bases) {
+      const probe = document.createElement('div');
+      probe.dataset.theme = base;
+      document.body.append(probe);
+      measured[base] = getComputedStyle(probe).getPropertyValue('--bg').trim();
+      probe.remove();
+    }
+    return {
+      measured,
+      wanted: Object.fromEntries(theme.bases.map((base) => [base, theme.tokens[base]['--bg']])),
+    };
   });
-  assert.ok(scoped, 'the other base resolved to nothing');
+  assert.deepEqual(
+    scoped.measured,
+    scoped.wanted,
+    'an element re-asserting a base must get the applied theme, not the stock one',
+  );
 
   // Back to stock: the inline tokens go, so the generated stylesheet shows
   // through rather than a copy of itself being written back over it.

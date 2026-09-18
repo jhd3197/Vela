@@ -184,8 +184,116 @@ a quarter of the desk as changed while nothing about it looks different; a max
 delta of 2 says so, and a max delta of 200 says something really moved. Then
 open the diff image. A percentage alone has never closed a change.
 
-## Not yet delivered
+## Themes
 
-Themes a user can pick, import and export are planned and not built. When they
-land, this document gains: the theme document's schema, what the server
-validates, how the runtime applier works, and how to write one.
+A theme is **data, never code**: a JSON document naming canonical tokens and
+their values, validated on the server and applied one property at a time in the
+browser.
+
+```json
+{
+  "schema_version": 1,
+  "slug": "friend",
+  "name": "From a friend",
+  "author": "Someone",
+  "version": "1.0.0",
+  "description": "One line about it.",
+  "bases": ["light", "dark"],
+  "suggests": { "wallpaper": "paramo" },
+  "tokens": { "light": { "--bg": "#eeeeee", "…": "…" } }
+}
+```
+
+`slug` matches `^[a-z][a-z0-9-]{0,31}$`. `bases` is a non-empty subset of
+`light` and `dark`. Each base's `tokens` holds canonical names only.
+
+A bad **value** is dropped and named, because one bad key is not a reason to
+refuse somebody's work. A broken **structural rule** refuses the document,
+because a theme with no slug is not a theme with a mistake in it. Unknown
+top-level keys are dropped and named, so a theme written for a newer Vela still
+applies on an older one.
+
+### What a value may be
+
+| Kind | Accepted |
+| --- | --- |
+| colour | `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `color-mix(in srgb, …)` |
+| length | a number with `px`, `rem` or `em` |
+| font | one of the stacks in `FONT_ALLOW_LIST`, and nothing else |
+| shadow | `none`, or offsets and colours |
+| gradient | `none`, or one or more `linear`/`radial`/`conic-gradient()` |
+
+Refused in every value: `url(`, `@import`, `expression(`, `javascript:`, `<`,
+`>`, `{`, `}`, `;`, `@`, `/*` and `\`. A value is at most 200 characters and a
+theme file at most 32 KB.
+
+`url(` is the important one. It is the only way a theme could reach the network,
+and a theme that reaches the network is a theme that can tell somebody else when
+this dashboard was opened and from where. The font allow-list is there for the
+same reason: a face Vela does not already load would have to be fetched.
+
+### What a theme cannot do
+
+- **It cannot set a wallpaper.** It may `suggest` one that ships, and
+  Personalise offers a "Use it" link. A picture is the user's choice.
+- **It cannot reach apps.** Apps still receive `theme: "light" | "dark"` and
+  nothing more.
+- **It cannot be fetched.** There is no registry and no remote source. A theme
+  arrives as a file the user picked, read in their own browser and posted as
+  JSON — the server has no upload path at all.
+
+### How it is applied
+
+`web/src/design/apply.js`. Every value is set with `setProperty` on the root
+element, one at a time: a value that somehow slipped past the validator can only
+fail to be that one property, where a generated stylesheet could close a
+declaration and open something else.
+
+Both bases are *also* written as a scoped stylesheet, under
+`[data-theme='light']` and `[data-theme='dark']`. That is not redundant with the
+inline properties. An element that re-asserts a base — an app window's dark
+title bar, a Settings preview of the base you are not in — matches
+`[data-theme='…']` in the generated stylesheet directly, and a value declared on
+an element beats one inherited from the root. Without the applied theme under
+both selectors, such an element falls back to the stock look while everything
+around it wears the chosen theme.
+
+The applied theme is cached in `localStorage` and painted by `initTheme()`
+before React mounts, so a reload opens in the colours it closed in rather than
+flashing the stock look. `ThemeSync` corrects it once settings load.
+
+**Selecting the stock theme removes every inline property** rather than writing
+the stock values back. The stock look is the stylesheet, not a copy of it, so it
+cannot drift from what the build produces.
+
+### The contrast gate
+
+`scripts/ratchets/themes.mjs`, in the check. For every bundled theme and every
+base it declares:
+
+- `--text`, `--text-dim` and `--text-faint` on `--bg-card`, `--bg-workspace`,
+  `--bg-panel`, `--bg-pop` and `--bg-field`: **4.5:1**
+- `--accent` on `--bg-card`, and `--cyan` on `--bg-rail`: **3:1**
+- `--accent-strong` on `--accent-soft`: **4.5:1**
+- `--border` against `--bg-card`: **1.3:1**, so a card's edge can be found
+- the high-contrast theme's body text: **7:1**
+
+A translucent surface is measured over the ground behind it, because that is
+what the eye sees.
+
+**A bundled theme that fails does not ship** — `build-themes.mjs` writes nothing
+while the gate is red. `test-shared-ui.mjs` measures the same pairs again in a
+browser, because the ratchet proves the numbers and only the browser proves the
+engine resolves them. An *imported* theme is the user's own choice on their own
+computer; it is not held to this.
+
+### Writing one
+
+Export the theme you are using from Personalise, edit its colours, import it
+back. The review sheet shows its name, its author, what it says about itself and
+how many colours it sets before any of it is applied.
+
+Bundled themes are not written by hand at all: `web/scripts/build-themes.mjs`
+derives each one's surfaces, borders and inks from a single ground colour, at
+the lightness depths measured from the stock theme, so a new theme picks a hue
+and inherits Vela's own sense of depth.

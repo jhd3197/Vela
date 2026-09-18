@@ -51,9 +51,10 @@ function paint(root, tokens) {
  * the same function the build uses, so a theme written by hand and the stock
  * sheet cannot disagree about what step 600 of the accent is.
  *
- * The other base is applied too, scoped under `[data-theme='dark']`, so an app
- * window asking for a dark title bar under a light base gets *this theme's*
- * dark, not the stock one's.
+ * Both bases are also written as a scoped stylesheet, so an element that
+ * re-asserts a base -- an app window's dark title bar, a Settings preview of
+ * the base you are not in -- gets *this theme's* colours rather than the stock
+ * ones. See `scope()` for why the current base has to be in there too.
  */
 export function applyTheme({ base, tokens, other = null } = {}) {
   const root = document.documentElement;
@@ -62,30 +63,45 @@ export function applyTheme({ base, tokens, other = null } = {}) {
 
   paint(root, derive(tokens, base));
 
-  // The scoped half. `setProperty` cannot write a rule, so the other base's
-  // tokens go into a single generated stylesheet instead -- the one place a
-  // theme becomes CSS, built from values that have already been validated on
-  // the server and derived here, never from anything a theme wrote.
-  scope(other && base ? derive(other, base === 'dark' ? 'light' : 'dark') : null, base);
+  // The scoped half. `setProperty` cannot write a rule, so the per-base tokens
+  // go into a single generated stylesheet instead -- the one place a theme
+  // becomes CSS, built from values already validated on the server and derived
+  // here, never from anything a theme wrote.
+  //
+  // Both bases are written, not just the other one. An element that re-asserts
+  // a base -- an app window's dark title bar, a Settings preview of the base
+  // you are not in -- matches `[data-theme='…']` in the *generated* stylesheet
+  // directly, and a value declared on the element beats one inherited from the
+  // root. Without the current base here, such an element silently falls back to
+  // the stock theme while everything around it wears the chosen one.
+  const opposite = base === 'dark' ? 'light' : 'dark';
+  scope({
+    [base]: derive(tokens, base),
+    ...(other ? { [opposite]: derive(other, opposite) } : {}),
+  });
 }
 
 const SCOPE_ID = 'vela-theme-scope';
 
-function scope(tokens, base) {
+function scope(byBase) {
   const existing = document.getElementById(SCOPE_ID);
-  if (!tokens) {
+  if (!byBase) {
     existing?.remove();
     return;
   }
-  const selector = base === 'dark' ? "[data-theme='light']" : "[data-theme='dark']";
-  const body = Object.entries(tokens)
-    // Belt and braces over the server's validator: a value that somehow carried
-    // a brace or a semicolon cannot reach a stylesheet from here.
-    .filter(([, value]) => !/[;{}<>]/.test(value))
-    .map(([name, value]) => `${name}: ${value};`)
+  const rules = Object.entries(byBase)
+    .map(([base, tokens]) => {
+      const body = Object.entries(tokens)
+        // Belt and braces over the server's validator: a value that somehow
+        // carried a brace or a semicolon cannot reach a stylesheet from here.
+        .filter(([, value]) => !/[;{}<>]/.test(value))
+        .map(([name, value]) => `${name}: ${value};`)
+        .join('');
+      return `[data-theme='${base}']{${body}}`;
+    })
     .join('');
   const style = existing || Object.assign(document.createElement('style'), { id: SCOPE_ID });
-  style.textContent = `${selector}{${body}}`;
+  style.textContent = rules;
   if (!existing) document.head.append(style);
 }
 
@@ -95,7 +111,7 @@ export function clearTheme(base) {
   if (base) root.dataset.theme = base;
   for (const name of applied) root.style.removeProperty(name);
   applied = [];
-  scope(null, base);
+  scope(null);
 }
 
 /**
