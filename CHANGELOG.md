@@ -35,6 +35,20 @@ until the release workflow prepares a tested server version.
   clipboard or `window.open`. Two concurrent identical GETs now share one
   request, which took one desk load in development from 43 requests to 25 while
   showing more than it did. See `docs/DEVELOPMENT.md` and `docs/TESTING.md`.
+- **For contributors and app developers: four shared foundations in the
+  engine.** Routes now live in `vela/routers/`, one module per group, mounted
+  from the ordered table in `vela/router_registry.py`; `vela/api.py` is the app
+  factory and defines none of them. A service refuses a request by raising a
+  typed error from `vela/errors_http.py`, which one handler renders, so no
+  service module imports FastAPI to say no. Every process-lifetime loop is a
+  `BackgroundLoop` or `BackgroundThread` from `vela/loop.py` with a name in one
+  registry, an idempotent start, a bounded stop and errors that reach the log.
+  `docs/API_SURFACE.md` is now the committed list of every route the engine
+  serves: a route change regenerates it in the same commit. For app developers,
+  every error body now carries `code` (a stable `group.reason` name for the
+  refusal) and `status` alongside `detail`; `detail` is unchanged, so nothing
+  that reads it needs to change. See `docs/DEVELOPMENT.md` and
+  `docs/CONTRACT.md`.
 
 ### Fixed
 
