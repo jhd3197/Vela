@@ -14,5 +14,23 @@
     "web/src/pages/Launchpad.jsx": 1
   },
   "status-vocabulary": {},
-  "style-ownership": {}
+  "style-ownership": {},
+  "tokens": {
+    "web/src/agent-host/agent-host.scss": 5,
+    "web/src/styles/components/_app-icon.scss": 3,
+    "web/src/styles/components/_bots.scss": 27,
+    "web/src/styles/components/_controls.scss": 1,
+    "web/src/styles/components/_desktops.scss": 3,
+    "web/src/styles/components/_dialog.scss": 1,
+    "web/src/styles/components/_drawer.scss": 7,
+    "web/src/styles/components/_notifications.scss": 1,
+    "web/src/styles/components/_releases.scss": 6,
+    "web/src/styles/components/_settings.scss": 10,
+    "web/src/styles/components/_switch.scss": 1,
+    "web/src/styles/layout/_rail.scss": 6,
+    "web/src/styles/pages/_app-view.scss": 13,
+    "web/src/styles/pages/_automations.scss": 4,
+    "web/src/styles/pages/_desk.scss": 52,
+    "web/src/styles/pages/_launchpad.scss": 31
+  }
 }

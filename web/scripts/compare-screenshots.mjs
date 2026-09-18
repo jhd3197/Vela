@@ -2,7 +2,7 @@
  * Capture the dashboard's surfaces, and compare two captures pixel by pixel.
  *
  *   node web/scripts/compare-screenshots.mjs capture <directory> [port]
- *   node web/scripts/compare-screenshots.mjs compare <before> <after>
+ *   node web/scripts/compare-screenshots.mjs compare <before> <after> [diff-directory]
  *
  * This is what a change to who owns a CSS class is checked against: capture
  * before, make the change, capture after, compare. A cascade that shifted
@@ -15,7 +15,10 @@
  * attaches to a hub on port 7700.
  *
  * `compare` decodes both PNGs in the browser that took them, so it needs no
- * image library and adds no dependency.
+ * image library and adds no dependency. Given a third argument it also writes
+ * one diff image per screen there, painting every changed pixel and dimming
+ * the rest: a percentage says how much moved, and only the picture says what.
+ * A phase is never closed on the number alone.
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -92,9 +95,6 @@ async function capture(directory, port) {
       for (const theme of THEMES) {
         for (const [name, route] of SURFACES) {
           await page.goto(`${base}${route}`, { waitUntil: 'load' });
-          await page.evaluate((value) => {
-            document.documentElement.dataset.theme = value;
-          }, theme);
           await page.locator('.rail').waitFor();
           // Animations and the wallpaper fade would each make two captures of
           // the same page differ for reasons that are not the stylesheet.
@@ -102,7 +102,15 @@ async function capture(directory, port) {
             content:
               '*, *::before, *::after { animation: none !important; transition: none !important; }',
           });
+          // The base is set *after* the dashboard has settled, not before:
+          // `ThemeSync` writes `data-theme` from the server's own setting once
+          // settings load, so a base chosen before that is overwritten and both
+          // captures come out in whichever base the fixture server prefers.
           await page.waitForTimeout(600);
+          await page.evaluate((value) => {
+            document.documentElement.dataset.theme = value;
+          }, theme);
+          await page.waitForTimeout(150);
           await page.screenshot({
             path: path.join(directory, `${name}-${label}-${theme}.png`),
             fullPage: false,
@@ -119,7 +127,7 @@ async function capture(directory, port) {
   }
 }
 
-async function compare(before, after) {
+async function compare(before, after, diffDirectory) {
   const names = (await fs.readdir(before)).filter((name) => name.endsWith('.png')).sort();
   assert.ok(names.length, `no shots in ${before}`);
   const browser = await chromium.launch({
@@ -127,13 +135,14 @@ async function compare(before, after) {
     channel: process.env.VELA_BROWSER_CHANNEL || 'chrome',
   });
   let worst = 0;
+  if (diffDirectory) await fs.mkdir(diffDirectory, { recursive: true });
   try {
     const page = await browser.newPage();
     for (const name of names) {
       const load = async (directory) =>
         `data:image/png;base64,${(await fs.readFile(path.join(directory, name))).toString('base64')}`;
-      const percent = await page.evaluate(
-        async ([left, right]) => {
+      const measured = await page.evaluate(
+        async ([left, right, wantDiff]) => {
           const decode = (source) =>
             new Promise((resolve, reject) => {
               const image = new Image();
@@ -152,22 +161,51 @@ async function compare(before, after) {
             return context.getImageData(0, 0, image.width, image.height).data;
           };
           const [one, two] = [pixels(a), pixels(b)];
+          const canvas = document.createElement('canvas');
+          canvas.width = a.width;
+          canvas.height = a.height;
+          const context = canvas.getContext('2d');
+          const out = context.createImageData(a.width, a.height);
           let differing = 0;
           for (let i = 0; i < one.length; i += 4) {
             // A channel that moved by one is the encoder, not the cascade.
-            if (
+            const moved =
               Math.abs(one[i] - two[i]) > 1 ||
               Math.abs(one[i + 1] - two[i + 1]) > 1 ||
               Math.abs(one[i + 2] - two[i + 2]) > 1 ||
-              Math.abs(one[i + 3] - two[i + 3]) > 1
-            ) {
-              differing += 1;
+              Math.abs(one[i + 3] - two[i + 3]) > 1;
+            if (moved) differing += 1;
+            if (!wantDiff) continue;
+            if (moved) {
+              // Magenta on what moved: no interface in this system is magenta,
+              // so a changed pixel cannot be mistaken for the screen itself.
+              out.data[i] = 255;
+              out.data[i + 1] = 0;
+              out.data[i + 2] = 190;
+            } else {
+              // The rest stays as a faint ghost of the "after" shot, so a
+              // change can be found on the screen it happened on.
+              const grey = (two[i] * 0.2126 + two[i + 1] * 0.7152 + two[i + 2] * 0.0722) * 0.35 + 150;
+              out.data[i] = grey;
+              out.data[i + 1] = grey;
+              out.data[i + 2] = grey;
             }
+            out.data[i + 3] = 255;
           }
-          return (differing / (one.length / 4)) * 100;
+          const percent = (differing / (one.length / 4)) * 100;
+          if (!wantDiff) return { percent, diff: null };
+          context.putImageData(out, 0, 0);
+          return { percent, diff: canvas.toDataURL('image/png') };
         },
-        [await load(before), await load(after)],
+        [await load(before), await load(after), Boolean(diffDirectory)],
       );
+      const percent = measured.percent;
+      if (measured.diff) {
+        await fs.writeFile(
+          path.join(diffDirectory, name),
+          Buffer.from(measured.diff.split(',')[1], 'base64'),
+        );
+      }
       worst = Math.max(worst, percent);
       console.log(`${percent.toFixed(3).padStart(8)} %  ${name}`);
     }
@@ -178,15 +216,15 @@ async function compare(before, after) {
   return worst;
 }
 
-const [command, first, second] = process.argv.slice(2);
+const [command, first, second, third] = process.argv.slice(2);
 if (command === 'capture') {
   assert.ok(first, 'usage: compare-screenshots.mjs capture <directory> [port]');
   await capture(path.resolve(first), Number(second) || 17733);
 } else if (command === 'compare') {
-  assert.ok(first && second, 'usage: compare-screenshots.mjs compare <before> <after>');
-  await compare(path.resolve(first), path.resolve(second));
+  assert.ok(first && second, 'usage: compare-screenshots.mjs compare <before> <after> [diff]');
+  await compare(path.resolve(first), path.resolve(second), third ? path.resolve(third) : null);
 } else {
   console.error('usage: compare-screenshots.mjs capture <directory> [port]');
-  console.error('       compare-screenshots.mjs compare <before> <after>');
+  console.error('       compare-screenshots.mjs compare <before> <after> [diff-directory]');
   process.exit(1);
 }
