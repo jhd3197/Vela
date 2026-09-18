@@ -186,6 +186,16 @@ body[data-desk] .rail-divider {
    down to sit on the same centre. */
 .desk-workspace .workspace-content {
   padding: calc(var(--space-1) + env(safe-area-inset-top, 0px)) var(--space-7) var(--space-7);
+  /* A window's work area is measured from the desk, and a desk only as tall as
+     its widgets would pen every window into a strip at the top — maximize
+     included. The desk fills the content area whether or not the board has
+     anything on it yet. */
+  display: flex;
+  flex-direction: column;
+}
+
+.desk-workspace .desk {
+  flex: 1 1 auto;
 }
 
 .desk {

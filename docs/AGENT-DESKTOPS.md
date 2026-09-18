@@ -162,9 +162,10 @@ becomes an empty pane that offers to be filled. A window moved from one side to
 the other is moved — it never ends up showing in both.
 
 The divider between two panes can be dragged, moved with the arrow keys, and
-sent back to equal halves with Home or a double-click. The **⋯** menu on any
-title bar does everything a drag does: move left, move right, swap the panes,
-even them up, leave split view.
+sent back to equal halves with Home or a double-click. The window menu does
+everything a drag does: move left, move right, swap the panes, even them up,
+leave split view. Right-click a title bar to open it, or tab into the window's
+controls — the trigger appears when keyboard focus lands on it.
 
 On a narrow screen a split is kept but drawn one pane at a time, full width,
 with the rail switching between them. Widen the window and both panes come back

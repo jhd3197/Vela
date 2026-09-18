@@ -340,6 +340,18 @@
   color: var(--on-accent);
 }
 
+/* The menu trigger is `sr-only` at rest — the bar shows three buttons — and
+   takes its place in the row when keyboard focus lands on it. */
+.window-menu:focus-visible {
+  position: static;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+
 .window-body {
   position: relative;
   flex: 1 1 auto;

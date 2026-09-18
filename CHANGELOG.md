@@ -18,6 +18,38 @@ until the release workflow prepares a tested server version.
   rest; `--backend-port`/`--frontend-port` pin ports, which default to 7700
   and 5173 and move aside when busy.
 
+### Changed
+
+- **Window title bars show three buttons.** Minimize, maximize and close are
+  the only buttons at rest. The arranging menu — move left, move right, swap
+  panes, leave split view — now opens with a right-click on the title bar, or
+  from the keyboard: tabbing into the window's controls reveals its trigger.
+
+### Fixed
+
+- **Restoring a window plays its motion again.** A window brought back from
+  the rail popped in instantly instead of flying out of its icon, because the
+  animation's starting position was never painted before the release was
+  scheduled — both commits landed in the same frame. The restore now waits
+  for a real paint, so it travels over the same 480 ms as the minimize.
+
+- **Windows work on an empty desk.** The work area was measured from the
+  desk's content, so a desk with no widgets gave windows a short strip at the
+  top of the screen: dragging downward stopped at its edge, and maximizing
+  filled only the strip. The desk now fills the workspace whether or not the
+  board has anything on it.
+
+- **Dragging no longer dies over the app inside the window.** Once the app
+  had loaded, moving the pointer across its iframe handed the gesture to the
+  frame and the window simply stopped following. The window's content stays
+  out of the hit test while a drag or resize is active, so the gesture holds
+  for its whole length.
+
+- **Short windows are accepted again.** The server rejected any window
+  shorter than 240 px with a 422, so moves of a short window were never
+  saved — the viewer allows windows down to 160 px tall, and the server now
+  matches it per axis instead of using one minimum for both.
+
 ## 0.1.18 - 2026-09-18
 
 No additional release notes were provided.

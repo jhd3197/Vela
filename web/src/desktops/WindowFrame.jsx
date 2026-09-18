@@ -50,6 +50,12 @@ export default function WindowFrame({
   const frame = useRef(null);
   const menuButton = useRef(null);
   const [menu, setMenu] = useState(null);
+  // While a gesture is active the window's content takes no pointer input.
+  // Pointer capture alone does not survive crossing the app's iframe — the
+  // frame's own renderer claims the events and the drag simply stops, which
+  // reads as "the window will not move". With the body out of the hit test,
+  // the capture holds for the whole gesture.
+  const [gesturing, setGesturing] = useState(false);
 
   const begin = useCallback(
     (event, edge) => {
@@ -69,6 +75,7 @@ export default function WindowFrame({
         from: bounds,
         moved: false,
       };
+      setGesturing(true);
       onSelect?.();
     },
     [fixed, bounds, onSelect],
@@ -100,6 +107,7 @@ export default function WindowFrame({
     (event) => {
       const active = gesture.current;
       gesture.current = null;
+      setGesturing(false);
       if (!active) return;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
       onDragPoint?.(null, { drop: active.moved && !active.edge });
@@ -115,6 +123,7 @@ export default function WindowFrame({
       if (event.key !== 'Escape' || !gesture.current) return;
       const { from } = gesture.current;
       gesture.current = null;
+      setGesturing(false);
       onDragPoint?.(null, { cancelled: true });
       onMove?.(from, { commit: true });
     };
@@ -151,6 +160,18 @@ export default function WindowFrame({
         onPointerUp={end}
         onPointerCancel={end}
         onDoubleClick={() => onMaximize?.()}
+        // The bar's right-click is the window menu, the way a title bar's has
+        // always been. Only the bar: right-click inside the window belongs to
+        // the app running in it.
+        onContextMenu={(event) => {
+          if (!actions?.length) return;
+          // Stopped, not just defaulted: the desk has its own menu for bare
+          // wallpaper, and a right-click on a window is not a right-click on
+          // the wallpaper underneath it.
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
       >
         {icon ? (
           <span className="window-icon" aria-hidden="true">
@@ -162,10 +183,13 @@ export default function WindowFrame({
         </h2>
         {status ? <span className="window-status">{status}</span> : null}
         <div className="window-controls">
+          {/* Three buttons at rest: minimize, maximize, close. The menu is the
+              fourth control only for somebody who reaches for it — by keyboard,
+              where it appears on focus, or by right-clicking the bar. */}
           {actions?.length ? (
             <button
               type="button"
-              className="window-control"
+              className="window-control window-menu sr-only"
               ref={menuButton}
               aria-label={`Window actions for ${title}`}
               aria-haspopup="menu"
@@ -208,10 +232,13 @@ export default function WindowFrame({
           </button>
         </div>
       </header>
-      <div className="window-body">{children}</div>
+      <div className="window-body" style={gesturing ? { pointerEvents: 'none' } : undefined}>
+        {children}
+      </div>
       {/* Everything a drag can do, available without one. A person using a
           keyboard, a screen reader or a touch device is not a person who should
-          be told to drag a title bar to the edge of the screen. */}
+          be told to drag a title bar to the edge of the screen — the keyboard
+          trigger above and the bar's right-click both open this. */}
       {menu && actions?.length ? (
         <ContextMenu
           open

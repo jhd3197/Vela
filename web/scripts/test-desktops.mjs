@@ -422,9 +422,11 @@ try {
   );
   assert.deepEqual(stillOpen, [{ minimized: true, kind: 'app' }]);
 
-  // Restoring from the rail brings the same window back.
+  // Restoring from the rail brings the same window back — and it is measured
+  // once it has arrived, not while it is still flying there.
   await page.locator('.rail-views .rail-view-item').first().click();
   await page.locator('.window-frame').waitFor();
+  await page.locator('.window-frame:not(.is-travelling)').waitFor();
 
   // Maximize fills the work area and leaves the rail reachable.
   const floating = await page.locator('.window-frame').boundingBox();
