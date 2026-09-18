@@ -45,6 +45,10 @@ until the release workflow prepares a tested server version.
   to selecting the text and copying it.
 - **A double-clicked Save sends one request.** A second click that arrived
   before the button could disable itself sent the form twice.
+- **Typing straight after picking a mention puts the words where you typed
+  them.** In Ask, choosing an app or a bot from the `@` picker and then pressing
+  Shift+Enter moved the caret back in front of the new line a moment later, so
+  the rest of the message went above the break instead of below it.
 - **The rail says which app's page you are on again.** A pinned or running app's
   rail entry stopped carrying that mark for screen readers when it became a
   button that opens a window.
