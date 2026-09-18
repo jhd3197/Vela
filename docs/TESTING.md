@@ -19,6 +19,18 @@ tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
 tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
 step.
 
+### Background work
+
+Wait for the behavior a test needs with `threading.Event` or `asyncio.Event`
+and a bounded timeout. A short sleep followed by a tick-count assertion also
+measures runner scheduling and logging speed, which can fail a healthy loop
+on a busy machine. `tests/test_loops.py` waits for ticks before checking error
+recovery, duplicate starts and shutdown. Its error-recovery cases deliberately
+take longer than the old 60 ms window and still require one log per failure.
+Stop workers in cleanup, and join them before closing a log capture so the
+last error is included. Keep elapsed-time assertions for actual timing
+contracts, such as interrupting a long interval during shutdown.
+
 ### Ratchet guards
 
 `node web/scripts/ratchet.mjs` runs the structural guards in
