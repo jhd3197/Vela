@@ -106,6 +106,7 @@ class SupportBundle:
         doctor=None,
         automations=None,
         desktops=None,
+        runs=None,
     ):
         self._config = config
         self._version = version
@@ -115,6 +116,8 @@ class SupportBundle:
         self._errors = errors
         self._doctor = doctor
         self._automations = automations
+        # Optional, and read for counts only. See `_agent_desktops`.
+        self._runs = runs
         self._dir = config.data_dir / "support"
 
     # ----------------------------------------------------------- collectors
@@ -218,6 +221,66 @@ class SupportBundle:
             })
         return {"desktops": out}
 
+    def _agent_desktops(self) -> dict[str, Any]:
+        """Whether agent desktops are working, in numbers and nothing else.
+
+        This is the section it would be easiest to get wrong, so what it must
+        not contain is worth writing down: no task instruction, no result, no
+        page text, no picture, no address of a site somebody approved, no
+        cookie and no file. A support bundle is something a person sends to
+        somebody else, and a task's wording is as private as a message.
+
+        What is here instead is what a person diagnosing a failure actually
+        needs: whether the runtime is installed, how many desktops are agents,
+        how many browsers are open, whether anything is queued or waiting, and
+        whether the last cleanup worked.
+        """
+        if self._desktops is None:
+            return {"configured": False}
+        out: dict[str, Any] = {"configured": True}
+        try:
+            from .desktops.runtime import PROTOCOL_VERSION, availability, provenance
+
+            state = availability()
+            out["runtime"] = {
+                "available": state["available"],
+                "detail": state["detail"],
+                "protocol": PROTOCOL_VERSION,
+                "browser": (provenance().get("browser") or {}).get("name"),
+                "playwright": (provenance().get("installed") or {}).get("playwright-core"),
+            }
+            out["browsersOpen"] = len(self._desktops.runtime.desktops)
+        except Exception as exc:  # noqa: BLE001 - a bundle never fails over a reading
+            out["runtime"] = {"error": str(exc)[:200]}
+        try:
+            desktops = self._desktops.store.list()
+            out["desktops"] = {
+                "total": len(desktops),
+                "agent": sum(1 for desktop in desktops if desktop["kind"] == "agent"),
+            }
+        except Exception as exc:  # noqa: BLE001
+            out["desktops"] = {"error": str(exc)[:200]}
+        if self._runs is not None:
+            try:
+                attention = self._runs.attention()["desktops"]
+                out["tasks"] = {
+                    # Counts of states, never an instruction or a result.
+                    "working": sum(1 for entry in attention.values() if entry["working"]),
+                    "queued": sum(entry["queued"] for entry in attention.values()),
+                    "needingYou": sum(entry["needsYou"] for entry in attention.values()),
+                    "queuesHeld": sum(1 for entry in attention.values() if entry["blocked"]),
+                }
+                status = self._runs.retention.status()
+                out["retention"] = {
+                    "keepingHistory": status["keepingHistory"],
+                    "fileBytesUsed": status["fileBytesUsed"],
+                    "lastSweep": (status["lastSweep"] or {}).get("removed"),
+                    "lastSweepProblems": (status["lastSweep"] or {}).get("problems"),
+                }
+            except Exception as exc:  # noqa: BLE001
+                out["tasks"] = {"error": str(exc)[:200]}
+        return out
+
     def _logs(self) -> dict[str, str]:
         out: dict[str, str] = {}
         logs_dir = self._config.logs_dir
@@ -247,6 +310,7 @@ class SupportBundle:
             "desk.json": _safe("desk", self._desk),
             "errors.json": _safe("errors", self._errors_view, default=[]),
             "automations.json": _safe("automations", self._automations_view),
+            "agent-desktops.json": _safe("agent-desktops", self._agent_desktops),
         }
         logs = _safe("logs", self._logs, default={})
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as bundle:
@@ -320,12 +384,19 @@ apps.json         Which apps are installed, their versions and whether they run.
 desk.json         How each of your desktops is arranged.
 errors.json       The most recent recorded errors.
 automations.json  Whether automations can run, and how many ran today.
+agent-desktops.json
+                  Whether agent desktops can run here and how many are busy,
+                  as counts. No task wording, no results, no web addresses.
 logs/             The last 500 lines of each log, with credentials redacted.
 
 What is NOT in it
 -----------------
 Anything your apps saved, your chat history, your wallpapers, your Vela
 password, app credentials, or the contents of any automation.
+
+Nothing about what an agent desktop was asked to do, what it found, which
+websites it was allowed to open, any sign-in it was keeping, any file it was
+given or downloaded, or any picture of a window.
 
 Before you share it
 -------------------

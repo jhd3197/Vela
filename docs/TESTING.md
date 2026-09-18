@@ -25,6 +25,233 @@ board and wallpaper, the selection staying on the device that made it, a direct
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
 
+`test_agent_conversion.py` is the one that means something: a listening Vela on
+a disposable data directory, an installed app, a window open on the desk, and a
+managed browser that ends up showing that app through the restricted host page —
+proved by capturing a frame of it. It also checks that a desktop allowing
+nothing is refused rather than converted, that a window which cannot come along
+says so, and that turning the agent off gives the workspace back and takes the
+grants with it.
+
+`test_browser_runtime.py` runs the real worker process: it starts and reports
+its protocol and browser, gives each desktop its own browser and each browser
+its own views, refuses a command for a desktop it does not hold and one nobody
+implemented, enforces the policy it was handed rather than a mocked one, hands a
+frame over as a file instead of on the control channel, and — killed while Vela
+is waiting on a command — fails that command in bounded time and leaves nothing
+running. Without the browser installed it skips with a reason.
+
+`agent-tools.test.mjs` covers observation and input against a real page: a
+nested cross-document frame contributing addressable controls, a modal appearing
+in the next observation, replace and append typing, an allowed key reaching the
+page and a disallowed one never doing so, and a coordinate click landing where
+the observation said it would. The point of it is the refusals — a control
+renamed between the look and the click, a control that has been removed, an
+observation spent by the action it authorised, a reference from another view, an
+action naming no observation, and a wait that ends whether or not its condition
+arrived. Without the browser installed the browser half skips with a reason; the
+bounds on keys, text, coordinates, scrolls and waits are checked directly and
+always run.
+
+`test_agent_tools.py` runs the same tools through a listening Vela, a managed
+browser and the Notes fixture: opening the app, waiting for its own text,
+reading its real controls out of the sandboxed frame, typing into it and seeing
+the next observation change. It checks that a personal desktop has no tools,
+that a tool nobody declared is not a tool, that an app or site the desktop does
+not allow is refused before a window exists, that a view on another desktop is
+not addressable, and that looking at an unchanging view five times in a row
+stops with `no_progress`. The two that matter most: the agent clicking the app's
+own New button changes nothing when no grant covers the save, and a named action
+runs only with a grant bound to that exact request — replaying the same request
+key returns the first answer instead of writing twice. Its pure-Python half —
+the no-progress rule and the bounded evidence record — needs no browser.
+
+`web/scripts/test-agent-window.mjs` covers the Agent window against a real
+engine: opening it from the rail on a personal desktop shows the setup, which
+asks the four questions — model, apps, websites, changes — and contains none of
+the words a person should never have to read (worker, protocol, port, the
+browser library's name). Asking before changes is the default, the other choice
+says in so many words that it is not a trust-everything switch, and a desktop
+that allows nothing cannot be started. It then checks that what the screen says
+about the runtime and the models is what the engine says, that a personal
+desktop refuses a task, that approvals need owner authentication, and that the
+window minimizes to the rail and comes back. It asserts on structure and on
+refusals rather than on a model being installed, so it is honest on a machine
+with no model server.
+
+`test_viewer.py` covers watching and taking over. The lease half needs nothing
+and always runs: the second request losing, eight simultaneous requests through
+a barrier producing exactly one writer, two desktops having their own, a lease
+that nobody used timing out, using one keeping it alive, and an observer always
+being able to see who is typing. It also covers a click outside the view, a
+click that is not a point, a view with no known size, and input decided from a
+picture more than ten seconds old. The end-to-end half needs the browser and
+skips with a reason without one: a frame that is of one view and never carries a
+path, bytes served `no-store` behind owner authentication, a picture nobody
+captured not being served, watching changing nothing, taking over being
+exclusive and bumping the generation, input without the lease reaching nothing,
+a key a person may not press still being refused, and — the reason the epoch
+changes at all — an observation the agent was holding no longer working after a
+takeover.
+
+`test_agent_runs.py` covers the supervisor with a scripted model and a
+recording tool surface, so it is about the loop rather than about Chromium: a
+task running to a result with nobody watching, ordered events readable from a
+cursor, one task at a time per desktop, a queued task cancelled without ever
+starting, a running one stopped mid-dispatch, each budget ending the run with a
+sentence naming it, a tool refusal reaching the model rather than being
+swallowed, an unknown tool name never reaching anything, a model without tool
+support refused before a window opens, and an approval pausing the run and then
+dispatching the *same* call once it is answered. Its API half exercises the
+routes against the real store: submission deduplicated by request id, a personal
+desktop taking no tasks, a task belonging to its desktop, deleting a desktop
+taking its tasks, and turning history off removing what was kept.
+
+Say plainly what that suite does not establish. The model is a fixture, so it
+proves the machinery and nothing about whether a real model can decide what to
+do. That has its own script — see
+[evaluating a model](DEVELOPMENT.md#evaluating-a-model) — which runs a real model
+against a real browser and reports per attempt. Recorded results belong in a
+progress note with the model, the machine and the failure types as they were.
+
+`agent-web.test.mjs` covers websites, files and sessions in a real browser,
+against a disposable fixture site. The half that needs no browser checks the
+describing: field names come out of a form body and values never do, a body in a
+shape nothing understands is described as nothing rather than guessed at, and
+only an unsafe method is asked about. The browser half is where the claims are:
+a submission to a read-only site never reaching the fixture at all, a submission
+under review being described by its shape while its values stay out of what Vela
+is told, an allowed one being sent once and reporting its status, a redirect off
+the approved site being refused like any other hop, a download landing under a
+generated name inside the directory Vela owns — from a site suggesting
+`../../report.csv` — an oversized one refused with nothing left staged, a file
+reaching a page only through a path Vela chose, a dialog dismissed and recorded
+instead of blocking the page, two desktops not being signed in as each other,
+and a kept sign-in being what the next browser starts with until it is erased.
+
+One of its tests records a limitation rather than a guarantee. When a connection
+dies before any response byte arrives, Chromium retransmits the request below
+route interception: Vela is asked once and the site can receive it twice. The
+test asserts that measured behaviour, that Vela records the outcome as unknown,
+and that a second attempt through the page or the agent is refused.
+
+The fixture site runs on loopback, which the network policy refuses. The worker
+policy takes `allowPrivateSites`, which lets an origin that is *already approved*
+be on this machine and changes nothing else — the rest of loopback and the whole
+local network stay refused, and the suite asserts that. A server passes it only
+when `VELA_BROWSER_ALLOW_PRIVATE_SITES` is set in its environment, which is for
+running site fixtures and nothing else.
+
+`test_site_policy.py` is the decision on its own, with no browser: a site rule
+stored before effect modes existed reading as read-only, an effect mode nobody
+defined being refused rather than guessed, a file upload described as one instead
+of as an empty form, and an approval's binding changing when the method, the
+address, a field name, the body or whether Vela could read the body changes.
+
+`test_artifacts.py` covers the files. Its store half checks that a name from a
+website becomes a label and never a location, that an executable extension is not
+one a file is stored under, that an oversized upload is refused while it is being
+written and leaves nothing behind, that a download is only accepted from the
+directory Vela handed the worker, that an expired artifact is gone rather than
+old, and that an id from one desktop is worth nothing on another. Its API half
+checks that the bytes come back as a download behind owner authentication with
+`no-store` and `nosniff`, and that deleting a desktop takes its staged files and
+leaves the installed apps exactly as they were.
+
+`test_agent_concurrency.py` covers several desktops at once and what happens
+when one goes wrong. No browser: the model and the tools are fixtures, and what
+is under test is the supervisor's decisions. Two tasks on one desktop running in
+the order they were given; two desktops not waiting for each other; a task held
+by the concurrency limit saying so and staying honestly `queued` rather than
+showing `starting`; cancelling one while it waits ending it rather than spending
+the slot it eventually gets. Then the queue rule: a failure holding the queue
+with a reason, the owner's *carry on* being what starts the next one, submitting
+something new also clearing the hold, and one desktop's hold not touching
+another's. It also checks that a task which did not succeed records the last
+step there is a receipt for, that a retry is a new run leaving the original
+exactly as it ended, that a desktop with an unaccounted-for submission refuses
+to repeat it until somebody says they checked, that selecting a window on one
+desktop leaves the other alone, and that a third managed browser is refused with
+a sentence and nothing sent.
+
+Its authority half uses the real hub: removing an app drops every grant held
+against it, a question about an app that is gone can no longer be answered, and
+another app's grants are left exactly as they were.
+
+`test_agent_conversion.py` also turns a desktop's agent on and off five times in
+a row and checks that nothing survives a cycle — no browser context, no grant,
+no session. A leak there is not one anybody sees once; it is one per cycle.
+
+`desktop-snap.test.mjs`, `desktop-drag.test.mjs` and `genie-motion.test.mjs`
+cover the window interactions as arithmetic, with no browser. The snap suite is
+about what a drag near an edge *means*: where an offer starts, that moving a
+window to the other pane leaves the side it came from empty rather than showing
+it twice, that a closed or minimized member leaves its slot behind, that a
+minimized one goes back into that slot only while it is free, and that a split
+too narrow to draw as two is drawn as one without the stored arrangement
+changing. The drag suite is about what a dropped app card carries — identity
+only, checked by asserting that a token, some markup and some app state put on
+the same object do not appear anywhere in the payload.
+
+`genie-motion.test.mjs` is the approved motion, on a controlled clock. The
+preset is asserted by the values the geometry uses rather than by its label,
+because the prototype carried swoop 10 in three separate places and a test that
+read only one of them would have passed while the motion was wrong. Then: neck
+10 being a lead of 0.10; bands nearer the icon leading bands further from it;
+the furthest band starting exactly at the lead; collapse and expansion being
+different curves rather than one played backwards; a shape converting back to a
+time so a reversal resumes mid-warp; a reversal lasting as long as the distance
+left; 140 bands that overlap with no gap at 0, 25, 50, 75 and 100 per cent; the
+swoop peaking in the middle, vanishing at both ends and pointing opposite ways
+in the two directions. Its lifecycle half covers generations — a completion from
+a cancelled run changing nothing — and cancelling settling to the state that was
+*decided* rather than the shape on screen, which is what stops a hidden tab
+leaving a half-collapsed window nobody can click.
+
+What those cannot establish is how it looks. Real-frame inspection at several
+densities, both themes and a physical phone is browser and device work; record
+what was actually looked at rather than inferring it from a passing suite.
+
+`test_agent_retention.py` covers what is kept and what leaves the computer. The
+rules themselves need nothing: a picture of a window outliving nothing else, and
+task history being the only class a backup carries. The backup scope is asserted
+against `BACKED_UP_FILES` directly, because that list is an allowlist and the
+exclusion of a kept sign-in and a staged file is a property of the list rather
+than of a filter somebody has to maintain. Then, against a real hub: the
+retention policy being readable, an expired file actually disappearing, turning
+history off removing the tasks *and* their events, and a support bundle
+containing the health numbers while containing none of a seeded task
+instruction, approved site, filename or file contents. It also quiesces the run
+service the way a restore does and checks that every grant, browser lifetime and
+unresolved submission is gone and that what was running is reported as
+interrupted — never resumed.
+
+The three Doctor checks are asserted to answer something a person can act on
+rather than a stack trace, and the agent-files repair is asserted to be
+runnable.
+
+`test_approvals.py` covers changes that wait for a person. Its first half is
+the sentence somebody decides from: a secret-looking field described and never
+repeated, a long value clipped, a change too large to list saying how much
+changed rather than listing part of it, and a first write describing the fields
+it sets rather than "nothing becomes 2 fields". Its second half is the flow, and
+is mostly about the answer *not* counting — the wrong digest, the second click,
+the click after the window closed, after the policy changed, after the run
+stopped, after the app gave up, and after the request expired. Each of those
+checks the stored data as well as the status code. It also covers one question
+for a repeated identical change, a different question for a different one, an
+app seeing only its own, an app session unable to resolve anything, a person's
+own change never becoming a question at all, and extensions that cannot push
+past the absolute deadline.
+
+`bridge.test.mjs` covers the host side of that: a write answered 202 keeps the
+app's request open past the ten-second reply timeout, the app is told
+`vela:pending` rather than that it failed, and when the owner approves the
+effect happens exactly once. It also covers the compatibility path — an app
+whose SDK announced no features is answered immediately with a message saying it
+cannot wait, and its question is withdrawn rather than left on the owner's
+screen.
+
 `test_agent_permissions.py` covers what an agent may change: an unclassified
 operation being unavailable, an agent session that cannot reach the dashboard or
 an unclassified app route, reading needing only that the desktop allows the app,
@@ -110,6 +337,7 @@ node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
 node web/scripts/test-desktops.mjs
+node web/scripts/test-agent-window.mjs
 node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
 node web/scripts/test-security.mjs

@@ -260,7 +260,7 @@ class Releases:
                     replace_dir(record / 'next', target)
                     # File-level readiness is checked at the final serving path too.
                     self._check_package(target, allow_legacy=bool(plan['rollback']))
-                self.lifecycle.auth.revoke_app(app_id)
+                self.lifecycle.revoke_app_authority(app_id, reason="that app was updated")
                 self.recover()
                 self.cancel(token)
                 return {'id': app_id, 'version': manifest.version, 'release': release_id, 'installed': True}

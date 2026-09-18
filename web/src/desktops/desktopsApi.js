@@ -78,5 +78,83 @@ export const desktopsApi = {
       body: file,
     }),
   deleteWallpaper: (id) => request(`${scope(id)}/wallpaper`, { method: 'DELETE' }),
+
+  // ---- agent desktops
+  //
+  // Every one of these names its desktop. An agent surface that acted on
+  // "the current desktop" would eventually act on the wrong one.
+  policy: (id, options) => request(`${scope(id)}/policy`, options),
+  savePolicy: (id, body) => request(`${scope(id)}/policy`, json('PUT', body)),
+  enableAgent: (id) => request(`${scope(id)}/enable-agent`, { method: 'POST' }),
+  disableAgent: (id) => request(`${scope(id)}/disable-agent`, { method: 'POST' }),
+  runtime: (options) => request('/api/desktops/runtime', options),
+  models: (options) => request('/api/desktops/models', options),
+  attention: (options) => request('/api/desktops/attention', options),
+
+  tasks: (id, options) => request(`${scope(id)}/tasks`, options),
+  submitTask: (id, body) => request(`${scope(id)}/tasks`, json('POST', body)),
+  task: (id, runId, options) => request(`${scope(id)}/tasks/${encodeURIComponent(runId)}`, options),
+  controlTask: (id, runId, action) =>
+    request(`${scope(id)}/tasks/${encodeURIComponent(runId)}/control`, json('POST', { action })),
+  // Asking again is a new task, never the old one carrying on: what it did, it
+  // did, and there is no state to resume into.
+  retryTask: (id, runId) =>
+    request(`${scope(id)}/tasks/${encodeURIComponent(runId)}/retry`, { method: 'POST' }),
+  resumeQueue: (id) => request(`${scope(id)}/queue/resume`, { method: 'POST' }),
+  // `after` is the cursor a viewer already has. Reconnecting with it is what
+  // makes a dropped connection cost nothing.
+  events: (id, after = 0, options) =>
+    request(`${scope(id)}/events?after=${Number(after) || 0}`, options),
+
+  // ---- watching and control
+  viewer: (id, options) => request(`${scope(id)}/viewer`, options),
+  frame: (id, viewId, maxAgeMs = 400) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}/frame?maxAgeMs=${maxAgeMs}`),
+  // The bytes, fetched rather than pointed at. An <img src> cannot carry the
+  // hub bearer, and putting a credential in a URL to work around that is how a
+  // token ends up in a log. The caller gets a blob and owns revoking it.
+  frameBytes: async (id, viewId, digest) => {
+    const response = await hubFetch(
+      `${scope(id)}/views/${encodeURIComponent(viewId)}/frame/${encodeURIComponent(digest)}`,
+      { headers: { Accept: 'image/png' }, cache: 'no-store' },
+    );
+    if (!response.ok) throw new ApiError('That picture is no longer available.', response.status);
+    return URL.createObjectURL(await response.blob());
+  },
+  takeOver: (id, viewId) => request(`${scope(id)}/takeover`, json('POST', { viewId })),
+  sendInput: (id, leaseId, body) =>
+    request(`${scope(id)}/takeover/${encodeURIComponent(leaseId)}/input`, json('POST', body)),
+  releaseControl: (id, leaseId) =>
+    request(`${scope(id)}/takeover/${encodeURIComponent(leaseId)}`, { method: 'DELETE' }),
+
+  // ---- files and website sessions
+  //
+  // The file picker lives in the dashboard. An agent is told which files exist
+  // and can attach one by id; it never opens a picker and never names a path.
+  files: (id, options) => request(`${scope(id)}/files`, options),
+  addFile: (id, file) =>
+    request(`${scope(id)}/files`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        // The name travels in a header because it is a label, not a path: the
+        // bytes are stored under a name Vela generates either way.
+        'X-Vela-Filename': encodeURIComponent(file.name || 'file').replace(/%20/g, ' '),
+      },
+      body: file,
+    }),
+  removeFile: (id, fileId) =>
+    request(`${scope(id)}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' }),
+  fileUrl: (id, fileId) => `${scope(id)}/files/${encodeURIComponent(fileId)}`,
+  clearUnresolved: (id, digest) =>
+    request(`${scope(id)}/files?digest=${encodeURIComponent(digest)}`, { method: 'DELETE' }),
+
+  websiteSession: (id, options) => request(`${scope(id)}/session`, options),
+  keepWebsiteSession: (id) => request(`${scope(id)}/session`, { method: 'POST' }),
+  eraseWebsiteSession: (id) => request(`${scope(id)}/session`, { method: 'DELETE' }),
+
+  approvals: (id, options) => request(`${scope(id)}/approvals`, options),
+  resolveApproval: (id, requestId, body) =>
+    request(`${scope(id)}/approvals/${encodeURIComponent(requestId)}`, json('POST', body)),
   wallpaperUrl: (id) => `${scope(id)}/wallpaper`,
 };

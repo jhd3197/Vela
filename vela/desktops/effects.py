@@ -25,11 +25,17 @@ from __future__ import annotations
 #: needs its own rather than being covered by `write`, because restoring a
 #: backup replaces everything and ordinary permission to save is not permission
 #: to do that.
-EFFECT_CLASSES = ("read", "write", "restore", "action", "connection", "publish")
+#:
+#: `submit` is the one that is not an app operation at all: a request an
+#: approved website would receive, described and bound the same way. It is in
+#: this list so a site's authority is a row in the same table, expiring and
+#: revoked by the same rules, rather than a second permission system nobody
+#: audits.
+EFFECT_CLASSES = ("read", "write", "restore", "action", "connection", "publish", "submit")
 
 #: Classes that change something and therefore need authority beyond "this app
 #: is allowed on this desktop".
-EFFECTFUL = ("write", "restore", "action", "connection", "publish")
+EFFECTFUL = ("write", "restore", "action", "connection", "publish", "submit")
 
 #: Every operation an app session can reach, and what it is.
 #:
@@ -38,6 +44,9 @@ EFFECTFUL = ("write", "restore", "action", "connection", "publish")
 #: `{}` for it.
 OPERATIONS = {
     ("DELETE", "/session"): ("session.close", "read"),
+    # What the app's own SDK says it can do. Read-only in every sense: it can
+    # only ever make Vela more careful, never more permissive.
+    ("POST", "/features"): ("session.features", "read"),
     ("GET", "/storage"): ("storage.read", "read"),
     ("PUT", "/storage"): ("storage.write", "write"),
     ("GET", "/storage/snapshots"): ("storage.snapshots", "read"),
@@ -45,6 +54,12 @@ OPERATIONS = {
     ("POST", "/storage/snapshots/{}/restore"): ("storage.restore", "restore"),
     ("GET", "/actions"): ("actions.status", "read"),
     ("POST", "/actions/invoke"): ("actions.invoke", "action"),
+    # Asking about a change this app is already waiting on, and asking for more
+    # time to wait. Both are `read`: neither changes anything, and needing a
+    # grant to ask about a grant would be a circle.
+    ("GET", "/approvals/{}"): ("approvals.status", "read"),
+    ("POST", "/approvals/{}/extend"): ("approvals.extend", "read"),
+    ("POST", "/approvals/{}/abandon"): ("approvals.abandon", "read"),
     ("GET", "/connection"): ("connection.read", "read"),
     ("POST", "/connection/invoke"): ("connection.invoke", "connection"),
     ("PUT", "/widgets/{}"): ("widget.publish", "publish"),

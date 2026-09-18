@@ -111,6 +111,218 @@ No additional release notes were provided.
 
 ### Added
 
+- **Agent desktops are in the download.** A Vela download now carries the piece
+  that drives an agent's browser, along with the record of which browser build it
+  was made against and a checksum of its own code that Vela verifies before
+  starting it. Two halves from different downloads are refused with a sentence
+  about reinstalling rather than failing later in a way that looks like a bug in
+  whatever the agent was doing.
+
+  The browser itself is not in the download — it is a few hundred megabytes and
+  lives in a cache shared with anything else that uses one. Vela says which
+  command fetches it and will never download a browser while you are waiting for
+  a task.
+
+- **Agent desktops tidy up after themselves, and say so.** Four things pile up
+  while one works and they now have four stated lifetimes: a picture of a window
+  lasts two minutes, a record that something happened lasts a day, a file lasts a
+  week, and tasks last as long as you keep history. Vela sweeps what has expired
+  when it starts and periodically after that.
+
+  Turning off **Keep history** now reaches everything, not only the task list:
+  the activity under each task goes with it.
+
+  A backup covers your settings, your desktops and what your apps saved — it is
+  not a copy of a browser session, so a sign-in a desktop was keeping, a file
+  staged for a task and a picture of a window are all outside it. Restoring one
+  stops every agent desktop first, drops every permission they held, and reports
+  what was running as interrupted rather than resuming it.
+
+  **Settings → Health** has three new checks — whether agent desktops can run
+  here and against which browser, how much room their files are using with a
+  button to clean up, and whether any browser is open for a desktop that is no
+  longer an agent's. A support bundle now carries those numbers and nothing else
+  about the feature: no task wording, no results, no websites you approved, no
+  sign-in, no file and no picture of a window.
+
+- **Windows move the way they should.** Minimizing and restoring an agent's
+  window now plays a short warp toward its entry in the rail — 480 milliseconds,
+  the same in both directions, and it narrows toward the icon rather than sliding
+  as a rectangle.
+
+  It happens where Vela actually has a picture of the window to move, which
+  means a window the agent's own browser is rendering. An ordinary app on your
+  own desktop runs in a frame this page is not allowed to read the pixels of;
+  that is a browser rule, not a missing feature, and Vela will not ask for screen
+  recording or weaken an app's isolation to get around it for an animation —
+  those windows minimize immediately instead.
+
+  Ask your system for reduced motion and there is no warp at all. Either way it
+  is decoration over a decision that has already happened: minimizing a window
+  never pauses a task, ends a session or stops an agent, and the window goes
+  where you put it whether or not anything was drawn. A picture of the agent's
+  screen that has gone stale now says how old it is, and Stop never depended on
+  that stream.
+
+- **Two windows side by side, and everything a drag does without one.** Drag a
+  window's title bar to the left or right edge and Vela shows the half it would
+  take; let go and it goes there. The other half either keeps the window it had
+  or becomes a clearly empty pane that offers to be filled — it never quietly
+  shows the same window twice, and closing or minimizing one member leaves its
+  slot there so the window can come back into it.
+
+  The divider between the panes can be dragged, moved with the arrow keys, sent
+  back to equal halves with Home or a double-click, and it announces where it is
+  to a screen reader. A **⋯** menu on every title bar does the same things a drag
+  does — move left, move right, swap the panes, even them up, leave split view —
+  so none of this needs a pointer.
+
+  Dragging an app onto the desk still makes a widget of it, and dragging one into
+  a task's box now names it for that task. What travels is the app's identity and
+  nothing else: no install happens, nothing is submitted, and what the desktop is
+  allowed to use does not change. There is a **Mention an app** picker beside the
+  Start button for anyone not dragging.
+
+- **Two desktops can work at once, and a queue stops when something goes wrong.**
+  Vela runs two agent desktops at a time on one computer; a third is refused with
+  a sentence, and a task waiting for one of the two says it is waiting instead of
+  showing *Starting* for ten minutes. Each desktop keeps its own queue, its own
+  limits and its own window in front, and nothing one does reaches the other.
+
+  A task that failed, was interrupted or sent something nobody could confirm now
+  **holds** the rest of that desktop's queue and says why, rather than starting
+  the next one on top of it. **Carry on** releases it, and so does giving the
+  desktop something new to do. A result that did not succeed says how far it
+  actually got — the last step there is a receipt for.
+
+  **Try again** queues the same instruction as a new task. It is never the old
+  one carrying on: what that one did, it did. A desktop with something
+  unaccounted for will not repeat it until you say you have checked.
+
+  Updating, removing or upgrading an app now takes its authority with it. Every
+  permission an agent desktop held against that app is dropped and any question
+  waiting about it can no longer be answered, so an approval reviewed against one
+  version of an app can never apply to another.
+
+- **An agent desktop can use a website, and bring a file back.** Approving a
+  site is two decisions now, so the setup asks two questions. **Reading only**
+  is the default: it can browse, and signing in, sending a form or anything else
+  that would change something there stops and asks you to take over. **Ask me
+  before it sends anything** holds the request before it leaves your computer and
+  shows you what it is — the address, the method and the *names* of the fields,
+  never the values, because a prompt gets screenshotted. Saying yes allows that
+  exact request and nothing else. Requests Vela cannot describe honestly are not
+  offered as a question at all; they ask for a person.
+
+  Signing in is yours. Vela will not attempt one and will not try to get past a
+  challenge meant to tell people from programs — it stops, says so, and hands you
+  the window. A desktop forgets website sign-ins when its browser closes unless
+  you turn on keeping them, and what is kept belongs to that desktop alone: two
+  agent desktops are never signed in as each other, your own browser's profile is
+  never read, and **Erase** clears both the file and the browser that is open.
+
+  Files go through your own picker. The agent is told which files exist and can
+  attach one to a page that asks for one; there is no tool that takes a path, so
+  there is nothing to point elsewhere. Anything it downloads from an approved
+  site appears in the same list with where it came from. Up to 25 MB for a file
+  you add, 100 MB for a download and 250 MB for one task, shown before a transfer
+  rather than discovered by one failing. A file is stored under a name Vela
+  generated, nothing is extracted and nothing is run.
+
+  **If something was sent and no answer came back, Vela says so.** The task ends
+  with *Outcome unknown*, the Files panel shows what went out, and nothing sends
+  it again until you say you have checked. One honest limit: when a connection
+  dies before any reply, the browser itself may resend below anything Vela can
+  intercept, so the site may have received it more than once — which is exactly
+  why checking is a person's job and not a retry. See
+  [agent desktops](docs/AGENT-DESKTOPS.md).
+
+- **Watch what the agent is doing, and take the keyboard when you want it.**
+  The Agent window shows the actual screen the agent is working on. Watching is
+  watching: clicking the picture does nothing. **Take over** stops the agent
+  first, then hands you the window — your clicks and keys go to it, and the task
+  stays paused until you say carry on, even after you give control back. Only one
+  person can be typing at a time, and anyone else watching can see who it is.
+  When the agent does carry on, it looks at the screen again before doing
+  anything, so it sees what you changed.
+
+  Closing the tab does not hand the keyboard to the agent; control simply times
+  out. Pause holds a task where it is, Stop ends it — and neither pretends to
+  undo something that already happened. Vela never reads your clipboard.
+
+- **Set up a desktop that works for you, and watch it.** The rail's desktop menu
+  has an Agent button on every desktop. On one that is still yours it opens a
+  short setup — which model, which apps, which websites, and whether changes ask
+  first — and it will not let you start a desktop that could not work: a missing
+  model server or a model that cannot operate an app is said plainly, next to the
+  choice, before you commit to anything. Asking before changes is the default,
+  and the other option allows only the actions you pick.
+
+  Afterwards the same window is where you give it work. It shows what is being
+  worked on, how long it has actually been working, what is queued behind it and
+  what came of earlier tasks, with Pause, Carry on and Stop. A change that needs
+  you appears here as a card saying what would change, with Allow, No, and Allow
+  for an hour — and this window is the only place that can answer it. Every
+  result says whether anything was really changed, read from what happened rather
+  than from how the task described it. Desktops working in the background show a
+  mark on the rail, so you can see that Desktop 2 needs you while you are on
+  Desktop 1.
+
+  If you have notifications set up, Vela sends one line when a task finishes or
+  needs you — not one per click — and nothing at all for a task you stopped
+  yourself. There is a new switch for it beside the others.
+
+- **A desktop can carry out a task while you do something else.** Give an agent
+  desktop an instruction and Vela works on it on the server: you can close the
+  dashboard, switch to another desktop or shut the browser, and the task carries
+  on. It runs inside the limits the desktop's settings give it — how many steps,
+  how long, how many times it may ask the model — and when it reaches one it
+  stops and says which. Time spent waiting for you to approve something is not
+  charged against it. Pause, resume and stop are yours; stopping ends what has
+  not happened yet and never pretends to undo what has.
+
+  What a task reports is checked against what it actually did. A summary that
+  claims a change with nothing to show for it is refused, and every result
+  records whether anything really changed — read from the receipts, not from the
+  wording. Vela never restarts a task by itself: if the server stops mid-task it
+  says the task was interrupted and leaves anything queued for you to start.
+
+  **Not every model can do this.** A task needs a model that supports tool
+  calling, and Vela checks before opening anything rather than failing halfway
+  through. Beyond that, models differ a great deal in whether they can actually
+  work an app, and a bigger model is not automatically better at it. See
+  [evaluating a model](docs/DEVELOPMENT.md#evaluating-a-model).
+
+- **A change can wait for you to say yes.** When an app running on an agent's
+  desktop tries to save something the desktop was not already allowed to save,
+  the change becomes a question rather than a failure. Nothing is written while
+  it is open, the question says in plain language what would change — and
+  describes a password-like field rather than repeating it — and saying yes
+  approves that exact change and no other. Say no, close the window, change the
+  desktop's permissions or stop the task, and a click arriving afterwards does
+  nothing at all. Questions expire on their own, and no amount of asking for
+  more time pushes that past twenty minutes.
+
+  Apps are not left hanging while you decide. An app that loads Vela's own SDK
+  waits as long as the question does; one that bundles an older copy is told
+  straight away that it cannot wait, so you can make the change yourself in the
+  window instead. Your own clicks are unaffected: using your own computer has
+  never needed anyone's approval and still does not.
+
+- **App developers: label your controls and declare your actions.** Vela is
+  building desktops an agent can work in, and the parts that read and operate an
+  app's window now exist. An app is found by the accessible name of its
+  controls — `aria-label`, a real `<label>`, `placeholder`, `title`, then its
+  text — so a button whose only name is an icon cannot be used, and a control
+  that renames itself while it is on screen is refused rather than clicked. A
+  named action is preferred to a form wherever one fits: it is validated, it
+  returns a receipt, and repeating its request key returns the first answer
+  instead of doing the work twice. Nothing changes for an app that is not in an
+  agent's window, and an app in one is told so through `view.chrome`. Whatever
+  an app saves still goes through the same permission check whether a person
+  clicked it or an agent did. See
+  [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#what-a-run-can-perceive-and-do).
+
 - **Your desk is a desktop you can have more than one of.** The desk you have
   becomes **Desktop 1** with every widget, both the wide and the phone
   arrangement, and its wallpaper exactly where they were; nothing is asked of

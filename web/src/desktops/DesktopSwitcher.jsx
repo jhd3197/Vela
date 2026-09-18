@@ -7,14 +7,19 @@
 // Choosing a desktop changes only this browser. Creating, renaming and deleting
 // change the server, so they are confirmed and they say what they will do.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Check, Monitor, Pencil, Plus, Trash } from '@phosphor-icons/react';
+import { Check, Monitor, Pencil, Plus, Robot, Trash } from '@phosphor-icons/react';
 import { useDesktops } from './DesktopsProvider.jsx';
+import useAttention, { attentionWord } from './useAttention.js';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 
 /** The rail entry: the current desktop, and a menu of the others. */
 export default function DesktopSwitcher({ onNavigate }) {
-  const { desktops, selected, selectedId, select } = useDesktops();
+  const { desktops, selected, selectedId, select, views } = useDesktops();
+  // What every agent desktop is doing, including the ones you are not looking
+  // at. A desktop working in the background is the whole point of the feature,
+  // so it has to be visible from anywhere.
+  const attention = useAttention();
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState(null); // { kind: 'create' | 'rename' | 'delete' }
   const trigger = useRef(null);
@@ -30,6 +35,18 @@ export default function DesktopSwitcher({ onNavigate }) {
   // A server with no desktops has nothing to switch between, so it draws
   // nothing rather than an empty menu — the same rule the rail avatar follows.
   if (!desktops.length) return null;
+
+  // A summary of the desktops that are *not* in front of you. The one you are
+  // looking at shows its own state in its own window; this is for the others.
+  const others = Object.entries(attention).filter(([id]) => id !== selectedId);
+  const needing = others.filter(([, entry]) => entry.needsYou).length;
+  const working = others.filter(([, entry]) => entry.working).length;
+  const elsewhereMark = needing ? 'attention' : working ? 'working' : null;
+  const elsewhere = needing
+    ? `${needing} other desktop${needing === 1 ? '' : 's'} need you`
+    : working
+      ? `${working} other desktop${working === 1 ? '' : 's'} working`
+      : '';
 
   const choose = (id) => {
     select(id);
@@ -55,7 +72,11 @@ export default function DesktopSwitcher({ onNavigate }) {
         <span className="rail-tip">{selected ? selected.name : 'Desktops'}</span>
         <span className="sr-only">
           {selected ? `${selected.name} — choose a desktop` : 'Choose a desktop'}
+          {elsewhere ? `. ${elsewhere}` : ''}
         </span>
+        {elsewhereMark && (
+          <span className="rail-desktop-badge" data-kind={elsewhereMark} aria-hidden="true" />
+        )}
       </button>
 
       {open && (
@@ -63,7 +84,17 @@ export default function DesktopSwitcher({ onNavigate }) {
           id={menuId}
           desktops={desktops}
           selectedId={selectedId}
+          attention={attention}
           onChoose={choose}
+          onOpenAgent={async (desktop) => {
+            // Opening the Agent window is an owner action on the desktop it
+            // names, so choosing one and opening its window are the same gesture
+            // rather than two that can disagree.
+            if (desktop.id !== selectedId) select(desktop.id);
+            setOpen(false);
+            await views?.open?.({ kind: 'agent' });
+            onNavigate?.();
+          }}
           onClose={close}
           onAction={(kind, desktop) => {
             setOpen(false);
@@ -86,7 +117,16 @@ export default function DesktopSwitcher({ onNavigate }) {
 }
 
 /** The list itself. Escape closes it, and focus goes back to what opened it. */
-function DesktopMenu({ id, desktops, selectedId, onChoose, onClose, onAction }) {
+function DesktopMenu({
+  id,
+  desktops,
+  selectedId,
+  attention,
+  onChoose,
+  onClose,
+  onAction,
+  onOpenAgent,
+}) {
   const panel = useRef(null);
 
   useEffect(() => {
@@ -146,11 +186,31 @@ function DesktopMenu({ id, desktops, selectedId, onChoose, onClose, onAction }) 
               onClick={() => onChoose(desktop.id)}
             >
               <span className="desktop-menu-name">{desktop.name}</span>
+              {attentionWord(attention[desktop.id]) && (
+                <span
+                  className="desktop-menu-state"
+                  data-kind={attention[desktop.id]?.needsYou ? 'attention' : 'working'}
+                >
+                  {attentionWord(attention[desktop.id])}
+                </span>
+              )}
               {desktop.id === selectedId ? (
                 <Check size={14} weight="bold" aria-hidden="true" />
               ) : null}
             </button>
             <span className="desktop-menu-actions">
+              <button
+                type="button"
+                className="desktop-menu-action"
+                aria-label={
+                  desktop.kind === 'agent'
+                    ? `Open the Agent window for ${desktop.name}`
+                    : `Let an agent work in ${desktop.name}`
+                }
+                onClick={() => onOpenAgent(desktop)}
+              >
+                <Robot size={14} aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 className="desktop-menu-action"

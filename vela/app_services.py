@@ -53,7 +53,10 @@ class AppServices:
     def write(self, session, value, revision):
         self.authorize_storage(session)
         self.validate_data(session["app_id"], value)
-        authorize = self.guard(session, "write", request_digest=_digest(value))
+        # The proposal goes with the request so that, when this needs asking
+        # about, the prompt can say what would actually change rather than
+        # "this app wants to save something".
+        authorize = self.guard(session, "write", request_digest=_digest(value), proposal=value)
         return self.storage.write(session["installationId"], value, revision, session["schemaVersion"], session["quota"], authorize=authorize)
 
     def validate_data(self, app_id, value, schema_file=None, *, manifest=None, schema_only=False):
@@ -93,7 +96,10 @@ class AppServices:
 
     def snapshot(self, session):
         self.authorize_storage(session)
-        return self.storage.snapshot(session["installationId"], authorize=self.guard(session, "write"))
+        return self.storage.snapshot(
+            session["installationId"],
+            authorize=self.guard(session, "write", note="Keep a copy of everything saved now."),
+        )
 
     def restore(self, session, snapshot_id, revision):
         self.authorize_storage(session)
@@ -103,7 +109,13 @@ class AppServices:
         self.validate_data(session["app_id"], saved["value"])
         # Restoring replaces everything. Permission to save is not permission to
         # do that, so it has its own effect class rather than riding on `write`.
-        authorize = self.guard(session, "restore", scope={"snapshot": snapshot_id})
+        authorize = self.guard(
+            session,
+            "restore",
+            scope={"snapshot": snapshot_id},
+            request_digest=_digest(saved["value"]),
+            note=f"Everything saved in this app is replaced with the backup from {saved.get('createdAt') or 'earlier'}.",
+        )
         return self.storage.write(session["installationId"], saved["value"], revision, session["schemaVersion"], session["quota"], snapshot_reason="Before restore", authorize=authorize)
 
     def migrate(self, app_id, value, revision, *, commit=False):

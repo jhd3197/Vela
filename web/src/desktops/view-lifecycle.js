@@ -29,12 +29,17 @@ export default function useAppFrame({
   enabled,
   frameRef,
   contextRef,
+  // A session this caller was handed rather than one to go and open. The agent
+  // host is given one by the worker; the dashboard opens its own. Either way
+  // the bridge below is the same bridge.
+  session: provided = null,
   onDirty,
   onNavigate,
   onReady,
   onError,
 }) {
-  const [session, setSession] = useState(null);
+  const [opened, setOpened] = useState(null);
+  const session = provided || opened;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const bridge = useRef(null);
@@ -44,8 +49,9 @@ export default function useAppFrame({
   handlers.current = { onDirty, onNavigate, onReady, onError };
 
   useEffect(() => {
+    if (provided) return undefined;
     if (!enabled) {
-      setSession(null);
+      setOpened(null);
       setReady(false);
       setError('');
       return undefined;
@@ -63,7 +69,7 @@ export default function useAppFrame({
             headers: { Authorization: `Bearer ${value.token}` },
           }).catch(() => {});
         } else {
-          setSession(value);
+          setOpened(value);
         }
       })
       .catch((failure) => {
@@ -72,7 +78,7 @@ export default function useAppFrame({
     return () => {
       disposed = true;
     };
-  }, [appId, enabled]);
+  }, [appId, enabled, provided]);
 
   useEffect(() => {
     if (!session || !frameRef.current || !enabled) return undefined;

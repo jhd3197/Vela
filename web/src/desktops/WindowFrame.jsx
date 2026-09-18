@@ -9,8 +9,9 @@
 // comes from, and it is not a confusion to ship.
 //
 // Where the window is drawn comes from `window-state.js`; this only renders it.
-import { useCallback, useEffect, useId, useRef } from 'react';
-import { ArrowsIn, ArrowsOut, Minus, X } from '@phosphor-icons/react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { ArrowsIn, ArrowsOut, DotsThree, Minus, X } from '@phosphor-icons/react';
+import ContextMenu from '../components/ui/ContextMenu.jsx';
 import { moveBounds, resizeBounds } from './window-state.js';
 
 /** The edges a pointer can grab, and the cursor each one shows. */
@@ -34,8 +35,10 @@ export default function WindowFrame({
   maximized,
   fixed = false,
   status,
+  actions,
   onSelect,
   onMove,
+  onDragPoint,
   onMinimize,
   onMaximize,
   onClose,
@@ -44,6 +47,8 @@ export default function WindowFrame({
   const titleId = useId();
   const gesture = useRef(null);
   const frame = useRef(null);
+  const menuButton = useRef(null);
+  const [menu, setMenu] = useState(null);
 
   const begin = useCallback(
     (event, edge) => {
@@ -79,8 +84,15 @@ export default function WindowFrame({
         ? resizeBounds(active.from, delta, active.edge, area)
         : moveBounds(active.from, delta, area);
       if (next) onMove?.(next);
+      // Where the pointer is, not where the window is: a snap target is about
+      // the edge somebody is reaching for, and a wide window's own left edge is
+      // at zero long before they have reached anything.
+      if (!active.edge) {
+        const box = frame.current?.parentElement?.getBoundingClientRect();
+        if (box) onDragPoint?.({ x: event.clientX - box.left, y: event.clientY - box.top });
+      }
     },
-    [area, onMove],
+    [area, onDragPoint, onMove],
   );
 
   const end = useCallback(
@@ -89,9 +101,10 @@ export default function WindowFrame({
       gesture.current = null;
       if (!active) return;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
+      onDragPoint?.(null, { drop: active.moved && !active.edge });
       if (active.moved) onMove?.(null, { commit: true });
     },
-    [onMove],
+    [onDragPoint, onMove],
   );
 
   // Escape during a drag puts the window back where it started, which is the
@@ -101,11 +114,12 @@ export default function WindowFrame({
       if (event.key !== 'Escape' || !gesture.current) return;
       const { from } = gesture.current;
       gesture.current = null;
+      onDragPoint?.(null, { cancelled: true });
       onMove?.(from, { commit: true });
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [onMove]);
+  }, [onDragPoint, onMove]);
 
   if (!bounds) return null;
 
@@ -140,6 +154,21 @@ export default function WindowFrame({
         </h2>
         {status ? <span className="window-status">{status}</span> : null}
         <div className="window-controls">
+          {actions?.length ? (
+            <button
+              type="button"
+              className="window-control"
+              ref={menuButton}
+              aria-label={`Window actions for ${title}`}
+              aria-haspopup="menu"
+              onClick={(event) => {
+                const box = event.currentTarget.getBoundingClientRect();
+                setMenu({ x: box.left, y: box.bottom + 4 });
+              }}
+            >
+              <DotsThree size={16} weight="bold" aria-hidden="true" />
+            </button>
+          ) : null}
           <button
             type="button"
             className="window-control"
@@ -172,6 +201,20 @@ export default function WindowFrame({
         </div>
       </header>
       <div className="window-body">{children}</div>
+      {/* Everything a drag can do, available without one. A person using a
+          keyboard, a screen reader or a touch device is not a person who should
+          be told to drag a title bar to the edge of the screen. */}
+      {menu && actions?.length ? (
+        <ContextMenu
+          open
+          x={menu.x}
+          y={menu.y}
+          label={`${title} window`}
+          items={actions}
+          returnFocusRef={menuButton}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
       {!fixed &&
         EDGES.map(([edge, cursor]) => (
           <span

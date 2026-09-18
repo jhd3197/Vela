@@ -1,6 +1,8 @@
 """Read-only bindings to existing Ollama servers. Never owns their lifecycle."""
 import asyncio
+import hashlib
 import ipaddress
+import json
 import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -8,6 +10,20 @@ from urllib.parse import urlsplit
 import httpx
 
 from .app_storage import AppServiceError
+
+
+def _connection_digest(operation, payload):
+    """What an approval for this call is bound to.
+
+    The operation and the payload, together. Approving "ask the model this"
+    is not approving "ask it that", and a digest over the operation alone
+    would make those the same decision.
+    """
+    encoded = json.dumps(
+        {"operation": operation, "payload": payload},
+        sort_keys=True, separators=(",", ":"), default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 _LAN = [ipaddress.ip_network(network) for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")]
 
@@ -128,7 +144,13 @@ class Connections:
         # request leaves rather than around it. A call to another service cannot
         # be rolled back, so "checked, then dispatched" is the honest shape here
         # and the outcome of a lost response stays unknown rather than failed.
-        authorize = self.guard(session, "connection", scope={"operation": operation})
+        authorize = self.guard(
+            session,
+            "connection",
+            scope={"operation": operation},
+            request_digest=_connection_digest(operation, payload),
+            note=f"It would send “{operation}” to the service this app is connected to.",
+        )
         if authorize is not None:
             with self.storage.connection() as db:
                 authorize(db)

@@ -197,6 +197,7 @@ fork → branch → change → verify → pull request
 
 **Useful links:** [Server guide](docs/SERVER.md) · [App guide](docs/APPS.md) ·
 [Automations](docs/AUTOMATIONS.md) · [Bots and rooms](docs/BOTS.md) ·
+[Agent desktops](docs/AGENT-DESKTOPS.md) ·
 [Developer guide](docs/DEVELOPMENT.md) · [Report a vulnerability](SECURITY.md)
 
 ---

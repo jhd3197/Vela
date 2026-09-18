@@ -28,6 +28,17 @@ const CASCADE_WRAP = 6;
 /** A new window takes this much of the work area, within its own limits. */
 const DEFAULT_FRACTION = 0.68;
 
+/**
+ * The narrowest work area two panes are worth showing in.
+ *
+ * Below it a split is kept — the arrangement somebody made is still their
+ * arrangement, and rotating a tablet back restores it exactly — but only one
+ * pane is *drawn*, full width, with the rail switching between them. Two
+ * 200-pixel columns are not a split screen; they are two windows nobody can
+ * read.
+ */
+export const SPLIT_MIN_WIDTH = 720;
+
 const round = (value) => Math.round(value);
 
 /** A rectangle with numbers in it, or null. */
@@ -146,11 +157,26 @@ export function placeView(view, { layout, area, index = 0, gutter = 8 }) {
     return layout.maximizedView === view.id ? maximizedBounds(area) : null;
   }
   if (layout.arrangement === 'split') {
-    if (layout.primaryView === view.id)
-      return splitBounds(area, layout.dividerRatio, 'primary', gutter);
-    if (layout.secondaryView === view.id)
-      return splitBounds(area, layout.dividerRatio, 'secondary', gutter);
-    return null;
+    const member =
+      layout.primaryView === view.id
+        ? 'primary'
+        : layout.secondaryView === view.id
+          ? 'secondary'
+          : null;
+    if (!member) return null;
+    if (area.width < SPLIT_MIN_WIDTH) {
+      // One at a time on a narrow screen, and the stored split is untouched.
+      // The one in front is whichever is selected, falling back to the pane
+      // that has something in it.
+      const chosen =
+        layout.selectedView &&
+        (layout.selectedView === layout.primaryView || layout.selectedView === layout.secondaryView)
+          ? layout.selectedView
+          : null;
+      const front = chosen || layout.primaryView || layout.secondaryView;
+      return view.id === front ? maximizedBounds(area) : null;
+    }
+    return splitBounds(area, layout.dividerRatio, member, gutter);
   }
   const saved = clampBounds(view.window?.bounds, area);
   return saved || defaultBounds(area, index);

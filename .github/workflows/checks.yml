@@ -34,6 +34,11 @@ jobs:
       - name: Install the automation runtime the download ships
         if: runner.os == 'Windows'
         run: python scripts/setup-automation-worker.py
+      - name: Install the agent desktop worker the download ships
+        # The browser build itself is not packaged; the worker and its
+        # provenance are, so the download can say which browser to fetch.
+        if: runner.os == 'Windows'
+        run: python scripts/setup-browser-worker.py --skip-browser
       - name: Download the pinned Node runtime the download ships
         if: runner.os == 'Windows'
         run: python scripts/fetch-node-runtime.py

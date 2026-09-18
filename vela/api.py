@@ -24,6 +24,7 @@ from .backups import KEEP_BACKUPS, BackupError, BackupStore, describe_schedule, 
 from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES, DeskError
 from .desktops import Desktops, DesktopConflict, DesktopError, Gateway, router as desktops_router
+from .agent_runs.service import AgentRuns
 from .usage import WINDOW_DAYS as USAGE_WINDOW_DAYS, UsageStore
 from .files import MAX_UPLOAD_BYTES, TRASH_DAYS, FileError, Files, validate_shares
 from .snooze import SnoozeStore
@@ -45,6 +46,7 @@ from .wallpaper import MAX_WALLPAPER_BYTES, Wallpaper, WallpaperError
 from .widgets import Widgets
 from .auth import Auth
 from .app_storage import AppStorage, AppServiceError
+from .agent_runs.approvals import ApprovalPending
 from .app_services import AppServices
 from .lifecycle import Lifecycle, LifecycleError
 from .logging_setup import audit, request_actor
@@ -170,6 +172,12 @@ class StorageWrite(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     value: Any
     revision: int = Field(ge=0)
+
+
+class AppFeatures(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    #: Short names an SDK announces. Bounded because this arrives from an app.
+    features: list[str] = Field(default_factory=list, max_length=8)
 
 
 class LoginRequest(BaseModel):
@@ -321,6 +329,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         storage=storage,
         auth=auth,
         registry=registry,
+        log=lambda message: print(f'[vela] {message}', flush=True),
+        # The one origin the managed browser is allowed to talk to. `__main__`
+        # records the port it bound; a server started another way falls back to
+        # the documented one.
+        origin=f"http://127.0.0.1:{os.environ.get('VELA_PORT', '7700')}",
     )
     # One guard, given to every service that can change something. For a person
     # it answers None and nothing changes; for an agent it returns the check
@@ -332,11 +345,21 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     connected_apps = ConnectedApps(storage)
     app_services = AppServices(registry, auth, storage, guard=guard)
     connections = Connections(registry, storage, transport=connection_transport, guard=guard)
-    lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage)
+    lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage, desktops)
     catalog = Catalog(config)
     registry.catalog = catalog
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services, guard=guard)
+    # An agent run invoking a named action goes through this same service, with
+    # its own caller identity and its own grant check. Attached here because the
+    # action service is built from services that are built from desktops.
+    desktops.actions = actions
+    # Tasks an agent desktop carries out. Created after actions because a run
+    # invoking a named action goes through that service.
+    agent_runs = AgentRuns(
+        desktops, config.data_dir, settings=settings, notifier=notifier,
+        log=lambda message: print(f'[vela] {message}', flush=True),
+    )
     snooze = SnoozeStore(config.data_dir / "snooze.json")
     widgets = Widgets(storage, registry, actions, snooze, guard=guard)
     automations = Automations(config, registry, actions, notifier, settings,
@@ -344,11 +367,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     updates = UpdateChecker(config, __version__, settings=settings)
     doctor = Doctor(config, state=state, registry=registry, settings=settings,
                     backups=backups, assistant=assistant, catalog=catalog, updates=updates)
+    # Attached rather than passed: Doctor is built before the run service, and
+    # reordering the assembly for two optional checks would be the tail wagging
+    # the dog.
+    doctor._desktops = desktops
+    doctor._runs = agent_runs
     errors = ErrorStore(config.data_dir / "diagnostics.sqlite")
     update_job = UpdateJob(config, updates, backups=backups)
     support = SupportBundle(config, version=__version__, registry=registry, settings=settings,
                             errors=errors, doctor=doctor, automations=automations,
-                            desktops=desktops)
+                            desktops=desktops, runs=agent_runs)
     # The scheduler runs the sweep daily and once after startup, and announces
     # a check that newly fails.
     scheduler.attach_doctor(doctor)
@@ -361,8 +389,16 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     app.middleware("http")(auth.middleware)
     app.include_router(automations_router(automations))
     app.state.automations = automations
-    app.include_router(desktops_router(desktops))
+    app.include_router(desktops_router(desktops, runs=agent_runs))
     app.state.desktops = desktops
+    app.state.agent_runs = agent_runs
+    # Say plainly what a restart did to work that was in flight, rather than
+    # leaving a row that claims to still be running.
+    for note in [agent_runs.prepare()]:
+        if note["interrupted"]:
+            LOG.info("desktops: %s task(s) were interrupted by a restart", note["interrupted"])
+        if any(note["cleaned"].values()):
+            LOG.info("desktops: cleaned up %s expired item(s)", sum(note["cleaned"].values()))
     # Import the existing desk before anything can read a desktop, and sweep
     # wallpaper files a crash may have left unreferenced.
     _desktop_migration = desktops.prepare()
@@ -408,6 +444,22 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     @app.exception_handler(AppServiceError)
     async def app_error(request, exc):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status)
+
+    @app.exception_handler(ApprovalPending)
+    async def approval_pending(request, exc):
+        """202: accepted for a decision, and nothing written.
+
+        Deliberately not an error. A change waiting for its owner is not a
+        change that failed, and an app told "failed" learns to give up on the
+        thing it should be waiting for.
+        """
+        return JSONResponse(
+            {
+                "pending": exc.record,
+                "detail": exc.record["summary"]["headline"],
+            },
+            status_code=202,
+        )
 
     @app.exception_handler(LifecycleError)
     async def lifecycle_error(request, exc):
@@ -567,6 +619,44 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     def write_app_storage(payload: StorageWrite, request: Request):
         with lifecycle.lock:
             return app_services.write(request.state.app_session, payload.value, payload.revision)
+
+    @app.post("/api/app/features")
+    def app_features(payload: AppFeatures, request: Request):
+        """What this app's SDK announced it understands.
+
+        Recorded so that a limitation is visible before a run walks into it: an
+        app whose SDK cannot wait for an approval is one an agent should not be
+        asked to make changes in. Nothing here grants anything — the only thing
+        this can do is make Vela more careful.
+        """
+        return desktops.note_view_features(request.state.app_session, payload.features)
+
+    @app.get("/api/app/approvals/{request_id}")
+    def app_approval_status(request_id: str, request: Request):
+        """Where the change this app is waiting on has got to.
+
+        The app's own host asks this while it waits. It can see only its own
+        request — matched on the desktop, the app and the installation — and
+        there is nothing here that resolves anything. Approving is the owner's,
+        on an owner-authenticated route this session cannot reach.
+        """
+        return desktops.approval_for_session(request.state.app_session, request_id)
+
+    @app.post("/api/app/approvals/{request_id}/extend")
+    def app_approval_extend(request_id: str, request: Request):
+        """Ask for more time, within limits the app does not choose."""
+        return desktops.extend_approval_for_session(request.state.app_session, request_id)
+
+    @app.post("/api/app/approvals/{request_id}/abandon")
+    def app_approval_abandon(request_id: str, request: Request):
+        """The app has stopped waiting, so the question is withdrawn.
+
+        Only ever removes authority. An app can withdraw its own question and
+        nothing else, and a decision arriving afterwards resolves nothing —
+        which is the point: a late click must not revive a write whose caller
+        has already given up on it.
+        """
+        return desktops.abandon_approval_for_session(request.state.app_session, request_id)
 
     @app.get("/api/app/storage/snapshots")
     def list_app_snapshots(request: Request):
@@ -770,6 +860,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     @app.on_event("startup")
     async def start_scheduler() -> None:
+        # The loop everything asynchronous in this server belongs to. Recorded
+        # because the browser runtime's pipes and futures live on it, and work
+        # scheduled from another thread has to come back here rather than
+        # awaiting on a loop that is not the one reading the worker.
+        app.state.loop = asyncio.get_running_loop()
         scheduler.start()
         system_metrics.start()
 
@@ -777,6 +872,13 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     async def stop_scheduler() -> None:
         await scheduler.stop()
         await system_metrics.stop()
+        # Tasks first, then the browser they were working in: a run that is
+        # still dispatching into a closing browser is the one thing worse than a
+        # run that stops.
+        await agent_runs.stop()
+        # A browser left running with nobody to stop it is the thing the
+        # worker's own watchdog is a backstop for; this is the ordinary path.
+        await desktops.stop_runtime()
 
     @app.get("/api/system/metrics")
     def system_metrics_snapshot() -> dict:
@@ -1095,6 +1197,10 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # Turning retention off is a deletion, not just a preference change.
         if update.get("chat_history") is False:
             conversations.purge()
+            # The same meaning for agent tasks: transcripts, events and results
+            # go, and anything still running continues in the volatile mode the
+            # documentation describes rather than quietly writing on.
+            agent_runs.purge()
         return {"ok": True}
 
     @app.post("/api/notify/test")
@@ -1616,13 +1722,26 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # deliberate header so no stray link or retry can start one.
         if request.headers.get("x-vela-confirm") != "restore":
             raise HTTPException(status_code=428, detail="Confirm restoring this backup")
+        # Agent desktops are stopped before anything is replaced, and every
+        # grant, session and browser they held goes with them. A task still
+        # dispatching into app data that is being swapped underneath it is the
+        # one thing a restore must not allow.
+        quiesced = await agent_runs.quiesce()
         try:
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 backups.restore, name, lifecycle=lifecycle,
                 actor=request_actor(auth, request),
             )
         except BackupError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        # What was in flight is interrupted, not resumed: the effects it already
+        # had cannot be undone by starting it again.
+        interrupted = agent_runs.prepare()["interrupted"]
+        return {
+            **result,
+            "agentDesktopsStopped": quiesced["desktops"],
+            "agentTasksInterrupted": interrupted,
+        }
 
     # /apps/* is matched before the SPA fallback below; the fallback must
     # never swallow app requests.
@@ -1635,6 +1754,17 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     index = config.web_dist / "index.html"
     if config.web_dist.is_dir() and index.is_file():
         dist_root = config.web_dist.resolve()
+
+        # The page an agent desktop's browser loads. A separate entry point, not
+        # the dashboard with pieces hidden: hiding is a rendering decision and
+        # this has to be a structural one. It is the only path under this prefix,
+        # which is what the managed browser's network policy allows.
+        @app.get("/agent-host/{full_path:path}", include_in_schema=False)
+        def agent_host(full_path: str) -> FileResponse:
+            page = config.web_dist / "agent-host.html"
+            if not page.is_file():
+                raise HTTPException(status_code=404, detail="The agent host was not built")
+            return FileResponse(page)
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str) -> FileResponse:

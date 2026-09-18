@@ -606,6 +606,30 @@ boundary and the browser session that applies it.
 | `scripts/browser-worker/src/session.mjs` | One desktop's browser: its context, its views and the policy applied to every transport |
 | `tests/agent-boundary.test.mjs` | The boundary, checked against a real browser rather than a mocked policy |
 
+### The supervised process
+
+`vela/desktops/runtime.py` owns the worker's whole lifetime, following
+`vela/automations/worker.py` — two workers that fail the same way are two
+workers a maintainer only has to learn once. It starts hidden on Windows,
+speaks the frozen NDJSON protocol over its own pipes, receives no Vela
+credential and no network address, and is stopped when Vela stops.
+
+Both ends watch. Vela sends a heartbeat; the worker exits on its own if Vela
+goes quiet, because a force-killed server cannot send `shutdown` and a browser
+running with nobody to stop it is the failure worth preventing. A worker that
+dies takes its browsers with it and the desktops it held are gone — a browser
+session cannot be recreated, and pretending otherwise would mean an agent
+believing it is still looking at a page that is not there.
+
+Images never travel on the control channel. `view.capture` writes a PNG named
+after its own digest into a directory Vela passes on the command line and
+returns the name; one oversized capture taking the whole protocol down with it
+is the thing that avoids.
+
+`GET /api/desktops/runtime` reports whether agent desktops can run here at all,
+before any work is accepted, with a reason somebody can act on rather than the
+word "unavailable".
+
 ### Set up the runtime
 
 ```bash
@@ -623,6 +647,44 @@ shell the runtime would otherwise pick: the agent's screen is the same screen a
 human takes over, so it has to render through the same engine. Chromium's own
 sandbox stays on — a platform that cannot run it is reported unavailable rather
 than launched with the sandbox disabled.
+
+### The page the agent's browser loads
+
+`web/agent-host.html` is a second Vite entry, not the dashboard with pieces
+hidden. Hiding is a rendering decision and this has to be a structural one: the
+page has no rail, no navigation, no settings, no approval controls and no way to
+reach another app. A page saying "Approve" is never what authorizes an effect,
+and the surest way to keep that true is for the page an agent looks at not to
+have one.
+
+Its session arrives in `window.__velaAgentSession`, put there by the worker with
+`addInitScript` before the page is navigated to — not in the URL, because an
+address is written down in more places than anybody intends and a bearer token
+in one of those is a bearer token in a log. The page reads it once and deletes
+it. The app's own iframe is sandboxed and cross-document, so it cannot read the
+host page's variables either.
+
+The host page and the dashboard share `useAppFrame`: the session, the bridge and
+their teardown are the same code, and the chrome around them is what differs.
+
+### Turning an agent on
+
+`POST /api/desktops/{id}/enable-agent` checks first, starts second, converts
+third, and marks the desktop only once all three have happened. A conversion
+that reported success with nothing behind it would be worse than one that
+refused, because everything after it would be built on the report. A failure
+part-way closes the browser it opened rather than leaving a half-converted
+desktop.
+
+A window that cannot come along says so in `notes` rather than being dropped:
+the person chose to have it open, and "it is not there any more" is not an
+acceptable way to find out it could not move.
+
+The gateway policy the worker is handed is *derived* from the owner's policy
+rather than stored separately, so there is one answer to "what is allowed" and
+the browser's copy cannot drift from the one the effect boundary checks. Its
+path prefixes are as narrow as paths allow — the host page, its assets, the
+bridge routes, and each allowed app's content by id rather than `/apps/`.
 
 ### Where the boundary is enforced
 
@@ -644,6 +706,360 @@ Vela publishes for it; the owner API is not one of them. The check understands
 the spellings that hide a private address — `2130706433`, `0x7f000001`, `127.1`,
 `[::ffff:127.0.0.1]`, `169.254.169.254` — because a denial that only matches
 dotted quads is not a denial.
+
+### What a run can perceive and do
+
+`vela/agent_runs/` holds the run's side of an agent desktop: what it may see,
+what it may do and the evidence it leaves. It is kept apart from
+`vela/desktops/` deliberately — a desktop exists whether or not anything is
+running in it.
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/tools.py` | The declared tool surface, its argument bounds and the one vocabulary refusals are answered in |
+| `vela/agent_runs/observations.py` | The no-progress rule and the bounded action record |
+| `scripts/browser-worker/src/observe.mjs` | The host-owned collector that reads a page, and the mutation counter installed in every document |
+| `scripts/browser-worker/src/targets.mjs` | One observation per view, and re-checking a control before it is touched |
+| `scripts/browser-worker/src/input.mjs` | The six ways an agent may touch a view, each one bounded |
+| `tests/agent-tools.test.mjs` | Observation and input against a real page, with the refusals as the point |
+| `tests/test_agent_tools.py` | The same tools through a listening Vela, a managed browser and the Notes fixture |
+
+**The surface is eleven tools.** `desktop.observe`, `desktop.open_app`,
+`desktop.open_site`, `desktop.select_view`, `desktop.click`, `desktop.type`,
+`desktop.keypress`, `desktop.scroll`, `desktop.wait`, `app.invoke_action` and
+`task.finish`. There is no evaluate, no shell, no file read and no raw request,
+and no path from anything a model says to a script that runs in a page: the only
+inspection code that runs in a controlled view is `observe.mjs`, which is
+versioned host code.
+
+**An observation is two halves.** `view` is what Vela knows — the view and
+runtime identities, the URL, the viewport and the device pixel ratio. `page` is
+what the page said about itself and is marked `untrusted: true`. Keeping them
+apart is what stops an instruction in a button label arriving as though Vela had
+said it. Both are bounded: 120 controls and 6000 characters of text per frame,
+12 frames, names clipped, and a password field's value never read back.
+
+**A control reference belongs to one observation.** References look like
+`f1:e7` and mean nothing outside the observation that issued them. The worker
+holds real element handles for the current observation and writes nothing into
+the page to mark them. An action names the observation it was decided from; a
+replaced observation is refused, and so is a control that has since been
+removed, hidden, disabled or *renamed* — a button that now reads "Delete
+everything" where the agent was shown "Save note" is a different control as far
+as a run is concerned, and the answer is to observe again rather than to guess.
+
+Observations are invalidated by navigation, by a viewport change, by the control
+epoch changing hands, by the view closing and by any action that touched the
+page. Waiting is the one thing that does not spend one, because it touches
+nothing — and it is the one tool that may run before the first look, which is
+when waiting for a view to be ready is most useful.
+
+**Keys are an allowlist**, in `input.mjs`: Enter, Tab, Escape, the arrows, the
+editing keys and six Control combinations. No function keys, no Meta, no Alt,
+nothing that reaches the browser or the window manager rather than the page.
+Text is capped at 4000 characters and rejected if it carries control characters;
+a scroll moves at most 4000 pixels; a wait ends within 15 seconds whether or not
+its condition arrived, because a timeout is an answer.
+
+**Coordinates are CSS pixels in the viewport the observation recorded.** Device
+pixel ratio is reported so a caller can reason about rendering, and is
+deliberately not applied to input: a tool that multiplied by it would click at
+twice the intended place on a dense display.
+
+**Named actions are preferred over clicking a form.** `app.invoke_action` goes
+through the same `Actions` service a person's click does, on the agent path
+added for it (`invoke_for_agent`), with a caller id of its own so its receipts
+are its own. A repeated request key returns the first result instead of doing
+the work twice. It is not a shortcut past permission: the grant is required
+inside the write's own transaction, bound to the desktop, the run, the
+installation, the manifest fingerprint and the exact request digest.
+
+**Nothing here is a second way into an effect.** An agent clicking Save in an
+app's own window reaches the same bridge route, the same session and the same
+grant check a person's click does — `tests/test_agent_tools.py` exercises exactly
+that and asserts the stored data is unchanged when nothing granted it.
+
+**A run that is getting nowhere is stopped.** Five identical observations of one
+view in a row end with `no_progress` and the reason. The fingerprint covers the
+address, the controls and the length of the text but not the text itself, so a
+clock ticking in the corner does not count as progress.
+
+### Changes that wait for a person
+
+`vela/agent_runs/approvals.py` holds every pending question and what became of
+it. In memory, deliberately: a pending approval that survived a restart would be
+authority for an effect whose run, view and browser are all gone.
+
+The shape is one decision made in four places, and it is worth reading in that
+order:
+
+1. **`Desktops.effect_guard` opens the question.** When an agent holds no grant
+   for an effect, the answer is not automatically no. It reads the grant once
+   outside the transaction — only to decide whether this needs asking — opens a
+   pending request described from the request itself, and returns an `authorize`
+   that asks again *inside* the write's transaction and raises `ApprovalPending`
+   if there is still nothing. Nothing is written while a question is open.
+2. **The route answers 202.** `ApprovalPending` is not an `AppServiceError`: a
+   failure and a question are different answers, and an app told "failed" learns
+   to give up on the thing it should be waiting for.
+3. **The host bridge waits.** `web/src/bridge/host.js` holds the app's request
+   open, tells the app with `vela:pending`, polls the app-scoped status route,
+   asks for more time as the deadline nears, and — once the state is
+   `approved` — runs *the same operation again*. The retry is the point: the
+   effect commits through the ordinary path, with the grant checked where it
+   always is. Approving issues a grant and nothing else.
+4. **Only the owner resolves it.** `POST /api/desktops/{id}/approvals/{id}` is
+   hub-authenticated and on the desktops router, which no app session and no
+   managed browser can reach.
+
+The summary is built from the request, never from anything the agent said about
+it — a model describing its own effect would be a model writing the sentence
+somebody makes their decision from. `changes()` diffs the stored document
+against the proposal to a bounded depth and count; past those bounds it says how
+much changed rather than listing part of it and implying that is all. Values
+under a field whose name suggests a secret are described by their shape and
+never repeated, because a prompt is read by a person and may be screenshotted or
+read aloud.
+
+Cancellation is final and comes from five places: a closed window
+(`close_view`), a stopped run (`revoke_run`), a changed policy (`save_policy`),
+the agent being turned off (`disable_agent`) and the app itself giving up
+(`/abandon`). A decision arriving after any of those resolves nothing.
+
+The approval's own grant is short — two minutes for "approve once", an hour for
+an explicitly scoped "and next time too" — and the one-off is bound to the exact
+request digest while the scoped one deliberately is not. They are different
+decisions and never the same button.
+
+### Tasks the server carries out
+
+`vela/agent_runs/supervisor.py` holds the loop, and it holds the `asyncio.Task`
+that runs it. That ownership is the point: closing the dashboard, losing the
+network or switching desktops does not touch a run. The HTTP handlers observe.
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/supervisor.py` | The queue, the loop, control transitions and the completion check |
+| `vela/agent_runs/store.py` | Runs and numbered events on disk, and what a restart does to them |
+| `vela/agent_runs/budget.py` | Steps, model requests, working time, no-progress and output bounds |
+| `vela/agent_runs/model.py` | The Ollama adapter, its capability checks and the system prompt |
+| `vela/agent_runs/service.py` | What the API calls |
+| `scripts/evaluate-agent-model.py` | A real model against a real browser, reported per attempt |
+
+**The loop.** Ask the model for one typed step, check the name against the
+declared surface, dispatch it, compare the result with what was claimed. A tool
+refusing is a normal part of that: the refusal goes back as a tool message with
+its reason, because a model told "that control is gone, observe again" can do
+something useful and a model told nothing repeats itself.
+
+**Budgets stop time when the run is not working.** `activeSeconds` is measured
+in explicit intervals, so waiting for an approval or for a pause costs the run
+nothing. Charging a person's thinking time against a task's budget would mean a
+slow human ends a task. Steps, model requests and a run of fruitless steps are
+counted separately, and each limit ends the run with a sentence naming it.
+
+**A restart is honest about what it interrupted.** `RunStore.reconcile()` runs
+on the way up and moves every nonterminal row to `interrupted`, because a row
+saying `running` in a database with no loop behind it is a lie. Queued work
+stays queued and waits for the person: resuming from a stored instruction would
+mean repeating real-world effects nobody re-approved.
+
+**Approvals pause the run rather than failing it.** A tool that raises
+`ApprovalPending` moves the run to `waiting_approval`, suspends the budget,
+releases the model slot and polls. On approval the *same* call is dispatched
+again — the same decision, finally allowed to happen. On a denial or an expiry
+the reason goes back to the model as a tool result and the run continues.
+
+**Fair scheduling.** Two runs at once across the server, one model request at a
+time. Ask is deliberately not behind that semaphore: a person waiting for a
+reply must never queue behind an agent's hundredth step.
+
+**Completion is checked against receipts, not prose.** `task.finish` takes a
+`changed` boolean; if it claims a change and no committed effect backs it, the
+finish is refused with a reason, and after three refusals the run ends rather
+than spending its whole budget saying the same thing. The `changed` recorded in
+the result always comes from the receipts, so a summary that reads like a change
+sits beside a flag that says otherwise.
+
+An earlier version of that check looked for words like "created" in the summary.
+A real evaluation run showed why that is wrong: a model reporting "no notes have
+been created" was refused for a change it was explicitly saying it had not made,
+and repeated itself until the step budget ended the task. Prose is not a claim.
+
+### The Agent window
+
+| Location | Responsibility |
+| --- | --- |
+| `web/src/desktops/AgentWindow.jsx` | The composer, the queue, the controls and the results |
+| `web/src/desktops/AgentSetup.jsx` | The four setup questions, with real capability checks |
+| `web/src/desktops/ApprovalCard.jsx` | The owner's answer to one pending change |
+| `web/src/desktops/TaskActivity.jsx` | Events as plain sentences |
+| `web/src/desktops/useAgentEvents.js` | The cursor-recovering reader |
+| `web/src/desktops/useAttention.js` | One small answer for every agent desktop, for the rail |
+
+It renders inside a `WindowFrame`, alongside app windows, and is deliberately
+**not** an app: it is first-party owner chrome. Nothing in the agent's browser
+can see it or reach the routes behind it, which is what makes "only owner
+controls resolve approvals" a fact about the system rather than a claim about a
+page. `DesktopViewHost` renders it for a view of kind `agent`.
+
+**Nothing on this screen is invented.** There is no progress percentage — a task
+does not know how many steps it needs — no hidden reasoning, and no summary
+presented as an outcome. A result's "Nothing was changed" line is read from the
+receipts, so it sits under a summary that reads like a change and contradicts it.
+
+**Events are read, never owned.** `useAgentEvents` polls with the cursor it
+already has, faster while something is happening and not at all while the tab is
+hidden. On a replay gap it says so and shows the task snapshot rather than a
+partial list that reads like the whole story.
+
+**Notifications are rare by design.** One line when a task ends or when one needs
+the person, through the ntfy channel they already configured, under an
+`agent_tasks` toggle beside the existing ones. A task the person stopped
+themselves sends nothing — they already know. A delivery failure is logged and
+never affects the task.
+
+**A dropped app is context.** `application/vela-app` becomes a removable chip. It
+does not submit the instruction, install anything or widen what the desktop may
+use; those remain the owner actions they already were.
+
+### Watching, and taking over
+
+| Location | Responsibility |
+| --- | --- |
+| `vela/agent_runs/control.py` | The one writer lease, and the checks on a point and a frame's age |
+| `vela/agent_runs/viewer.py` | Frames, the takeover transition, and human input |
+| `web/src/desktops/RemoteView.jsx` | The picture, passive until control is taken |
+| `web/src/desktops/input-coordinates.js` | Displayed box → view coordinates, and the key allowlist |
+
+**A frame is of one view, never the desktop.** The whole-desktop capture that
+would be easier to build is the one that must not exist: it would contain the
+owner's approval prompt, and handing the agent's viewer a picture of the control
+that authorizes the agent is a mistake that is only obvious afterwards.
+`captureFrame` is scoped to a page and nothing widens it.
+
+**Frames are fetched, not linked.** An `<img src>` cannot carry the hub bearer,
+and putting a credential in a URL to work around that is how a token ends up in
+a log. `frameBytes` fetches through `hubFetch` and hands back a blob URL the
+component owns. The bytes are served `no-store, private` and are never static
+files.
+
+**Watching is passive.** A click does nothing until control has been taken.
+
+**Taking over is three steps in one order**, and the order is the whole thing:
+dispatch stops, the control epoch changes, and only then is the lease issued.
+Issuing the lease first would leave a window in which a command the agent sent a
+moment ago arrives while a person is typing. Changing the epoch invalidates
+every observation the run was holding, which is why resuming forces a fresh
+look.
+
+**One writer, decided by a lock.** `Leases.take` refuses the second request
+under the same lock that grants the first, so eight simultaneous requests
+produce one writer and seven refusals — `test_viewer.py` runs exactly that with
+a barrier. Other viewers can always see who holds control.
+
+**Giving control back is not resuming.** A person may release because they are
+finished or because they are leaving; an agent that started typing again because
+a connection dropped would be an agent nobody asked to continue. The run stays
+paused, and `control` refuses to resume while anybody still holds the lease. A
+closed tab is covered by the lease timeout rather than by a release request from
+a page being torn down.
+
+### Windows, panes and the warp
+
+| Location | Responsibility |
+| --- | --- |
+| `web/src/desktops/window-state.js` | Every rectangle: clamping, cascading, maximizing, split halves, and the 720 px threshold below which a split is drawn one pane at a time |
+| `web/src/desktops/snap.js` | What a drag near an edge means, and the layout patches for snapping, swapping, leaving and vacating |
+| `web/src/desktops/SplitDivider.jsx` | The handle: pointer, keyboard, one revisioned save on release |
+| `web/src/desktops/EmptyPane.jsx` | A pane whose member left, and the picker that fills it |
+| `web/src/desktops/app-reference.js` | The typed drag payload: an app's identity, never its contents |
+| `web/src/desktops/motion/genie-preset.js` | `vela-genie-v1` — the one place the numbers live |
+| `web/src/desktops/motion/genie-geometry.js` | The band arithmetic, with no canvas, clock or React in it |
+| `web/src/desktops/motion/motion-state.js` | Generations, reversal, and settling on cancellation |
+| `web/src/desktops/motion/frame-source.js` | Whether a window can be warped at all, and the frame if it can |
+| `web/src/desktops/motion/GenieOverlay.jsx` | Canvas 2D, DPR-scaled backing store, CSS-pixel geometry |
+
+**The preset is one frozen object.**
+
+```js
+{ preset: 'vela-genie-v1', durationMs: 480, neck: 10, swoopPx: 150 }
+```
+
+`neck` is dimensionless: `lead = clamp(neck / 100, 0.06, 0.92)`, which is 0.10
+for the approved value, and it is the fraction of the duration by which bands
+nearer the icon start ahead of bands further from it. That stagger is the neck —
+there is no separate curve for it. `swoopPx` is 150 CSS pixels at the 1440-wide
+reference composition and scales down proportionally on a narrower screen.
+
+The prototype this came from carried swoop 10 in its metadata, its draw fallback
+and its displayed timing. If you change any of these numbers, change them here;
+the renderer, the geometry, the tests and the documentation all read this object,
+and a test that only read the label would pass while the motion was wrong.
+
+**The decision happens before the decoration.** `useWindowMotion.animate` applies
+the layout change first and only then asks whether a frame is available. Every
+way capture can fail therefore costs an animation rather than a window, and
+nothing about minimizing touches an app's process, its bridge session or an
+agent's task.
+
+**Capture is a capability question, not a promise.** A browser will not hand this
+page the pixels of a cross-origin app frame, and Vela will not request screen
+recording or relax an app frame's sandbox to get them. `capabilityFor` answers
+`remote` for a view the managed browser renders — Vela's server already takes
+authorized frames of those — and `fallback` with a reason for everything else.
+Do not add the prototype's sample textures as a substitute.
+
+**Cancelling settles to the decision.** A hidden tab stops delivering animation
+frames, so lifecycle completion cannot wait for the last one. `cancelMotion`
+applies the state the intent asked for and takes a new generation, which is what
+stops a stale completion hiding a window that has since been restored.
+
+**Human input is bounded like the agent's.** The same key allowlist, the same
+text limits, the same refusal to reach past the page — being a person does not
+turn Ctrl+W into a page interaction. A click is checked against the size of the
+frame it was decided from and refused if that frame is more than ten seconds
+old. Coordinates stay in CSS pixels; the viewer undoes its own scaling, and the
+device pixel ratio is reported rather than applied. Vela never reads the host
+clipboard and does not ask for permission to.
+
+### Evaluating a model
+
+Deterministic fixtures establish that the machinery is correct. They say nothing
+about whether a given model can decide what to do, which differs by model and by
+machine. That question has its own script:
+
+```bash
+python scripts/evaluate-agent-model.py --model qwen3:8b --attempts 5 --json report.json
+```
+
+It starts a Vela on a disposable data directory, installs the Notes fixture,
+converts a desktop and gives the model small tasks through the ordinary API,
+then reports per attempt with the failure type. `claimed_but_not_done` is its own
+outcome and not a success: the check is what the desktop looks like afterwards,
+not what the run said about it. Nothing it does touches an installed Vela.
+
+### For app developers
+
+Nothing about an app changes for Phase 6. An app running in an agent's window is
+told it is one — `view.chrome` is `agent` — and is otherwise the same app with
+the same bridge and the same capabilities.
+
+Two things are worth designing for:
+
+- **Label your controls.** Observation resolves a control by its accessible
+  name, in the order `aria-label`, `aria-labelledby`, an associated `<label>`,
+  `placeholder`, `title`, `alt`, `name`, then its text. A button whose only name
+  is an icon is a button an agent cannot address, and a control whose label
+  changes while it is on screen is one the target check will refuse to touch.
+- **Declare actions for what matters.** A named action is validated, receipted
+  and replay-safe; a form an agent clicks through is none of those. Anything an
+  agent could reasonably be asked to do is better expressed as an action.
+
+An app's own writes still pause at the effect boundary. Until delayed approvals
+land, an app that expects a write to complete within the bridge's ten-second
+timeout will see a refusal rather than an indefinite wait when no grant covers
+it.
 
 ## Container build
 
@@ -741,6 +1157,44 @@ not disable branch protection as a workaround in the workflow.
 Windows has a per-user installer and tray controls with optional start at sign in.
 macOS/Linux currently use portable archives. Code signing, macOS notarization
 and background system services are not implemented.
+
+### Ship the agent desktop runtime in a download
+
+`scripts/build-server.py` adds `scripts/browser-worker/` — its sources, its
+`playwright-core` install and its `provenance.json` — to the bundle, and copies
+that package's licence and notices into `third-party/playwright-core/`.
+
+**The Chromium build is deliberately not in the download.** It is a few hundred
+megabytes and lives in a per-user cache the runtime manages, so a copy inside
+every Vela download would multiply the size of the download for something most
+machines already have one of. What ships instead is the pinned version and the
+revision it needs, and a Vela without the browser says which command fetches it.
+The one thing a packaged Vela must never do is download "whatever Chromium is
+current" while somebody is waiting for a task.
+
+`provenance.json` also carries a SHA-256 over every `src/*.mjs` the worker runs.
+`availability()` recomputes it before the worker is started, because the two
+halves speak a versioned protocol and a download with mismatched halves fails
+somewhere that reads like a bug in whatever the agent was doing. A record with no
+digest — from before this existed — is accepted, so an upgrade is not broken for
+no safety gained.
+
+Building without the runtime installed still produces a working download; it
+prints `This download cannot run agent desktops: …` and the feature reports the
+same reason in the dashboard. Run `python scripts/setup-browser-worker.py`
+before building a release.
+
+`scripts/test-server-bundle.py` checks the packaged server for all of it: that
+the provenance shipped, that the digest matches, and that an unavailable runtime
+says which command to run. Where the browser build happens to be present on the
+build machine it goes further and converts a desktop for real.
+
+### Supported platforms
+
+Say what was actually run. A successful Windows check is not evidence about
+macOS or Linux, and the honest thing is a narrower matrix rather than a wider
+claim — record the platforms in the release notes as they were tested, not as
+they are expected to behave.
 
 Vela updates itself from these releases. A running server asks GitHub once a
 day which release is newest, downloads the asset matching how it was installed,
