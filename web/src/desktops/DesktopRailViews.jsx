@@ -9,6 +9,7 @@
 // minimized window is still open — that is the whole point of minimizing — so
 // it keeps its entry and says so.
 import { useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AppIcon from '../components/AppIcon.jsx';
 import { useApps } from '../store.jsx';
 import { useDesktops } from './DesktopsProvider.jsx';
@@ -30,6 +31,8 @@ function label(view, apps) {
 export default function DesktopRailViews({ onNavigate }) {
   const { apps } = useApps();
   const { views } = useDesktops();
+  const navigate = useNavigate();
+  const location = useLocation();
   // In the order they were opened, not the order they are stacked: a shortcut
   // that moved every time a window came forward would be a shortcut nobody
   // could reach for without looking.
@@ -45,7 +48,7 @@ export default function DesktopRailViews({ onNavigate }) {
       <span className="rail-section-label" aria-hidden="true">
         OPEN
       </span>
-      {open.map((view, index) => {
+      {open.map((view) => {
         const name = label(view, apps);
         const selected = views.layout?.selectedView === view.id;
         const minimized = view.window?.minimized;
@@ -63,12 +66,18 @@ export default function DesktopRailViews({ onNavigate }) {
             aria-pressed={selected}
             onClick={() => {
               onNavigate?.();
-              // Clicking a minimized window brings it back; clicking one that
-              // is already showing just moves the attention to it. Neither
-              // starts anything or ends anything.
-              if (minimized) views.restore(view, index);
+              // Windows are drawn on the desk, so reaching for one means going
+              // there. The ask below survives that navigation because it is
+              // recorded as state rather than fired as an event.
+              if (location.pathname !== '/') navigate('/');
+              // The three things a taskbar button means, and they stay three
+              // different things. A window that is away comes back; the one
+              // you are already in goes away; any other comes forward. None of
+              // them starts anything or ends anything — the app keeps running
+              // whichever it is.
+              if (minimized || selected) views.toggleWindow(view.id);
               else views.patchView(view.id, { raise: true });
-              views.select(view.id);
+              if (!selected) views.select(view.id);
             }}
           >
             {view.kind === 'app' ? (

@@ -47,6 +47,20 @@ class DesktopViewTests(unittest.TestCase):
 
     # ---- helpers
 
+    @property
+    def storage(self):
+        """The app storage this hub is using, for the state a test is about."""
+        from vela.app_storage import AppStorage
+
+        return AppStorage(self.config.data_dir / "app-data.sqlite")
+
+    def restart(self):
+        """Start the hub again over the same data, as a new version would."""
+        self.client.close()
+        self.client = TestClient(create_app(self.config))
+        token = self.client.get("/api/session", headers={"X-Vela-Bootstrap": "1"}).json()["token"]
+        self.hub = {"Authorization": "Bearer " + token}
+
     def get(self, path):
         return self.client.get(path, headers=self.hub)
 
@@ -207,6 +221,43 @@ class DesktopViewTests(unittest.TestCase):
             ).status_code,
             404,
         )
+
+    # ---- apps installed before installing gave them an identity
+
+    def test_an_installed_app_with_no_identity_is_adopted_and_can_have_a_window(self):
+        # Installing an app has created an installation identity for some time,
+        # but it did not always: on a Vela that was upgraded, the apps that were
+        # already there had none until something happened to start a session for
+        # them. A window binds itself to an identity rather than creating one,
+        # so those apps could not be given a window at all — which, now that a
+        # window is how an app opens, means they could not be opened.
+        with self.storage.connection() as db:
+            db.execute("DELETE FROM installations WHERE app_id=?", ("chat-fixture",))
+        self.assertIsNone(self.storage.installation("chat-fixture"), "the state being fixed")
+        self.assertEqual(self.open(kind="app", appId="chat-fixture").status_code, 404)
+
+        self.restart()
+        identity = self.storage.installation("chat-fixture")
+        self.assertIsNotNone(identity, "startup gives an installed app the identity it lacked")
+        view = self.open_app()
+        self.assertEqual(view["installationId"], identity)
+        self.assertTrue(view["available"])
+
+    def test_adoption_does_not_bring_a_removed_app_back(self):
+        # `installation` refuses to create one precisely so that asking about a
+        # removed app cannot resurrect it. Reconciling must keep that property:
+        # only an app whose code is really installed is given an identity.
+        self.assertEqual(
+            self.client.delete("/api/apps/chat-fixture", headers=self.hub).status_code, 200
+        )
+        self.restart()
+        self.assertIsNone(self.storage.installation("chat-fixture"))
+        self.assertEqual(self.open(kind="app", appId="chat-fixture").status_code, 404)
+
+    def test_adoption_leaves_an_existing_identity_alone(self):
+        before = self.storage.installation("chat-fixture")
+        self.restart()
+        self.assertEqual(self.storage.installation("chat-fixture"), before, "not reissued")
 
     # ---- installation identity
 

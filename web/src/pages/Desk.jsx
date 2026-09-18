@@ -28,8 +28,9 @@ import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import DesktopViewHost from '../desktops/DesktopViewHost.jsx';
+import useOpenApp from '../desktops/useOpenApp.js';
 import { firstWidget } from '../desk/addAppWidget.js';
-import { useWallpaperFlags } from '../desk/wallpaper.js';
+import { useWallpaperBody } from '../desk/wallpaper.js';
 import useWeather from '../desk/weather.js';
 import DeskStatus from '../desk/DeskStatus.jsx';
 import useEditingSession from '../desk/editing/useEditingSession.js';
@@ -62,7 +63,8 @@ const LONG_PRESS_SLOP = 8;
 // only ever draw data Vela actually has; the wallpaper is a real image the
 // user can replace, and the rail beside it is the same rail as everywhere else.
 export default function Desk() {
-  const { apps, openApp, pushToast } = useApps();
+  const { apps, pushToast } = useApps();
+  const openApp = useOpenApp();
   const navigate = useNavigate();
   const phone = useMediaQuery(PHONE);
   // On a phone, a swipe up from the bottom edge opens the Launchpad.
@@ -92,11 +94,11 @@ export default function Desk() {
     setDeskPrefs(null);
   }, [selectedId]);
 
-  // The wallpaper and the dim toggle belong to the whole shell, so they ride on
-  // the same body element the desk flag does. The Launchpad floats over the same
-  // picture and sets them the same way, which is why the rules live in
-  // `wallpaper.js` rather than in either page.
-  useWallpaperFlags(desk);
+  // The wallpaper, the dim toggle and the desk flag all belong to the whole
+  // shell rather than to this page's scroll box: the picture sits behind the
+  // rail as well. They are claimed rather than written, so All apps floating
+  // over this page and then closing again cannot take the picture with it.
+  useWallpaperBody(desk);
 
   const [edit, setEdit] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -114,17 +116,6 @@ export default function Desk() {
   const [confirmReset, setConfirmReset] = useState(false);
   const addButton = useRef(null);
   const deskMenuButton = useRef(null);
-
-  // The wallpaper belongs to the whole shell, not to this page's scroll box:
-  // it has to sit behind the rail as well. A body flag is the least invasive
-  // way to say "this route is the desk" without threading a prop through the
-  // shell, and it is cleared on the way out so no other page inherits it.
-  useEffect(() => {
-    document.body.dataset.desk = 'on';
-    return () => {
-      delete document.body.dataset.desk;
-    };
-  }, []);
 
   // Arrange mode edits a draft of both boards. The baseline is what the server
   // last confirmed, so Cancel is "put it back" and undo/redo work across the

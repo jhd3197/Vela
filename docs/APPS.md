@@ -24,9 +24,13 @@ tools (Ask, Automations, the Library, Settings and, for developers, System) can
 be pinned just like any app. Everything else you have is one tap away in the
 Launchpad, so the rail stays short.
 
-Apps that are running but not pinned sit together under a small OPEN label, so
-what is already going is where you look first. When nothing unpinned is running
-the label is simply not there.
+The windows open on the desktop you are looking at sit under a small **OPEN**
+label, with the one you are in marked and the ones you have put away saying so.
+Below that, under **RUNNING**, are apps whose process is going without a window
+here and without a pin — server activity rather than something on your screen.
+An app never appears in both of those, and a label with nothing under it is
+simply not there. Your pins stay where you put them either way: a pin is a
+place to start an app from, not a report of what it is doing.
 
 The **Launchpad** is every app in one place, full-screen over your wallpaper.
 Four tabs cut the same set: **All**, **Frequent** (the twelve you open most,
@@ -39,8 +43,8 @@ Start typing to filter the grid and press Enter to open the first match; Escape
 closes it again. Apps
 that are running are grouped first, then everything you have installed, then
 Vela's own tools, and a last tile leads to the Library for more. Right-click a
-tile — or press and hold it on a phone — for Open, Add widget to desk, App
-settings, Stop and Remove.
+tile — or press and hold it on a phone — for Open, Open full screen, Add widget
+to desk, App settings, Stop and Remove.
 
 The rail stays on screen at every size, including on a phone, so a ready app
 or any destination is always one tap away, and the page never needs a menu
@@ -51,14 +55,43 @@ Launchpad, **Ctrl+1** to **Ctrl+9** open the pinned apps by their place on the
 rail, **Esc** backs out of the Launchpad, a menu or a dialog, and **?** (or
 **Ctrl+/**) shows the whole list.
 
-Apps open beside the rail with a title bar of their own: a back arrow to where
-you opened the app from, its name and whether it is running, and a **⋯** menu to
-pin it to the rail, add its widget to your desk, reach its settings, reload it,
-open it in a new tab, stop it or close it. While an app is starting you see it
-over a dimmed background; if it never answers, Vela says so and offers to reload
-or stop it. An app that asks for a seamless view opens on its own instead, with
-a small Vela menu in its corner that holds the same actions. Either way, if an
-app has unsaved work, leaving it asks before anything is lost. **App settings**,
+## Apps open in windows
+
+Opening an app puts it in a **window on your desk**, the way an app on any other
+computer does. Drag its title bar to move it, its edges to resize it, and drag it
+to the left or right edge to snap it to that half. Windows stay where you leave
+them, each desktop keeps its own, and the app keeps running whatever the window
+is doing.
+
+The title bar has three controls, and they do three different things:
+
+- **Minimize** puts the window away and nothing else. The app keeps running, its
+  session stays open, and whatever you had typed is still there when you bring it
+  back. The window travels into its icon in the rail; clicking that icon brings
+  it back the same way. Clicking the icon of the window you are already in puts
+  it away again.
+- **Maximize** fills the desk, and restores it to its own size again.
+- **Close** ends the window, and is the only one of the three that asks about
+  unsaved work.
+
+Opening an app that already has a window brings that window forward rather than
+opening a second copy of it — the same thing a taskbar button does.
+
+Some apps do not open in a window, and open **full screen** instead: an app on a
+phone, where a window would be the whole screen with a bar on top; an app that
+opens outside Vela; a connected site, which has its own view; and an app you
+have not installed yet. You can always ask for the full-screen page yourself —
+right-click an app in the Launchpad and choose **Open full screen** — and a link
+straight to an app is always the full-screen page.
+
+The full-screen page has a title bar of its own: a back arrow to where you opened
+the app from, its name and whether it is running, and a **⋯** menu to pin it to
+the rail, add its widget to your desk, reach its settings, reload it, open it in
+a new tab, stop it or close it. While an app is starting you see it over a dimmed
+background; if it never answers, Vela says so and offers to reload or stop it. An
+app that asks for a seamless view opens on its own instead, with a small Vela
+menu in its corner that holds the same actions. Either way, if an app has unsaved
+work, leaving it asks before anything is lost. **App settings**,
 in the title-bar menu or the Vela menu, holds the app's permissions, its
 connection, updates and removal.
 

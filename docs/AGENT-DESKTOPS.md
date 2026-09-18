@@ -175,13 +175,20 @@ exactly as they were.
 Minimizing and restoring an agent's window play a short warp toward its entry in
 the rail: 480 milliseconds, and the same motion in both directions.
 
-It happens where Vela has an actual picture of the window to move, which today
-means a window the agent's own browser is rendering — Vela's server already
-takes authorized pictures of those for the viewer. An ordinary app on your own
-desktop runs in a frame this page is not allowed to read the pixels of. That is
-a browser rule rather than a missing feature, and Vela will not ask for screen
-recording or weaken an app's isolation to get around it for an animation. Those
-windows minimize immediately instead.
+The full warp — the picture of the window bending as it goes — happens where
+Vela has an actual picture of the window to bend, which today means a window the
+agent's own browser is rendering, because Vela's server already takes authorized
+pictures of those for the viewer. An ordinary app on your own desktop runs in a
+frame this page is not allowed to read the pixels of. That is a browser rule
+rather than a missing feature, and Vela will not ask for screen recording or
+weaken an app's isolation to get around it for an animation.
+
+Those windows travel in person instead: the window itself moves to its rail icon
+and shrinks into it, over the same 480 milliseconds. It is a plainer motion,
+because bending is something you do to an image and there is no image — but
+nothing is read, nothing is captured, and the window is never taken down and
+rebuilt to do it, so the app inside keeps running with whatever you had typed
+still in it.
 
 If you have asked your system for reduced motion, there is no warp at all —
 windows go straight where they are going. Everything else behaves identically;

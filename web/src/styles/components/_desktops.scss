@@ -235,6 +235,27 @@
     inset 0 0 0 1px var(--border);
 }
 
+/* A window on its way to or from the rail. It is the live window, moved by
+   transform from its own centre, so the app inside it keeps running and keeps
+   whatever was typed into it. It takes no pointer input while it is in flight:
+   a click meant for the rail must not land on a window that is halfway into it.
+   The transform itself is set inline, because it is measured from where this
+   window is and where its rail icon is, and a stylesheet cannot know either. */
+.window-frame.is-travelling {
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+/* Reduced motion never reaches this — the lifecycle settles without drawing —
+   but a window that is somehow mid-transform when the preference changes should
+   arrive rather than crawl. */
+@media (prefers-reduced-motion: reduce) {
+  .window-frame.is-travelling {
+    transition: none !important;
+  }
+}
+
 /* Selection is a shadow and an edge, never colour alone. */
 .window-frame.is-selected {
   box-shadow:

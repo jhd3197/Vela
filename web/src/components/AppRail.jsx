@@ -18,7 +18,9 @@ import { useAuth } from './AuthGate.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
 import AppIcon from './AppIcon.jsx';
 import DesktopSwitcher from '../desktops/DesktopSwitcher.jsx';
+import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import DesktopRailViews from '../desktops/DesktopRailViews.jsx';
+import useOpenApp from '../desktops/useOpenApp.js';
 import { useAppsOverlay } from '../desktops/AppsOverlay.jsx';
 import ContextMenu from './ui/ContextMenu.jsx';
 
@@ -96,10 +98,14 @@ function RailItem({
 // It is rendered once beside the workspace, and again inside the phone drawer,
 // which passes `onNavigate` so choosing a destination closes it.
 export default function AppRail({ onNavigate }) {
-  const { apps, openApp, pinned, pinApp, unpinApp, movePin } = useApps();
+  const { apps, pinned, pinApp, unpinApp, movePin } = useApps();
+  // A pinned app is opened the same way it is opened anywhere else: as a
+  // window on the desk, or as a page where a window is not the right answer.
+  const openApp = useOpenApp();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
   const { appsOpen, openApps } = useAppsOverlay();
+  const { views } = useDesktops();
   const developer = useDeveloperTools();
   const location = useLocation();
   const availableCount = (apps || []).filter((a) => !a.installed && a.supported).length;
@@ -161,11 +167,19 @@ export default function AppRail({ onNavigate }) {
   }, [pinned, coreIds, byId]);
 
   const pinnedSet = useMemo(() => new Set(pins.map((pin) => pin.id)), [pins]);
-  // Apps that are open right now but not pinned; the pinned ones already show
-  // above, so an open pinned app does not appear twice.
+  // Apps with a window on the desktop being looked at. They are named under
+  // Open already, so Running must not name them a second time: one icon per
+  // app, in the group that says the most about it.
+  const windowed = useMemo(
+    () =>
+      new Set((views.views || []).filter((view) => view.kind === 'app').map((view) => view.appId)),
+    [views.views],
+  );
+  // Apps whose process is running, without a window here and without a pin; the
+  // other two groups already draw those, so nothing appears twice.
   const openUnpinned = useMemo(
-    () => installed.filter((app) => app.running && !pinnedSet.has(app.id)),
-    [installed, pinnedSet],
+    () => installed.filter((app) => app.running && !pinnedSet.has(app.id) && !windowed.has(app.id)),
+    [installed, pinnedSet, windowed],
   );
 
   const openMenu = useCallback((next, event) => {
@@ -175,8 +189,11 @@ export default function AppRail({ onNavigate }) {
   }, []);
 
   const openFrom = useCallback(
-    (id) => openApp(id, { returnTo: location.pathname }),
-    [openApp, location.pathname],
+    (id) => {
+      onNavigate?.();
+      return openApp(id, { returnTo: location.pathname });
+    },
+    [onNavigate, openApp, location.pathname],
   );
 
   const menuItems = useMemo(() => {
@@ -276,10 +293,10 @@ export default function AppRail({ onNavigate }) {
                 ) : (
                   <RailItem
                     key={pin.id}
-                    to={`/app/${pin.id}`}
                     label={pin.app.name}
+                    className={location.pathname === `/app/${pin.id}` ? 'rail-item-active' : ''}
                     attention={needsAttention.has(pin.id)}
-                    onActivate={onNavigate}
+                    onActivate={() => openFrom(pin.id)}
                     longPress={{}}
                     onContextMenu={(event) => openMenu({ kind: 'pinned', id: pin.id }, event)}
                   >
@@ -301,11 +318,12 @@ export default function AppRail({ onNavigate }) {
               {openUnpinned.map((app) => (
                 <RailItem
                   key={app.id}
-                  to={`/app/${app.id}`}
                   label={app.name}
-                  className="rail-item-open"
+                  className={`rail-item-open${
+                    location.pathname === `/app/${app.id}` ? ' rail-item-active' : ''
+                  }`}
                   attention={needsAttention.has(app.id)}
-                  onActivate={onNavigate}
+                  onActivate={() => openFrom(app.id)}
                   longPress={{}}
                   onContextMenu={(event) => openMenu({ kind: 'open', id: app.id }, event)}
                 >

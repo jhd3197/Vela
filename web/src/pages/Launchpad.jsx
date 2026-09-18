@@ -33,6 +33,7 @@ import Button from '../components/ui/Button.jsx';
 import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import { addAppWidgetToDesk, firstWidget } from '../desk/addAppWidget.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
+import useOpenApp from '../desktops/useOpenApp.js';
 import { hasUpdate } from './Library.jsx';
 import { automationsApi } from '../automationsApi.js';
 import { formatBytes } from '../api.js';
@@ -57,7 +58,10 @@ const FREQUENT_MAX = 12;
 // rendered it directly — it falls back to the route it was opened from, which
 // is what it always did.
 export default function Launchpad({ onClose }) {
-  const { apps, openApp, runAction, pushToast, pinned, pinApp, unpinApp, refreshApps } = useApps();
+  const { apps, openApp: openAppPage, runAction, pushToast, pinned, pinApp, unpinApp } = useApps();
+  // A tile opens the app the ordinary way — a window on the desk, or a page
+  // where a window is not the right answer — and closes the grid behind it.
+  const openApp = useOpenApp();
   const developer = useDeveloperTools();
   const navigate = useNavigate();
   const { openSettings } = useSettingsPopup();
@@ -68,7 +72,7 @@ export default function Launchpad({ onClose }) {
   const phone = useMediaQuery(PHONE);
   // The Launchpad floats over the same picture as the desk, so it reads the
   // selected desktop's appearance rather than keeping its own copy.
-  const { appearance: desk, selectedId, views } = useDesktops();
+  const { appearance: desk, selectedId } = useDesktops();
   // What this computer is called, if the user named it. The Launchpad says it
   // at the top on a phone, where the desk's status strip cannot fit.
   const loadSettings = useCallback((options) => api.getSettings(options), []);
@@ -260,6 +264,9 @@ export default function Launchpad({ onClose }) {
 
   const openItem = useCallback(
     (item) => {
+      // Opening an app closes the grid itself — and, when a window is the
+      // answer, goes to the desk to draw it. Dismissing here as well would be a
+      // second navigation racing the first.
       if (item.kind === 'app') {
         openApp(item.id, { returnTo: '/apps' });
         return;
@@ -285,27 +292,15 @@ export default function Launchpad({ onClose }) {
     [pushToast, selectedId],
   );
 
-  // Opening an app as a window on the desktop being looked at. It starts the
-  // app if it is not running: a window with nothing in it is not an answer.
-  const openWindow = useCallback(
-    async (app) => {
-      try {
-        // Starting the app and opening a view are two things: a window with
-        // nothing running in it is not an answer, and a running app with no
-        // window is not what was asked for.
-        if (isProcessApp(app) && !app.running) {
-          await api.launch(app.id);
-          await refreshApps();
-        }
-        await views.open({ kind: 'app', appId: app.id, title: app.name });
-        api.recordUsage(app.id).catch(() => {});
-        dismiss();
-        navigate('/');
-      } catch (error) {
-        pushToast(error.message || `Could not open ${app.name}.`, 'error');
-      }
+  // The full-screen page, for the times somebody wants the app and nothing
+  // else. Opening is a window now, so this is the presentation that needs
+  // asking for rather than the other way round.
+  const openFullScreen = useCallback(
+    (app) => {
+      openAppPage(app.id, { returnTo: '/apps' });
+      dismiss();
     },
-    [refreshApps, views, dismiss, navigate, pushToast],
+    [openAppPage, dismiss],
   );
 
   const menuItems = useMemo(() => {
@@ -313,13 +308,13 @@ export default function Launchpad({ onClose }) {
     const item = menu.item;
     const items = [{ label: 'Open', icon: SquaresFour, onSelect: () => openItem(item) }];
     if (item.kind === 'app') {
-      // A window on the desktop, rather than the full-screen page. The two are
-      // different presentations: a window can be minimized and left running
-      // while you do something else, and it belongs to the desktop you are on.
+      // The other presentation. A window can be minimized and left running
+      // while you do something else and belongs to the desktop you are on; the
+      // full-screen page is the app with nothing of Vela's around it.
       items.push({
-        label: 'Open in a window',
+        label: 'Open full screen',
         icon: AppWindowIcon,
-        onSelect: () => openWindow(item.app),
+        onSelect: () => openFullScreen(item.app),
       });
     }
     // Both apps and core tools can be pinned to the rail.
@@ -364,7 +359,7 @@ export default function Launchpad({ onClose }) {
       });
     }
     return items;
-  }, [menu, openItem, openWindow, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
+  }, [menu, openItem, openFullScreen, addWidgetToDesk, runAction, pinned, pinApp, unpinApp]);
 
   const openMenuAt = useCallback((item, x, y, opener) => {
     menuOpener.current = opener || null;

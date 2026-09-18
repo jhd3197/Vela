@@ -6,7 +6,7 @@
 // screen should never be anonymous.
 import AppIcon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
-import { useApps } from '../../store.jsx';
+import useOpenApp from '../../desktops/useOpenApp.js';
 import { useDeskData } from '../DeskDataProvider.jsx';
 import { formatRelativeTime } from '../metrics.js';
 import { DeskEmpty, WidgetList, WidgetMeter, WidgetStat } from './primitives.jsx';
@@ -56,7 +56,7 @@ function Body({ layout, summary }) {
 }
 
 export default function AppWidget({ type }) {
-  const { openApp } = useApps();
+  const openApp = useOpenApp();
   const { data } = useDeskData('appWidgets');
   const app = type?.app;
   const record = (data?.widgets || []).find(

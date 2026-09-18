@@ -4,10 +4,12 @@
 // when the engine says so. Nothing is inferred from a recent visit.
 import AppIcon from '../../components/AppIcon.jsx';
 import { useApps } from '../../store.jsx';
+import useOpenApp from '../../desktops/useOpenApp.js';
 import { DeskEmpty, WidgetStatus } from './primitives.jsx';
 
 export default function RunningWidget() {
-  const { apps, openApp } = useApps();
+  const { apps } = useApps();
+  const openApp = useOpenApp();
   const running = (apps || [])
     .filter((app) => app.installed && app.running)
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

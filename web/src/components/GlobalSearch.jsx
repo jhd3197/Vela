@@ -6,6 +6,7 @@ import { coreApps } from '../navigation.js';
 import { useDeveloperTools } from '../developer.js';
 import AppIcon from './AppIcon.jsx';
 import { useSettingsPopup } from './SettingsProvider.jsx';
+import useOpenApp from '../desktops/useOpenApp.js';
 
 // Settings destinations the palette can reach. Developer entries stay out of
 // the results while the preference is off; searching for them then points at
@@ -136,6 +137,7 @@ export default function GlobalSearch({
   const navigate = useNavigate();
   const location = useLocation();
   const { openSettings } = useSettingsPopup();
+  const openApp = useOpenApp();
   const developer = useDeveloperTools();
   const controlled = value !== undefined;
   const [internalQuery, setInternalQuery] = useState(
@@ -212,6 +214,19 @@ export default function GlobalSearch({
     return { apps: appHits, core: coreHits, settings: settingHits, data: searchAppData(q) };
   }, [query, apps, developer]);
 
+  // An app hit opens the app the ordinary way — a window on the desk, or the
+  // page where a window is not the right answer — rather than navigating to a
+  // route the search field has had to spell out for itself.
+  const goApp = (id) => {
+    setOpen(false);
+    setExpanded(false);
+    openApp(id, {
+      returnTo: location.pathname.startsWith('/app/')
+        ? '/apps'
+        : location.pathname + location.search,
+    });
+  };
+
   const go = (to) => {
     setOpen(false);
     setExpanded(false);
@@ -264,7 +279,7 @@ export default function GlobalSearch({
             <button
               key={app.id}
               className="search-hit"
-              onClick={() => go(app.installed ? `/app/${app.id}` : '/library')}
+              onClick={() => (app.installed ? goApp(app.id) : go('/library'))}
             >
               <AppIcon app={app} size={26} />
               <span className="search-hit-name">{app.name}</span>
@@ -285,7 +300,7 @@ export default function GlobalSearch({
             <button
               key={`${hit.appId}-${i}`}
               className="search-hit"
-              onClick={() => go(`/app/${hit.appId}`)}
+              onClick={() => goApp(hit.appId)}
             >
               <span className="search-hit-glyph">
                 <hit.icon size={15} />

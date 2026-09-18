@@ -165,6 +165,30 @@ export default function useDesktopViews(desktopId) {
     area.current = next;
   }, []);
 
+  // ---- putting a window away, and bringing it back
+  //
+  // Both the rail and the window's own button mean this, and both want the
+  // motion that goes with it — but the motion needs the work area and the rail
+  // icon's place on screen, which only the host that draws the windows has
+  // measured. So the ask is *state* rather than a call or an event: the rail
+  // records that somebody asked, and the host performs it when it next renders.
+  // An event would be lost when the ask comes from another page, because the
+  // host is not mounted yet at the moment of the click.
+  const [windowMotion, setWindowMotion] = useState(null);
+
+  /** Ask for this window to be put away, or brought back if it is away. */
+  const toggleWindow = useCallback((viewId) => {
+    // A nonce, so asking twice for the same window is two asks. Without it the
+    // second minimize of the same window would look like the first one still
+    // sitting there and would never be performed.
+    setWindowMotion((previous) => ({ viewId, nonce: (previous?.nonce || 0) + 1 }));
+  }, []);
+
+  /** The host reporting that it has performed the ask, so it is not repeated. */
+  const clearWindowMotion = useCallback((nonce) => {
+    setWindowMotion((previous) => (previous && previous.nonce === nonce ? null : previous));
+  }, []);
+
   const minimize = useCallback(
     (view) => {
       // A pane whose member went away stays a pane. Collapsing the split here
@@ -254,5 +278,8 @@ export default function useDesktopViews(desktopId) {
     saveLayout,
     setArea,
     flush,
+    windowMotion,
+    toggleWindow,
+    clearWindowMotion,
   };
 }

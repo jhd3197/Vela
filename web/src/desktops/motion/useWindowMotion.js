@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GENIE } from './genie-preset.js';
 import { elapsedFor, reversalDuration } from './genie-geometry.js';
 import { CAPABILITY, capabilityFor, loadFrame } from './frame-source.js';
+import { collapseTransform } from './genie-fallback.js';
 import {
   MOTION,
   cancelMotion,
@@ -44,6 +45,17 @@ function useReducedMotion() {
 export default function useWindowMotion({ desktopId, desktop, area }) {
   const [motions, setMotions] = useState({});
   const [run, setRun] = useState(null);
+  // The container motion, for the windows there is no picture of. It is the
+  // live window travelling to its icon rather than a canvas standing in for it,
+  // so it carries no frame and never unmounts what it is moving.
+  const [fallback, setFallback] = useState(null);
+  const fallbackTimers = useRef({ frame: 0, done: 0, hidden: null });
+  // The container motion has no per-frame callback to report from — a CSS
+  // transition runs on its own — so where it has got to is read from the clock
+  // when somebody reverses it. Linear against an eased transition, which is an
+  // approximation of a shape rather than of a decision, and is what keeps a
+  // minimize interrupted halfway from snapping back in a sixteenth of the time.
+  const travelling = useRef(null);
   const reduced = useReducedMotion();
   // The frame and the abort handle of whatever is in flight. Held in a ref so
   // releasing them does not depend on a render happening first.
@@ -54,6 +66,13 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
   const live = useRef({});
 
   const release = useCallback(() => {
+    cancelAnimationFrame(fallbackTimers.current.frame);
+    clearTimeout(fallbackTimers.current.done);
+    if (fallbackTimers.current.hidden) {
+      document.removeEventListener('visibilitychange', fallbackTimers.current.hidden);
+    }
+    fallbackTimers.current = { frame: 0, done: 0, hidden: null };
+    travelling.current = null;
     const held = active.current;
     active.current = null;
     if (!held) return;
@@ -67,6 +86,19 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
     live.current[viewId] = collapse;
   }, []);
 
+  /** Where this window's shape actually is, whichever kind of motion drew it. */
+  const shapeOf = useCallback((viewId) => {
+    const flight = travelling.current;
+    if (flight?.viewId === viewId) {
+      const k = Math.min(
+        1,
+        Math.max(0, (performance.now() - flight.startedAt) / flight.durationMs),
+      );
+      return flight.direction === 'collapse' ? k : 1 - k;
+    }
+    return live.current[viewId];
+  }, []);
+
   const settle = useCallback(
     (generation) => {
       setMotions((current) => {
@@ -77,6 +109,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
         return { ...current, [entry[0]]: settleMotion(entry[1], generation) };
       });
       setRun((current) => (current?.generation === generation ? null : current));
+      setFallback((current) => (current?.generation === generation ? null : current));
       release();
     },
     [release],
@@ -97,7 +130,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
       const stored = motions[view.id] || initialMotion(Boolean(view.window?.minimized));
       // Where it actually is, not where the last settled state said it was.
       const previous = isAnimating(stored)
-        ? { ...stored, collapse: live.current[view.id] ?? stored.collapse }
+        ? { ...stored, collapse: shapeOf(view.id) ?? stored.collapse }
         : stored;
       // A reversal starts from the shape that is on screen and takes as long as
       // the distance that is left, so rapid minimize/restore never jumps.
@@ -106,19 +139,98 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
         : GENIE.durationMs;
 
       const { capability, reason } = capabilityFor(view, { desktop });
-      if (reduced || capability !== CAPABILITY.REMOTE || !icon || !bounds || !area.width) {
-        // No warp. The decision has already happened; this records that the
-        // decoration did not, with the reason, so a person asking why gets an
-        // answer rather than a shrug.
+      const settled = (why) => {
+        // No motion at all. The decision has already happened; this records
+        // that the decoration did not, with the reason, so a person asking why
+        // gets an answer rather than a shrug.
         setMotions((current) => ({
           ...current,
           [view.id]: {
-            ...requestMotion(previous, direction, { durationMs: 0, reason: reason || 'reduced' }),
+            ...requestMotion(previous, direction, { durationMs: 0, reason: why }),
             state: direction === 'collapse' ? MOTION.MINIMIZED : MOTION.IDLE,
             collapse: direction === 'collapse' ? 1 : 0,
             direction: null,
           },
         }));
+      };
+
+      if (reduced) {
+        settled('reduced');
+        return;
+      }
+      // A hidden tab delivers no animation frames and throttles its timers to
+      // minutes, so a motion started in one would not finish for as long as
+      // nobody looked — leaving a window shrunk into its icon and unclickable.
+      // The decision has already been applied; there is simply nothing to show
+      // somebody who is not there.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        settled('that desktop is not on screen');
+        return;
+      }
+      if (!icon || !bounds || !area.width) {
+        settled(reason || 'there is nowhere on screen to fly to');
+        return;
+      }
+
+      if (capability !== CAPABILITY.REMOTE) {
+        // The container motion. There is no picture of this window, so the
+        // window itself travels — still mounted, still running, still holding
+        // whatever was typed into it.
+        const collapsed = collapseTransform(bounds, icon);
+        if (!collapsed) {
+          settled(reason || 'there is nowhere on screen to fly to');
+          return;
+        }
+        release();
+        const started = requestMotion(previous, direction, { durationMs, reason });
+        setMotions((current) => ({ ...current, [view.id]: started }));
+        travelling.current = {
+          viewId: view.id,
+          direction,
+          durationMs,
+          startedAt: performance.now(),
+        };
+        // A transition needs a value to leave before it has one to arrive at.
+        // Only one case actually lacks one: a window being brought back is not
+        // on screen at all, so it is put at its icon first and released on the
+        // next frame. A window being put away is already drawn where it is, and
+        // a reversal is mid-transition — retargeting either of those in one
+        // commit is what makes them continue from where they are instead of
+        // jumping to an endpoint and easing from there.
+        const staged = direction === 'expand' && !isAnimating(previous);
+        const run = {
+          generation: started.generation,
+          viewId: view.id,
+          direction,
+          durationMs,
+          bounds,
+          collapsed,
+          phase: staged ? 'start' : 'end',
+        };
+        setFallback(run);
+        // Settled on the clock rather than on `transitionend`: a transition on
+        // a window nobody is looking at may never report finishing, and the
+        // window would stay half-shrunk and unclickable.
+        const finish = () => {
+          fallbackTimers.current.done = setTimeout(() => settle(started.generation), durationMs);
+        };
+        // And if the tab is hidden part-way through, the run settles at once
+        // rather than waiting for a throttled timer that may be minutes away.
+        const onHidden = () => {
+          if (document.visibilityState === 'hidden') settle(started.generation);
+        };
+        document.addEventListener('visibilitychange', onHidden);
+        fallbackTimers.current.hidden = onHidden;
+        if (!staged) {
+          finish();
+          return;
+        }
+        fallbackTimers.current.frame = requestAnimationFrame(() => {
+          setFallback((current) =>
+            current?.generation === started.generation ? { ...current, phase: 'end' } : current,
+          );
+          finish();
+        });
         return;
       }
 
@@ -149,7 +261,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
         frame,
       });
     },
-    [area, desktop, desktopId, motions, reduced, release, settle],
+    [area, desktop, desktopId, motions, reduced, release, settle, shapeOf],
   );
 
   /** Stop drawing and apply the state that was decided, for any reason at all. */
@@ -163,6 +275,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
         return next;
       });
       setRun(null);
+      setFallback(null);
       release();
     },
     [release],
@@ -184,6 +297,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
   return {
     motions,
     run,
+    fallback,
     reduced,
     animate,
     settle,
@@ -194,7 +308,7 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
       (viewId) => (motions[viewId]?.state ?? MOTION.IDLE) !== MOTION.MINIMIZED,
       [motions],
     ),
-    /** The view the overlay is currently standing in for, if any. */
+    /** The view the canvas overlay is currently standing in for, if any. */
     animatingViewId: run?.viewId || null,
   };
 }

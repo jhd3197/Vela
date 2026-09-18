@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // The painted set that ships with Vela: eight places drawn for the desk rather
 // than stock photography, so there is no licence to track and no face to
@@ -68,48 +68,103 @@ function useDailyTick(active) {
   }, [active]);
 }
 
-// The wallpaper flags that select the picture. Kept apart from the `desk` flag
-// so the Desk page, which owns that flag for its own reasons, can share this.
+// ---------------------------------------------------------- who is asking
 //
-// `desk.customUrl` is where this desktop's own image is served from. It is a
-// CSS variable rather than a rule because each desktop has its own picture at
-// its own address, which a stylesheet cannot know.
-export function useWallpaperFlags(desk) {
+// The desk and the Launchpad are on screen at the same time: All apps opens
+// *over* the desk rather than replacing it. Both want the same picture, and
+// both used to write these flags straight onto `<body>` from an effect that
+// cleared them again on the way out. Closing All apps therefore ran the
+// Launchpad's cleanup while the desk underneath was still mounted and still
+// expecting its wallpaper — and the desk's own effect, having already run and
+// having no reason to run again, never put it back. The picture vanished and
+// stayed gone until something unrelated changed.
+//
+// So this is a stack of claims rather than a write. Each owner claims what it
+// wants drawn, the topmost claim is what is on the body, and releasing one
+// repaints from whoever is left. Nothing is cleared while somebody is still
+// asking, which is the property the effect-per-page version could not have.
+
+/** `{ owner, flags }`, oldest first. The last one is what is drawn. */
+const claims = [];
+
+/** What is drawn right now, or null when nobody is asking. Read by tests. */
+export function wallpaperClaim() {
+  return claims.length ? claims[claims.length - 1].flags : null;
+}
+
+function paint() {
+  const body = typeof document === 'undefined' ? null : document.body;
+  if (!body) return;
+  const flags = wallpaperClaim();
+  if (!flags) {
+    delete body.dataset.desk;
+    delete body.dataset.deskWallpaper;
+    delete body.dataset.deskChoice;
+    delete body.dataset.deskDim;
+    delete body.dataset.deskTone;
+    body.style.removeProperty('--desk-wallpaper-custom');
+    return;
+  }
+  body.dataset.desk = 'on';
+  body.dataset.deskWallpaper = flags.id;
+  body.dataset.deskChoice = flags.choice;
+  body.dataset.deskDim = flags.dim;
+  if (flags.tone) body.dataset.deskTone = flags.tone;
+  else delete body.dataset.deskTone;
+  // A CSS variable rather than a rule, because each desktop has its own
+  // picture at its own address and a stylesheet cannot know it.
+  if (flags.customUrl)
+    body.style.setProperty('--desk-wallpaper-custom', `url('${flags.customUrl}')`);
+  else body.style.removeProperty('--desk-wallpaper-custom');
+}
+
+/** Ask for a picture, or change what an existing claim is asking for. */
+export function claimWallpaper(owner, flags) {
+  const existing = claims.find((claim) => claim.owner === owner);
+  // Updated in place: a desk that changed its wallpaper is the same owner
+  // asking for something else, not a second owner arriving on top.
+  if (existing) existing.flags = flags;
+  else claims.push({ owner, flags });
+  paint();
+}
+
+/** Stop asking. Whoever is still asking gets what they asked for. */
+export function releaseWallpaper(owner) {
+  const index = claims.findIndex((claim) => claim.owner === owner);
+  if (index === -1) return;
+  claims.splice(index, 1);
+  paint();
+}
+
+/** The flags a desk's appearance implies, with nothing on the page touched. */
+export function wallpaperFlags(desk) {
   const choice = desk?.wallpaper || DEFAULT_WALLPAPER;
-  useDailyTick(choice === 'daily');
   const { id, tone } = resolveWallpaper(desk);
-  const dim = desk?.dim === false ? 'off' : 'on';
-  const customUrl = desk?.customUrl || null;
-  useEffect(() => {
-    document.body.dataset.deskWallpaper = id;
-    document.body.dataset.deskChoice = choice;
-    document.body.dataset.deskDim = dim;
-    if (tone) document.body.dataset.deskTone = tone;
-    else delete document.body.dataset.deskTone;
-    if (customUrl)
-      document.body.style.setProperty('--desk-wallpaper-custom', `url('${customUrl}')`);
-    else document.body.style.removeProperty('--desk-wallpaper-custom');
-    return () => {
-      delete document.body.dataset.deskWallpaper;
-      delete document.body.dataset.deskChoice;
-      delete document.body.dataset.deskDim;
-      delete document.body.dataset.deskTone;
-      document.body.style.removeProperty('--desk-wallpaper-custom');
-    };
-  }, [id, choice, dim, tone, customUrl]);
+  return {
+    id,
+    choice,
+    tone,
+    dim: desk?.dim === false ? 'off' : 'on',
+    customUrl: desk?.customUrl || null,
+  };
 }
 
 // The wallpaper belongs to the whole shell, not to one page: it sits behind the
-// translucent rail as well as the workspace. Both the Desk and the Launchpad
-// render over it, so the body flags that select it live here rather than in
-// either page. The flags are cleared on the way out so a plain page never
-// inherits the wallpaper treatment.
+// translucent rail as well as the workspace, and it has to survive a page that
+// floats over another one. Both the Desk and the Launchpad claim it the same
+// way, which is why the rules live here rather than in either page.
 export function useWallpaperBody(desk) {
+  const { id, choice, tone, dim, customUrl } = wallpaperFlags(desk);
+  useDailyTick(choice === 'daily');
+  // One identity per mounted owner, so re-running for a new wallpaper updates
+  // this owner's claim rather than stacking a second one on top of it.
+  const owner = useRef(null);
+  if (!owner.current) owner.current = { page: true };
   useEffect(() => {
-    document.body.dataset.desk = 'on';
-    return () => {
-      delete document.body.dataset.desk;
-    };
+    claimWallpaper(owner.current, { id, choice, dim, tone, customUrl });
+  }, [id, choice, dim, tone, customUrl]);
+  useEffect(() => {
+    const self = owner.current;
+    return () => releaseWallpaper(self);
   }, []);
-  useWallpaperFlags(desk);
 }

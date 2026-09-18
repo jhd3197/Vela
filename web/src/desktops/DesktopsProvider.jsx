@@ -291,6 +291,9 @@ const OUTSIDE = {
     setArea: () => {},
     refresh: async () => null,
     flush: async () => {},
+    windowMotion: null,
+    toggleWindow: () => {},
+    clearWindowMotion: () => {},
   },
 };
 

@@ -63,6 +63,33 @@ class Lifecycle:
         # the code it was reviewed against.
         self.desktops = desktops
         self.lock = threading.RLock()
+        self.adopt_installations()
+
+    def adopt_installations(self):
+        """Give every installed app the identity installing one grants today.
+
+        An installation identity is what an app's stored data, its sessions and
+        any window on it are bound to. Installing an app has created one for
+        some time — but it did not always, and on an upgraded Vela the apps that
+        were already there have none until something happens to start a session
+        for them. Anything asking "which installation is this" got `None` for an
+        app that is plainly installed, and a window, which binds itself to one
+        rather than creating one, could not be opened for those apps at all.
+
+        So it is reconciled once at startup rather than left for a session to
+        fix by accident. Only apps whose code is really in `installed/` are
+        given one: this must not be a way for a removed app to come back, which
+        is the reason `installation` refuses to create one in the first place.
+        """
+        # Suppressed per app rather than for the whole sweep: one app that
+        # cannot be read must not stop the others being adopted, and a hub that
+        # cannot reconcile at all is a hub with the gap it already had, not one
+        # that fails to start. Every caller still copes with `None`.
+        with suppress(Exception):
+            for app_id in self.registry.installed_ids():
+                with suppress(Exception):
+                    if self.storage.installation(app_id) is None:
+                        self.storage.activate(app_id)
 
     def revoke_app_authority(self, app_id, *, reason="that app changed"):
         """Drop everything that was authorized against this app as it was.
