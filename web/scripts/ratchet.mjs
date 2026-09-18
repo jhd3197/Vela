@@ -96,6 +96,10 @@ for (const guard of guards) {
     if (count <= limit) continue;
     failures.push({
       guard: guard.id,
+      // A guard with no entry at all in baseline.json has never recorded
+      // anything, so its first `--update` is not growth — it is the guard
+      // landing with today's numbers. After that, every rise needs a reason.
+      firstRun: !(guard.id in baseline),
       text: [
         `  ${guard.id}: ${file} has ${count} finding(s); the baseline allows ${limit}.`,
         ...counted
@@ -121,7 +125,7 @@ for (const guard of guards) {
 }
 
 if (flag('--update')) {
-  const grew = failures.filter((failure) => !allowGrowth.has(failure.guard));
+  const grew = failures.filter((failure) => !failure.firstRun && !allowGrowth.has(failure.guard));
   if (grew.length) {
     console.error('\nRatchet baselines cannot be raised silently:\n');
     grew.forEach((failure) => console.error(failure.text));

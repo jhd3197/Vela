@@ -1,3 +1,51 @@
 {
-  "foundations": {}
+  "browser-boundary": {
+    "web/src/components/AppDataMigration.jsx": 2,
+    "web/src/components/GlobalSearch.jsx": 3,
+    "web/src/components/IOSInstallSteps.jsx": 1,
+    "web/src/components/NotificationBell.jsx": 2,
+    "web/src/components/PhoneHandoff.jsx": 1,
+    "web/src/components/security/trailPreference.js": 2,
+    "web/src/components/WorkspacePage.jsx": 2,
+    "web/src/desktops/DesktopsProvider.jsx": 3,
+    "web/src/developer.js": 2,
+    "web/src/pages/AppView.jsx": 3,
+    "web/src/pages/Ask.jsx": 6,
+    "web/src/pages/Settings.jsx": 1,
+    "web/src/phone-setup.js": 2,
+    "web/src/theme.js": 2
+  },
+  "foundations": {},
+  "inline-style": {
+    "web/src/components/AppIcon.jsx": 1,
+    "web/src/components/ui/ContextMenu.jsx": 1,
+    "web/src/components/UpdatesSection.jsx": 1,
+    "web/src/desk/grid/DeskGrid.jsx": 2,
+    "web/src/desk/widgets/primitives.jsx": 2,
+    "web/src/desktops/EmptyPane.jsx": 1,
+    "web/src/desktops/motion/GenieOverlay.jsx": 1,
+    "web/src/desktops/SplitDivider.jsx": 1,
+    "web/src/desktops/WindowFrame.jsx": 2,
+    "web/src/pages/Automations.jsx": 1,
+    "web/src/pages/Launchpad.jsx": 1,
+    "web/src/pages/Settings.jsx": 7
+  },
+  "status-vocabulary": {
+    "web/src/automationsApi.js": 2,
+    "web/src/desktops/AgentWindow.jsx": 1
+  },
+  "style-ownership": {
+    "web/src/styles/components/_agent.scss": 1,
+    "web/src/styles/components/_controls.scss": 1,
+    "web/src/styles/components/_desktops.scss": 2,
+    "web/src/styles/components/_dialog.scss": 1,
+    "web/src/styles/components/_drawer.scss": 4,
+    "web/src/styles/components/_forms.scss": 1,
+    "web/src/styles/layout/_mobile.scss": 14,
+    "web/src/styles/layout/_rail.scss": 1,
+    "web/src/styles/layout/_workspace.scss": 1,
+    "web/src/styles/pages/_app-view.scss": 5,
+    "web/src/styles/pages/_ask.scss": 2,
+    "web/src/styles/pages/_desk.scss": 1
+  }
 }
