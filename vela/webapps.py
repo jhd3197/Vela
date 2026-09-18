@@ -3,16 +3,17 @@
 Web apps (manifest "web" entry) are served statically from the installed copy.
 Process apps are reverse-proxied to http://127.0.0.1:{port}/ while running.
 
-Routes registered here must be mounted BEFORE the SPA fallback so /apps/{id}/...
-requests are never swallowed by the frontend's index.html. The backend only
-claims /apps/{id}/... for KNOWN app ids; bare /apps belongs to the SPA.
+This router must be mounted BEFORE the SPA fallback so /apps/{id}/... requests
+are never swallowed by the frontend's index.html; `vela/router_registry.py` is
+where that order is stated. The backend only claims /apps/{id}/... for KNOWN
+app ids; bare /apps belongs to the SPA.
 """
 
 import json
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
@@ -40,10 +41,11 @@ _REQUEST_HEADER_DENYLIST = _HOP_BY_HOP | {"host", "content-length", "cookie", "a
 _RESPONSE_HEADER_DENYLIST = _HOP_BY_HOP | {"content-length", "set-cookie"}
 
 
-def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
+def router(registry: Registry, state: StateStore) -> APIRouter:
+    api = APIRouter(tags=["web-app-serving"])
     client = httpx.AsyncClient(follow_redirects=False, timeout=None)
 
-    @app.on_event("shutdown")
+    @api.on_event("shutdown")
     async def _close_client() -> None:
         await client.aclose()
 
@@ -146,15 +148,17 @@ def mount_webapps(app: FastAPI, registry: Registry, state: StateStore) -> None:
             response.headers["Access-Control-Allow-Origin"] = "*"
         return response
 
-    @app.get("/apps/{app_id}", include_in_schema=False)
+    @api.get("/apps/{app_id}", include_in_schema=False)
     def app_root(app_id: str) -> RedirectResponse:
         get_manifest_or_404(app_id)
         return RedirectResponse(url=f"/apps/{app_id}/", status_code=307)
 
-    @app.api_route("/apps/{app_id}/", methods=_METHODS, include_in_schema=False)
+    @api.api_route("/apps/{app_id}/", methods=_METHODS, include_in_schema=False)
     async def app_entry(app_id: str, request: Request) -> Response:
         return await dispatch(app_id, "", request)
 
-    @app.api_route("/apps/{app_id}/{file_path:path}", methods=_METHODS, include_in_schema=False)
+    @api.api_route("/apps/{app_id}/{file_path:path}", methods=_METHODS, include_in_schema=False)
     async def app_file(app_id: str, file_path: str, request: Request) -> Response:
         return await dispatch(app_id, file_path, request)
+
+    return api
