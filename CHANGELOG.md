@@ -49,6 +49,10 @@ until the release workflow prepares a tested server version.
   rail entry stopped carrying that mark for screen readers when it became a
   button that opens a window.
 
+## 0.1.16 - 2026-09-18
+
+No additional release notes were provided.
+
 ## 0.1.15 - 2026-09-18
 
 No additional release notes were provided.
