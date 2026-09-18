@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.17 - 2026-09-18
+
 ### Added
 
 - **Vela now shows everything it is doing for you in one place.** An automation
