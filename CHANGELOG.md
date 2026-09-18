@@ -8,6 +8,11 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **The README reflects the current release.** Its badges now read the latest
+  release, its date and the total download count from GitHub instead of a
+  hand-typed version number, the Quick Start names the Marketplace, the
+  ServerKit note no longer points at the `dev` branch, and windows on the desk
+  and agent desktops get a short introduction with a link to their guide.
 - **Existing 0.1.x servers need one manual update.** The updater ships *in*
   this release, so a server running an earlier version cannot use it to get
   here. Download this release the way you installed Vela originally — the
