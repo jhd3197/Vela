@@ -17,6 +17,7 @@ from pathlib import Path
 
 import test_app_contract as base
 from fastapi.testclient import TestClient
+from vela import bundled_wallpapers
 from vela.api import create_app
 from vela.config import Config
 from vela.wallpaper import MAX_WALLPAPER_BYTES
@@ -57,14 +58,13 @@ class WallpaperApiTests(unittest.TestCase):
         # and it is one of the painted set Vela ships rather than stock imagery.
         desk = self.client.get("/api/settings", headers=self.hub).json()["desk"]
         self.assertEqual(desk["wallpaper"], "choroni")
-        bundled = ROOT / "web/public/wallpapers"
-        self.assertTrue((bundled / "choroni.jpg").is_file())
-        self.assertTrue((bundled / "thumbs/choroni.jpg").is_file())
+        pinned = {entry["id"] for entry in bundled_wallpapers.load_manifest()["wallpapers"]}
+        self.assertIn("choroni", pinned)
         # The unlicensed stock photograph is gone, not merely unreferenced.
-        self.assertFalse((bundled / "lake.jpg").exists())
+        self.assertNotIn("lake", pinned)
 
-    def test_every_painted_wallpaper_ships_with_a_thumbnail(self):
-        painted = [
+    def test_every_painted_wallpaper_ships_with_a_pinned_master(self):
+        painted = {
             "choroni",
             "paramo",
             "medanos",
@@ -73,12 +73,15 @@ class WallpaperApiTests(unittest.TestCase):
             "avila",
             "castillo",
             "canaima",
-        ]
-        bundled = ROOT / "web/public/wallpapers"
+        }
+        manifest = bundled_wallpapers.load_manifest()
+        pinned = {entry["id"]: entry for entry in manifest["wallpapers"]}
         for name in painted:
             with self.subTest(wallpaper=name):
-                self.assertTrue((bundled / f"{name}.jpg").is_file())
-                self.assertTrue((bundled / "thumbs" / f"{name}.jpg").is_file())
+                entry = pinned[name]
+                self.assertEqual(entry["file"], f"wallpaper-{name}-4x.jpg")
+                self.assertEqual(len(entry["sha256"]), 64)
+                self.assertGreater(entry["bytes"], 0)
 
     def test_a_desk_still_set_to_the_retired_photograph_draws_the_default(self):
         # The stock photograph was removed, not re-licensed. A desk still asking

@@ -460,6 +460,16 @@ after anything that can drop a reference.
 a regression. The image files are not backed up — they never were — so a
 restored desktop whose picture is missing falls back to a painted one.
 
+The painted set itself is not in the repo or the installer. Each wallpaper is
+published once as a 4x master on the `wallpapers-v1` GitHub release, with its
+digest pinned in `vela/assets/wallpapers.json`. The first start downloads the
+masters and derives the desk picture (1672x941) and picker thumbnail
+(480x270) under `<data_dir>/wallpapers/` — see `vela/bundled_wallpapers.py` —
+and `/wallpapers/*` is served from that directory rather than from
+`web/dist`. `scripts/build-wallpaper-masters.py` rebuilds the masters and the
+manifest when the source art changes; the derived files are regenerable, so
+they are never committed or backed up.
+
 ### Views and windows
 
 A **view** is what is open on a desktop. It is the identity that survives being

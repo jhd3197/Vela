@@ -22,8 +22,9 @@ import WindowFrame from './WindowFrame.jsx';
 import GenieOverlay from './motion/GenieOverlay.jsx';
 import useWindowMotion from './motion/useWindowMotion.js';
 import { anchorFor } from './motion/anchors.js';
+import { fallbackStyle } from './motion/genie-fallback.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
-import { SPLIT_MIN_WIDTH, placeView, splitBounds, workArea } from './window-state.js';
+import { SPLIT_MIN_WIDTH, placeView, restorePatch, splitBounds, workArea } from './window-state.js';
 
 /** What to call a view that has not been given a title. */
 function labelFor(view, apps) {
@@ -118,7 +119,14 @@ export default function DesktopViewHost({ views, desktop }) {
   const putAway = useCallback(
     (view, index) => {
       const minimized = Boolean(view.window?.minimized);
-      const bounds = placeView(view, { layout: views.layout, area, index });
+      // Where the window is, or where it is about to be. A minimized window is
+      // not placed anywhere at all — that is what minimized means — so asking
+      // the arrangement for it would answer "nowhere", and a motion out of
+      // nowhere is no motion. What it is coming back to is the same rectangle
+      // the restore itself will use.
+      const bounds = minimized
+        ? restorePatch(view, area, index).bounds
+        : placeView(view, { layout: views.layout, area, index });
       motion.animate(view, minimized ? 'expand' : 'collapse', {
         icon: anchorFor(view.id, host.current),
         bounds,
@@ -127,6 +135,34 @@ export default function DesktopViewHost({ views, desktop }) {
     },
     [area, motion, views],
   );
+
+  // Somebody asked for a window to be put away or brought back from somewhere
+  // that cannot measure the screen — the rail, a shortcut, an app being opened
+  // again. This is where it actually happens, because this is where the work
+  // area and the rail icon's place are known.
+  const asked = views.windowMotion;
+  // What to do it with, read at the moment of doing it. Held in a ref because
+  // both of these change identity on every render: depending on them would run
+  // this effect again and again, and an ask performed twice is a window put
+  // away and immediately brought back.
+  const perform = useRef({ putAway, views });
+  perform.current = { putAway, views };
+  const handled = useRef(0);
+  useEffect(() => {
+    // Nothing can be aimed at a screen that has not been measured yet, so an
+    // ask that arrives with a page — from the rail, on another route — waits
+    // for the first measurement rather than being dropped.
+    if (!asked || !area.width || handled.current === asked.nonce) return;
+    handled.current = asked.nonce;
+    const current = perform.current;
+    const index = current.views.ordered.findIndex((view) => view.id === asked.viewId);
+    const view = index === -1 ? null : current.views.ordered[index];
+    // A window that has been closed since the ask is not an error; it is just
+    // nothing to do. Clearing it either way keeps a stale ask from sitting
+    // there and firing at the next window to take that id's place.
+    if (view) current.putAway(view, index);
+    current.views.clearWindowMotion(asked.nonce);
+  }, [asked, area.width]);
 
   const requestClose = useCallback(
     (view) => {
@@ -148,10 +184,20 @@ export default function DesktopViewHost({ views, desktop }) {
   const wideEnough = area.width >= SPLIT_MIN_WIDTH;
   const ratio = ratioPreview ?? layout.dividerRatio ?? 0.5;
   const drawn = ratioPreview === null ? layout : { ...layout, dividerRatio: ratio };
+  const travelling = motion.fallback;
   const visible = views.ordered
-    .map((view, index) => ({ view, bounds: placeView(view, { layout: drawn, area, index }) }))
-    // The window the overlay is standing in for is hidden while it stands in
-    // for it, so the two are never both on screen. Its session is untouched.
+    .map((view, index) => {
+      // A window with no picture of itself travels in person: the arrangement
+      // has already put it away, so it is drawn where it was and moved by
+      // transform. The frame inside it is never unmounted to do this.
+      if (travelling?.viewId === view.id) {
+        return { view, bounds: travelling.bounds, travel: fallbackStyle(travelling) };
+      }
+      return { view, bounds: placeView(view, { layout: drawn, area, index }) };
+    })
+    // The window the canvas overlay is standing in for is hidden while it
+    // stands in for it, so the two are never both on screen. Its session is
+    // untouched either way.
     .filter((entry) => entry.bounds && motion.animatingViewId !== entry.view.id);
   const openElsewhere = views.ordered
     .filter((view) => !view.window?.minimized)
@@ -184,10 +230,11 @@ export default function DesktopViewHost({ views, desktop }) {
 
   return (
     <div className="view-host" ref={host}>
-      {visible.map(({ view, bounds }) => {
+      {visible.map(({ view, bounds, travel }) => {
         const held = dragging?.id === view.id ? dragging.bounds : bounds;
         const maximized = layout.arrangement === 'maximized' && layout.maximizedView === view.id;
-        const fixed = layout.arrangement !== 'floating';
+        // A window in flight is placed by the motion, not by the pointer.
+        const fixed = layout.arrangement !== 'floating' || Boolean(travel);
         const name = labelFor(view, apps);
         return (
           <WindowFrame
@@ -206,6 +253,7 @@ export default function DesktopViewHost({ views, desktop }) {
             selected={layout.selectedView === view.id}
             maximized={maximized}
             fixed={fixed}
+            travel={travel}
             status={view.available ? null : 'Needs reopening'}
             onSelect={() => {
               if (layout.selectedView !== view.id) views.select(view.id);

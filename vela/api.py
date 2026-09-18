@@ -1743,6 +1743,20 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
             "agentTasksInterrupted": interrupted,
         }
 
+    # The bundled wallpapers are downloaded into the data directory on first
+    # start rather than shipped in web/dist (see vela/bundled_wallpapers.py),
+    # so they are served from there. Registered before the SPA fallback, which
+    # must never swallow them.
+    wallpapers_root = config.data_dir / "wallpapers"
+
+    @app.get("/wallpapers/{file_path:path}", include_in_schema=False)
+    def bundled_wallpaper(file_path: str) -> FileResponse:
+        root = wallpapers_root.resolve()
+        candidate = (root / file_path).resolve()
+        if candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+        raise HTTPException(status_code=404, detail="Unknown wallpaper")
+
     # /apps/* is matched before the SPA fallback below; the fallback must
     # never swallow app requests.
     mount_webapps(app, registry, state)

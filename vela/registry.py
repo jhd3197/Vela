@@ -87,6 +87,15 @@ class Registry:
     def is_installed(self, app_id: str) -> bool:
         return (self.installed_path(app_id) / "app.json").is_file()
 
+    def installed_ids(self) -> list[str]:
+        """Every app whose code is really in `installed/`, by its manifest id.
+
+        Read from the manifests rather than from the folder names, so an app
+        directory that no longer parses is left out instead of being counted as
+        an installation of something.
+        """
+        return sorted(self._installed_manifests())
+
     def install(self, app_id: str) -> None:
         """Stage trusted bundled code before exposing the installation directory."""
         source = self._config.apps_dir / app_id

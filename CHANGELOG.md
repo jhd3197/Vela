@@ -26,6 +26,18 @@ No additional release notes were provided.
 
 ### Changed
 
+- **Bundled wallpapers download once instead of shipping in the installer.**
+  Each of the eight painted wallpapers is now published as a single 4K master;
+  the first start downloads the set (about 33 MB) and derives the desk and
+  picker sizes on your own computer, keeping the installer and server bundle
+  smaller while the dashboard still only ever reads the small derived files.
+  Nothing to do on upgrade — an existing server fetches the set on its next
+  start, and a start with no connection simply tries again later.
+- **The README reflects the current release.** Its badges now read the latest
+  release, its date and the total download count from GitHub instead of a
+  hand-typed version number, the Quick Start names the Marketplace, the
+  ServerKit note no longer points at the `dev` branch, and windows on the desk
+  and agent desktops get a short introduction with a link to their guide.
 - **Existing 0.1.x servers need one manual update.** The updater ships *in*
   this release, so a server running an earlier version cannot use it to get
   here. Download this release the way you installed Vela originally — the
@@ -36,19 +48,37 @@ No additional release notes were provided.
   read can be put back from Settings → Health instead of falling back to
   defaults. Your desk is no longer one of these files — it lives with your
   desktops now and is covered by backups instead.
-- **Apps can open in a window on your desk.** Right-click an app in All apps
-  and choose **Open in a window**. It gets a title bar with three controls that
-  do three different things: **minimize** puts it away and nothing else — the
-  app keeps running and whatever you had typed is still there when you bring it
-  back from the rail; **maximize** fills the desk; **close** is the only one
-  that ends the window, and the only one that asks about unsaved work. Windows
-  can be moved and resized, they stay where you left them, and each desktop
-  keeps its own. Opening an app the ordinary way still fills the screen.
+- **Apps open in windows on your desk.** Opening an app — from the rail, All
+  apps, a desk widget, search or a shortcut — now puts it in a window rather
+  than filling the screen. It gets a title bar with three controls that do three
+  different things: **minimize** puts it away and nothing else — the app keeps
+  running and whatever you had typed is still there when you bring it back;
+  **maximize** fills the desk; **close** is the only one that ends the window,
+  and the only one that asks about unsaved work. Windows can be moved, resized
+  and snapped to a half, they stay where you left them, and each desktop keeps
+  its own. Opening an app that already has a window brings that window forward
+  instead of opening a second copy of it.
+
+  Some apps still open full screen, because a window is not the right answer for
+  them: anything on a phone, an app that opens outside Vela, a connected site,
+  and an app you have not installed yet. You can ask for the full-screen page
+  for any app — right-click it in All apps and choose **Open full screen** — and
+  a link straight to an app still opens it that way.
+
+- **Windows travel to and from the rail.** Minimizing shrinks the window into
+  its icon in the rail and bringing it back reverses the same motion, so you can
+  see where it went. Vela does not read an app's pixels to do this — a browser
+  will not let this page do that, and weakening an app's sandbox for an
+  animation would be trading a real boundary for a decoration — so the window
+  itself moves, with the app still running inside it. Reduced motion skips it.
 
 - **The rail names what is open.** Windows on the desktop you are looking at
   appear in the rail under **Open**, showing which one is selected and which are
-  minimized. A window whose app was reinstalled says it needs reopening rather
-  than pretending to still be connected.
+  minimized; clicking one brings it forward, and clicking the one you are in
+  puts it away. Apps whose process is running without a window here appear
+  separately under **Running**, and no app is listed in both. A window whose app
+  was reinstalled says it needs reopening rather than pretending to still be
+  connected.
 
 - **All apps opens over what you were doing.** The app grid used to be a page,
   so going to look for an app left the one you had open. It is now a layer over
@@ -112,6 +142,18 @@ No additional release notes were provided.
 
 - **The rail avatar draws properly.** Its stylesheet was never loaded, so the
   letter standing for whoever the server belongs to appeared unstyled.
+
+- **The wallpaper no longer disappears when you close All apps.** The desk and
+  the All apps grid are on screen at the same time and both ask for the same
+  picture; closing the grid cleared it for the desk underneath as well, leaving
+  a plain background until something else happened to set it again.
+
+- **Apps installed by an older Vela can be opened in a window.** Installing an
+  app records which installation of it this is, and windows are opened against
+  that record — but apps that were already installed before Vela started keeping
+  it had none, so a window could not be opened for them at all. Vela now gives
+  every installed app that record when it starts. Nothing is reinstalled and no
+  app data is touched; an app you removed is not brought back.
 
 ### Added
 

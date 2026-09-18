@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useApps } from './store.jsx';
+import useOpenApp from './desktops/useOpenApp.js';
 import { coreById, isCoreId } from './navigation.js';
 import { useSettingsPopup } from './components/SettingsProvider.jsx';
 import { useAppsOverlay } from './desktops/AppsOverlay.jsx';
@@ -38,7 +39,8 @@ function isLaunchpadToggle(event) {
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { pinned, openApp } = useApps();
+  const { pinned } = useApps();
+  const openApp = useOpenApp();
   const { openSettings } = useSettingsPopup();
   const { toggleApps } = useAppsOverlay();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);

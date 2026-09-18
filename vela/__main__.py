@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 import uvicorn
 from .config import load_config
 from .access import set_password
+from .bundled_wallpapers import ensure as ensure_bundled_wallpapers
 from .logging_setup import configure_logging
 
 
@@ -76,6 +77,10 @@ def main() -> None:
     if args.cert:
         os.environ["VELA_CERT_FILE"] = str(Path(args.cert).resolve())
     open_browser = args.open_browser if args.open_browser is not None else bool(getattr(sys, 'frozen', False)) and not remote
+    # The bundled wallpapers publish as one 4x master each; the first start
+    # downloads them and derives the sizes the dashboard draws. Later starts
+    # find everything in place and skip this without touching the network.
+    ensure_bundled_wallpapers(config.data_dir)
     hostname = f'[{args.host}]' if ':' in args.host else args.host
     dashboard_url = args.origin if remote else f"{'https' if args.cert else 'http'}://{hostname}:{args.port}"
     server_config = uvicorn.Config("vela.api:app", host=args.host, port=args.port,

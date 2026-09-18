@@ -8,23 +8,15 @@
 //
 // The same shape as `SettingsProvider`, deliberately: `/apps` still works as a
 // link and a bookmark, and opens the overlay over the desk.
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Launchpad from '../pages/Launchpad.jsx';
 import { launchpadReturnTo } from '../shortcuts.js';
-
-const AppsOverlayContext = createContext(null);
+import { AppsOverlayContext, useAppsOverlay } from './apps-overlay-context.js';
 
 const ROUTE = '/apps';
 
-/** `{ appsOpen, openApps, closeApps, toggleApps }` — no-ops outside a provider. */
-export const useAppsOverlay = () =>
-  useContext(AppsOverlayContext) || {
-    appsOpen: false,
-    openApps: () => {},
-    closeApps: () => {},
-    toggleApps: () => {},
-  };
+export { useAppsOverlay };
 
 export default function AppsOverlayProvider({ children }) {
   const location = useLocation();

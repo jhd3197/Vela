@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { SquaresFour } from '@phosphor-icons/react';
 import AppIcon from '../../components/AppIcon.jsx';
 import { useApps } from '../../store.jsx';
+import useOpenApp from '../../desktops/useOpenApp.js';
 
 // The one secondary line under an app name, from the app's own metadata, or a
 // real exception when the app cannot run here.
@@ -30,7 +31,8 @@ export function TileSkeleton() {
 }
 
 export default function AppsWidget({ cfg = {}, ctx }) {
-  const { apps, openApp, openingId } = useApps();
+  const { apps, openingId } = useApps();
+  const openApp = useOpenApp();
   const loading = apps === null;
   const installed = (apps || []).filter((app) => app.installed);
   // A widget's own setting wins; otherwise the desk's "Show app names" does.

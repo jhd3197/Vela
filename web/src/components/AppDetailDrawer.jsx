@@ -6,6 +6,7 @@ import { X } from '@phosphor-icons/react';
 import { api, isWebApp, isProcessApp } from '../api.js';
 import { useAppStatus, useApps } from '../store.jsx';
 import { useDeveloperTools } from '../developer.js';
+import useOpenApp from '../desktops/useOpenApp.js';
 import AppIcon from './AppIcon.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import AddToHomeScreen from './AddToHomeScreen.jsx';
@@ -85,7 +86,8 @@ function ConnectedAppDetail({ app, onClose }) {
 }
 
 function PackageAppDetail({ app, busy, onAction, onClose }) {
-  const { openApp, openingId, refreshApps } = useApps();
+  const { openingId, refreshApps } = useApps();
+  const openApp = useOpenApp();
   const developer = useDeveloperTools();
   const [upgradeError, setUpgradeError] = useState('');
   const [upgrading, setUpgrading] = useState(false);

@@ -18,7 +18,9 @@ Your server keeps your apps, settings and data in one place, on your own machine
 ![iOS](https://img.shields.io/badge/iOS_PWA-000000?style=for-the-badge&logo=apple&logoColor=white)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.15-8b7ff6.svg?style=flat-square)](CHANGELOG.md)
+[![Latest release](https://img.shields.io/github/v/release/jhd3197/vela?style=flat-square&color=8b7ff6&label=release)](https://github.com/jhd3197/vela/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/jhd3197/vela/total?style=flat-square&color=2ea44f&label=downloads)](https://github.com/jhd3197/vela/releases)
+[![Last release](https://img.shields.io/github/release-date/jhd3197/vela?style=flat-square&label=released)](https://github.com/jhd3197/vela/releases/latest)
 
 [<img src="https://serverkit.ai/badge/install.png" alt="Install in ServerKit" width="240">](#install-with-serverkit)
 
@@ -34,7 +36,7 @@ Your server keeps your apps, settings and data in one place, on your own machine
 
 1. **Download Vela Server** for your computer from [Releases](https://github.com/jhd3197/vela/releases).
 2. **Install and open Vela.** On Windows, run the `windows-x64-setup.exe` download. Portable archives are also available.
-3. **Your dashboard opens in your browser.** Add an app from the Library and start using it.
+3. **Your dashboard opens in your browser.** Add an app from the Marketplace and start using it.
 
 The server download includes everything it needs. No Python, Node.js or Git setup.
 Keep Vela Server running while you use your apps.
@@ -42,6 +44,10 @@ Keep Vela Server running while you use your apps.
 On Windows, Vela runs beside the clock. Its tray menu opens the dashboard,
 starts or stops the server, and lets you turn on **Start at sign in**.
 On macOS/Linux, extract the archive and run `./Vela` in a terminal.
+
+After the first install Vela keeps itself current: **Settings → Updates** notices
+a new release, verifies the download against its published checksum, backs up,
+and installs it, with a way back if you need one.
 
 [Server guide](docs/SERVER.md) · [Build from source](docs/DEVELOPMENT.md)
 
@@ -55,7 +61,6 @@ and keeps your apps and data on a persistent disk.
 Set your HTTPS address and trusted proxy address, retrieve the generated
 password, and configure the domain in ServerKit. Follow the
 [ServerKit setup guide](docs/SERVER.md#serverkit) for the settings and first sign-in.
-Use the `dev` branch until these deployment files are released on `main`.
 
 ## 📲 Your Devices
 
@@ -110,6 +115,13 @@ per-platform config — see the standalone `vela-hello` repository for a legacy 
 or `vela-templates` for a v2 starter). Installed apps live in `~/.vela/` (override with `VELA_DATA_DIR`).
 The full format and REST API are documented in
 [docs/CONTRACT.md](docs/CONTRACT.md).
+
+Apps open in **windows on your desk**. Each window can be moved, resized,
+snapped to a half or minimized into the rail, and every desktop keeps its own set.
+A desktop can also be handed to an **agent**: it gets its own browser on the server
+computer, uses only the apps, websites and files you allow, and stops to ask you
+before it sends anything a website would act on. See the
+[agent desktops guide](docs/AGENT-DESKTOPS.md).
 
 Apps can also be wired together. **Automations** builds a set of steps visually —
 on a schedule, on an authenticated web request, or when you press Run — and Vela

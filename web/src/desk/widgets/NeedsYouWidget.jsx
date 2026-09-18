@@ -10,11 +10,13 @@ import AppIcon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
 import { api } from '../../api.js';
 import { useApps } from '../../store.jsx';
+import useOpenApp from '../../desktops/useOpenApp.js';
 import { useDeskData } from '../DeskDataProvider.jsx';
 import { DeskEmpty, WidgetStatus } from './primitives.jsx';
 
 export default function NeedsYouWidget() {
-  const { apps, openApp, pushToast } = useApps();
+  const { apps, pushToast } = useApps();
+  const openApp = useOpenApp();
   const { data, loaded, refresh } = useDeskData('appWidgets');
   const { data: health } = useDeskData('health');
 

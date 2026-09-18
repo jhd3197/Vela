@@ -34,6 +34,7 @@ export default function WindowFrame({
   selected,
   maximized,
   fixed = false,
+  travel,
   status,
   actions,
   onSelect,
@@ -126,12 +127,19 @@ export default function WindowFrame({
   return (
     <section
       ref={frame}
-      className={`window-frame${selected ? ' is-selected' : ''}${fixed ? ' is-fixed' : ''}`}
+      // `travel` is the window on its way to or from the rail. It is the real
+      // window, not a picture of one — the app inside it is still running and
+      // must not be remounted — so it is moved by transform and takes no
+      // pointer input while it is in flight.
+      className={`window-frame${selected ? ' is-selected' : ''}${fixed ? ' is-fixed' : ''}${
+        travel ? ' is-travelling' : ''
+      }`}
       style={{
         left: `${bounds.x}px`,
         top: `${bounds.y}px`,
         width: `${bounds.width}px`,
         height: `${bounds.height}px`,
+        ...travel,
       }}
       aria-labelledby={titleId}
       onPointerDownCapture={() => onSelect?.()}
