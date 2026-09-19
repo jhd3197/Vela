@@ -95,6 +95,12 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- **Clicking a window no longer restarts the app inside it.** Bringing a window
+  to the front reloaded whatever was running in it: an app lost its place, a
+  half-written note went with it, and anything the app had put on screen
+  disappeared. Which window is in front is remembered separately from where the
+  windows are drawn now, so bringing one forward is only that.
+
 - **Restoring a window plays its motion again.** A window brought back from
   the rail popped in instantly instead of flying out of its icon, because the
   animation's starting position was never painted before the release was
