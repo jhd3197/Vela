@@ -58,7 +58,9 @@ rail, **Esc** backs out of the Launchpad, a menu or a dialog, and **?** (or
 ## Apps open in windows
 
 Opening an app puts it in a **window on your desk**, the way an app on any other
-computer does. Drag its title bar to move it, its edges to resize it, and drag it
+computer does. The frame is up the moment you click — the app's icon holds the
+wait under a sweeping hairline in the title bar, and the app rises into place
+when it answers. Drag its title bar to move it, its edges to resize it, and drag it
 to the left or right edge to snap it to that half. Right-click the title bar for
 the same arranging without a drag. Windows stay where you leave
 them, each desktop keeps its own, and the app keeps running whatever the window

@@ -53,6 +53,9 @@ export default function DesktopViewHost({ views, desktop }) {
   // Unsaved work lives inside the app's frame; the app tells the host about it
   // and the host is what asks before closing.
   const [dirty, setDirty] = useState({});
+  // A cold launch's wait belongs to the window's chrome: the app inside says
+  // it is still starting and the frame draws the hairline and the label.
+  const [busy, setBusy] = useState({});
   const confirm = useConfirm();
   // Which half a drag is currently offering, and the divider position being
   // previewed. Both are local: the person is still deciding.
@@ -263,6 +266,7 @@ export default function DesktopViewHost({ views, desktop }) {
             fixed={fixed}
             travel={travel}
             status={view.available ? null : 'Needs reopening'}
+            busy={Boolean(busy[view.id])}
             onSelect={() => {
               if (layout.selectedView !== view.id) views.select(view.id);
               views.patchView(view.id, { raise: true });
@@ -280,6 +284,7 @@ export default function DesktopViewHost({ views, desktop }) {
                 frameRef={frameFor(view.id)}
                 onDirty={(state) => setDirty((previous) => ({ ...previous, [view.id]: state }))}
                 onDisconnect={() => setDirty((previous) => ({ ...previous, [view.id]: null }))}
+                onBusy={(state) => setBusy((previous) => ({ ...previous, [view.id]: state }))}
               />
             ) : view.kind === 'agent' ? (
               // Owner chrome in a window, not an app. Nothing in the agent's

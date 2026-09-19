@@ -233,6 +233,20 @@
   box-shadow:
     0 18px 48px rgba(var(--scrim-rgb), 0.34),
     inset 0 0 0 1px var(--border);
+  /* The frame is up in 220 ms whether or not the app has answered, so the
+     click feels received immediately. */
+  animation: window-enter 220ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes window-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* A window on its way to or from the rail. It is the live window, moved by
@@ -245,6 +259,9 @@
   pointer-events: none;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
+  /* The motion owns the transform while the window is in flight; the entrance
+     would fight it. */
+  animation: none;
 }
 
 /* Reduced motion never reaches this — the lifecycle settles without drawing —
@@ -263,6 +280,7 @@
 .window-bar {
   flex: none;
   height: 38px;
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -352,6 +370,38 @@
   white-space: normal;
 }
 
+/* The hairline that owns a cold launch's wait: a sweep travelling under the
+   bar until the app answers. It never pretends to measure progress it does
+   not have. */
+.window-busy-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.window-busy-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--cyan), transparent);
+  animation: window-busy-sweep 1s cubic-bezier(0.3, 0.7, 0.2, 1) infinite;
+}
+
+@keyframes window-busy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
 .window-body {
   position: relative;
   flex: 1 1 auto;
@@ -382,41 +432,59 @@
 
 .window-state-over {
   /* A solid ground over the app frame, not a dimmed peek at a half-loaded
-     page. */
+     page. The delay is the skip: an app that answers inside it never shows a
+     loading state at all — the window opens straight into content. */
   background: var(--bg);
+  animation: window-overlay-in 160ms ease-out both 180ms;
 }
 
-/* The starting state: the app's own identity while its workspace loads. The
-   halo and the ring are decoration, and reduced motion stills them through
-   the global rule. */
+/* Content arrived: one beat for the icon to leave while the app rises into
+   place, then the overlay is gone. */
+.window-state-over.is-leaving {
+  animation: window-overlay-out 220ms ease-in both;
+}
+
+@keyframes window-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes window-overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The app itself rising in, the other half of the handoff. */
+.window-frame-app.is-revealed {
+  animation: window-content-rise 360ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes window-content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The starting state: nothing but the app's own icon owns the wait — no
+   skeleton rows to mistake for content. The pulse is decoration, and reduced
+   motion stills it through the global rule. */
 .window-starting-icon {
-  position: relative;
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 72px;
 }
 
-.window-starting-icon::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.window-starting-icon.is-waiting::before {
-  animation: window-starting-pulse 1.6s ease-in-out infinite;
-}
-
-.window-starting-icon.is-waiting::after {
-  content: '';
-  position: absolute;
-  inset: -9px;
-  border-radius: 50%;
-  border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent);
-  border-top-color: var(--accent);
-  animation: window-starting-spin 0.9s linear infinite;
+.window-starting-icon.is-waiting {
+  animation: window-starting-pulse 820ms ease-in-out infinite;
 }
 
 .window-starting-title {
@@ -430,21 +498,15 @@
   color: var(--text-dim);
 }
 
-@keyframes window-starting-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @keyframes window-starting-pulse {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 0.65;
+    opacity: 0.6;
+    transform: scale(0.94);
   }
   50% {
-    transform: scale(1.08);
     opacity: 1;
+    transform: scale(1.03);
   }
 }
 

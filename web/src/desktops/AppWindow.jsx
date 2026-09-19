@@ -13,7 +13,10 @@ import useAppFrame from './view-lifecycle.js';
 /** How long the starting state waits before saying so, as the full page does. */
 const STARTING_TIMEOUT_MS = 10000;
 
-export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
+/** The handoff: the icon's beat to leave while the real content rises. */
+const HANDOFF_MS = 240;
+
+export default function AppWindow({ view, frameRef, onDirty, onDisconnect, onBusy }) {
   const { apps } = useApps();
   const summary = apps?.find((item) => item.id === view.appId);
   // Reload starts the session, the bridge and the frame over from nothing —
@@ -48,12 +51,13 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
       frameRef={frameRef}
       onDirty={onDirty}
       onDisconnect={onDisconnect}
+      onBusy={onBusy}
       onReload={() => setAttempt((value) => value + 1)}
     />
   );
 }
 
-function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onReload }) {
+function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBusy, onReload }) {
   const { status } = useAppStatus(view.appId);
   const app = { ...summary, ...status };
   const isolated = summary.schemaVersion === 2;
@@ -128,6 +132,26 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onRe
     return () => clearTimeout(timer);
   }, [starting]);
 
+  // The bar owns the wait: the hairline and the "Opening…" label live there,
+  // reported up so the frame can draw them. A stall stops the sweep.
+  useEffect(() => {
+    onBusy?.(starting && !timedOut);
+    return () => onBusy?.(false);
+  }, [starting, timedOut, onBusy]);
+
+  // When the app arrives, the icon gets one beat to leave while the content
+  // rises — then the overlay is gone rather than snapped away mid-frame.
+  const [departed, setDeparted] = useState(false);
+  useEffect(() => {
+    if (starting) {
+      setDeparted(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setDeparted(true), HANDOFF_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
+  const overlay = starting || !departed;
+
   if (!running) {
     return (
       <div className="window-state" role="status">
@@ -145,7 +169,7 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onRe
       <iframe
         key={session?.token || app.url}
         ref={frameRef}
-        className="window-frame-app"
+        className={`window-frame-app${starting ? '' : ' is-revealed'}`}
         src={app.url}
         title={app.name}
         // The same sandbox the full-screen page uses. Making the frame
@@ -156,10 +180,16 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onRe
         onLoad={onLoad}
         onError={() => setError('The app could not load. Your Vela controls are still available.')}
       />
-      {starting ? (
-        <div className="window-state window-state-over window-starting" role="status">
-          <span className={`window-starting-icon${timedOut ? '' : ' is-waiting'}`}>
-            <AppIcon app={app} size={52} />
+      {overlay ? (
+        <div
+          className={`window-state window-state-over window-starting${starting ? '' : ' is-leaving'}`}
+          role="status"
+        >
+          {/* Nothing but the app's own icon owns the wait — no skeleton rows
+              to mistake for content. Text appears only when there is something
+              to say: the wait ran long, and here is the way out. */}
+          <span className={`window-starting-icon${timedOut || !starting ? '' : ' is-waiting'}`}>
+            <AppIcon app={app} size={64} />
           </span>
           {timedOut ? (
             <>
@@ -169,12 +199,7 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onRe
                 Reload
               </button>
             </>
-          ) : (
-            <>
-              <p className="window-starting-title">Opening {app.name}…</p>
-              <p className="window-starting-sub">Loading its workspace</p>
-            </>
-          )}
+          ) : null}
         </div>
       ) : null}
       {error ? (

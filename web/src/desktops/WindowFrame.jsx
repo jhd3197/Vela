@@ -36,6 +36,7 @@ export default function WindowFrame({
   fixed = false,
   travel,
   status,
+  busy = false,
   actions,
   onSelect,
   onMove,
@@ -181,7 +182,7 @@ export default function WindowFrame({
         <h2 className="window-title" id={titleId}>
           {title}
         </h2>
-        {status ? <span className="window-status">{status}</span> : null}
+        {status || busy ? <span className="window-status">{status || 'Opening…'}</span> : null}
         <div className="window-controls">
           {/* Three buttons at rest: minimize, maximize, close. The menu is the
               fourth control only for somebody who reaches for it — by keyboard,
@@ -231,6 +232,10 @@ export default function WindowFrame({
             <X size={14} weight="bold" aria-hidden="true" />
           </button>
         </div>
+        {/* The wait for a cold launch belongs to the chrome, not the content:
+            a hairline sweeping under the bar says the click was received while
+            the body shows nothing but the app's own icon. */}
+        {busy ? <span className="window-busy-bar" aria-hidden="true" /> : null}
       </header>
       <div className="window-body" style={gesturing ? { pointerEvents: 'none' } : undefined}>
         {children}

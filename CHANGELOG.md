@@ -18,6 +18,14 @@ until the release workflow prepares a tested server version.
   rest; `--backend-port`/`--frontend-port` pin ports, which default to 7700
   and 5173 and move aside when busy.
 
+- **A launch animation for opening an app.** The window frame lands the
+  moment you click — 220 ms, whether or not the app has answered — with the
+  app's name and an "Opening…" label in the title bar and a hairline sweeping
+  underneath it. The body shows nothing but the app's own icon, gently
+  pulsing: no skeleton rows to mistake for content. When the app answers, the
+  icon hands off and the real content rises into place; an app that answers
+  immediately skips the waiting state entirely.
+
 ### Changed
 
 - **Window title bars show three buttons.** Minimize, maximize and close are
