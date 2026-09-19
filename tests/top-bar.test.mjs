@@ -208,9 +208,24 @@ describe('what an app may put in the bar', () => {
       { id: 'c', title: 'z'.repeat(MAX_TITLE), label: 'cccc' },
     ]);
     assert.equal(fat, null, 'three full items still fit inside the cap');
-    const over = refused([{ id: 'a', label: 'x', title: 'y'.repeat(MAX_TITLE) }, { id: 'b', label: 'x', title: 'z'.repeat(MAX_TITLE) }, { id: 'c', label: 'x', title: 'w'.repeat(MAX_TITLE) }, { id: 'd', label: 'x' }]);
+    const over = refused([
+      { id: 'a', label: 'x', title: 'y'.repeat(MAX_TITLE) },
+      { id: 'b', label: 'x', title: 'z'.repeat(MAX_TITLE) },
+      { id: 'c', label: 'x', title: 'w'.repeat(MAX_TITLE) },
+      { id: 'd', label: 'x' },
+    ]);
     assert.ok(over, 'a fourth item is refused whatever it weighs');
-    assert.ok(MAX_BYTES > 0);
+  });
+
+  test('the size cap counts bytes, which is what it says', () => {
+    // Three items inside every other limit, written in a character that takes
+    // two bytes. Counted as characters this list fits; counted as the contract
+    // actually promises it does not, and a cap that let it through would be a
+    // cap in name only.
+    const wide = ['a', 'b', 'c'].map((id) => ({ id, label: 'xx', title: '°'.repeat(MAX_TITLE) }));
+    assert.ok(JSON.stringify(wide).length < MAX_BYTES, 'it fits if you count characters');
+    assert.ok(new TextEncoder().encode(JSON.stringify(wide)).length > MAX_BYTES, 'and not bytes');
+    assert.equal(refused(wide).status, 413);
   });
 
   test('an icon is chosen from the set, never supplied', () => {

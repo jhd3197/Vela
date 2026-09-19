@@ -86,7 +86,10 @@ export function validateItems(value) {
   } catch {
     throw refuse('Top bar items must be plain JSON');
   }
-  if (encoded.length > MAX_BYTES) {
+  // Bytes, not characters: a label of degree signs and a label of letters take
+  // different room, and the contract says bytes. `TextEncoder` is UTF-8 in
+  // every browser and in Node, which is what the engine's own caps count.
+  if (new TextEncoder().encode(encoded).length > MAX_BYTES) {
     throw refuse(`Top bar items are at most ${MAX_BYTES} bytes`, 413);
   }
 
