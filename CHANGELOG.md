@@ -25,6 +25,12 @@ until the release workflow prepares a tested server version.
   panes, leave split view — now opens with a right-click on the title bar, or
   from the keyboard: tabbing into the window's controls reveals its trigger.
 
+- **A window's starting state looks like one.** While an app loads, its window
+  shows the app's icon with a progress ring and what it is doing, on a solid
+  ground rather than a dimmed peek at a half-loaded page. If the app never
+  gets there, the window says so after ten seconds and offers Reload — the
+  same bargain the full-screen app page makes.
+
 ### Fixed
 
 - **Restoring a window plays its motion again.** A window brought back from
@@ -49,6 +55,12 @@ until the release workflow prepares a tested server version.
   shorter than 240 px with a 422, so moves of a short window were never
   saved — the viewer allows windows down to 160 px tall, and the server now
   matches it per axis instead of using one minimum for both.
+
+- **Windows no longer wait forever on "Starting…".** A legacy app has no
+  bridge to answer with, so the ready signal the window waited for could
+  never arrive and the starting state stayed up over a fully loaded app. The
+  window now waits only for what the app can actually send: the frame's own
+  load event for a legacy app, the bridge's ready for an isolated one.
 
 ## 0.1.18 - 2026-09-18
 

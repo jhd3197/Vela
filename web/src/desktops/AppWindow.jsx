@@ -4,20 +4,61 @@
 // iframe and the same bridge the full-screen app page uses, through the same
 // `useAppFrame`. The only things that differ are the chrome and the fact that
 // this one can be minimized without ending anything.
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { useApps, useAppStatus } from '../store.jsx';
 import useAppFrame from './view-lifecycle.js';
 
+/** How long the starting state waits before saying so, as the full page does. */
+const STARTING_TIMEOUT_MS = 10000;
+
 export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
   const { apps } = useApps();
-  const { status } = useAppStatus(view.appId);
   const summary = apps?.find((item) => item.id === view.appId);
-  const app = summary && { ...summary, ...status };
-  const isolated = summary?.schemaVersion === 2;
-  const surface = summary?.view?.surface || 'embedded';
-  const running = Boolean(app?.running && app?.url && surface === 'embedded' && view.available);
+  // Reload starts the session, the bridge and the frame over from nothing —
+  // the same thing the full page's retry does by remounting its workspace.
+  const [attempt, setAttempt] = useState(0);
+
+  if (!view.available) {
+    return (
+      <div className="window-state" role="status">
+        <p>
+          {view.unavailableReason === 'reinstalled'
+            ? 'This app was reinstalled. Open it again to use this window.'
+            : 'This app is no longer installed.'}
+        </p>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="window-state" role="status">
+        <p>Looking for this app…</p>
+      </div>
+    );
+  }
+
+  return (
+    <AppWindowContent
+      key={attempt}
+      view={view}
+      summary={summary}
+      frameRef={frameRef}
+      onDirty={onDirty}
+      onDisconnect={onDisconnect}
+      onReload={() => setAttempt((value) => value + 1)}
+    />
+  );
+}
+
+function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onReload }) {
+  const { status } = useAppStatus(view.appId);
+  const app = { ...summary, ...status };
+  const isolated = summary.schemaVersion === 2;
+  const surface = summary.view?.surface || 'embedded';
+  const running = Boolean(app.running && app.url && surface === 'embedded' && view.available);
   const [loaded, setLoaded] = useState(false);
 
   // The context a window sends is smaller than the page's: a window has no
@@ -69,25 +110,23 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
     [isolated, disconnect, onDisconnect, setError],
   );
 
-  if (!view.available) {
-    return (
-      <div className="window-state" role="status">
-        <p>
-          {view.unavailableReason === 'reinstalled'
-            ? 'This app was reinstalled. Open it again to use this window.'
-            : 'This app is no longer installed.'}
-        </p>
-      </div>
-    );
-  }
+  // What "still starting" means depends on the app. An isolated app answers
+  // `vela:ready` over its bridge; a legacy frame has no bridge to answer with,
+  // so its own load event is all there is to wait for. Waiting for a ready
+  // that can never come is how the starting state used to stay up forever.
+  const starting = running && !error && (isolated ? !ready || !loaded : !loaded);
 
-  if (!app) {
-    return (
-      <div className="window-state" role="status">
-        <p>Looking for this app…</p>
-      </div>
-    );
-  }
+  // If the app never gets there, say so and offer a way out rather than
+  // spinning forever — the same bargain the full page makes.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!starting) {
+      setTimedOut(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setTimedOut(true), STARTING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
 
   if (!running) {
     return (
@@ -117,15 +156,34 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
         onLoad={onLoad}
         onError={() => setError('The app could not load. Your Vela controls are still available.')}
       />
-      {(!ready || !loaded) && !error ? (
-        <div className="window-state window-state-over" role="status">
-          <AppIcon app={app} size={40} />
-          <p>Starting {app.name}…</p>
+      {starting ? (
+        <div className="window-state window-state-over window-starting" role="status">
+          <span className={`window-starting-icon${timedOut ? '' : ' is-waiting'}`}>
+            <AppIcon app={app} size={52} />
+          </span>
+          {timedOut ? (
+            <>
+              <p className="window-starting-title">This app did not respond</p>
+              <p className="window-starting-sub">{app.name} has not finished loading.</p>
+              <button type="button" className="btn btn-primary" onClick={onReload}>
+                Reload
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="window-starting-title">Opening {app.name}…</p>
+              <p className="window-starting-sub">Loading its workspace</p>
+            </>
+          )}
         </div>
       ) : null}
       {error ? (
         <div className="window-state window-state-over" role="alert">
-          <p>{error}</p>
+          <p className="window-starting-title">Couldn’t open the app</p>
+          <p className="window-starting-sub">{error}</p>
+          <button type="button" className="btn" onClick={onReload}>
+            Retry
+          </button>
         </div>
       ) : null}
     </>

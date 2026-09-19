@@ -381,7 +381,71 @@
 }
 
 .window-state-over {
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* A solid ground over the app frame, not a dimmed peek at a half-loaded
+     page. */
+  background: var(--bg);
+}
+
+/* The starting state: the app's own identity while its workspace loads. The
+   halo and the ring are decoration, and reduced motion stills them through
+   the global rule. */
+.window-starting-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+}
+
+.window-starting-icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.window-starting-icon.is-waiting::before {
+  animation: window-starting-pulse 1.6s ease-in-out infinite;
+}
+
+.window-starting-icon.is-waiting::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: window-starting-spin 0.9s linear infinite;
+}
+
+.window-starting-title {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.window-starting-sub {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+@keyframes window-starting-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes window-starting-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
 }
 
 /* The grips are invisible; what they do is give the edges a few pixels of
