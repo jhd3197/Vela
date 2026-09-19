@@ -70,6 +70,13 @@ until the release workflow prepares a tested server version.
   window now waits only for what the app can actually send: the frame's own
   load event for a legacy app, the bridge's ready for an isolated one.
 
+- **Opening an app no longer flashes the app before its loading state.** A
+  fast frame painted before the waiting state appeared, was covered, then
+  shown again. The frame stays hidden until the app answers, and the loading
+  state renders only once the wait has actually lasted a moment — a fast app
+  opens straight into content, a slow one shows only the icon and the
+  hairline in between.
+
 ## 0.1.18 - 2026-09-18
 
 No additional release notes were provided.

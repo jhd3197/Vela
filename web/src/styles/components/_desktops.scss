@@ -416,6 +416,13 @@
   display: block;
 }
 
+/* Hidden until the app answers — an app shown early and covered a beat later
+   is the flash the grace period exists to prevent. It still loads and runs:
+   this is paint, not lifetime. */
+.window-frame-app:not(.is-revealed) {
+  opacity: 0;
+}
+
 .window-state {
   position: absolute;
   inset: 0;
@@ -432,10 +439,10 @@
 
 .window-state-over {
   /* A solid ground over the app frame, not a dimmed peek at a half-loaded
-     page. The delay is the skip: an app that answers inside it never shows a
-     loading state at all — the window opens straight into content. */
+     page. It renders only once the wait has outlasted the grace period, so
+     it never needs a delay of its own. */
   background: var(--bg);
-  animation: window-overlay-in 160ms ease-out both 180ms;
+  animation: window-overlay-in 160ms ease-out both;
 }
 
 /* Content arrived: one beat for the icon to leave while the app rises into

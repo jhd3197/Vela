@@ -16,6 +16,9 @@ const STARTING_TIMEOUT_MS = 10000;
 /** The handoff: the icon's beat to leave while the real content rises. */
 const HANDOFF_MS = 240;
 
+/** How long a wait may be before the loading state renders at all. */
+const OVERLAY_GRACE_MS = 200;
+
 export default function AppWindow({ view, frameRef, onDirty, onDisconnect, onBusy }) {
   const { apps } = useApps();
   const summary = apps?.find((item) => item.id === view.appId);
@@ -150,7 +153,19 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBu
     const timer = setTimeout(() => setDeparted(true), HANDOFF_MS);
     return () => clearTimeout(timer);
   }, [starting]);
-  const overlay = starting || !departed;
+
+  // The skip, honestly: the frame underneath is hidden until the app answers,
+  // and the loading state only renders at all once the wait has lasted a
+  // moment. An app that answers inside the grace period opens straight into
+  // content — showing it early and covering it a beat later is the flash this
+  // replaces.
+  const [showOverlay, setShowOverlay] = useState(false);
+  useEffect(() => {
+    if (!starting) return undefined;
+    const timer = setTimeout(() => setShowOverlay(true), OVERLAY_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
+  const overlay = showOverlay && (starting || !departed);
 
   if (!running) {
     return (
