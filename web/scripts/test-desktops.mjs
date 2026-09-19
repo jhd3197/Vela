@@ -431,7 +431,7 @@ try {
   // Maximize fills the work area and leaves the rail reachable.
   const floating = await page.locator('.window-frame').boundingBox();
   await window.getByRole('button', { name: /^Maximize / }).click();
-  await page.locator('.window-frame[class*="is-fixed"]').waitFor();
+  await page.locator('.window-frame[class*="is-placed"]').waitFor();
   const filled = await page.locator('.window-frame').boundingBox();
   assert.ok(filled.width > floating.width, 'maximizing makes it bigger');
   assert.ok(await page.locator('.rail').isVisible(), 'and the rail is still there');

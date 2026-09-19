@@ -300,11 +300,14 @@
   touch-action: none;
 }
 
-.window-frame:not(.is-fixed) .window-bar {
+/* `is-placed` is the arrangement holding this window, not the app declaring a
+   fixed size: a fixed-size window is still one you pick up and move, so it
+   keeps the grab cursor. */
+.window-frame:not(.is-placed) .window-bar {
   cursor: grab;
 }
 
-.window-frame:not(.is-fixed) .window-bar:active {
+.window-frame:not(.is-placed) .window-bar:active {
   cursor: grabbing;
 }
 

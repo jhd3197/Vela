@@ -164,7 +164,7 @@ export default function WindowFrame({
       // window, not a picture of one — the app inside it is still running and
       // must not be remounted — so it is moved by transform and takes no
       // pointer input while it is in flight.
-      className={`window-frame${selected ? ' is-selected' : ''}${placed ? ' is-fixed' : ''}${
+      className={`window-frame${selected ? ' is-selected' : ''}${placed ? ' is-placed' : ''}${
         travel ? ' is-travelling' : ''
       }`}
       style={{
