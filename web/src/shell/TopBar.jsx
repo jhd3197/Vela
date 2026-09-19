@@ -99,16 +99,25 @@ function useMinute() {
   return now;
 }
 
-/** One published item: a mark, a word, or both, and a tooltip. */
-function StatusItem({ item, onOpen }) {
+/**
+ * One published item: a mark, a word, or both.
+ *
+ * Whose it is is part of it. There is no room in a 36-pixel strip to write an
+ * app's name beside a temperature, so it goes in the tooltip and in the
+ * accessible name instead — a thing in somebody's menu bar should never be
+ * anonymous, which is the same rule the desk's widgets follow.
+ */
+function StatusItem({ item, appName, onOpen }) {
   const Icon = item.icon ? ICONS[item.icon] : null;
   const tone = item.tone && item.tone !== 'neutral' ? ` is-${item.tone}` : '';
+  const said = item.title || item.label || '';
+  const name = appName || item.appId;
   return (
     <button
       type="button"
       className={`topbar-status${tone}`}
-      title={item.title || undefined}
-      aria-label={item.title || item.label || item.appId}
+      title={said ? `${name}: ${said}` : name}
+      aria-label={said ? `${name}: ${said}` : name}
       onClick={() => onOpen(item)}
     >
       {Icon ? <Icon size={15} aria-hidden="true" /> : null}
@@ -236,7 +245,12 @@ export default function TopBar() {
         {items.length ? (
           <div className="topbar-statuses">
             {items.map((item) => (
-              <StatusItem key={`${item.viewId}:${item.id}`} item={item} onOpen={raise} />
+              <StatusItem
+                key={`${item.viewId}:${item.id}`}
+                item={item}
+                appName={apps?.find((entry) => entry.id === item.appId)?.name}
+                onOpen={raise}
+              />
             ))}
           </div>
         ) : null}

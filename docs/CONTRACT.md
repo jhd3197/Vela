@@ -632,6 +632,12 @@ item raises the window of the app that published it, and does nothing else —
 not a link, not an action. An item published from an app's full-screen page has
 no window to raise, so clicking it does nothing at all.
 
+An item is never anonymous. There is no room in a 36-pixel strip to write an
+app's name beside a temperature, so the host puts it in the tooltip and in the
+accessible name instead: `Weather: Oslo, feels like -9`. A person can always
+find out what put something in their menu bar, which is the same rule desk
+widgets follow.
+
 | Operation | Authorization / behavior |
 | --------- | ------------------------ |
 | `topbar.publish` (bridge) | App session with the `topbar` grant; 403 without it, 422 for an unknown field, an unlisted icon or tone, a duplicate id or an over-length string, 413 over 1024 bytes |

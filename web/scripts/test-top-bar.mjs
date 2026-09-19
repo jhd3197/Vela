@@ -252,7 +252,11 @@ try {
       timeout: 15000,
     },
   );
-  assert.deepEqual(await statusItems(page), ['Oslo, feels like -9']);
+  assert.deepEqual(
+    await statusItems(page),
+    ['Weather: Oslo, feels like -9'],
+    'an item in somebody’s menu bar says which app put it there',
+  );
   const drawn = await page
     .locator('.topbar-status')
     .first()
