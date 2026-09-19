@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,10 @@ def load_config() -> Config:
     return config
 
 
+#: How long a swap retries a Windows PermissionError before giving up.
+_REPLACE_RETRY_SECONDS = 2.0
+
+
 def write_json_atomic(path: Path, data: Any) -> None:
     """Write JSON so a crash mid-write cannot lose the previous good file.
 
@@ -117,6 +122,15 @@ def write_json_atomic(path: Path, data: Any) -> None:
     that is about to be replaced is kept as `<name>.bak`, but only when it
     still parses: a `.bak` is only worth having if it is something the doctor's
     `settings` repair can put back.
+
+    The swap retries briefly on Windows, the same way `package_files.replace_dir`
+    does and for the same reason: a virus scanner or the search indexer can still
+    hold a handle on a file written moments ago, and `os.replace` then fails with
+    `PermissionError` although nothing is wrong. Every setting, every app's run
+    state and every managed service record goes through here, so failing the
+    write the user asked for over a handle that is about to be released is the
+    wrong answer -- and it is a failure that has shown up, intermittently, as
+    settings and usage writes.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file():
@@ -133,4 +147,12 @@ def write_json_atomic(path: Path, data: Any) -> None:
                 pass
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    deadline = time.monotonic() + _REPLACE_RETRY_SECONDS
+    while True:
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)

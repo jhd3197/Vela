@@ -19,6 +19,7 @@ from unittest import mock
 import test_app_contract as base
 from fastapi.testclient import TestClient
 from vela.api import create_app
+from vela import config as config_module
 from vela.config import Config, write_json_atomic
 from vela.doctor import FAIL, OK, SKIPPED, WARN, Doctor, summarise
 from vela.notify import NotifyScheduler
@@ -31,6 +32,45 @@ def _config(root: Path) -> Config:
     config = Config(root / "data", root / "catalog", ROOT / "web/dist")
     config.ensure_dirs()
     return config
+
+
+class AtomicWriteTests(unittest.TestCase):
+    """The one write every setting, run state and service record goes through."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="vela-atomic-")
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "value.json"
+
+    def test_a_held_handle_is_waited_out_rather_than_failed(self):
+        """On Windows a scanner can hold a file written a moment ago.
+
+        `os.replace` then raises `PermissionError` although nothing is wrong,
+        and failing the write the user asked for is the wrong answer. Two
+        refusals then success is what a released handle looks like.
+        """
+        write_json_atomic(self.path, {"first": True})
+        real = Path.replace
+        attempts = []
+
+        def flaky(self, target):
+            attempts.append(target)
+            if len(attempts) < 3:
+                raise PermissionError(5, "Access is denied")
+            return real(self, target)
+
+        with mock.patch.object(Path, "replace", flaky):
+            write_json_atomic(self.path, {"second": True})
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), {"second": True})
+
+    def test_a_handle_that_is_never_released_still_fails(self):
+        """Retrying is patience, not pretending. It gives up and says so."""
+        write_json_atomic(self.path, {"first": True})
+        with mock.patch.object(config_module, "_REPLACE_RETRY_SECONDS", 0.2),                 mock.patch.object(Path, "replace", side_effect=PermissionError(5, "denied")):
+            with self.assertRaises(PermissionError):
+                write_json_atomic(self.path, {"second": True})
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), {"first": True})
 
 
 class RegistryTests(unittest.TestCase):
