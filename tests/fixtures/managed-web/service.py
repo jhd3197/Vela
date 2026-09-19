@@ -8,9 +8,12 @@ recovery code can be tested against real behaviour instead of a mock.
 
 What it does on purpose, because each one is something the gateway has to carry:
 
-* signs in with a password and answers with **both** a bearer token and a
-  cookie, and reports back exactly which credentials it received -- which is how
+* signs in with a password and answers with **both** a bearer token and
+  cookies, and reports back exactly which credentials it received -- which is how
   a test proves Vela's own never arrive;
+* sets one session cookie a browser will send inside a Vela window
+  (`SameSite=None`) and one it will not (`SameSite=Lax`), because that
+  difference decides whether a real application can be used in a window at all;
 * sets several cookies in one response, one of them with a `Domain` attribute
   and one with a name the gateway reserves;
 * stores notes in SQLite with a write-ahead log, and attachments as files, so a
@@ -173,9 +176,10 @@ class Handler(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             return STATE["tokens"].get(auth[7:])  # type: ignore[union-attr]
-        cookie = self._cookies().get("fixture_session")
-        if cookie:
-            return STATE["sessions"].get(cookie)  # type: ignore[union-attr]
+        jar = self._cookies()
+        for name in ("fixture_session", "fixture_plain", "fixture_lax"):
+            if name in jar:
+                return STATE["sessions"].get(jar[name])  # type: ignore[union-attr]
         return None
 
     # ---------------------------------------------------------------- routing --
@@ -223,11 +227,30 @@ class Handler(BaseHTTPRequestHandler):
             session = secrets.token_urlsafe(16)
             STATE["tokens"][token] = USER  # type: ignore[index]
             STATE["sessions"][session] = USER  # type: ignore[index]
+            # Three session cookies on purpose, because three different things
+            # need proving and no one cookie can prove them all:
+            #
+            # `fixture_session` says `SameSite=None; Secure`, which is what an
+            # application has to say to stay signed in inside a Vela window --
+            # the window frames it cross-site, and a browser sends nothing
+            # weaker there. The browser suite checks that one.
+            #
+            # `fixture_lax` is the other kind of application, kept so a test can
+            # show it does *not* reach a framed app and that Vela passed its
+            # policy through rather than rewriting it.
+            #
+            # `fixture_plain` carries no `Secure`, because `httpx` -- which the
+            # Python suite uses -- will not store a `Secure` cookie over plain
+            # HTTP however trustworthy the origin is. It is how those tests
+            # exercise cookie-only authentication at all.
             return self._json(
                 200,
                 {"token": token, "user": USER},
                 headers=[
-                    ("Set-Cookie", f"fixture_session={session}; Path=/; HttpOnly; SameSite=Lax"),
+                    ("Set-Cookie",
+                     f"fixture_session={session}; Path=/; HttpOnly; SameSite=None; Secure"),
+                    ("Set-Cookie", f"fixture_lax={session}; Path=/; HttpOnly; SameSite=Lax"),
+                    ("Set-Cookie", f"fixture_plain={session}; Path=/; HttpOnly"),
                     ("Set-Cookie", "fixture_refresh=r1; Path=/api; HttpOnly"),
                 ],
             )

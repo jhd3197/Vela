@@ -125,15 +125,40 @@ class LaunchExchangeTests(ManagedTestCase):
         response = self.client.get(ticket["url"], follow_redirects=False)
         self.assertEqual(response.status_code, 403, response.text)
 
-    def test_a_launch_link_cannot_be_fetched_as_a_subresource(self):
-        """A ticket in an `<img src>` is not somebody choosing to open an app."""
+    def test_a_launch_link_can_only_be_spent_by_going_there(self):
+        """Found in a real browser: a sibling app's `fetch` had spent a ticket.
+
+        `<app>.apps.localhost` names are same-site, so `SameSite` does not keep
+        one app's page from calling another's launch link, and a blocked CORS
+        response is still a request that arrived. A ticket in an `<img src>` is
+        the same shape of mistake. Only a navigation counts.
+        """
+        for dest, mode in (("image", "no-cors"), ("empty", "cors"),
+                           ("empty", "same-origin"), ("script", "no-cors")):
+            with self.subTest(dest=dest, mode=mode):
+                ticket = self.open_ticket()
+                refused = self.client.get(
+                    ticket["url"],
+                    headers={"Sec-Fetch-Dest": dest, "Sec-Fetch-Mode": mode},
+                    follow_redirects=False,
+                )
+                self.assertEqual(refused.status_code, 400, refused.text)
+                # And the ticket it refused is still good for a real visit.
+                used = self.client.get(
+                    ticket["url"],
+                    headers={"Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(used.status_code, 303, used.text)
+
+    def test_a_window_frame_may_spend_one_too(self):
         ticket = self.open_ticket()
         response = self.client.get(
             ticket["url"],
-            headers={"Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"},
+            headers={"Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate"},
             follow_redirects=False,
         )
-        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(response.status_code, 303, response.text)
 
     def test_a_ticket_carries_a_deep_link_and_normalises_a_hostile_one(self):
         response = self.enter(path="/api/deep/one/two?x=1")
@@ -157,6 +182,10 @@ class LaunchExchangeTests(ManagedTestCase):
         self.assertIn("HttpOnly", raw)
         self.assertIn("Secure", raw)
         self.assertIn("Path=/", raw)
+        # `None`, because a Vela window frames the app cross-site and a browser
+        # will not set a `Lax` cookie from one. What `Lax` would have protected
+        # is done at the gateway instead, and more thoroughly.
+        self.assertIn("SameSite=None", raw)
 
     def test_a_session_cookie_without_the_host_prefix_is_not_a_session(self):
         self.enter()
@@ -196,10 +225,13 @@ class CredentialTests(RunningAppTestCase):
     def test_the_apps_own_bearer_and_cookies_do_reach_it(self):
         token = self.sign_in()
         self.assertEqual(self.app_get("/api/me", headers=token).json()["user"], "tester")
-        # And the cookie the app set on sign-in comes back on its own.
+        # And a cookie the app set on sign-in comes back on its own. Which one
+        # depends on the client: `httpx` keeps only the cookie without `Secure`,
+        # so a browser is what proves the `SameSite=None; Secure` path, in
+        # `web/scripts/test-managed-apps.mjs`.
         self.assertEqual(self.app_get("/api/me").json()["user"], "tester")
         received = self.app_get("/api/received", headers=token).json()
-        self.assertIn("fixture_session", received["cookies"])
+        self.assertIn("fixture_plain", received["cookies"])
         self.assertEqual(received["headers"]["authorization"], token["Authorization"])
 
     def test_several_cookies_survive_one_response_and_lose_their_domain(self):
@@ -228,14 +260,46 @@ class CredentialTests(RunningAppTestCase):
         stranger = self.app_get("/api/me", client=other)
         self.assertEqual(stranger.status_code, 401, stranger.text)
 
-    def test_a_cross_origin_write_is_refused_because_siblings_are_same_site(self):
-        response = self.client.post(
-            APP_ORIGIN + "/api/notes",
-            json={"body": "from next door"},
-            headers={"Sec-Fetch-Site": "same-site", "Origin": "http://other.apps.localhost"},
-        )
-        self.assertEqual(response.status_code, 403, response.text)
-        self.assertEqual(response.json()["code"], "managed.cross_origin")
+    def test_only_the_apps_own_pages_may_use_it(self):
+        """The CSRF boundary is here, not on the cookie.
+
+        `SameSite` cannot be it. Sibling apps share a registrable domain, so it
+        never separated them, and a browser refuses to set a `Lax` cookie in the
+        cross-site frame a Vela window is -- which is how the window would break.
+        The check is stronger than `Lax` was: a cross-site `GET` for a
+        subresource is refused too, where `Lax` covered only unsafe methods.
+        """
+        cases = [
+            ("a sibling app posting", "POST", "/api/notes",
+             {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "cors",
+              "Sec-Fetch-Dest": "empty", "Origin": "http://other.apps.localhost"}),
+            ("another site posting", "POST", "/api/notes",
+             {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors",
+              "Sec-Fetch-Dest": "empty", "Origin": "http://evil.test"}),
+            ("another site loading an image", "GET", "/api/files/x",
+             {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors",
+              "Sec-Fetch-Dest": "image"}),
+            ("another site reading with a script", "GET", "/api/notes",
+             {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors",
+              "Sec-Fetch-Dest": "empty", "Origin": "http://evil.test"}),
+        ]
+        for label, method, path, headers in cases:
+            with self.subTest(case=label):
+                response = self.client.request(
+                    method, APP_ORIGIN + path, headers=headers, json={"body": "no"}
+                )
+                self.assertEqual(response.status_code, 403, response.text)
+                self.assertEqual(response.json()["code"], "managed.cross_origin")
+
+    def test_arriving_from_elsewhere_is_allowed_because_that_is_how_you_open_it(self):
+        """A Vela window frames the app cross-site; a tab visits it cross-site."""
+        for dest in ("document", "iframe"):
+            with self.subTest(dest=dest):
+                response = self.app_get("/", headers={
+                    "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Dest": dest,
+                })
+                self.assertEqual(response.status_code, 200, response.text)
 
     def test_a_write_from_the_apps_own_pages_is_allowed(self):
         token = self.sign_in()
@@ -245,6 +309,19 @@ class CredentialTests(RunningAppTestCase):
             headers={**token, "Sec-Fetch-Site": "same-origin", "Origin": APP_ORIGIN},
         )
         self.assertEqual(response.status_code, 201, response.text)
+
+    def test_a_browser_that_sends_no_fetch_metadata_still_gets_the_origin_check(self):
+        """Older Safari sends no `Sec-Fetch-*`. `Origin` is what is left."""
+        refused = self.client.post(
+            APP_ORIGIN + "/api/notes", json={"body": "no"},
+            headers={"Origin": "http://evil.test"},
+        )
+        self.assertEqual(refused.status_code, 403, refused.text)
+        allowed = self.client.post(
+            APP_ORIGIN + "/api/notes", json={"body": "yes"},
+            headers={**self.sign_in(), "Origin": APP_ORIGIN},
+        )
+        self.assertEqual(allowed.status_code, 201, allowed.text)
 
 
 class ProtocolTests(RunningAppTestCase):

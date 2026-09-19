@@ -393,10 +393,18 @@ class ManagedGateway:
         mode = request.headers.get("sec-fetch-mode")
         if request.method not in ("GET", "HEAD"):
             return _page(405, "Open this app from Vela", "That address takes a visit, not a form.")
-        if dest is not None and dest not in ("document", "iframe", "empty"):
+        # A launch link is somewhere a browser *goes*, in a tab or in Vela's own
+        # window frame. Nothing else is a legitimate way to spend one, and the
+        # alternatives are all worse: a ticket in an `<img src>` is not a person
+        # choosing to open an app, and a `fetch` from a page on a sibling app's
+        # hostname -- same-site, so `SameSite` does not stop it -- would let one
+        # app burn the ticket another was about to use. Fetch Metadata is sent
+        # by every browser Vela supports; a request without it falls through to
+        # the ticket's own single-use and expiry checks.
+        if dest is not None and dest not in ("document", "iframe"):
             return _page(400, "Open this app from Vela",
                          "A launch link is a page to visit, not a resource to fetch.")
-        if mode is not None and mode not in ("navigate", "cors", "no-cors", "same-origin"):
+        if mode is not None and mode != "navigate":
             return _page(400, "Open this app from Vela", "That launch link cannot be used this way.")
         ticket = self.sessions.redeem(token, host=request.headers.get("host", ""))
         if ticket is None:
@@ -422,6 +430,7 @@ class ManagedGateway:
     def _not_connected(self, request: Request, record: dict[str, Any]) -> Response:
         """No gateway session. A page for a person, a 401 for a script."""
         hub = self._hub_origin()
+        name = record["manifest"].name
         accepts = request.headers.get("accept", "")
         if "text/html" not in accepts:
             return JSONResponse(
@@ -429,40 +438,65 @@ class ManagedGateway:
                  "status": 401, "hub": hub},
                 status_code=401,
             )
+        if request.headers.get("sec-fetch-dest") == "iframe":
+            # Landing here inside a Vela window usually means one thing: the
+            # browser would not keep the cookie Vela set, because the window is
+            # a cross-site frame and this browser blocks cookies in one. That is
+            # the browser's setting to make, not Vela's to work around, so the
+            # page says what it is and offers the way that does work.
+            return _page(
+                401,
+                f"{name} cannot open in this window",
+                "This browser is not keeping cookies for a site shown inside another "
+                "page, so Vela cannot let this window in. Open the app in a tab instead.",
+                link=hub,
+                target="_blank",
+            )
         return _page(
             401,
-            f"Open {record['manifest'].name} from Vela",
+            f"Open {name} from Vela",
             "This address only answers a browser that Vela let in. "
             "Open the app from your Vela dashboard.",
             link=hub,
         )
 
     def _cross_origin_refusal(self, request: Request, app_id: str) -> Response | None:
-        """Refuse a cross-origin write, because a sibling app is same-*site*.
+        """Only the app's own pages may use the app. Everyone else may arrive.
 
-        `memos.apps.localhost` and `photos.apps.localhost` share a registrable
-        domain, so `SameSite` does not separate them and cannot be the boundary.
-        The gateway checks the request's own origin instead: a state-changing
-        request has to come from the app's own pages.
+        This is the gateway's CSRF boundary, and it is here rather than on the
+        cookie for a reason. `SameSite=Lax` would be the obvious answer and it
+        fails twice: `memos.apps.localhost` and `photos.apps.localhost` share a
+        registrable domain, so `Lax` never separated two apps from each other,
+        and a browser refuses to *set* a `Lax` cookie at all when the app is
+        opened inside a Vela window -- which is a cross-site frame. So the
+        cookie says `SameSite=None` and this check does the work, which it does
+        better: it covers a cross-site `GET` subresource too, where `Lax` would
+        only have covered the unsafe methods.
+
+        What is allowed from elsewhere is arriving: a top-level visit or the
+        Vela window's frame loading the app. Everything a page *does* has to
+        come from the app's own pages.
+
+        A browser that sends no Fetch Metadata -- older Safari -- falls back to
+        the `Origin` header on unsafe methods, which is what was checkable
+        before those headers existed.
         """
-        if request.method in _SAFE_METHODS:
-            return None
         site = request.headers.get("sec-fetch-site")
         origin = request.headers.get("origin")
         expected = f"{request.url.scheme}://{request.headers.get('host', '')}"
-        if site is not None and site not in ("same-origin", "none"):
-            return JSONResponse(
-                {"detail": "That request came from another site.",
-                 "code": "managed.cross_origin", "status": 403},
-                status_code=403,
-            )
-        if origin is not None and origin != expected:
-            return JSONResponse(
-                {"detail": "That request came from another origin.",
-                 "code": "managed.cross_origin", "status": 403},
-                status_code=403,
-            )
-        return None
+        if site is None:
+            if request.method not in _SAFE_METHODS and origin is not None and origin != expected:
+                return _refuse_origin("That request came from another origin.")
+            return None
+        if site in ("same-origin", "none"):
+            return None
+        # Cross-site, or a sibling app under the same parent name.
+        navigating = (request.headers.get("sec-fetch-mode") == "navigate"
+                      and request.headers.get("sec-fetch-dest") in ("document", "iframe")
+                      and request.method in _SAFE_METHODS)
+        if navigating:
+            return None
+        return _refuse_origin("That request came from another site.")
 
     # --------------------------------------------------------------- proxying --
 
@@ -633,7 +667,11 @@ def _set_cookie(response: Response, value: str, *, secure: bool) -> None:
         f"{SESSION_COOKIE}={value}",
         "Path=/",
         "HttpOnly",
-        "SameSite=Lax",
+        # `None` because a Vela window is a cross-site frame, and a browser will
+        # not even set a `Lax` cookie from one. What `Lax` would have protected
+        # is done by `_cross_origin_refusal`, which is a stronger boundary here:
+        # it separates two apps that share a parent name, which `Lax` never did.
+        "SameSite=None",
     ]
     if secure:
         # `__Host-` requires it, and a browser refuses the cookie without it.
@@ -646,7 +684,7 @@ def _set_cookie(response: Response, value: str, *, secure: bool) -> None:
 def _clear_cookie(response: Response) -> None:
     response.raw_headers.append((
         b"set-cookie",
-        f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0".encode("latin-1"),
+        f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0".encode("latin-1"),
     ))
 
 
@@ -658,6 +696,12 @@ def _header(scope, name: bytes) -> str | None:
     return None
 
 
+def _refuse_origin(detail: str) -> Response:
+    return JSONResponse(
+        {"detail": detail, "code": "managed.cross_origin", "status": 403}, status_code=403
+    )
+
+
 def _local(request: Request) -> bool:
     """Whether this origin is one browsers treat as trustworthy over plain HTTP."""
     host = (request.headers.get("host", "") or "").rsplit(":", 1)[0].lower()
@@ -665,7 +709,7 @@ def _local(request: Request) -> bool:
 
 
 def _page(status: int, title: str, message: str, *, link: str | None = None,
-          retry: bool = False) -> Response:
+          retry: bool = False, target: str | None = None) -> Response:
     """A small, self-contained page for the person who landed here.
 
     No script, no stylesheet, no asset: this is served on an app's origin, in
@@ -686,10 +730,17 @@ def _page(status: int, title: str, message: str, *, link: str | None = None,
  a {{ color:inherit; }}
 </style></head>
 <body><main><h1>{_escape(title)}</h1><p>{_escape(message)}</p>
-{f'<p><a href="{_escape(link)}">Go to Vela</a></p>' if link else ''}
+{f'<p><a href="{_escape(link)}"{_target(target)}>Go to Vela</a></p>' if link else ''}
 {'<p><a href="">Try again</a></p>' if retry else ''}
 </main></body></html>"""
     return HTMLResponse(body, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+def _target(value: str | None) -> str:
+    """`target="_blank" rel="noopener"`, or nothing. Only ours, never a caller's."""
+    if value not in ("_blank", "_top"):
+        return ""
+    return f' target="{value}" rel="noopener"'
 
 
 def _escape(value: str) -> str:

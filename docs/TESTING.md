@@ -41,10 +41,26 @@ prove, and neither should be reported from them:
 - **That a browser accepts the gateway's session cookie.** It carries `Secure`
   on an `http://*.localhost` origin, which browsers allow because that origin is
   trustworthy and `httpx` refuses because the plain rule says so. The suite
-  moves the cookie into the jar by hand; a real browser check is the evidence.
+  moves the cookie into the jar by hand; `web/scripts/test-managed-apps.mjs` is
+  the evidence.
 - **That another device resolves an app's name.** `*.apps.vela.invalid` needs a
   DNS entry on the network. A phone viewport proves layout, not resolution or
   certificate trust.
+
+`node web/scripts/test-managed-apps.mjs` covers the first of those in Chrome,
+against `scripts/serve-managed-fixtures.py`. It is where the browser-only
+questions are settled, and each one has already been a real finding:
+
+- Chrome resolves `<app>.apps.localhost` itself, with no hosts file and no DNS
+  server, and treats that origin as trustworthy over plain HTTP.
+- The `__Host-` session cookie is set, is host-only, and is invisible to page
+  script; a page on a sibling app's hostname can read none of the app's cookies
+  and cannot toss one onto the shared parent name.
+- A launch ticket is spent by going to it and by nothing else. A `fetch` from a
+  page on a sibling hostname used to spend one, which is what this check found.
+- An app stays signed in inside the window when its own cookie allows it, and a
+  `SameSite=Lax` cookie does not reach a framed app -- which is why the window
+  is a compatibility question for each application rather than a given.
 
 ### Background work
 
@@ -438,6 +454,7 @@ node web/scripts/test-releases.mjs
 node web/scripts/test-actions.mjs
 node web/scripts/test-connections.mjs
 node web/scripts/test-connected-apps.mjs
+node web/scripts/test-managed-apps.mjs
 node web/scripts/test-shared-ui.mjs
 node web/scripts/test-launchpad.mjs
 node web/scripts/test-rail.mjs

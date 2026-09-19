@@ -522,6 +522,13 @@ open.
 Sign in to the app itself with the app's own account. Vela does not know that
 password and never sees it.
 
+Some applications cannot stay signed in inside a Vela window. A window shows the
+app in a frame on its own address, which browsers treat as a different site from
+the dashboard, and an application whose sign-in cookie is marked for same-site
+use only will not receive it there. Vela does not rewrite an application's
+cookies to get around that. When it happens, use **Open in browser**; a package
+whose author knew about it in advance opens in a tab from the start.
+
 ### From another device
 
 A phone on your Wi-Fi reaches Vela through **Settings -> Connect a phone**, but

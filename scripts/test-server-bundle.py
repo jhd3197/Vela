@@ -9,8 +9,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, build_opener, ProxyHandler
+from urllib.error import HTTPError, URLError
+from urllib.request import HTTPRedirectHandler, Request, build_opener, ProxyHandler
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -293,6 +293,78 @@ def check_agent_desktops(request, hub):
     print('PASS: the packaged server started a managed browser for a desktop and gave it back')
 
 
+def check_managed_web_apps(request, hub, work, base):
+    """A managed web app installs, runs and answers on its own hostname.
+
+    This is the part of hosting that a packaged download can get wrong on its
+    own: the v3 schema is a data file, so a bundle that failed to collect
+    `vela/assets` starts perfectly and then refuses every managed package. So
+    the check builds a real package for this machine, installs it through the
+    packaged server, starts the child process, and asks for it back through the
+    app's own address -- which also proves the gateway is mounted in the bundle.
+
+    The fixture's launcher runs the interpreter that built it. In a bundle smoke
+    test that is the repository's Python, which is the right thing to prove
+    here: what is under test is the packaged *server*, not the packaged Python.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(ROOT / 'tests/fixtures/managed-web'))
+    import fixture_build
+
+    package = fixture_build.build_package(work / 'managed-package')
+    review = json.loads(request('/api/managed/review', 'POST', {'folder': str(package)},
+                                hub, timeout=120))
+    assert review['trust']['execution'] == 'trusted-native', review
+    assert review['integration'] == {'sdk': False, 'agent': False, 'storage': False}, review
+    installed = json.loads(request(
+        '/api/managed/review/' + review['review'] + '/install', 'POST',
+        {'artifactDigest': review['artifactDigest'], 'packageDigest': review['packageDigest'],
+         'trust': 'trusted-native'}, hub, timeout=60))
+    assert installed['installed'], installed
+    state = json.loads(request('/api/managed/' + review['id'] + '/start', 'POST',
+                               headers=hub, timeout=60))
+    assert state['state'] == 'ready', state
+
+    ticket = json.loads(request('/api/managed/' + review['id'] + '/launch', 'POST', {}, hub))
+    # Dialled by address with the app's name in the Host header, rather than by
+    # resolving that name. A browser maps a `*.localhost` name to loopback
+    # itself; Windows' own resolver does not, and this check is about the
+    # packaged server routing by Host, not about whose resolver is asked.
+    host = ticket['origin'].split('://', 1)[1]
+    path = ticket['url'].split(ticket['origin'], 1)[1]
+    entered = opener_request(base + path, headers={
+        'Host': host, 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate'})
+    cookie = next((value for name, value in entered.getheaders()
+                   if name.lower() == 'set-cookie' and value.startswith('__Host-vela-app=')), None)
+    assert entered.status == 303 and cookie, (entered.status, entered.getheaders())
+    served = opener_request(base + '/healthz', headers={
+        'Host': host, 'Cookie': cookie.split(';', 1)[0]})
+    assert served.status == 200 and b'"ok"' in served.read(), served.status
+    # And the same address gets nothing from Vela's own API, in the bundle too.
+    refused = opener_request(base + '/api/apps', headers={
+        'Host': host, 'Cookie': cookie.split(';', 1)[0], **hub})
+    assert refused.status == 404, (refused.status, refused.read()[:200])
+
+    request('/api/managed/' + review['id'] + '/stop', 'POST', headers=hub, timeout=30)
+    removed = json.loads(request('/api/managed/' + review['id'], 'DELETE',
+                                 {'eraseData': True}, hub, timeout=30))
+    assert removed['dataErased'], removed
+
+
+def opener_request(url, headers=None):
+    """One request that does not follow redirects, for the launch exchange."""
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = build_opener(ProxyHandler({}), NoRedirect)
+    try:
+        return opener.open(Request(url, headers=headers or {}), timeout=10)
+    except HTTPError as error:
+        return error
+
+
 def main():
     check_portable_swap()
     check_update_over_http()
@@ -317,10 +389,13 @@ def main():
         base = f'http://127.0.0.1:{port}'
         opener = build_opener(ProxyHandler({}))
 
-        def request(path, method='GET', payload=None, headers=None):
+        def request(path, method='GET', payload=None, headers=None, timeout=3):
+            # Most calls answer immediately; stopping a managed service waits
+            # out its graceful window first, so it says how long it may take
+            # rather than reading a normal stop as a hung server.
             data = json.dumps(payload).encode() if payload is not None else None
             with opener.open(Request(base + path, data=data, method=method,
-                                     headers={'Content-Type': 'application/json', **(headers or {})}), timeout=3) as response:
+                                     headers={'Content-Type': 'application/json', **(headers or {})}), timeout=timeout) as response:
                 return response.read()
 
         with (work / 'server.log').open('w', encoding='utf-8') as output:
@@ -354,6 +429,7 @@ def main():
                 assert json.loads(request('/api/app/storage', headers=app))['value'] == {'messages': []}
                 check_automations(request, hub)
                 check_agent_desktops(request, hub)
+                check_managed_web_apps(request, hub, work, base)
                 # psutil is imported lazily, so a bundle that failed to collect
                 # it starts fine and only reports available: false here.
                 metrics = json.loads(request('/api/system/metrics', headers=hub))
@@ -361,7 +437,8 @@ def main():
                 assert metrics['memory']['total'] > 0 and metrics['uptime']['seconds'] >= 0, metrics
                 print('PASS: relocated server starts, serves dashboard/assets, validates and installs an app, '
                       'serves SDK, stores app data, reports system metrics, runs an automation on its '
-                      'bundled runtime, and carries a verified agent desktop runtime')
+                      'bundled runtime, carries a verified agent desktop runtime, and installs, runs '
+                      'and publishes a managed web app on its own hostname')
             except Exception:
                 output.flush()
                 print((work / 'server.log').read_text(encoding='utf-8'))

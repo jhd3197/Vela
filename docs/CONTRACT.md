@@ -141,6 +141,17 @@ registrable domain and `SameSite` does not separate them. Sign-out, app lock, a
 stop, an update and removal revoke sessions, including streams already open,
 within one second. WebSocket upgrades are closed with `1008` and a reason.
 
+**Embedding.** A Vela window frames the app on its own hostname, which is
+cross-site with the dashboard. The gateway cookie is therefore `SameSite=None`
+and the CSRF boundary is the gateway's own check rather than the cookie
+attribute: a cross-site or same-site request is allowed only when it is a
+top-level or frame navigation with a safe method, which also covers the
+cross-site `GET` subresource that `SameSite=Lax` would have permitted through.
+An application's own cookies are passed through with their policy unchanged, so
+one that marks its session `Lax` or `Strict` will not stay signed in inside a
+window; `view.embedding: "external"` declares that in advance, and a browser
+that blocks framed cookies entirely gets a page saying so with a link to a tab.
+
 **Data.** `data/` is never replaced by an update; only a restore replaces it,
 through two renames with a safety snapshot taken first and a durable journal
 that the next startup resolves before anything auto-starts. Snapshots are taken
