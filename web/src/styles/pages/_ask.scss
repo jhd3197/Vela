@@ -918,7 +918,7 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 40;
+  z-index: var(--layer-flyout);
   width: min(340px, calc(100vw - 32px));
 
   .searchbox {

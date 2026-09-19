@@ -3,6 +3,8 @@ import { useEngine } from '../store.jsx';
 import { useDeveloperTools } from '../developer.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import NotificationBell from './NotificationBell.jsx';
+import useMediaQuery from '../hooks/useMediaQuery.js';
+import { PHONE } from '../breakpoints.js';
 
 // Where Vela is served from is a developer fact, so a healthy server says
 // nothing at all. A confirmed failure — the engine resource actually errored —
@@ -41,10 +43,16 @@ function ServerBadge() {
 }
 
 // The contextual header above every workspace. Composition is per route: a
-// leading control (panel toggle or back), an optional title block, either the
-// global search or route actions, then the connection state and notifications
-// that must stay reachable everywhere. Navigation is the rail beside the
-// workspace at every width, so the header never carries an opener for it.
+// leading control (panel toggle or back), an optional title block, route
+// actions, then the connection state.
+//
+// Search and notifications belong to whichever chrome the layout actually has.
+// On a wide screen that is the top bar, which spans every route; here they
+// would be a second copy of the same control on the same screen, and two bells
+// polling the same feed is not a presentation detail. At phone widths there is
+// no top bar, so the header carries them, exactly as it always has. Navigation
+// is the rail beside the workspace at every width, so the header never carries
+// an opener for it.
 export default function WorkspaceHeader({
   lead,
   title,
@@ -53,6 +61,8 @@ export default function WorkspaceHeader({
   search = true,
   compactSearch = false,
 }) {
+  // No top bar here means this header is the chrome that carries them.
+  const owns = useMediaQuery(PHONE);
   return (
     <header className="workspace-header">
       {lead}
@@ -62,12 +72,12 @@ export default function WorkspaceHeader({
           {subtitle && <span className="workspace-subtitle">{subtitle}</span>}
         </div>
       )}
-      {search && !compactSearch && <GlobalSearch />}
+      {owns && search && !compactSearch && <GlobalSearch />}
       <div className="workspace-header-side">
         {actions}
-        {search && compactSearch && <GlobalSearch compact />}
+        {owns && search && compactSearch && <GlobalSearch compact />}
         <ServerBadge />
-        <NotificationBell />
+        {owns && <NotificationBell />}
       </div>
     </header>
   );

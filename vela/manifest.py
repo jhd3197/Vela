@@ -8,6 +8,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from .widgets import validate_declarations as validate_widget_declarations
+from .topbar import validate_menu_declarations as validate_topbar_declarations
 from .errors_http import Unprocessable
 
 SUPPORTED_PLATFORMS = ("posix", "windows", "android")
@@ -15,10 +16,16 @@ PLATFORM_KEYS = SUPPORTED_PLATFORMS + ("web",)
 
 DEFAULT_APP_COLOR = "#7b4dff"
 
+#: How a window behaves when its app says nothing: the window everything on the
+#: desk has had until now. `defaultSize` is absent rather than a number,
+#: because "no opinion" and "this exact size" are different requests and the
+#: desk's own cascade answers the first one.
+DEFAULT_WINDOW = {"resizable": True, "maximizable": True}
+
 _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _REQUIRED_FIELDS = ("id", "name", "version", "description", "category", "author", "platforms")
-SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets"})
+SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets", "topbar"})
 _V2_SCHEMA = json.loads((Path(__file__).resolve().parent / "assets/manifest-v2.schema.json").read_text(encoding="utf-8"))
 
 
@@ -69,12 +76,18 @@ class Manifest:
     @property
     def view(self) -> dict:
         if self.schema_version == 1:
-            return {"surface": "embedded", "chrome": "compact", "appearance": "auto"}
+            return {"surface": "embedded", "chrome": "compact", "appearance": "auto",
+                    "window": dict(DEFAULT_WINDOW)}
         view = dict(self.raw["view"])
         if view["surface"] == "embedded":
             view.setdefault("chrome", "compact")
         # The window-chrome theme hint defaults to following the hub theme.
         view.setdefault("appearance", "auto")
+        # How a window of this app behaves. Filled in for every app, declared
+        # or not, so the desk reads one shape instead of branching on absence.
+        # A surface that never gets a window still answers the defaults; the
+        # schema is what stops such an app from declaring anything else.
+        view["window"] = {**DEFAULT_WINDOW, **view.get("window", {})}
         return view
 
     @property
@@ -89,6 +102,14 @@ class Manifest:
         if self.schema_version != 2 or "widgets" not in self.capabilities:
             return []
         return list(self.raw.get("widgets", []))
+
+    @property
+    def topbar_menus(self) -> list[dict[str, Any]]:
+        """Menus this app offers the top bar. Declared, not published: the
+        status items beside them arrive later over the bridge."""
+        if self.schema_version != 2 or "topbar" not in self.capabilities:
+            return []
+        return list(self.raw.get("topbar", {}).get("menus", []))
 
     @property
     def unavailable_capabilities(self) -> list[str]:
@@ -167,6 +188,13 @@ def validate_manifest(data: Any, folder: str, path: Path) -> Manifest:
         if 'widgets' in data:
             try:
                 validate_widget_declarations(data['widgets'], folder)
+            except ValueError as exc:
+                raise ManifestError(str(exc)) from exc
+        if 'topbar' in data and 'topbar' not in grants:
+            raise ManifestError(f'{folder}: topbar menus require the topbar capability')
+        if 'topbar' in data:
+            try:
+                validate_topbar_declarations(data['topbar'], folder)
             except ValueError as exc:
                 raise ManifestError(str(exc)) from exc
         bundle = data.get('data', {}).get('legacyBundle')

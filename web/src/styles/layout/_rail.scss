@@ -3,7 +3,7 @@
 
 .rail {
   position: relative;
-  z-index: 2;
+  z-index: var(--layer-rail);
   flex: none;
   width: var(--rail-w);
   display: flex;

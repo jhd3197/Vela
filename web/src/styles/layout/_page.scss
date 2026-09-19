@@ -1,10 +1,12 @@
 // tokens: spacing
 /* ---------- Layout ---------- */
 
+/* The rail-and-workspace row. `.shell-top` above it owns the viewport height
+   and the top bar's share of it, so this takes what is left rather than
+   claiming the whole screen and pushing the bar off the bottom. */
 .shell {
   display: flex;
-  height: 100vh;
-  height: 100dvh;
+  flex: 1;
   min-height: 0;
   position: relative;
   overflow: hidden;
@@ -15,7 +17,7 @@
   inset: 0;
   pointer-events: none;
   background: var(--glow);
-  z-index: 0;
+  z-index: var(--layer-base);
 }
 
 .page-inner {

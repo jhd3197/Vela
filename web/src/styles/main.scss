@@ -2,6 +2,8 @@
 // Keep runtime theme values in tokens; add feature rules to their owning module.
 
 @use 'tokens';
+// The stacking order, before any module reads a layer from it.
+@use 'layers';
 @use 'base';
 
 // The primitive layer. Early, so a component partial below can override a
@@ -20,6 +22,7 @@
 @use 'primitives/sparkline';
 @use 'primitives/clock';
 @use 'layout/page';
+@use 'layout/topbar';
 @use 'layout/rail';
 @use 'layout/workspace';
 @use 'layout/nav';
