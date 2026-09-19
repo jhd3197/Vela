@@ -14,6 +14,7 @@ import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
 import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import useAppFrame from '../desktops/view-lifecycle.js';
+import { useTopBarItems } from '../shell/TopBarProvider.jsx';
 import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
@@ -101,6 +102,7 @@ function Workspace({ id, retry }) {
   // bridge — which only calls it after the first render — always finds the
   // current one.
   const contextRef = useRef(() => ({}));
+  const topbar = useTopBarItems();
 
   // The session, the bridge and their teardown are shared with the desktop's
   // windows: two copies of "open a session, attach a bridge, revoke on the way
@@ -118,6 +120,10 @@ function Workspace({ id, retry }) {
       setDirty(state);
     },
     onNavigate: () => leaveRef.current(),
+    // The page is not a window, so its items are keyed by the route instead.
+    // They still clear when the bridge does; there is simply no window for
+    // clicking one to raise, which is right — you are already in the app.
+    onTopBarItems: (items) => topbar.publish(`page:${id}`, id, items),
   });
 
   // The shared service already coalesces viewport events; the app only needs

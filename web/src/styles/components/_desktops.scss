@@ -190,7 +190,7 @@
 .apps-overlay {
   position: fixed;
   inset: 0 0 0 var(--rail-w);
-  z-index: 25;
+  z-index: var(--layer-overlay);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -212,9 +212,9 @@
   position: absolute;
   inset: 0;
   /* Above the desk's own search row, which claims 10 so search results are not
-     swallowed by the board; below All apps, which is 25. A window is foreground
-     content, so it goes over the board rather than under it. */
-  z-index: 20;
+     swallowed by the board; below All apps. A window is foreground content, so
+     it goes over the board rather than under it. */
+  z-index: var(--layer-chrome);
   /* The host itself is not a surface: clicks that miss a window land on the
      wallpaper, where the desk's own menu is. */
   pointer-events: none;
@@ -223,6 +223,10 @@
 .window-frame {
   position: absolute;
   pointer-events: auto;
+  /* Its place in the stack, as a layer rather than as a place in the document.
+     `--window-depth` is the only part of this the component supplies, because
+     it is the only part that is state. */
+  z-index: calc(var(--layer-window) + var(--window-depth, 0));
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -730,7 +734,7 @@
   border-radius: 12px;
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-  z-index: 1;
+  z-index: var(--layer-snap-preview);
 }
 
 /* The warp. Above the window it is standing in for, below the rail, the owner's
@@ -739,7 +743,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  z-index: var(--layer-genie);
 }
 
 /* Nothing to reduce here: the motion itself is skipped rather than shortened

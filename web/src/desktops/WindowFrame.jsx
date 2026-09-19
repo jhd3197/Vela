@@ -1,6 +1,6 @@
-// A window on a desktop: a title bar, three controls and whatever is inside it.
+// A window on a desktop: a title bar, its controls and whatever is inside it.
 //
-// The three controls are not interchangeable and the code keeps them apart on
+// The controls are not interchangeable and the code keeps them apart on
 // purpose. **Minimize** hides the window and nothing else — the app keeps
 // running, its session stays open and whatever was typed into it is still there
 // when it comes back. **Maximize** changes the arrangement. **Close** ends the
@@ -8,9 +8,22 @@
 // prototype that wired Close to the minimize handler is where that confusion
 // comes from, and it is not a confusion to ship.
 //
+// A window that cannot be maximized does not show the control. Offering a
+// button that will refuse is worse than not offering it, and the refusal is
+// enforced twice anyway: here, where it is never drawn, and in the state
+// function behind it, which will not maximize a window whose app said no.
+//
+// **Placed and resizable are two different things.** A window in a pane, a
+// maximized window and a window travelling to the rail are all *placed* — the
+// arrangement decides where they are, so dragging one would fight whatever put
+// it there. A calculator that only works at one size is *not resizable*, which
+// says nothing about whether you may move it. One flag used to mean both, and
+// the result was that declaring a fixed size would have nailed the window to
+// the desk.
+//
 // Where the window is drawn comes from `window-state.js`; this only renders it.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { ArrowsIn, ArrowsOut, DotsThree, Minus, X } from '@phosphor-icons/react';
+import { Copy, DotsThree, Minus, Square, X } from '@phosphor-icons/react';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
 import { moveBounds, resizeBounds } from './window-state.js';
 
@@ -33,7 +46,14 @@ export default function WindowFrame({
   area,
   selected,
   maximized,
-  fixed = false,
+  // How far up the stack this window is. Drawn as a layer rather than as a
+  // place in the document, because moving the element would reload the app.
+  depth = 0,
+  // Placed by the arrangement rather than by the pointer.
+  placed = false,
+  // What the app's manifest said about its own window.
+  resizable = true,
+  maximizable = true,
   travel,
   status,
   busy = false,
@@ -61,8 +81,11 @@ export default function WindowFrame({
   const begin = useCallback(
     (event, edge) => {
       // A window in a pane or maximized is placed by the arrangement, not by
-      // the pointer; dragging it would fight whatever put it there.
-      if (fixed || event.button !== 0) return;
+      // the pointer; dragging it would fight whatever put it there. A window
+      // its app declared fixed-size can still be picked up and moved — the
+      // grips are what it does not get.
+      if (placed || event.button !== 0) return;
+      if (edge && !resizable) return;
       // The controls live in the title bar. Capturing the pointer here would
       // send the pointerup to the bar instead of the button, and the button
       // would never see a click at all.
@@ -79,7 +102,7 @@ export default function WindowFrame({
       setGesturing(true);
       onSelect?.();
     },
-    [fixed, bounds, onSelect],
+    [placed, resizable, bounds, onSelect],
   );
 
   const move = useCallback(
@@ -141,7 +164,7 @@ export default function WindowFrame({
       // window, not a picture of one — the app inside it is still running and
       // must not be remounted — so it is moved by transform and takes no
       // pointer input while it is in flight.
-      className={`window-frame${selected ? ' is-selected' : ''}${fixed ? ' is-fixed' : ''}${
+      className={`window-frame${selected ? ' is-selected' : ''}${placed ? ' is-fixed' : ''}${
         travel ? ' is-travelling' : ''
       }`}
       style={{
@@ -149,6 +172,7 @@ export default function WindowFrame({
         top: `${bounds.y}px`,
         width: `${bounds.width}px`,
         height: `${bounds.height}px`,
+        '--window-depth': depth,
         ...travel,
       }}
       aria-labelledby={titleId}
@@ -160,7 +184,7 @@ export default function WindowFrame({
         onPointerMove={move}
         onPointerUp={end}
         onPointerCancel={end}
-        onDoubleClick={() => onMaximize?.()}
+        onDoubleClick={() => maximizable && onMaximize?.()}
         // The bar's right-click is the window menu, the way a title bar's has
         // always been. Only the bar: right-click inside the window belongs to
         // the app running in it.
@@ -184,9 +208,10 @@ export default function WindowFrame({
         </h2>
         {status || busy ? <span className="window-status">{status || 'Opening…'}</span> : null}
         <div className="window-controls">
-          {/* Three buttons at rest: minimize, maximize, close. The menu is the
-              fourth control only for somebody who reaches for it — by keyboard,
-              where it appears on focus, or by right-clicking the bar. */}
+          {/* Minimize, maximize and close at rest — two of them for a window
+              that cannot be maximized. The menu is the extra control only for
+              somebody who reaches for it: by keyboard, where it appears on
+              focus, or by right-clicking the bar. */}
           {actions?.length ? (
             <button
               type="button"
@@ -210,19 +235,24 @@ export default function WindowFrame({
           >
             <Minus size={14} weight="bold" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="window-control"
-            aria-label={maximized ? `Restore ${title}` : `Maximize ${title}`}
-            aria-pressed={maximized}
-            onClick={onMaximize}
-          >
-            {maximized ? (
-              <ArrowsIn size={14} weight="bold" aria-hidden="true" />
-            ) : (
-              <ArrowsOut size={14} weight="bold" aria-hidden="true" />
-            )}
-          </button>
+          {maximizable ? (
+            <button
+              type="button"
+              className="window-control"
+              aria-label={maximized ? `Restore ${title}` : `Maximize ${title}`}
+              aria-pressed={maximized}
+              onClick={onMaximize}
+            >
+              {/* One square to fill the desk with; two, offset, to put it back
+                  the size it was. The arrows this replaces read as "zoom",
+                  which is not what either of them does. */}
+              {maximized ? (
+                <Copy size={14} weight="bold" aria-hidden="true" />
+              ) : (
+                <Square size={14} weight="bold" aria-hidden="true" />
+              )}
+            </button>
+          ) : null}
           <button
             type="button"
             className="window-control window-close"
@@ -255,7 +285,8 @@ export default function WindowFrame({
           onClose={() => setMenu(null)}
         />
       ) : null}
-      {!fixed &&
+      {!placed &&
+        resizable &&
         EDGES.map(([edge, cursor]) => (
           <span
             key={edge}

@@ -462,6 +462,7 @@ node web/scripts/test-dashboard.mjs
 node web/scripts/test-system.mjs
 node web/scripts/test-desk.mjs
 node web/scripts/test-desktops.mjs
+node web/scripts/test-top-bar.mjs
 node web/scripts/test-agent-window.mjs
 node web/scripts/test-files.mjs
 node web/scripts/test-settings.mjs
@@ -471,6 +472,28 @@ node web/scripts/test-automations.mjs
 node web/scripts/test-phone-setup.mjs
 node web/scripts/test-mobile-layout.mjs
 ```
+
+The top bar suite runs against a real engine with three disposable apps from
+`scripts/serve-topbar-fixtures.py` — a fixed-size calculator, a weather app
+granted the top bar, and ordinary notes. It settles what only a real page can:
+that the bar names the selected window and changes when another is clicked,
+that it names the route everywhere else and is absent at phone widths, that
+search and the bell have exactly one owner per layout, that a window whose app
+declared `maximizable: false` has no such button and ignores a double-click on
+its bar while still being draggable, that a declared `defaultSize` seeds the
+window once and a moved window stays moved across a reload, and that a
+published status item is drawn from the host's own icon, replaced rather than
+accumulated, refused when it breaks the contract, and gone when the window
+closes. Screenshots go to `docs/screenshots/top-bar/`.
+
+Two things it records rather than proves. **Minimizing or maximizing a window
+unmounts the others.** Their frames are removed, their bridges close and their
+apps restart when they come back — which `WindowFrame`'s own comment says
+minimizing must not do. It is Vela's behaviour today, it is not caused by the
+bar, and the suite waits for the app to republish from `Vela.ready` instead of
+pretending otherwise. **The maximize glyph is a square** is asserted as "two
+different marks, and restore draws more outline than maximize"; the screenshots
+beside it are the visual record.
 
 The Files suite runs against a real engine on a disposable data directory, so
 the only share it touches is the Downloads folder that engine makes for itself.

@@ -100,6 +100,72 @@ test('a widget summary is published only with the grant, and never carries the t
   assert.equal(requests.length, 0);
 });
 
+test('top bar items are granted, capped, and go down with the window', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => { listener = callback; };
+  globalThis.removeEventListener = () => {};
+  const messages = [], requests = [], published = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  const open = (capabilities) => {
+    messages.length = 0;
+    requests.length = 0;
+    published.length = 0;
+    const bridge = createBridge({ frame: { contentWindow: source },
+      session: { token: 'scoped-secret', installationId: 'installation-one', capabilities },
+      context: { installationId: 'installation-one' },
+      onReady() {}, onDirty() {}, onNavigate() {}, onError() {},
+      onTopBarItems: (items) => published.push(items),
+      fetcher: async (path, options) => { if (path !== '/api/app/features') requests.push({ path, options }); return new Response(JSON.stringify({ ok: true })); },
+    });
+    return listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } }).then(() => bridge);
+  };
+  const put = (id, payload, session) => listener({ source, origin: 'null',
+    data: { type: 'vela:request', protocol: 1, id, session, operation: 'topbar.publish', payload } });
+
+  const bridge = await open(['storage', 'topbar']);
+  let nonce = messages[0].session;
+  await put('one', { items: [{ id: 'temp', icon: 'thermometer', label: '-4°C', title: 'Oslo' }] }, nonce);
+  assert.deepEqual(published.at(-1), [{ id: 'temp', icon: 'thermometer', label: '-4°C', title: 'Oslo' }]);
+  // The items never travel: they belong to this window and this page draws them.
+  assert.equal(requests.length, 0, 'nothing is sent to the engine');
+  assert.equal(JSON.stringify(messages).includes('scoped-secret'), false);
+
+  // Publishing replaces, and an empty list is how an app takes its items down.
+  await put('two', { items: [] }, nonce);
+  assert.deepEqual(published.at(-1), []);
+
+  // Over the caps, unknown fields, and an icon this host does not have are all
+  // refused before anything is kept.
+  const kept = published.length;
+  await put('three', { items: [{ id: 'a', label: 'x'.repeat(40) }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await put('four', { items: [{ id: 'a', icon: 'https://evil.test/p.png' }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await put('five', { items: [{ id: 'a', label: 'x', href: '/somewhere' }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await put('six', { items: [{ id: 'a', label: '1' }, { id: 'b', label: '2' }, { id: 'c', label: '3' }, { id: 'd', label: '4' }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await put('seven', { items: [{ id: 'a', icon: 'sun', title: 'x'.repeat(201) }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  await put('eight', { items: [], extra: true }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+  assert.equal(published.length, kept, 'a refused list never reaches the bar');
+
+  // Closing the window takes whatever it published with it, rather than
+  // leaving an item that names an app nobody can reach any more.
+  await put('nine', { items: [{ id: 'temp', label: '2°C' }] }, nonce);
+  assert.equal(published.at(-1).length, 1);
+  bridge.close();
+  assert.deepEqual(published.at(-1), []);
+
+  // Without the grant the host refuses it rather than drawing anything.
+  await open(['storage']);
+  nonce = messages[0].session;
+  await put('ten', { items: [{ id: 'temp', label: '2°C' }] }, nonce);
+  assert.equal(messages.at(-1).error.status, 403);
+  assert.equal(published.length, 0);
+});
+
 test('hub worker never caches authenticated API traffic and retires old API caches', async () => {
   const { readFile } = await import('node:fs/promises');
   const { runInNewContext } = await import('node:vm');

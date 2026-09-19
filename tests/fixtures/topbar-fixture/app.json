@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "id": "topbar-fixture",
+  "name": "Top Bar Fixture",
+  "version": "0.1.0",
+  "description": "A disposable app for the top bar browser check. Declares menus, a fixed-size window, and publishes one status item.",
+  "category": "Developer",
+  "author": "Vela",
+  "color": "#2bb6d8",
+  "compatibility": { "bridge": 1 },
+  "runtime": { "static": { "entry": "index.html" } },
+  "view": { "surface": "embedded", "chrome": "compact" },
+  "capabilities": { "optional": ["topbar"] },
+  "topbar": {
+    "menus": [
+      {
+        "id": "file",
+        "label": "File",
+        "items": [
+          { "id": "new", "label": "New reading" },
+          { "id": "leave", "label": "Back to desk", "action": "return" },
+          { "id": "close", "label": "Close window", "action": "close" }
+        ]
+      },
+      {
+        "id": "view",
+        "label": "View",
+        "items": [{ "id": "units", "label": "Units" }]
+      }
+    ]
+  }
+}

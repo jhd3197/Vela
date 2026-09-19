@@ -17,7 +17,7 @@
 // second strip would take a line of screen that is already short, and every
 // control here is still reachable from the workspace header.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   BatteryHigh,
   Bell,
@@ -124,6 +124,10 @@ export default function TopBar() {
   const { views } = useDesktops();
   const { items } = useTopBarItems();
   const now = useMinute();
+  // An app's own full-screen page. Its id is not in the page table — that
+  // route is not a dashboard page — so it is read from the path here and
+  // handed to the resolver rather than guessed at inside it.
+  const appRoute = useMatch('/app/:id');
   // Which menu is open, and where to draw it. One at a time: a menu bar with
   // two menus down is a menu bar that has lost track of itself.
   const [menu, setMenu] = useState(null);
@@ -133,8 +137,15 @@ export default function TopBar() {
   // module stays free of every page component so its rules can be checked
   // without a browser.
   const focus = useMemo(
-    () => resolveFocus({ pathname: location.pathname, views, apps, pages: dashboardPages }),
-    [location.pathname, views, apps],
+    () =>
+      resolveFocus({
+        pathname: location.pathname,
+        views,
+        apps,
+        appId: appRoute?.params?.id || null,
+        pages: dashboardPages,
+      }),
+    [location.pathname, appRoute?.params?.id, views, apps],
   );
 
   // Close whatever is open when focus moves: the menus belonged to the app
@@ -179,7 +190,12 @@ export default function TopBar() {
   const raise = (item) => {
     // The only thing a published item does. Not a link, not an action: the app
     // asked for attention and this is where attention goes.
-    if (!item.viewId) return;
+    //
+    // An item published from the app's own full-screen page has no window to
+    // raise — you are already looking at the app — so it does nothing, and an
+    // item whose window has since closed does nothing either rather than
+    // selecting whatever took that id's place.
+    if (!views.ordered?.some((view) => view.id === item.viewId)) return;
     navigate('/');
     views.select(item.viewId);
     views.patchView(item.viewId, { minimized: false, raise: true }, { immediate: true });

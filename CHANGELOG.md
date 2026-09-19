@@ -8,6 +8,31 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **A top bar that follows what you are looking at.** The dashboard gains a
+  menu bar across the top. It shows the name of whatever has focus — click a
+  Calculator window on the desk and it reads "Calc", click Notes and it reads
+  "Notes", open the Ask page and it reads "Ask" — along with that app's menus
+  and the things you want reachable from anywhere: search, notifications and
+  the time. Phone layouts are unchanged: there is no bar there, and the rail
+  and the page header stay exactly as they were.
+
+  Apps can put things in it, through the same kind of contract that lets them
+  put summaries on the desk. An app declares its menus in its manifest, so you
+  see them when you install it, and it can publish up to three small status
+  items — a temperature, a queue, a connection light — that sit in the bar
+  while it is running and disappear when you close its window. What an app
+  sends is plain data: Vela draws it, from Vela's own icons and colours, and an
+  app cannot put a picture, a link or any of its own code up there.
+
+- **Windows the shape their app says they are.** An app can now declare that
+  its window is fixed-size or cannot be maximized, and Vela honours it: a
+  calculator shows no maximize button, has no resize grips, and ignores a
+  double-click on its title bar — while still being something you can pick up
+  and move wherever you like. An app can also say what size to open at, which
+  is used the first time and never again, so a window you have resized stays
+  the size you left it. The maximize control is now a square rather than a pair
+  of arrows, which is what it actually does.
+
 - **Host an existing web app.** Vela can now install and run a self-hosted web
   application — Memos, for example — that was never written for Vela. It
   downloads the release the package names, checks it against the package's

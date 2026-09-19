@@ -22,8 +22,33 @@ import useWindowMotion from './motion/useWindowMotion.js';
 import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
-import { SPLIT_MIN_WIDTH, placeView, restorePatch, splitBounds, workArea } from './window-state.js';
+import {
+  SPLIT_MIN_WIDTH,
+  placeView,
+  restorePatch,
+  splitBounds,
+  stackLayers,
+  workArea,
+} from './window-state.js';
 import { useConfirm } from '../hooks/useConfirm.js';
+
+/** What a window is when nothing said otherwise. Mirrors `DEFAULT_WINDOW`
+ *  in `vela/manifest.py`, which is what the engine fills in for every app. */
+const DEFAULT_WINDOW = { resizable: true, maximizable: true };
+
+/**
+ * How this view's window behaves, from the app that owns it.
+ *
+ * A view that is not an app — the agent window, a host surface, a site — has
+ * no manifest to ask, and neither has an app whose summary has not arrived
+ * yet, so both get the ordinary window. Falling back to "no options" rather
+ * than to "fixed" matters: a summary that is still loading must not briefly
+ * take a window's grips away.
+ */
+function windowOptionsFor(view, apps) {
+  if (view.kind !== 'app') return DEFAULT_WINDOW;
+  return apps?.find((app) => app.id === view.appId)?.view?.window || DEFAULT_WINDOW;
+}
 
 /** What to call a view that has not been given a title. */
 function labelFor(view, apps) {
@@ -105,14 +130,16 @@ export default function DesktopViewHost({ views, desktop }) {
     (viewId) =>
       (point, options = {}) => {
         if (point) {
-          setSnapping({ id: viewId, side: snapTargetFor(point, area) });
+          const view = views.ordered.find((entry) => entry.id === viewId);
+          const snappable = !view || windowOptionsFor(view, apps).resizable !== false;
+          setSnapping({ id: viewId, side: snappable ? snapTargetFor(point, area) : null });
           return;
         }
         const offered = snapping?.id === viewId ? snapping.side : null;
         setSnapping(null);
         if (offered && options.drop) views.snap(viewId, offered);
       },
-    [area, snapping, views],
+    [apps, area, snapping, views],
   );
 
   // Put a window away, or bring it back, with the warp where one is possible.
@@ -126,16 +153,17 @@ export default function DesktopViewHost({ views, desktop }) {
       // the arrangement for it would answer "nowhere", and a motion out of
       // nowhere is no motion. What it is coming back to is the same rectangle
       // the restore itself will use.
+      const size = windowOptionsFor(view, apps).defaultSize || null;
       const bounds = minimized
-        ? restorePatch(view, area, index).bounds
-        : placeView(view, { layout: views.layout, area, index });
+        ? restorePatch(view, area, index, size).bounds
+        : placeView(view, { layout: views.layout, area, index, size });
       motion.animate(view, minimized ? 'expand' : 'collapse', {
         icon: anchorFor(view.id, host.current),
         bounds,
-        apply: () => (minimized ? views.restore(view, index) : views.minimize(view)),
+        apply: () => (minimized ? views.restore(view, index, size) : views.minimize(view)),
       });
     },
-    [area, motion, views],
+    [apps, area, motion, views],
   );
 
   // Somebody asked for a window to be put away or brought back from somewhere
@@ -196,15 +224,27 @@ export default function DesktopViewHost({ views, desktop }) {
   const ratio = ratioPreview ?? layout.dividerRatio ?? 0.5;
   const drawn = ratioPreview === null ? layout : { ...layout, dividerRatio: ratio };
   const travelling = motion.fallback;
-  const visible = views.ordered
-    .map((view, index) => {
+  // In a stable order, each carrying the depth its stack gives it. Drawing
+  // them in stack order would mean raising a window moved its element, which
+  // reloads the iframe inside it — see `stackLayers`.
+  const visible = stackLayers(views.ordered)
+    .map(({ view, depth }) => {
       // A window with no picture of itself travels in person: the arrangement
       // has already put it away, so it is drawn where it was and moved by
       // transform. The frame inside it is never unmounted to do this.
       if (travelling?.viewId === view.id) {
-        return { view, bounds: travelling.bounds, travel: fallbackStyle(travelling) };
+        return { view, depth, bounds: travelling.bounds, travel: fallbackStyle(travelling) };
       }
-      return { view, bounds: placeView(view, { layout: drawn, area, index }) };
+      return {
+        view,
+        depth,
+        bounds: placeView(view, {
+          layout: drawn,
+          area,
+          index: depth,
+          size: windowOptionsFor(view, apps).defaultSize || null,
+        }),
+      };
     })
     // The window the canvas overlay is standing in for is hidden while it
     // stands in for it, so the two are never both on screen. Its session is
@@ -215,19 +255,30 @@ export default function DesktopViewHost({ views, desktop }) {
     .map((view) => ({ id: view.id, label: labelFor(view, apps) }));
 
   const menuFor = (view) => {
-    const items = [
-      {
-        label: split && layout.primaryView === view.id ? 'Already on the left' : 'Move to the left',
-        disabled: split && layout.primaryView === view.id,
-        onSelect: () => views.snap(view.id, 'left'),
-      },
-      {
-        label:
-          split && layout.secondaryView === view.id ? 'Already on the right' : 'Move to the right',
-        disabled: split && layout.secondaryView === view.id,
-        onSelect: () => views.snap(view.id, 'right'),
-      },
-    ];
+    // A pane is a size, not a place: taking half the screen means being resized
+    // to half the screen. An app that said its window is a fixed size is not
+    // offered that, here or by dragging to an edge.
+    const items =
+      windowOptionsFor(view, apps).resizable === false
+        ? []
+        : [
+            {
+              label:
+                split && layout.primaryView === view.id
+                  ? 'Already on the left'
+                  : 'Move to the left',
+              disabled: split && layout.primaryView === view.id,
+              onSelect: () => views.snap(view.id, 'left'),
+            },
+            {
+              label:
+                split && layout.secondaryView === view.id
+                  ? 'Already on the right'
+                  : 'Move to the right',
+              disabled: split && layout.secondaryView === view.id,
+              onSelect: () => views.snap(view.id, 'right'),
+            },
+          ];
     if (split) {
       items.push(
         { separator: true },
@@ -241,11 +292,12 @@ export default function DesktopViewHost({ views, desktop }) {
 
   return (
     <div className="view-host" ref={host}>
-      {visible.map(({ view, bounds, travel }) => {
+      {visible.map(({ view, depth, bounds, travel }) => {
         const held = dragging?.id === view.id ? dragging.bounds : bounds;
         const maximized = layout.arrangement === 'maximized' && layout.maximizedView === view.id;
         // A window in flight is placed by the motion, not by the pointer.
-        const fixed = layout.arrangement !== 'floating' || Boolean(travel);
+        const placed = layout.arrangement !== 'floating' || Boolean(travel);
+        const options = windowOptionsFor(view, apps);
         const name = labelFor(view, apps);
         return (
           <WindowFrame
@@ -263,7 +315,10 @@ export default function DesktopViewHost({ views, desktop }) {
             area={area}
             selected={layout.selectedView === view.id}
             maximized={maximized}
-            fixed={fixed}
+            depth={depth}
+            placed={placed}
+            resizable={options.resizable !== false}
+            maximizable={options.maximizable !== false}
             travel={travel}
             status={view.available ? null : 'Needs reopening'}
             busy={Boolean(busy[view.id])}
@@ -274,8 +329,8 @@ export default function DesktopViewHost({ views, desktop }) {
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
             actions={menuFor(view)}
-            onMinimize={() => putAway(view, views.ordered.indexOf(view))}
-            onMaximize={() => views.maximize(view)}
+            onMinimize={() => putAway(view, depth)}
+            onMaximize={() => views.maximize(view, { maximizable: options.maximizable !== false })}
             onClose={() => requestClose(view)}
           >
             {view.kind === 'app' ? (

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Top bar fixture</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; color: #1d2430; background: #f6f8fb; }
+      body { margin: 0; height: 100vh; display: grid; place-items: center; align-content: center; gap: 10px; }
+      p { margin: 0; font-size: 13px; color: #5a6274; }
+      code { font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1 id="name">Fixture</h1>
+    <p id="state">connecting…</p>
+    <p><code id="grants"></code></p>
+
+    <script src="_vela/sdk.js"></script>
+    <script>
+      // A disposable app for the top bar browser check. It does one thing: if
+      // it was granted the top bar, it publishes a status item, and offers the
+      // suite ways to change it and to try what the host must refuse. The rest
+      // of the page exists only so there is something to look at.
+      const state = document.getElementById('state');
+      const grants = document.getElementById('grants');
+
+      Vela.ready
+        .then(async () => {
+          const capabilities = Vela.context.capabilities || [];
+          grants.textContent = `capabilities: ${capabilities.join(', ') || 'none'}`;
+
+          // Publishing from `ready`, because items are runtime state: a
+          // reload, a restart or a reopened window starts with an empty bar.
+          if (!capabilities.includes('topbar')) {
+            state.textContent = 'no top bar grant';
+            window.tryUngranted = () =>
+              Vela.topbar
+                .publish([{ id: 'temp', label: '9°C' }])
+                .then(() => 'accepted')
+                .catch((error) => `refused: ${error.message}`);
+            return;
+          }
+
+          // Defined before the first publish, not after it: the host draws an
+          // item as soon as it accepts one, so a suite that waits for the bar
+          // and then reaches for these would find them a beat too early.
+          //
+          // Publishing again replaces, rather than adding to, what is there.
+          window.republish = async () => {
+            await Vela.topbar.publish([
+              { id: 'temp', icon: 'thermometer', label: '3°C', title: 'Oslo, thawing' },
+            ]);
+            state.textContent = 'republished';
+          };
+
+          // What the host must refuse. Reported back so the suite reads the
+          // refusal rather than inferring it from an empty bar.
+          window.tryForbidden = async () => {
+            const results = [];
+            for (const items of [
+              [{ id: 'a', icon: 'https://evil.test/pixel.png' }],
+              [{ id: 'a', label: 'x', href: '/somewhere' }],
+              [{ id: 'a', label: 'x'.repeat(40) }],
+              [
+                { id: 'a', label: '1' },
+                { id: 'b', label: '2' },
+                { id: 'c', label: '3' },
+                { id: 'd', label: '4' },
+              ],
+            ]) {
+              try {
+                await Vela.topbar.publish(items);
+                results.push('accepted');
+              } catch (error) {
+                results.push(`refused: ${error.message}`);
+              }
+            }
+            return results;
+          };
+
+          await Vela.topbar.publish([
+            {
+              id: 'temp',
+              icon: 'thermometer',
+              label: '-4°C',
+              title: 'Oslo, feels like -9',
+              tone: 'caution',
+            },
+          ]);
+          state.textContent = 'published';
+        })
+        .catch((error) => {
+          state.textContent = error.message;
+        });
+    </script>
+  </body>
+</html>

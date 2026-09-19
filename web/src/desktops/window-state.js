@@ -41,6 +41,16 @@ export const SPLIT_MIN_WIDTH = 720;
 
 const round = (value) => Math.round(value);
 
+/** A declared `{ width, height }` with usable numbers in it. */
+export function isSize(value) {
+  return Boolean(
+    value &&
+    ['width', 'height'].every(
+      (key) => typeof value[key] === 'number' && Number.isFinite(value[key]) && value[key] > 0,
+    ),
+  );
+}
+
 /** A rectangle with numbers in it, or null. */
 export function isBounds(value) {
   return Boolean(
@@ -97,10 +107,23 @@ export function clampBounds(bounds, area) {
  *
  * `index` is how many windows are already open, so the second one does not land
  * exactly on the first. It wraps rather than marching off the screen.
+ *
+ * `size` is the app's declared `view.window.defaultSize`, when it has one. It
+ * replaces the fraction of the work area a window would otherwise take, which
+ * is a sensible guess for a document and a bad one for a calculator. It is
+ * still clamped: a size that does not fit the screen in front of somebody is
+ * not a size, whoever declared it.
  */
-export function defaultBounds(area, index = 0) {
-  const width = Math.max(MIN_WIDTH, Math.min(round(area.width * DEFAULT_FRACTION), area.width));
-  const height = Math.max(MIN_HEIGHT, Math.min(round(area.height * DEFAULT_FRACTION), area.height));
+export function defaultBounds(area, index = 0, size = null) {
+  const wanted = isSize(size) ? size : null;
+  const width = Math.max(
+    MIN_WIDTH,
+    Math.min(round(wanted ? wanted.width : area.width * DEFAULT_FRACTION), area.width),
+  );
+  const height = Math.max(
+    MIN_HEIGHT,
+    Math.min(round(wanted ? wanted.height : area.height * DEFAULT_FRACTION), area.height),
+  );
   const step = (index % CASCADE_WRAP) * CASCADE_STEP;
   return clampBounds(
     {
@@ -151,7 +174,7 @@ export function splitBounds(area, ratio, side, gutter = 8) {
  * not have to know about pixels. A minimized window returns null: it is not
  * drawn at all, which is different from being drawn somewhere off-screen.
  */
-export function placeView(view, { layout, area, index = 0, gutter = 8 }) {
+export function placeView(view, { layout, area, index = 0, gutter = 8, size = null }) {
   if (view.window?.minimized) return null;
   if (layout.arrangement === 'maximized') {
     return layout.maximizedView === view.id ? maximizedBounds(area) : null;
@@ -178,8 +201,11 @@ export function placeView(view, { layout, area, index = 0, gutter = 8 }) {
     }
     return splitBounds(area, layout.dividerRatio, member, gutter);
   }
+  // A place this window has been put beats the app's own suggestion: a
+  // declared size seeds a window, it does not re-seed it every time the desk
+  // is drawn. Somebody who moved or resized it meant to.
   const saved = clampBounds(view.window?.bounds, area);
-  return saved || defaultBounds(area, index);
+  return saved || defaultBounds(area, index, size);
 }
 
 /**
@@ -201,10 +227,31 @@ export function minimizePatch(view, area) {
  * placement otherwise — which is what happens when the saved place came from a
  * screen that is no longer attached.
  */
-export function restorePatch(view, area, index = 0) {
+export function restorePatch(view, area, index = 0, size = null) {
   const remembered = view.window?.restoreBounds || view.window?.bounds;
-  const bounds = clampBounds(remembered, area) || defaultBounds(area, index);
+  const bounds = clampBounds(remembered, area) || defaultBounds(area, index, size);
   return { minimized: false, bounds, raise: true };
+}
+
+/**
+ * What to send when a window is maximized, or null when it must not be.
+ *
+ * Maximizing is a layout change, so the answer is a layout patch rather than a
+ * patch to the window. `maximizable` is the app's declared option, and a
+ * refusal is null rather than a thrown error: a control that should not have
+ * been offered doing nothing is the right outcome, and the window's own chrome
+ * does not offer it in the first place.
+ *
+ * Restoring is never refused. A window that somehow ended up maximized — a
+ * layout saved before the app declared itself fixed-size, an arrangement
+ * restored from another machine — has to be able to come back, and refusing
+ * that would leave it stuck at full screen with the control hidden.
+ */
+export function maximizePatch(layout, viewId, { maximizable = true } = {}) {
+  const isMaximized = layout.arrangement === 'maximized' && layout.maximizedView === viewId;
+  if (isMaximized) return { arrangement: 'floating', maximizedView: null };
+  if (!maximizable) return null;
+  return { arrangement: 'maximized', maximizedView: viewId };
 }
 
 /**
@@ -246,4 +293,27 @@ export function dividerRatio(x, area, min = 0.2, max = 0.8) {
 /** Views in the order they should be painted: back to front. */
 export function stackOrder(views) {
   return views.slice().sort((a, b) => (a.window?.stack || 0) - (b.window?.stack || 0));
+}
+
+/**
+ * Each view with the depth its stack gives it, in an order that never changes.
+ *
+ * Which window is in front is state — `window.stack`, kept by the server — and
+ * a window says so with a layer, not with its place in the document. Drawing
+ * them in stack order instead meant that raising one *moved its element*, and
+ * moving an element that contains an iframe reloads that iframe: clicking a
+ * window to bring it forward restarted the app inside it, threw away whatever
+ * had been typed into it, and took down anything it had published. So the
+ * order here is by id — arbitrary, and above all stable — and `depth` is what
+ * carries the arrangement.
+ *
+ * `depth` is also how far along the cascade a window with no saved place sits,
+ * which is why it is one number rather than two.
+ */
+export function stackLayers(views) {
+  const depths = new Map(stackOrder(views).map((view, index) => [view.id, index]));
+  return views
+    .slice()
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+    .map((view) => ({ view, depth: depths.get(view.id) ?? 0 }));
 }

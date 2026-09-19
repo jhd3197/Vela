@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { useApps, useAppStatus } from '../store.jsx';
+import { useTopBarItems } from '../shell/TopBarProvider.jsx';
 import useAppFrame from './view-lifecycle.js';
 
 /** How long the starting state waits before saying so, as the full page does. */
@@ -62,6 +63,9 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect, onBus
 
 function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBusy, onReload }) {
   const { status } = useAppStatus(view.appId);
+  // The top bar's right rail, for as long as this window is open. The bridge
+  // sends an empty list on its way out, so nothing has to remember to clear it.
+  const topbar = useTopBarItems();
   const app = { ...summary, ...status };
   const isolated = summary.schemaVersion === 2;
   const surface = summary.view?.surface || 'embedded';
@@ -84,6 +88,7 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBu
       reportAppActivity();
       onDirty?.(state);
     },
+    onTopBarItems: (items) => topbar.publish(view.id, view.appId, items),
   });
 
   contextRef.current = () => ({

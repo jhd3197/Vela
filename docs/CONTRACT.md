@@ -180,11 +180,55 @@ supported. External and headless entries may declare an empty runtime object.
 | `view.surface`          | `embedded`, `external` (HTTPS `url` required), `none`                                          |
 | `view.chrome`           | Embedded only: `hub`, `compact` (default), `seamless`                                          |
 | `view.appearance`       | Optional: `light`, `dark`, `auto` (default); the theme of the app's window title bar           |
-| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`; any unknown required grant blocks validation   |
+| `view.window`           | Embedded only: `{resizable, maximizable, defaultSize}`; how this app's window behaves          |
+| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`, `topbar`; any unknown required grant blocks validation |
 | `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities`                       |
 | `data.schemaVersion`    | Positive integer, required when requesting storage                                             |
 | `data.quotaBytes`       | 1 KiBâ€“10 MiB; default 1 MiB                                                                  |
 | `widgets`               | Up to 4 `{id, name, layout, size}` desk widget declarations; requires the `widgets` capability |
+| `topbar`                | Up to 4 `{id, label, items}` top bar menus; requires the `topbar` capability                   |
+
+#### The shape of an app's window
+
+An app opened on the desk gets a window. `view.window` is where it says what
+kind of window that is, and every field is optional — an app that declares
+nothing gets the resizable, maximizable window every app has always had:
+
+```json
+"view": {
+  "surface": "embedded",
+  "chrome": "compact",
+  "window": {
+    "resizable": false,
+    "maximizable": false,
+    "defaultSize": { "width": 320, "height": 460 }
+  }
+}
+```
+
+`maximizable: false` removes the maximize control from the window's title bar,
+stops the title bar's double-click, and is refused by the state path behind
+both, so nothing else can reach a state the app said it cannot be in.
+*Restoring* a maximized window is never refused: a layout saved before the app
+declared itself fixed-size has to be able to come back.
+
+`resizable: false` removes the resize grips and the offers that would resize
+the window anyway — dragging it to a screen edge, and the "Move to the left /
+right" window-menu items, both of which mean "be half the screen". It does not
+stop the window being **moved**: being a fixed size and being nailed to one
+place are different requests, and an app only made the first one.
+
+`defaultSize` is in CSS pixels and seeds the window the first time it opens. A
+place the window has since been put always wins — a declared size seeds a
+window, it does not re-seed it every time the desk is drawn — and the size is
+still clamped to the screen actually in front of the user. Width is 240–20000
+and height 160–20000, which is exactly the range the desk's own geometry
+accepts, so a size the schema allows cannot be one the desk refuses.
+
+Only an embedded surface may declare `view.window`: an app that opens outside
+Vela, or has no view at all, has no window to describe. Unknown fields inside
+the block fail validation like any other, so an app built against a later
+schema is refused here rather than half-honoured.
 
 `hub` and `compact` both give the app a **title bar** of its own beside the
 rail (see the app-window bullet under Frontend Expectations); `seamless` renders
@@ -506,6 +550,111 @@ grant, and authorization is rechecked inside the write transaction so a
 revocation stops a call already in flight. Automation receipts and activity
 entries use a caller id of `automation:{workflowId}`, which cannot collide with an
 app id. See [the automations guide](AUTOMATIONS.md).
+
+### App contributions to the top bar
+
+The dashboard has a global top bar on wide layouts. It names whatever has
+focus — the selected window on the desk, or the current page — and its
+right-hand rail carries search, notifications and the time. An app with the
+`topbar` capability can add two things to it: **menus**, declared in the
+manifest, and **status items**, published while it runs.
+
+It is the widget bargain again, and for the same reason: the app supplies data
+and the host draws it. No app code runs on the bar, nothing an app sends is
+rendered as markup, no item carries a URL, and every icon and colour comes from
+the host's own closed sets. The install review shows the capability as "Show
+menus and small items in the top bar" and names the declared menus.
+
+#### Declared menus
+
+```json
+"capabilities": { "optional": ["topbar"] },
+"topbar": {
+  "menus": [
+    {
+      "id": "file",
+      "label": "File",
+      "items": [
+        { "id": "new", "label": "New sheet" },
+        { "id": "close", "label": "Close window", "action": "close" }
+      ]
+    }
+  ]
+}
+```
+
+At most four menus per app; each `id` matches `^[a-z][a-z0-9-]{0,31}$` and is
+unique within its scope; labels are 1–24 characters; each menu holds one to
+eight items. Declaring `topbar` without the capability fails validation, as
+does a duplicate id or an unknown field.
+
+`action` is optional and comes from a closed set of two. `close` ends the
+focused app's window; `return` leaves the app and goes back to the desk,
+leaving the window open. Both are things the host already does with its own
+controls, so a menu cannot reach anything an app could not reach over the
+bridge. An item with no action is a label the host draws and does not act on —
+it is rendered, because hiding it would make the menu lie about what the app
+offers, and it is inert rather than a button that silently does nothing.
+
+The set is deliberately two. A menu whose action were a free string would be a
+name the host has to look up and interpret, which is the beginning of a
+privileged plugin mechanism rather than a contribution contract. A richer
+vocabulary is a later decision, and it will be a closed set too.
+
+#### Published status items
+
+`Vela.topbar.publish(items)` puts up to three small items in the bar's right
+rail. Each is a flat object; everything but `id` is optional:
+
+```json
+[{ "id": "temp", "icon": "thermometer", "label": "-4°C", "title": "Oslo, feels like -9", "tone": "caution" }]
+```
+
+`id` matches `^[a-z][a-z0-9-]{0,31}$` and is how publishing replaces an item
+rather than adding one. `label` is text of at most 12 characters — what the bar
+draws — and `title` is text of at most 200, the tooltip. The whole list is at
+most 1024 bytes; over that is a 413, as it is for a widget summary. An item
+needs at least an `icon` or a `label`, because an item with neither would be an
+invisible thing occupying a slot.
+
+`icon` names one of twenty marks the host already ships, and nothing else:
+`battery`, `bell`, `calendar`, `check`, `clock`, `cloud`, `database`,
+`download`, `envelope`, `globe`, `heart`, `lock`, `moon`, `music`, `pulse`,
+`sun`, `thermometer`, `upload`, `warning`, `wifi`. A closed list rather than a
+free string is the point: an app names an icon, it never supplies one, so the
+bar can never be pointed at an image the app controls.
+
+`tone` is `neutral` (the default), `positive`, `caution` or `critical`. An app
+names a role and the host's tokens answer it; an app never names a colour.
+
+Publishing replaces the previous list, so `[]` takes the items down. Clicking an
+item raises the window of the app that published it, and does nothing else —
+not a link, not an action. An item published from an app's full-screen page has
+no window to raise, so clicking it does nothing at all.
+
+| Operation | Authorization / behavior |
+| --------- | ------------------------ |
+| `topbar.publish` (bridge) | App session with the `topbar` grant; 403 without it, 422 for an unknown field, an unlisted icon or tone, a duplicate id or an over-length string, 413 over 1024 bytes |
+
+**Where the items live, and how long.** Unlike widget summaries, they are not
+stored on the server. They belong to one open window; the bridge that carries
+them runs in the dashboard for exactly as long as that window does, and it
+clears them on its way out, so an item can never name an app that is no longer
+there. They do not survive a reload or a restart: republish from `Vela.ready`,
+the same as widgets. An app session names the app and the installation, never
+the view, which is the other reason these are not engine rows — there would be
+no honest key to store them under.
+
+**Versioning.** Both additions are new optional fields in manifest schema
+`0.5.0`, adopted by the hub as snapshot `787a28d6c30fc9a5`. An older hub
+refuses an unknown `view.window` or `topbar` block at validation with its
+existing "additional properties are not allowed" message, and refuses `topbar`
+in `capabilities.required` as an unsupported grant — so an app that wants to
+run on both hosts should ask for it under `capabilities.optional` and check
+`Vela.context.capabilities` before publishing. A hub that does not know
+`topbar.publish` answers the request with "Operation is not granted" rather
+than failing the app. `Vela.topbar.publish` needs SDK `0.5.0` or later; nothing
+else in the SDK changed.
 
 ### Automation contract
 
@@ -1256,11 +1405,25 @@ for KNOWN app ids; `/apps` (bare) belongs to the SPA. The embedded app route is
 
 ## Frontend Expectations — the Hub Shell
 
-The dashboard is a full shell, not a single grid page: a narrow rail beside a
-workspace, in the Nocturne visual language (Inter, pale lavender surfaces,
-purple-leaning accents, colorful per-app icon tiles from each manifest `color`,
-restrained 14px card corners), in light and dark.
+The dashboard is a full shell, not a single grid page: a global top bar above a
+narrow rail beside a workspace, in the Nocturne visual language (Inter, pale
+lavender surfaces, purple-leaning accents, colorful per-app icon tiles from each
+manifest `color`, restrained 14px card corners), in light and dark.
 
+Surfaces that overlap take their stacking from one named scale
+(`web/src/styles/_layers.scss`) rather than a number chosen where it is used:
+base, workspace, rail, top bar, window title bar, attached panel, flyout, menu.
+
+- **Top bar** (36px, wide layouts only): a translucent strip across the top.
+  The left names whatever has **focus** and carries that app's declared top bar
+  menus; the right holds the status items running apps have published, the ⌘K
+  search palette, the notification bell and the clock. Focus has one answer:
+  on the desk it is the selected window (and "Desk" when none is open or the
+  selected one is minimized), on `/app/{id}` it is that app, on every other
+  route it is that page, and "Vela" is the fallback. It is not rendered at
+  phone widths — the rail is the only chrome there, and the workspace header
+  carries search and the bell instead, so exactly one copy of each control
+  exists at any width.
 - **Rail** (desktop, 62px): the Vela mark, then **Desk** and the **Launchpad**
   fixed at the top, then the apps the user **pinned** (core tools and installed
   apps alike, in the saved order), a separator, the apps that are **open but not
@@ -1308,11 +1471,13 @@ restrained 14px card corners), in light and dark.
   `Ctrl+/` opens the shortcut sheet. Modifier chords fire even in a field; plain
   keys yield to editable targets and never reach an app's iframe.
 - **Workspace**: an optional context panel, a contextual header and the content
-  surface. The header carries the ⌘K search palette (apps, settings entries and
-  same-origin mini-app data) and the notification bell. A healthy server is not
-  reported: the header shows a “Can’t connect to Vela” notice with Retry only
-  when the engine resource has actually failed, and the server address badge
-  only while developer tools are on. Missing or still-loading data is neither.
+  surface. At phone widths, where there is no top bar, the header carries the
+  ⌘K search palette (apps, settings entries and same-origin mini-app data) and
+  the notification bell; on wide layouts the bar owns both and the header does
+  not draw a second copy. A healthy server is not reported: the header shows a
+  “Can’t connect to Vela” notice with Retry only when the engine resource has
+  actually failed, and the server address badge only while developer tools are
+  on. Missing or still-loading data is neither.
   Pages that show their own `<h1>` do not repeat it in the header; Ask uses it.
 - **App window** (`/app/{id}`, hub and compact chrome): the workspace is topped
   by the app's own **title bar** instead of the contextual header — a back

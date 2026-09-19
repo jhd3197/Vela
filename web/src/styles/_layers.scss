@@ -14,10 +14,18 @@
 //   workspace    the page, and the windows drawn on the desk inside it
 //   rail         the persistent rail beside the workspace
 //   topbar       the global bar above both
-//   window-bar   a window's own title bar, over the window's content
+//   chrome       a page's contextual header, and the window host over the desk
+//   overlay      All apps, drawn over the workspace it does not replace
 //   pop          a panel attached to a control: search results, notifications
 //   flyout       a panel that leaves its container: rail flyouts, drawers
 //   menu         menus, and the toasts that must clear them
+//
+// Windows have a band of their own inside the host that draws them, because
+// which window is in front is *state* — `window.stack`, kept by the server —
+// and not the order they happen to appear in the document. It used to be the
+// document order, and raising a window therefore moved its element, which
+// reloads the iframe inside it and restarts the app. A window carries its
+// depth as `--window-depth` and reads its layer from here.
 //
 // The values are the ones these surfaces already used, so naming them changed
 // no stacking. Add a layer by adding it here, in its place in the order, not
@@ -31,8 +39,16 @@
   --layer-workspace: 1;
   --layer-rail: 2;
   --layer-topbar: 12;
-  --layer-window-bar: 20;
+  --layer-chrome: 20;
+  --layer-overlay: 25;
   --layer-pop: 30;
   --layer-flyout: 40;
   --layer-menu: 60;
+
+  /* Inside the window host, whose own place is --layer-chrome. A desktop holds
+     at most eight views, so the deepest window sits well under the two
+     decorations that must stay over all of them. */
+  --layer-window: 1;
+  --layer-snap-preview: 20;
+  --layer-genie: 30;
 }
