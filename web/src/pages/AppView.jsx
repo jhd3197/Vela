@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { isProcessApp } from '../api.js';
+import { isManagedApp, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import AppTitleBar from '../components/AppTitleBar.jsx';
@@ -17,6 +17,7 @@ import useAppFrame from '../desktops/view-lifecycle.js';
 import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
+import ManagedAppView from '../components/ManagedAppView.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { readLocal, writeLocal } from '../storage.js';
 import { openExternal } from '../clipboard.js';
@@ -24,9 +25,13 @@ import { openExternal } from '../clipboard.js';
 export default function AppView() {
   const { id } = useParams();
   const [attempt, setAttempt] = useState(0);
-  const { apps } = useApps();
+  const { apps, refreshApps } = useApps();
   const app = apps?.find((item) => item.id === id);
   if (app?.kind === 'connected-web') return <ConnectedAppView key={id} app={app} />;
+  // A managed web app runs on an address of its own and is entered through a
+  // launch ticket, so it has nothing in common with the same-origin frame the
+  // workspace below builds for a packaged app.
+  if (isManagedApp(app)) return <ManagedAppView key={id} app={app} onStatus={refreshApps} />;
   return (
     <Workspace key={`${id}:${attempt}`} id={id} retry={() => setAttempt((value) => value + 1)} />
   );

@@ -82,6 +82,71 @@ are host-owned, so the hub renders them inside its own rail and contextual
 header (`chrome: "hub"`), with edit, reload and open-in-browser controls in that
 header. This presentation choice never reaches into the service's own document.
 
+### Managed web apps (`schemaVersion: 3`)
+
+A third app profile, beside SDK packages and saved connections. A **managed web
+app** is an existing self-hosted HTTP server that Vela installs, runs as a local
+native service and publishes on a hostname of its own. It is validated against
+[managed service manifest schema](../vela/assets/manifest-v3.schema.json)
+(canonical source: `vela-contracts`). v1 and v2 manifests are unchanged, and a
+Vela that predates this profile refuses `schemaVersion: 3` with
+`unsupported manifest schema version`, which is the intended fail-closed answer.
+
+| Field | Implemented values |
+| --- | --- |
+| `compatibility.managedService` | Must equal the host revision (currently `1`); any other value is refused by name |
+| `source` | `upstream` HTTPS URL and `license` required; optional `homepage`, `licenseFile`, `notes` |
+| `service.trust` | `trusted-native` only |
+| `service.artifacts[]` | One per `os` (`windows`/`macos`/`linux`) **and** `arch` (`x64`/`arm64`/`armv7`); `format` `zip` or `tar.gz`; `sha256` and exact `size` required; `file` (inside the package) or `url` (HTTPS), never both |
+| `service.command.args` | Argument vector, no shell; placeholders `{port} {host} {dataDir} {codeDir} {appId} {publicUrl}` only |
+| `service.environment` | Reviewed non-secret values added to a minimal environment; same placeholders |
+| `service.endpoint` | `protocol: "http"`, `bind` loopback, `basePath`, `websocket` (`unsupported` by default) |
+| `service.readiness` | `path` required; `expectStatus` (default `[200]`), `startTimeoutSeconds`, `intervalSeconds` |
+| `service.lifetime` | `startWithVela` suggestion, `stopTimeoutSeconds`, bounded `restart` policy |
+| `service.data.directory` | One relative directory under the app's own storage |
+| `view.surface` | `managed-web`; `view.embedding` is `auto` or `external` |
+| `integration.sdk` / `.agent` | `false` only |
+
+Install, migration and repair hooks are not expressible. A managed app receives
+no bridge session, app storage, actions, widgets or agent access, and `/apps/{id}/`
+does not serve it.
+
+**Selection and review.** The host picks the artifact matching both its OS and
+its CPU; no combined `posix` target exists, and an unmatched target refuses
+before anything executes. The archive is downloaded or read, verified against
+`sha256` and `size`, and extracted *before* the review is shown, so approval
+names a digest of bytes already on disk. Committing re-measures the staged tree
+and refuses a mismatch. Archive members are refused if they are links, special
+files, encrypted, colliding, nonportable, or resolve outside the destination.
+
+**Lifetime.** User intent (`running`/`stopped`, `startWithVela`) is stored
+separately from observed state (`stopped`, `starting`, `ready`, `failed`) and
+from the current exclusive operation (`install`, `update`, `backup`, `restore`,
+`rollback`, `remove`, `erase`). Readiness is the declared HTTP probe, never an
+open socket. Process ownership is the PID plus a creation-time token; a record
+without one is never signalled. An explicit Stop survives a restart. Crash
+restarts back off and run out, and the reason is kept.
+
+**The gateway.** `vela/managed/gateway.py` is ASGI middleware in front of
+everything. A request whose `Host` is under an app domain is answered there and
+never reaches Vela's auth layer or routers; a name under the domain with no app
+behind it answers 404 rather than falling through to the dashboard. Entry is a
+one-use, 30-second launch ticket bound to the app, its install generation, the
+Vela session that asked and the exact host; redeeming it sets a host-only
+`__Host-vela-app` cookie. Gateway cookies are stripped from what goes upstream,
+a Vela bearer presented on an app host is dropped, upstream `Set-Cookie` headers
+are preserved individually with `Domain` removed, and reserved names are
+refused. Unsafe cross-origin requests are refused, because sibling apps share a
+registrable domain and `SameSite` does not separate them. Sign-out, app lock, a
+stop, an update and removal revoke sessions, including streams already open,
+within one second. WebSocket upgrades are closed with `1008` and a reason.
+
+**Data.** `data/` is never replaced by an update; only a restore replaces it,
+through two renames with a safety snapshot taken first and a durable journal
+that the next startup resolves before anything auto-starts. Snapshots are taken
+with the service stopped and verified by tree digest. Vela's own backup carries
+`managed.sqlite`, not the applications' data.
+
 ### Package manifests
 
 Unversioned manifests and `schemaVersion: 1` normalize to the legacy runtime

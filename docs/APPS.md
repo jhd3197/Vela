@@ -473,6 +473,118 @@ through it first: Vela redacts what it can recognise, but a log line can still
 carry a folder name or an address you would rather not pass on. Bundles are
 deleted after a week.
 
+## Host an existing web app
+
+A **managed web app** is a self-hosted web application -- Memos, for example --
+that Vela installs, runs and looks after for you. Unlike a connected website,
+there is nothing to set up first and nothing else to keep running: Vela
+downloads the release, starts the program, gives it an address, and stops it
+when you ask. Unlike an app from the Marketplace, it is not written for Vela. It
+keeps its own interface, its own accounts and its own database, and Vela does
+not read any of them.
+
+### Installing one
+
+Open **Marketplace -> Add an app** and choose the package folder or ZIP for the
+app. Vela downloads the release the package names, checks it against the
+checksum in the package, unpacks it, and only then shows you the review. The
+review names the program's source and licence, the exact build for this
+computer, and what the program will be able to do.
+
+Read that last part before you agree to it. **A managed web app runs as a
+program on this computer with your own permissions.** It can read and write the
+files you can and reach the network you can. Vela limits what a *browser* can
+reach, not what the program itself can do. Install one the way you would install
+any other program: because you know where it came from.
+
+Installing a managed web app grants it nothing inside Vela. It gets no app
+storage, no actions, no desk widgets, no assistant or agent access, and no Vela
+credentials of any kind.
+
+### Its own address
+
+Each managed app is published on a name of its own:
+
+```
+http://memos.apps.localhost:7700
+```
+
+Every browser resolves a `.localhost` name to this computer without any setup,
+which is what lets the app own its whole address the way it expects. Vela's own
+dashboard is never served on those names, and the app is never served on Vela's.
+
+Opening the app from Vela is what lets your browser in. Vela hands the browser a
+link that works once and expires in thirty seconds; the browser spends it and
+gets a cookie for that one app. Signing out of Vela, locking it, stopping the
+app or updating it all end that access straight away, including pages already
+open.
+
+Sign in to the app itself with the app's own account. Vela does not know that
+password and never sees it.
+
+### From another device
+
+A phone on your Wi-Fi reaches Vela through **Settings -> Connect a phone**, but
+an app's own name is a separate question: `memos.apps.localhost` means *the
+phone*, not this computer. To reach a managed app from another device you need a
+name that resolves to this computer, and a certificate the device trusts.
+
+Vela offers `<app>.apps.vela.invalid` for that. `.invalid` is reserved and can
+never collide with a real website, and Vela's own Wi-Fi certificate authority is
+already allowed to certify those names. It needs one manual step, on your
+network rather than in Vela: point a wildcard DNS entry for
+`*.apps.vela.invalid` at this computer's address, in your router or whatever
+runs DNS for your network. Then install Vela's Wi-Fi certificate on the device
+as the phone setup describes.
+
+Vela cannot arrange that for you, and it says so rather than offering a link
+that quietly fails. Each app's settings list the address and what it needs. If
+you would rather not set up DNS, open the app on the computer running Vela.
+
+### Running, stopping and starting again
+
+Closing an app's window does **not** stop it. The service keeps running, which
+is usually what you want from something that receives webhooks or runs
+reminders. **Stop** in the app's window or its settings is what ends it, and
+Vela remembers that you stopped it: it stays stopped after a restart even with
+**Start with Vela** switched on.
+
+Turn **Start with Vela** on for an app you want back automatically after the
+computer restarts. If an app crashes, Vela starts it again a few times with a
+growing pause, then stops trying and says why, with its log a click away. It
+does not restart in a loop behind a badge that says Failed.
+
+### Backups, updates and going back
+
+An app's data is its own, and it is backed up on its own, from the app's
+settings. **Back up now** stops the service first, copies its database and
+files, and starts it again -- stopping first is the only way to be sure a
+database with a write-ahead log is copied whole. Each backup says when it was
+taken, which version made it, and how large it is.
+
+A Vela backup records *that* a managed app is installed and which version, so a
+restored Vela knows what is there. It deliberately does **not** contain the
+applications' own data: an app's database and attachments can be hundreds of
+megabytes, and a backup that big is one nobody takes. Back up the apps you care
+about from their own pages.
+
+Updating installs a newer package over the same data. Vela takes a checkpoint
+first, so **Go back** is there if the new version does not suit you. Going back
+puts back the previous program *and* its data together -- running older code
+against a database a newer version has changed is how data gets lost -- so
+anything written since the checkpoint is replaced. Vela says so before it asks,
+and keeps a copy of the current data first.
+
+If Vela is interrupted in the middle of any of this, it finishes or undoes the
+operation on the way back up, before starting anything.
+
+### Removing one
+
+**Remove app** stops the app and deletes its program. **Its data stays**, in a
+folder the confirmation names, so installing it again picks up where you left
+off. **Erase data** is a separate button with its own confirmation naming the
+folder and its size. That one cannot be undone.
+
 ## Connect an existing web app
 
 Run your web service first, using ServerKit, Docker or its own installer. In

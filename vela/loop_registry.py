@@ -33,6 +33,7 @@ EXPECTED_LOOPS: frozenset[str] = frozenset({
     "notify.updates",
     "system.metrics",
     "automations.schedule",
+    "managed.reconcile",
 })
 
 

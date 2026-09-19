@@ -30,6 +30,8 @@ A route change belongs in the same commit as the regenerated list.
 - `DELETE /api/errors/{error_id}`
 - `DELETE /api/files/{share_id}`
 - `DELETE /api/logs/{name}`
+- `DELETE /api/managed/review/{review}`
+- `DELETE /api/managed/{app_id}`
 - `DELETE /api/phone-access`
 - `DELETE /api/releases/{review}`
 - `DELETE /api/security`
@@ -107,6 +109,9 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/logs`
 - `GET /api/logs/{name}`
 - `GET /api/logs/{name}/download`
+- `GET /api/managed`
+- `GET /api/managed/{app_id}`
+- `GET /api/managed/{app_id}/status`
 - `GET /api/notifications`
 - `GET /api/phone-access`
 - `GET /api/platforms`
@@ -202,6 +207,16 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/files/{share_id}/upload`
 - `POST /api/login`
 - `POST /api/logout`
+- `POST /api/managed/review`
+- `POST /api/managed/review/upload`
+- `POST /api/managed/review/{review}/install`
+- `POST /api/managed/{app_id}/data/erase`
+- `POST /api/managed/{app_id}/launch`
+- `POST /api/managed/{app_id}/releases/{release_id}/rollback`
+- `POST /api/managed/{app_id}/snapshots`
+- `POST /api/managed/{app_id}/snapshots/{snapshot_id}/restore`
+- `POST /api/managed/{app_id}/start`
+- `POST /api/managed/{app_id}/stop`
 - `POST /api/notify/publish`
 - `POST /api/notify/test`
 - `POST /api/phone-access`
@@ -235,6 +250,7 @@ A route change belongs in the same commit as the regenerated list.
 - `PUT /api/desktops/{desktop_id}/layout`
 - `PUT /api/desktops/{desktop_id}/policy`
 - `PUT /api/desktops/{desktop_id}/wallpaper`
+- `PUT /api/managed/{app_id}/startup`
 - `PUT /api/wallpaper`
 - `PUT /api/web-apps/{app_id}`
 - `PUT /api/{unknown_path}`

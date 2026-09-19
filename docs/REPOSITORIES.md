@@ -8,9 +8,9 @@ The hub owns the Python engine and React interface. Its root has no `packages/`,
 | Repository | Owns | Local validation |
 | --- | --- | --- |
 | `vela` | Python engine, React hub, host bridge, compatibility tests | `python -m unittest discover -s tests`; `node --test tests/bridge.test.mjs`; `npm --prefix web run build` |
-| `vela-contracts` | Manifest v2 JSON Schema; `@vela/contracts` 0.5.0 | `npm pack --dry-run` |
+| `vela-contracts` | Manifest v2 (SDK apps) and v3 (managed web apps) JSON Schemas; `@vela/contracts` 0.5.0 | `npm pack --dry-run` |
 | `vela-sdk` | Public browser bridge client; `@vela/sdk` 0.5.0 | `npm pack --dry-run` |
-| `vela-templates` | Canonical starter source and connection recipes | Generate an app with the sibling CLI and import it in Vela |
+| `vela-templates` | Canonical starter source, connection recipes and the managed-web-app packaging starter | Generate an app with the sibling CLI and import it in Vela |
 | `vela-create-app` | App generator; `@vela/create-app` 0.4.0 | `npm pack`; run the packed CLI in a fresh directory |
 | `vela-health` | Health app and release builder | `python release.py` |
 | `vela-notes` | Notes app and release builder | `python release.py` |

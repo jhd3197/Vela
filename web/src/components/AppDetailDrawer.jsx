@@ -3,7 +3,7 @@ import Drawer from './ui/Drawer.jsx';
 import ReleaseHistory from './ReleaseHistory.jsx';
 import { useLocation } from 'react-router-dom';
 import { X } from '@phosphor-icons/react';
-import { api, isWebApp, isProcessApp } from '../api.js';
+import { api, isManagedApp, isWebApp, isProcessApp, managedState } from '../api.js';
 import { useAppStatus, useApps } from '../store.jsx';
 import { useDeveloperTools } from '../developer.js';
 import useOpenApp from '../desktops/useOpenApp.js';
@@ -13,6 +13,7 @@ import AddToHomeScreen from './AddToHomeScreen.jsx';
 import AppPermissions from './AppPermissions.jsx';
 import AppDiagnostics from './AppDiagnostics.jsx';
 import ConnectedAppForm from './ConnectedAppForm.jsx';
+import ManagedAppPanel from './ManagedAppPanel.jsx';
 
 // App detail drawer: what the app is, who wrote it, what it can reach, what it
 // may do in other apps, and the actions that apply to it. Identifiers, the
@@ -22,7 +23,24 @@ import ConnectedAppForm from './ConnectedAppForm.jsx';
 export default function AppDetailDrawer(props) {
   if (props.app?.kind === 'connected-web')
     return <ConnectedAppDetail key={props.app.id} {...props} />;
+  // A managed web app has its own everything: service state, address, backups
+  // and versions. Its panel is where those live, rather than a package drawer
+  // with most of its rows crossed out.
+  if (isManagedApp(props.app)) return <ManagedAppDetail key={props.app.id} {...props} />;
   return <PackageAppDetail {...props} />;
+}
+
+function ManagedAppDetail({ app, onClose }) {
+  const { refreshApps } = useApps();
+  const state = managedState(app);
+  return (
+    <>
+      <ManagedAppPanel app={app} onClose={onClose} onChanged={refreshApps} />
+      <span className="sr-only" role="status">
+        {app.name} is {state.label.toLowerCase()}
+      </span>
+    </>
+  );
 }
 
 function ConnectedAppDetail({ app, onClose }) {

@@ -8,6 +8,35 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Host an existing web app.** Vela can now install and run a self-hosted web
+  application — Memos, for example — that was never written for Vela. It
+  downloads the release the package names, checks it against the package's
+  checksum, and shows you the program's source, licence and exact build for this
+  computer before anything is installed. The app keeps its own interface,
+  accounts and database; Vela owns installing it, running it, its web address
+  and its backups. Installing one grants it nothing inside Vela: no app storage,
+  no actions, no desk widgets, no assistant or agent access, and no Vela
+  credentials. The install review says plainly that the program runs with your
+  own permissions, because it does.
+
+  Each app is published on an address of its own, `http://<app>.apps.localhost`,
+  which every browser resolves without setup and on which Vela's own dashboard
+  is never served. Opening an app from Vela hands your browser a link that works
+  once and expires in thirty seconds; signing out, locking Vela, stopping the
+  app or updating it all end that access immediately, including pages already
+  open. Reaching an app from a phone needs one manual step on your network — a
+  wildcard DNS entry for `*.apps.vela.invalid` pointing at this computer — and
+  each app says so beside the address rather than offering a link that fails.
+
+  Closing an app's window leaves it running; Stop is what ends it, and Vela
+  remembers that you stopped it across a restart even with **Start with Vela**
+  on. A crashed app is started again a few times with a growing pause and then
+  left alone with the reason and its log. Backups are taken per app with the
+  service stopped, so a database with a write-ahead log is copied whole; an
+  update takes a checkpoint first, and **Go back** restores the previous version
+  together with its matching data. Removing an app keeps its data and says where
+  it is; erasing that data is a separate, confirmed action.
+
 - **One-command development environment.** `./dev.sh` (Linux/macOS/WSL/Git
   Bash) and `.\dev.ps1` (native Windows) start the backend and the Vite
   dashboard together against a disposable `.local/dev-data` directory, creating

@@ -33,8 +33,38 @@ class Auth:
         # passes through here before any handler sees it, so there is one place
         # that decides what a run may reach rather than a check per route.
         self.gateway = None
+        # Set by `create_app`: called with a hub session token whenever that
+        # session stops being one. Managed web apps are reached on their own
+        # origins, so the auth layer cannot end that access by removing a
+        # session here -- it has to say that it happened.
+        self.on_session_ended = None
         if self.remote and (not self.origin or not self.origin.startswith("https://") or not self.password_file.is_file()):
             raise ValueError("Remote access requires an HTTPS public origin and a configured access password")
+
+    def owner_still_signed_in(self, token):
+        """Whether the Vela session that opened an app window is still one.
+
+        The app gateway asks this on every request it carries. A locked session
+        is deliberately not signed in for this purpose: app lock exists to stop
+        the person at the keyboard reaching what is open, and an app on its own
+        origin is exactly what would otherwise stay reachable.
+        """
+        if token is None:
+            return False
+        with self.lock:
+            record = self.quick.get(token)
+            if record is not None and self._locked(record):
+                return False
+        return self.valid_hub_token(token)
+
+    def _session_ended(self, token):
+        """Tell whatever holds authority derived from this session that it ended."""
+        if self.on_session_ended is None:
+            return
+        try:
+            self.on_session_ended(token)
+        except Exception:  # noqa: BLE001 - a sign-out must not fail over this
+            pass
 
     def valid_hub_token(self, token):
         with self.lock:
@@ -56,11 +86,14 @@ class Auth:
     def disable_phone_access(self):
         if self.remote: return
         with self.lock:
+            ended = list(self.hub_sessions)
             self.phone_origin = None
             self.hub_sessions.clear()
             self.quick.clear()
             self.sessions = {key: value for key, value in self.sessions.items()
                              if value.get('owner') == self.hub_token}
+        for token in ended:
+            self._session_ended(token)
 
     def bootstrap(self, request):
         if not self.is_remote_request(request): return self.hub_token
@@ -201,6 +234,9 @@ class Auth:
             # Ends the bridge and any open stream this session started.
             self.sessions = {key: value for key, value in self.sessions.items()
                              if value.get("owner") != token}
+        # And any managed app this session opened on its own web address, which
+        # no amount of removing app sessions here would reach.
+        self._session_ended(token)
         return self.quick_status(request)
 
     def unlock(self, request, secret=None, password=None):
@@ -253,11 +289,19 @@ class Auth:
         return JSONResponse({"detail": "Vela is locked"}, status_code=423)
 
     def logout(self, request):
-        token = request.cookies.get("__Host-vela-session", "")
+        # The cookie on a phone or a configured HTTPS deployment; the bearer on
+        # the computer running Vela, where there is no cookie to remove. Either
+        # way it names the session that is ending, and things holding authority
+        # derived from it -- an app open on its own web address, for one -- have
+        # to be told.
+        token = (request.cookies.get("__Host-vela-session")
+                 or request.headers.get("authorization", "").removeprefix("Bearer ")
+                 or "")
         with self.lock:
             self.hub_sessions.pop(token, None)
             self.quick.pop(token, None)
             self.sessions = {key: value for key, value in self.sessions.items() if value.get("owner") != token}
+        self._session_ended(token)
 
     def issue(self, manifest, identity, owner=None):
         token = secrets.token_urlsafe(32)

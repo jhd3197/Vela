@@ -19,6 +19,33 @@ tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
 tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
 step.
 
+### Managed web apps
+
+`tests/test_managed_contract.py`, `test_managed_lifecycle.py`,
+`test_managed_gateway.py` and `test_managed_recovery.py` run against a real
+disposable HTTP service, `tests/fixtures/managed-web/service.py`, started as a
+child process the way a hosted application is. It keeps notes in SQLite with a
+write-ahead log and attachments as files, signs in with both a bearer token and
+a cookie, reports exactly which credentials reached it, serves ranged downloads,
+redirects and event streams, and can be told to start slowly, fail its
+migration, bind without becoming ready or exit without warning.
+
+`tests/fixtures/managed-web/fixture_build.py` builds a package for the machine
+running the test: a launcher this computer can execute, zipped and pinned by
+digest exactly as a real release is. It bakes in the running interpreter, which
+is why it is a fixture and not a template.
+
+These suites start processes and take a few minutes. Two things they cannot
+prove, and neither should be reported from them:
+
+- **That a browser accepts the gateway's session cookie.** It carries `Secure`
+  on an `http://*.localhost` origin, which browsers allow because that origin is
+  trustworthy and `httpx` refuses because the plain rule says so. The suite
+  moves the cookie into the jar by hand; a real browser check is the evidence.
+- **That another device resolves an app's name.** `*.apps.vela.invalid` needs a
+  DNS entry on the network. A phone viewport proves layout, not resolution or
+  certificate trust.
+
 ### Background work
 
 Wait for the behavior a test needs with `threading.Event` or `asyncio.Event`

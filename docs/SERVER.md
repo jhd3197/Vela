@@ -85,6 +85,14 @@ The app catalog and one-click discovery are separate from installing the server.
 Data is stored in `.vela` under your user home folder, outside the extracted
 server folder. On Windows, this is `%USERPROFILE%\.vela`.
 
+Hosted web apps keep their files under `.vela\managed\<app>\`: `releases\` holds
+each version's program, `data\` holds the application's own database and
+uploads, and `snapshots\` holds the backups you have taken of it. Removing an
+app deletes its program and leaves `data\` alone; erasing its data is a separate
+action. `managed.sqlite` records which apps are installed and which version each
+one runs, and is part of Vela's own backup. The applications' data is not: back
+those up from each app's page.
+
 To update Windows, choose **Quit Vela** in the tray, then run the new installer.
 Uninstall through Windows **Installed apps**; your apps and data stay intact.
 For portable downloads, quit Vela, extract the new version into a separate
@@ -94,6 +102,26 @@ Back up your data before upgrading. Do not run both copies at the same time.
 Windows tray logs are in `%USERPROFILE%\.vela\logs\server.log`; use **Open logs**
 from the tray menu if startup fails. A **Failed** status can mean port 7700 is
 already in use. Stop the other server, then choose **Start server** to retry.
+
+## App addresses
+
+Each hosted web app is served by this same server under a name of its own, so it
+can own its whole address the way it expects:
+
+```
+http://<app>.apps.localhost:7700
+```
+
+Browsers resolve `.localhost` names to this computer with no setup. Vela's
+dashboard is never served on those names and the apps are never served on
+Vela's, so an app cannot reach Vela's API even though they share a port.
+
+To reach an app from another device, point a wildcard DNS entry for
+`*.apps.vela.invalid` at this computer and install Vela's Wi-Fi certificate on
+the device; the app then answers on `https://<app>.apps.vela.invalid`. That DNS
+entry is yours to make -- Vela cannot create one -- and each app's settings say
+so beside the address. Set `VELA_APP_DOMAIN` and `VELA_APP_LAN_DOMAIN` to use
+names of your own instead.
 
 ## Another device
 

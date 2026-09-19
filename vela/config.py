@@ -12,6 +12,19 @@ DEFAULT_DATA_DIR = Path.home() / ".vela"
 ENV_DATA_DIR = "VELA_DATA_DIR"
 
 
+#: The parent name managed web apps are published under on the computer running
+#: Vela. `*.localhost` resolves to loopback in every browser Vela supports
+#: without a hosts file or a DNS server, which is what makes an app-per-hostname
+#: layout usable on a personal machine.
+DEFAULT_APP_DOMAIN = "apps.localhost"
+
+#: The parent name offered for other devices on the same network. `.invalid` is
+#: reserved by RFC 2606, so it can never collide with a real site, and Vela's own
+#: Wi-Fi certificate authority is already constrained to it. It resolves only
+#: where an operator has pointed a DNS server at this computer; see docs/APPS.md.
+DEFAULT_APP_LAN_DOMAIN = "apps.vela.invalid"
+
+
 @dataclass(frozen=True)
 class Config:
     data_dir: Path
@@ -21,6 +34,18 @@ class Config:
     public_origin: str | None = None
     catalog_source: str | None = None
     catalog_sha256: str | None = None
+    app_domain: str = DEFAULT_APP_DOMAIN
+    app_lan_domain: str = DEFAULT_APP_LAN_DOMAIN
+    app_gateway_port: int = 7700
+    app_gateway_lan_port: int | None = None
+
+    @property
+    def app_domains(self) -> tuple[str, ...]:
+        """Every parent name a managed app answers on, most local first."""
+        found = [self.app_domain]
+        if self.app_lan_domain and self.app_lan_domain != self.app_domain:
+            found.append(self.app_lan_domain)
+        return tuple(found)
 
     @property
     def installed_dir(self) -> Path:
@@ -55,6 +80,14 @@ def dir_size(path: Path) -> int:
     return total
 
 
+def _port(value: Any, fallback: int) -> int:
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return port if 0 < port < 65536 else fallback
+
+
 def load_config() -> Config:
     data_dir = Path(os.environ.get(ENV_DATA_DIR, DEFAULT_DATA_DIR)).expanduser()
     config = Config(
@@ -65,6 +98,12 @@ def load_config() -> Config:
         public_origin=os.environ.get("VELA_PUBLIC_ORIGIN"),
         catalog_source=os.environ.get("VELA_CATALOG"),
         catalog_sha256=os.environ.get("VELA_CATALOG_SHA256"),
+        app_domain=os.environ.get("VELA_APP_DOMAIN", DEFAULT_APP_DOMAIN),
+        app_lan_domain=os.environ.get("VELA_APP_LAN_DOMAIN", DEFAULT_APP_LAN_DOMAIN),
+        # The port the dashboard was reached on is the port an app address has
+        # to carry: a managed app is served by this same listener under a
+        # different name, not by a second server on a port of its own.
+        app_gateway_port=_port(os.environ.get("VELA_PORT"), 7700),
     )
     config.ensure_dirs()
     return config

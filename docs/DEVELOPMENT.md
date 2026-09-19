@@ -82,6 +82,7 @@ refusal or a loop.
 | `routers/` | One module per group of routes. Each exposes `router(...) -> APIRouter`. |
 | `automations/api.py`, `desktops/api.py` | The two routers that predate `routers/`. Same factory shape, listed in the same registry. |
 | `webapps.py` | The router that serves installed apps under `/apps/{id}/...`. |
+| `managed/` | Managed web apps: the v3 contract, package staging and extraction, the persistent record, the process supervisor, the app-hostname gateway and the operations a person performs. |
 | `errors_http.py` | `VelaError` and its subclasses: the typed refusals a service raises. |
 | `loop.py`, `loop_registry.py` | `BackgroundLoop` and `BackgroundThread`, and the register of process-lifetime loops. |
 
@@ -102,6 +103,40 @@ $env:VELA_UPDATE_API_SURFACE=1; python -m unittest tests.test_api_surface
 `docs/API_SURFACE.md` is the committed list of every `METHOD /path` the engine
 serves. Regenerating it is how a deliberate route change becomes a reviewable
 diff; a diff you did not intend is a defect in the route, not in the doc.
+
+### Hosting an application Vela did not write
+
+`vela/managed/` is a profile of its own, not an extension of the app lifecycle,
+because almost nothing an SDK app has applies: no manifest Vela authored, no
+bridge, no app storage, no grants. Each module owns one responsibility:
+
+| Module | Responsibility |
+| --- | --- |
+| `contract.py` | The v3 manifest, and the rules a JSON Schema cannot express: that an archive is really inside its package, that a data directory cannot climb out, that a placeholder is one this host can fill. |
+| `packages.py` | Staging, downloading, verifying and extracting release artifacts, with its own much larger bounds and no trust in any name inside an archive. |
+| `store.py` | `managed.sqlite` and the directory layout: identity, intent, releases, snapshots, the exclusive operation and the durable journal. |
+| `supervisor.py` | The process: argv without a shell, a filtered environment, the readiness probe, ownership by creation token, stopping the tree, and the restart budget. |
+| `gateway.py` | The app's own hostname: ASGI middleware in front of everything, the launch exchange and the proxy. |
+| `service.py` | The operations, and the order they happen in. |
+
+Two shapes are worth knowing before changing any of it.
+
+**Code is never swapped in place.** Each reviewed release is extracted once into
+`releases/<id>/`, and the installation record names the active one. An update is
+an extraction and a database commit; a rollback is a database commit. There is
+no half-replaced directory, which is why only a *restore* -- the one operation
+that replaces the app's own data -- needs a journal and staged renames.
+
+**Intent and observation are separate, always.** What the user wants is in the
+store and nothing that happens to a process changes it. What is true right now
+is measured by the supervisor and never inferred from having asked for it. A
+change that blurs those two is the change that makes Vela lie about whether an
+app is running.
+
+The gateway is one of the few modules allowed to import Starlette, and
+`tests/test_api_boundaries.py` names it with the reason. It answers requests
+itself, in front of the router tree, which is exactly why an app hostname cannot
+reach Vela's API.
 
 ### Refusing a request
 

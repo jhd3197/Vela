@@ -10,5 +10,11 @@
     "source": "manifest-v2.schema.json",
     "version": "0.5.0",
     "sha256": "ca7bf862a8cad52b4bd912fb7ba9fb7d25711f12a6ad449c57249f7f9b683017"
+  },
+  "manifest-v3.schema.json": {
+    "repository": "vela-contracts",
+    "source": "manifest-v3.schema.json",
+    "version": "0.5.0",
+    "sha256": "bc01a08113ca7ddeabedd63e8e3cd0f0a85df75f89c097f401b09071bc028864"
   }
 }

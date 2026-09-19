@@ -1,0 +1,463 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vela app manifest v3 (managed web app)",
+  "description": "A managed web app is an existing self-hosted web server that Vela installs, starts as a local native service and publishes on its own web address. The application keeps its own interface, accounts and data format; Vela owns the installation record, the service lifetime, the gateway and the declared recovery operations. A v3 manifest never grants the browser SDK bridge, app storage, actions, widgets or agent access.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "version",
+    "description",
+    "category",
+    "author",
+    "compatibility",
+    "source",
+    "service",
+    "view"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 3
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 48
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "version": {
+      "description": "The packaged release of this app, as the package author versions it.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "icon": {
+      "$ref": "#/$defs/path"
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "compatibility": {
+      "description": "What the package needs from the host. `managedService` is the host feature revision; a host that does not implement it must refuse the package rather than ignore the declaration.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "managedService"
+      ],
+      "properties": {
+        "managedService": {
+          "description": "The managed-service feature revision this package needs. A host that implements a different one refuses the package with an actionable message rather than ignoring declarations it cannot honour, so this is a number to compare rather than a constant.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        },
+        "minimumHost": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "source": {
+      "description": "Where the upstream application comes from, so an install review can say whose code is about to run with the user's own permissions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream",
+        "license"
+      ],
+      "properties": {
+        "upstream": {
+          "type": "string",
+          "pattern": "^https://[^/\\s]+",
+          "maxLength": 512
+        },
+        "homepage": {
+          "type": "string",
+          "pattern": "^https://[^/\\s]+",
+          "maxLength": 512
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "licenseFile": {
+          "$ref": "#/$defs/path"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 600
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trust",
+        "artifacts",
+        "command",
+        "endpoint",
+        "readiness",
+        "data"
+      ],
+      "properties": {
+        "trust": {
+          "description": "Trusted native execution: the service runs as the Vela host user with that user's operating-system permissions. It is not a sandbox, and no other value is accepted.",
+          "const": "trusted-native"
+        },
+        "artifacts": {
+          "description": "One entry per supported operating system and CPU architecture. There is no combined `posix` target: a host picks the entry that matches both its OS and its architecture, and refuses to run anything when none matches.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "command": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "args"
+          ],
+          "properties": {
+            "args": {
+              "description": "The argument vector passed to the executable. No shell is involved. Each item may contain the bounded placeholders {port}, {host}, {dataDir}, {codeDir}, {publicUrl} and {appId}.",
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "workingDirectory": {
+              "description": "Which of the app's own directories the process starts in.",
+              "enum": [
+                "code",
+                "data"
+              ],
+              "default": "code"
+            }
+          }
+        },
+        "environment": {
+          "description": "Reviewed, non-secret environment values added to a minimal inherited environment. Placeholders are the same bounded set the arguments use. Vela credentials are never placed here.",
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "endpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol"
+          ],
+          "properties": {
+            "protocol": {
+              "const": "http"
+            },
+            "bind": {
+              "description": "The loopback address the service is expected to listen on. The port is allocated by the host and supplied through {port}.",
+              "enum": [
+                "127.0.0.1",
+                "::1"
+              ],
+              "default": "127.0.0.1"
+            },
+            "basePath": {
+              "description": "Where the application serves its own root. Managed apps are published at the root of their own web address, so this is \"/\" unless the upstream server insists otherwise.",
+              "type": "string",
+              "pattern": "^/([^\\s?#]*)$",
+              "maxLength": 128,
+              "default": "/"
+            },
+            "websocket": {
+              "description": "Whether the application needs WebSocket upgrades through the gateway. \"unsupported\" makes the gateway refuse upgrades with a stated reason rather than hanging.",
+              "enum": [
+                "required",
+                "optional",
+                "unsupported"
+              ],
+              "default": "unsupported"
+            }
+          }
+        },
+        "readiness": {
+          "description": "The HTTP probe that decides the service is really serving. A listening socket is not readiness.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^/([^\\s?#]*)$",
+              "maxLength": 256
+            },
+            "expectStatus": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              "default": [
+                200
+              ]
+            },
+            "startTimeoutSeconds": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 600,
+              "default": 60
+            },
+            "intervalSeconds": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 10,
+              "default": 0.5
+            }
+          }
+        },
+        "lifetime": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "startWithVela": {
+              "description": "The package's suggested default. The user's own choice is stored by the host and always wins.",
+              "type": "boolean",
+              "default": false
+            },
+            "stopTimeoutSeconds": {
+              "description": "How long a graceful stop is given before the owned process tree is forced.",
+              "type": "number",
+              "minimum": 1,
+              "maximum": 300,
+              "default": 15
+            },
+            "restart": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxRetries": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "default": 3
+                },
+                "windowSeconds": {
+                  "type": "number",
+                  "minimum": 10,
+                  "maximum": 3600,
+                  "default": 300
+                },
+                "backoffSeconds": {
+                  "type": "number",
+                  "minimum": 0.5,
+                  "maximum": 120,
+                  "default": 2
+                }
+              }
+            }
+          }
+        },
+        "data": {
+          "description": "The one directory the application keeps its data in. It survives Stop, a Vela restart, a code replacement and removal of the app.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory"
+          ],
+          "properties": {
+            "directory": {
+              "description": "Relative to the app's own managed data root. Never an arbitrary host folder.",
+              "$ref": "#/$defs/path"
+            },
+            "backup": {
+              "description": "How a consistent snapshot is taken. \"stop-and-copy\" stops the service first, which is the only method this host revision implements.",
+              "const": "stop-and-copy"
+            },
+            "describe": {
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        }
+      }
+    },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface"
+      ],
+      "properties": {
+        "surface": {
+          "const": "managed-web"
+        },
+        "chrome": {
+          "enum": [
+            "hub",
+            "compact",
+            "seamless"
+          ],
+          "default": "compact"
+        },
+        "appearance": {
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "embedding": {
+          "description": "Whether the application may be shown inside a Vela window. \"auto\" tries the window and keeps the full-page route; \"external\" always opens a separate tab because upstream frame rules forbid embedding. Vela never strips an upstream frame defence to force a window.",
+          "enum": [
+            "auto",
+            "external"
+          ],
+          "default": "auto"
+        }
+      }
+    },
+    "integration": {
+      "description": "Deliberately absent by default. Installing a managed app grants no SDK bridge, app storage, actions, widgets, assistant or agent access, and these flags exist so a package cannot imply otherwise.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sdk": {
+          "const": false
+        },
+        "agent": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*:).+$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "arch",
+        "format",
+        "sha256",
+        "size",
+        "executable"
+      ],
+      "properties": {
+        "os": {
+          "enum": [
+            "windows",
+            "macos",
+            "linux"
+          ]
+        },
+        "arch": {
+          "enum": [
+            "x64",
+            "arm64",
+            "armv7"
+          ]
+        },
+        "format": {
+          "enum": [
+            "zip",
+            "tar.gz"
+          ]
+        },
+        "file": {
+          "description": "An archive carried inside the package itself. Use this or `url`, never both.",
+          "$ref": "#/$defs/path"
+        },
+        "url": {
+          "description": "An HTTPS archive fetched during install review. The download is completed and verified against `sha256` before anything is approved, and approval is bound to those bytes.",
+          "type": "string",
+          "pattern": "^https://[^/\\s]+/[^\\s]*$",
+          "maxLength": 1024
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size": {
+          "description": "Exact archive size in bytes. A download that does not match is refused before extraction.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "executable": {
+          "description": "The program to run, relative to the extracted archive root.",
+          "$ref": "#/$defs/path"
+        },
+        "expandedSizeLimit": {
+          "description": "Upper bound on the extracted tree, in bytes. The host applies its own ceiling as well.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "file"
+          ],
+          "not": {
+            "required": [
+              "url"
+            ]
+          }
+        },
+        {
+          "required": [
+            "url"
+          ],
+          "not": {
+            "required": [
+              "file"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

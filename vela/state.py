@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -69,17 +70,34 @@ def pid_ctime(pid: int) -> int | None:
     return _pid_ctime_posix(pid)
 
 
-def _pid_ctime_posix(pid: int) -> int | None:
+def _pid_ctime_posix(pid: int) -> int | str | None:
     # Linux: /proc/<pid>/stat field 22 (starttime). Fields after the comm
     # column (which may contain spaces/parens) begin at field 3, so starttime
-    # is index 19 of the remainder. macOS has no /proc, so this returns None
-    # and liveness degrades to the bare PID check.
+    # is index 19 of the remainder.
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
         rest = stat[stat.rindex(")") + 1 :].split()
         return int(rest[19])
     except (OSError, ValueError, IndexError):
+        pass
+    # macOS has no /proc, and a token matters more there than tidiness: without
+    # one, a recycled process number cannot be told from the process Vela
+    # started, and the supervisor refuses to signal what it cannot identify.
+    # `ps` reports the start time to the second, which is enough to tell two
+    # different processes apart.
+    if sys.platform != "darwin":
         return None
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    started = result.stdout.strip()
+    return started or None
 
 
 def _pid_ctime_windows(pid: int) -> int | None:
