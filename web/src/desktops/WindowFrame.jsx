@@ -189,13 +189,15 @@ export default function WindowFrame({
         // always been. Only the bar: right-click inside the window belongs to
         // the app running in it.
         onContextMenu={(event) => {
-          if (!actions?.length) return;
           // Stopped, not just defaulted: the desk has its own menu for bare
           // wallpaper, and a right-click on a window is not a right-click on
-          // the wallpaper underneath it.
+          // the wallpaper underneath it. Claimed even when there is nothing to
+          // offer — a fixed-size window has no placement to change — because
+          // the alternative is the browser's own menu appearing on a title bar
+          // that is Vela's chrome and not a page.
           event.preventDefault();
           event.stopPropagation();
-          setMenu({ x: event.clientX, y: event.clientY });
+          if (actions?.length) setMenu({ x: event.clientX, y: event.clientY });
         }}
       >
         {icon ? (
