@@ -441,12 +441,19 @@ class Store:
             rows = db.execute("SELECT * FROM runs WHERE status='waiting'").fetchall()
         return [dict(row) for row in rows]
 
-    def run_statistics(self, since, week_since=None):
-        """Counts since `since`, and a run count per day since `week_since`.
+    def run_statistics(self, since, day_bounds=None):
+        """Counts since `since`, and a run count per day from `day_bounds`.
 
         The per-day counts are what the desk's Flows widget draws as bars. They
         ride on this query rather than on a second endpoint: the widget already
         polls this one, and a chart of the week is not worth a second request.
+
+        `day_bounds` is the caller's own list of day boundaries as UTC instants,
+        oldest first, with one more entry than there are days. Counting between
+        given instants rather than grouping by the date part of `queued_at` is
+        what makes the bars a person's days: west of Greenwich, an evening run
+        has tomorrow's UTC date, and grouping on that put it in a bar that was
+        not drawn at all.
         """
         with self.connection() as db:
             row = db.execute(
@@ -455,17 +462,13 @@ class Store:
                 "SUM(status IN ('failed','timed_out','interrupted')) AS failed "
                 'FROM runs WHERE queued_at >= ?', (since,)).fetchone()
             per_day = None
-            if week_since is not None:
-                # `queued_at` is stored in UTC; the caller passes the UTC
-                # instant its own local week began, and groups by the UTC date
-                # so a run keeps the day it was counted into.
-                per_day = {
-                    item['day']: item['runs']
-                    for item in db.execute(
-                        "SELECT substr(queued_at, 1, 10) AS day, count(*) AS runs "
-                        'FROM runs WHERE queued_at >= ? GROUP BY day ORDER BY day',
-                        (week_since,)).fetchall()
-                }
+            if day_bounds:
+                per_day = [
+                    db.execute(
+                        'SELECT count(*) AS runs FROM runs WHERE queued_at >= ? AND queued_at < ?',
+                        (start, end)).fetchone()['runs']
+                    for start, end in zip(day_bounds, day_bounds[1:])
+                ]
             duration = db.execute(
                 'SELECT started_at, finished_at FROM runs WHERE queued_at >= ? '
                 'AND started_at IS NOT NULL AND finished_at IS NOT NULL LIMIT 500',

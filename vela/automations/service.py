@@ -10,7 +10,7 @@ import hmac
 import json
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
 
 from ..app_storage import AppServiceError
 from ..loop import BackgroundLoop
@@ -142,22 +142,24 @@ class Automations:
         today's run at 23:30. `queued_at` is stored in UTC, so local midnight is
         converted before it is compared.
         """
-        midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
-        week_start = midnight - timedelta(days=6)
-        stats = self.store.run_statistics(
-            midnight.astimezone(timezone.utc).isoformat(),
-            week_start.astimezone(timezone.utc).isoformat(),
-        )
+        now = datetime.now().astimezone()
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Each local day's own midnight, then the instant the last one ends.
+        # Built from local dates rather than by subtracting 24 hours, so a week
+        # containing a clock change still has seven days in it.
+        starts = [
+            datetime.combine((midnight - timedelta(days=offset)).date(), dtime(),
+                             tzinfo=now.tzinfo)
+            for offset in range(6, -1, -1)
+        ]
+        bounds = [moment.astimezone(timezone.utc).isoformat()
+                  for moment in starts + [midnight + timedelta(days=1)]]
+        stats = self.store.run_statistics(bounds[-2], bounds)
         average = stats.get('averageSeconds')
         # Seven entries, oldest first, with a zero for a day nothing ran. A gap
         # is a real answer -- Sunday had no runs -- and leaving it out would
         # draw six days as seven and move every bar.
-        per_day = stats.get('perDay') or {}
-        days = [
-            per_day.get((week_start + timedelta(days=offset)).astimezone(timezone.utc)
-                        .date().isoformat(), 0)
-            for offset in range(7)
-        ]
+        days = list(stats.get('perDay') or [0] * 7)
         return {
             'runsToday': stats.get('total', 0),
             'failuresToday': stats.get('failed', 0),
