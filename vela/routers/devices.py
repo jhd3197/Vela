@@ -25,6 +25,25 @@ class PairRequest(BaseModel):
     appVersion: str | None = Field(default=None, max_length=64)
 
 
+class DeviceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(default="", max_length=200)
+    form: str = Field(default="tv", max_length=16)
+    platform: str = Field(default="android", max_length=16)
+    appVersion: str | None = Field(default=None, max_length=64)
+
+
+class ClaimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=1, max_length=32)
+    poll: str = Field(min_length=1, max_length=128)
+
+
+class CodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=1, max_length=32)
+
+
 class SessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -49,7 +68,13 @@ def router(auth, devices, phone_access, config) -> APIRouter:
 
     @api.get("/devices")
     def list_devices():
-        return {"devices": devices.list(), "available": address() is not None}
+        where = address()
+        # What a TV asks for: the Wi-Fi address alone, or the configured origin.
+        shown = None
+        if where:
+            parts = urlsplit(where["origin"])
+            shown = parts.hostname if where["fingerprint"] else where["origin"]
+        return {"devices": devices.list(), "available": where is not None, "address": shown}
 
     @api.post("/devices/pairing")
     def start_pairing():
@@ -71,6 +96,37 @@ def router(auth, devices, phone_access, config) -> APIRouter:
             platform=payload.platform, app_version=payload.appVersion)
         auth.forgive(peer)
         return {"device": device, "credential": credential}
+
+    def check():
+        """The start of the fingerprint, grouped for reading aloud off a TV."""
+        where = address()
+        fingerprint = (where or {}).get("fingerprint")
+        return f"{fingerprint[:4]} {fingerprint[4:8]}" if fingerprint else None
+
+    # A TV cannot scan, so it asks first and shows a code; a signed-in person
+    # enters that code here and compares the fingerprint check on both screens.
+    @api.post("/devices/requests")
+    def request_pairing(payload: DeviceRequest):
+        if address() is None:
+            raise AppServiceError(409, "Wi-Fi access is off on the Vela computer.")
+        return devices.request(name=payload.name, form=payload.form,
+                               platform=payload.platform, app_version=payload.appVersion)
+
+    @api.post("/devices/claim")
+    def claim_pairing(payload: ClaimRequest):
+        claimed = devices.claim(payload.code, payload.poll)
+        if claimed is None:
+            return JSONResponse({"status": "waiting"}, status_code=202)
+        device, credential = claimed
+        return {"device": device, "credential": credential}
+
+    @api.post("/devices/requests/lookup")
+    def lookup_request(payload: CodeRequest):
+        return {**devices.describe_request(payload.code), "check": check()}
+
+    @api.post("/devices/requests/approve")
+    def approve_request(payload: CodeRequest):
+        return devices.approve(payload.code)
 
     @api.post("/devices/session")
     def device_session(payload: SessionRequest, request: Request):

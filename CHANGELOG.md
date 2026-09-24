@@ -14,8 +14,15 @@ until the release workflow prepares a tested server version.
   QR code carries the certificate fingerprint, so no certificate setup is
   needed, and the phone never asks for your Vela password. Each paired
   device is listed with when it last connected. Removing one signs it out
-  immediately without affecting your password or any other device. The
-  Android app is still in development and not yet available to download.
+  immediately without affecting your password or any other device.
+
+  A TV has no camera, so **Add a TV** works the other way round. Type this
+  computer's address on the TV, then enter the code the TV shows. Vela and
+  the TV both show a short check, and matching them confirms the TV is
+  talking to this computer. On a TV, the dashboard is navigated with the
+  remote's arrows and OK, with a clear focus ring and a margin for screens
+  that crop their edges. The Android app is still in development and not
+  yet available to download.
 
 - **A top bar that follows what you are looking at.** The dashboard gains a
   menu bar across the top. It shows the name of whatever has focus — click a

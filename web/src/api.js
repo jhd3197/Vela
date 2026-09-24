@@ -208,6 +208,18 @@ export const api = {
   disablePhoneAccess: () => request('/api/phone-access', { method: 'DELETE' }),
   getDevices: () => request('/api/devices'),
   startDevicePairing: () => request('/api/devices/pairing', { method: 'POST' }),
+  lookupDeviceRequest: (code) =>
+    request('/api/devices/requests/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  approveDeviceRequest: (code) =>
+    request('/api/devices/requests/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
   removeDevice: (id) => request(`/api/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   addWebApp: (value) =>
     request('/api/web-apps', {

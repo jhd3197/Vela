@@ -204,9 +204,20 @@
   padding-bottom: var(--space-7);
   border-top: 1px solid var(--border);
   > .phone-note,
-  > .welcome-handoff {
+  > .welcome-handoff,
+  > .settings-devices-tv {
     padding: 0 var(--space-7);
   }
+}
+.settings-devices-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.settings-devices-tv {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .phone-connection-details {

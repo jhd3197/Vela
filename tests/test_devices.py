@@ -192,5 +192,64 @@ class DevicePairingTests(unittest.TestCase):
         self.assertEqual(stored['version'], 1)
 
 
+    # ------------------------------------------------ pairing from a TV
+
+    def tv_request(self):
+        response = self.device.post('/api/devices/requests',
+                                    json={'name': 'Living room TV', 'form': 'tv', 'appVersion': '0.2.0'})
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def claim(self, asked, poll=None):
+        return self.device.post('/api/devices/claim',
+                                json={'code': asked['code'], 'poll': poll or asked['poll']})
+
+    def test_a_tv_is_paired_by_approving_the_code_it_shows(self):
+        self.enable_wifi()
+        asked = self.tv_request()
+        self.assertEqual(self.claim(asked).status_code, 202)
+        looked = self.local.post('/api/devices/requests/lookup', headers=self.local_headers,
+                                 json={'code': asked['code'].lower()})
+        self.assertEqual(looked.json(), {'name': 'Living room TV', 'form': 'tv', 'check': 'ABAB ABAB'})
+        approved = self.local.post('/api/devices/requests/approve', headers=self.local_headers,
+                                   json={'code': asked['code']})
+        self.assertEqual(approved.json()['form'], 'tv')
+        claimed = self.claim(asked)
+        self.assertEqual(claimed.status_code, 200, claimed.text)
+        self.assertEqual(self.session(claimed.json()['credential']).status_code, 200)
+        # Collected once; the code is spent.
+        self.assertEqual(self.claim(asked).status_code, 410)
+        self.assertEqual(self.local.post('/api/devices/requests/approve', headers=self.local_headers,
+                                         json={'code': asked['code']}).status_code, 404)
+
+    def test_only_the_tv_that_asked_can_collect(self):
+        self.enable_wifi()
+        asked = self.tv_request()
+        self.local.post('/api/devices/requests/approve', headers=self.local_headers, json={'code': asked['code']})
+        self.assertEqual(self.claim(asked, poll='someone-else').status_code, 410)
+        self.assertEqual(self.claim(asked).status_code, 200)
+
+    def test_approving_needs_a_signed_in_session(self):
+        self.enable_wifi()
+        asked = self.tv_request()
+        for path in ('/api/devices/requests/lookup', '/api/devices/requests/approve'):
+            self.assertEqual(self.device.post(path, json={'code': asked['code']}).status_code, 401, path)
+        self.assertEqual(self.claim(asked).status_code, 202)
+
+    def test_a_tv_can_only_ask_over_the_wifi_address(self):
+        self.assertEqual(self.device.post('/api/devices/requests', json={}).status_code, 403)
+        self.enable_wifi()
+        self.assertEqual(self.local.post('/api/devices/requests', json={}).status_code, 403)
+        self.assertEqual(self.device.post('/api/devices/requests', json={}).status_code, 200)
+
+    def test_an_unknown_code_is_not_approved(self):
+        self.enable_wifi()
+        self.tv_request()
+        missing = self.local.post('/api/devices/requests/approve', headers=self.local_headers,
+                                  json={'code': 'XXXX-XXXX'})
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(self.local.get('/api/devices', headers=self.local_headers).json()['devices'], [])
+
+
 if __name__ == '__main__':
     unittest.main()

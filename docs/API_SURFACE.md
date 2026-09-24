@@ -200,8 +200,12 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/control`
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/retry`
 - `POST /api/desktops/{desktop_id}/views`
+- `POST /api/devices/claim`
 - `POST /api/devices/pair`
 - `POST /api/devices/pairing`
+- `POST /api/devices/requests`
+- `POST /api/devices/requests/approve`
+- `POST /api/devices/requests/lookup`
 - `POST /api/devices/session`
 - `POST /api/doctor/run`
 - `POST /api/doctor/{key}/repair`

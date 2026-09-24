@@ -77,6 +77,11 @@ class Devices:
         # Codes live only in memory: a restart drops them, which is the right
         # answer for something that is meant to be used within minutes.
         self._codes: dict[str, float] = {}
+        # Pairing a TV runs the other way: the TV has no camera, so it asks
+        # and shows a code, and a signed-in person approves that code. Keyed
+        # by the code; each holds the TV's details, its polling secret and,
+        # once approved, the credential waiting to be collected.
+        self._requests: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------ file
 
@@ -126,23 +131,85 @@ class Devices:
             if until is None or until <= now:
                 raise AppServiceError(401, "That code has expired or was already used. "
                                            "Show a new code in Vela and scan it again.")
-            rows = self._load()
-            if len(rows) >= MAX_DEVICES:
-                raise AppServiceError(409, "Too many paired devices. Remove one in Settings first.")
-            credential = secrets.token_urlsafe(32)
-            row = {
-                "id": secrets.token_hex(8),
-                "name": clean_name(name),
-                "form": form if form in FORMS else "phone",
-                "platform": platform if platform in PLATFORMS else "android",
-                "appVersion": app_version[:32] if isinstance(app_version, str) else None,
-                "pairedAt": _now(),
-                "lastSeenAt": _now(),
-                "secret": _digest(credential),
-            }
-            rows.append(row)
-            self._save(rows)
+            return self._add(name=name, form=form, platform=platform, app_version=app_version)
+
+    def _add(self, *, name, form, platform, app_version) -> tuple[dict[str, Any], str]:
+        """Write a new device. The caller holds the lock."""
+        rows = self._load()
+        if len(rows) >= MAX_DEVICES:
+            raise AppServiceError(409, "Too many paired devices. Remove one in Settings first.")
+        credential = secrets.token_urlsafe(32)
+        row = {
+            "id": secrets.token_hex(8),
+            "name": clean_name(name),
+            "form": form if form in FORMS else "phone",
+            "platform": platform if platform in PLATFORMS else "android",
+            "appVersion": app_version[:32] if isinstance(app_version, str) else None,
+            "pairedAt": _now(),
+            "lastSeenAt": _now(),
+            "secret": _digest(credential),
+        }
+        rows.append(row)
+        self._save(rows)
         return self.public(row), credential
+
+    # ------------------------------------------------- pairing from the device
+
+    def _live_requests(self, now: float) -> None:
+        self._requests = {code: item for code, item in self._requests.items() if item["until"] > now}
+
+    def request(self, *, name: Any, form: Any, platform: Any, app_version: Any) -> dict[str, Any]:
+        """A device without a camera asks to be paired, and gets a code to show."""
+        now = time.monotonic()
+        with self._lock:
+            self._live_requests(now)
+            if len(self._requests) >= MAX_CODES:
+                self._requests.pop(min(self._requests, key=lambda code: self._requests[code]["until"]))
+            code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+            poll = secrets.token_urlsafe(32)
+            self._requests[code] = {
+                "until": now + CODE_SECONDS, "poll": _digest(poll),
+                "name": clean_name(name, "Android TV"), "form": form if form in FORMS else "tv",
+                "platform": platform, "appVersion": app_version,
+                "device": None, "credential": None,
+            }
+        return {"code": display_code(code), "poll": poll, "expiresIn": CODE_SECONDS}
+
+    def _pending(self, code: str) -> dict[str, Any]:
+        item = self._requests.get(normalize_code(code))
+        if item is None or item["device"] is not None:
+            raise AppServiceError(404, "No device is showing that code. Check the code on the TV.")
+        return item
+
+    def describe_request(self, code: str) -> dict[str, Any]:
+        """What the person is about to approve: the name and kind the device gave."""
+        with self._lock:
+            self._live_requests(time.monotonic())
+            item = self._pending(code)
+            return {"name": item["name"], "form": item["form"]}
+
+    def approve(self, code: str) -> dict[str, Any]:
+        """Pair the device showing this code. It collects the credential next time it asks."""
+        with self._lock:
+            self._live_requests(time.monotonic())
+            item = self._pending(code)
+            device, credential = self._add(name=item["name"], form=item["form"],
+                                           platform=item["platform"], app_version=item["appVersion"])
+            item.update(device=device, credential=credential)
+            return device
+
+    def claim(self, code: str, poll: str) -> tuple[dict[str, Any], str] | None:
+        """The credential for an approved request, once; None while still waiting."""
+        wanted = normalize_code(code)
+        with self._lock:
+            self._live_requests(time.monotonic())
+            item = self._requests.get(wanted)
+            if item is None or not secrets.compare_digest(item["poll"], _digest(poll or "")):
+                raise AppServiceError(410, "This code has expired. Start pairing again on the TV.")
+            if item["device"] is None:
+                return None
+            self._requests.pop(wanted)
+            return item["device"], item["credential"]
 
     def authenticate(self, credential: str) -> dict[str, Any]:
         """The device this credential belongs to, marked as seen now."""

@@ -29,6 +29,7 @@ import { installErrorReporting } from './errors.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { initTheme } from './theme.js';
 import { sharedViewport } from './viewport.js';
+import { startTvMode } from './tv.js';
 import './styles/main.scss';
 
 registerServiceWorker();
@@ -37,6 +38,8 @@ initTheme();
 installErrorReporting();
 // One viewport owner for the whole dashboard; layout reads its CSS variables.
 sharedViewport();
+// Remote-control focus and a TV layout, only inside the Vela app on a TV.
+startTvMode();
 
 const router = createBrowserRouter(
   createRoutesFromElements(

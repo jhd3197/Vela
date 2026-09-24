@@ -64,3 +64,5 @@
 @use 'components/agent';
 // Last: shared touch, scroll and viewport policies override the modules above.
 @use 'layout/mobile';
+// A television's focus and safe-area policy; inert everywhere else.
+@use 'layout/tv';

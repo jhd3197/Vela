@@ -177,7 +177,8 @@ class Auth:
     MAX_FAILURES = 5
     #: Where the installed app pairs and starts sessions. Public in the sense
     #: that they take no hub session; each checks its own credential.
-    DEVICE_PATHS = ("/api/devices/pair", "/api/devices/session")
+    DEVICE_PATHS = ("/api/devices/pair", "/api/devices/session",
+                    "/api/devices/requests", "/api/devices/claim")
 
     UNLOCK_PATHS = ("/api/security", "/api/security/unlock", "/api/security/lock")
 
