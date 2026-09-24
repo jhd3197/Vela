@@ -200,6 +200,14 @@
 .phone-setup-settings {
   padding: 0 var(--space-7) var(--space-7);
 }
+.settings-devices {
+  padding-bottom: var(--space-7);
+  border-top: 1px solid var(--border);
+  > .phone-note,
+  > .welcome-handoff {
+    padding: 0 var(--space-7);
+  }
+}
 
 .phone-connection-details {
   margin-top: var(--space-7);

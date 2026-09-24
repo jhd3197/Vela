@@ -68,6 +68,7 @@ from .releases import Releases
 from .actions import Actions
 from .connected_apps import ConnectedApps
 from .phone_access import PhoneAccess
+from .devices import Devices
 from .automations import Automations
 
 
@@ -188,6 +189,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         log=lambda message: print(f'[vela] {message}', flush=True),
     )
     snooze = SnoozeStore(config.data_dir / "snooze.json")
+    devices = Devices(config.data_dir / "devices.json")
     # Crashed managed services are restarted here, on a thread: a reconcile tick
     # stops processes and probes HTTP endpoints, which would otherwise block the
     # event loop everything else in this server shares.
@@ -249,6 +251,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # the tray, the test suite and `vela/desktop.py` all look here.
     app.state.automations = automations
     app.state.desktops = desktops
+    app.state.devices = devices
     # The managed-app service and its gateway sessions. Read by the tray, the
     # test suite and the shutdown hook below.
     app.state.managed_apps = managed
@@ -288,6 +291,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         "connections": connections,
         "conversations": conversations,
         "desktops": desktops,
+        "devices": devices,
         "doctor": doctor,
         "errors": errors,
         "files": files,

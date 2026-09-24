@@ -56,9 +56,19 @@ export function isIOS() {
   return /iP(hone|ad|od)/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
 }
 
+// The Vela app for Android shows the dashboard in its own window, so it counts
+// as installed: Home Screen steps written for a browser do not apply there.
+export function isVelaApp() {
+  return typeof navigator !== 'undefined' && /\bVelaAndroid\//.test(navigator.userAgent);
+}
+
 export function isStandalone() {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    navigator.standalone === true ||
+    isVelaApp()
+  );
 }
 
 export function isAndroid() {

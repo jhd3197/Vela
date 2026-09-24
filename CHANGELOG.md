@@ -8,6 +8,15 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Pair the Vela app for Android.** Settings → General has a new **Vela app**
+  section. With Wi-Fi access on, **Pair the Vela app** shows a QR code that
+  works once, for ten minutes. Scanning it connects the app directly: the
+  QR code carries the certificate fingerprint, so no certificate setup is
+  needed, and the phone never asks for your Vela password. Each paired
+  device is listed with when it last connected. Removing one signs it out
+  immediately without affecting your password or any other device. The
+  Android app is still in development and not yet available to download.
+
 - **A top bar that follows what you are looking at.** The dashboard gains a
   menu bar across the top. It shows the name of whatever has focus — click a
   Calculator window on the desk and it reads "Calc", click Notes and it reads

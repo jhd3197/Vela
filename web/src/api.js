@@ -206,6 +206,9 @@ export const api = {
       body: JSON.stringify(value),
     }),
   disablePhoneAccess: () => request('/api/phone-access', { method: 'DELETE' }),
+  getDevices: () => request('/api/devices'),
+  startDevicePairing: () => request('/api/devices/pairing', { method: 'POST' }),
+  removeDevice: (id) => request(`/api/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   addWebApp: (value) =>
     request('/api/web-apps', {
       method: 'POST',
