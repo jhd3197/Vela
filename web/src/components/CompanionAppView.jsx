@@ -128,8 +128,10 @@ export default function CompanionAppView({ app, onStatus }) {
                     <span className="desk-app-name">{formatRelativeTime(record.updatedAt)}</span>
                   ) : null
                 }
+                // Every widget's buttons, whatever its layout: this page is the
+                // companion's remote control.
                 footer={
-                  record.layout === 'actions' && record.summary?.actions?.length
+                  record.summary?.actions?.length
                     ? record.summary.actions.map((action) => (
                         <Button
                           key={action.action}
