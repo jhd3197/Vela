@@ -1,12 +1,16 @@
-"""Installed apps: what is there, and starting and stopping it."""
+"""Installed apps: what is there, and starting and stopping it.
+
+Four profiles share these routes: packages, managed web apps, connected
+websites and companion apps. Each answers for its own ids.
+"""
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from ..errors_http import NotFound
 
 
-def router(registry, connected_apps, lifecycle, usage, snooze, managed) -> APIRouter:
+def router(registry, connected_apps, lifecycle, usage, snooze, managed, companions) -> APIRouter:
     api = APIRouter(prefix="/api", tags=["apps"])
 
     def get_manifest_or_404(app_id: str):
@@ -33,11 +37,12 @@ def router(registry, connected_apps, lifecycle, usage, snooze, managed) -> APIRo
         # installed, so leaving it out of the Library would mean two places to
         # look for the same kind of thing.
         return {"apps": registry.list_apps() + managed.list_apps()
-                + connected_apps.list_apps()}
+                + connected_apps.list_apps() + companions.list_apps()}
 
     @api.get("/apps/{app_id}")
     def get_app(app_id: str) -> dict:
         if connected_apps.owns(app_id): return connected_apps.get(app_id)
+        if companions.owns(app_id): return companions.get(app_id)
         if managed.owns(app_id): return managed.describe(app_id)
         description = registry.describe(app_id)
         if description is None:
@@ -48,6 +53,12 @@ def router(registry, connected_apps, lifecycle, usage, snooze, managed) -> APIRo
     def get_icon(app_id: str) -> FileResponse:
         if managed.owns(app_id):
             return managed_icon(app_id)
+        if companions.owns(app_id):
+            path = companions.icon_path(app_id)
+            if path is None:
+                raise NotFound(f"app {app_id} has no icon", code="apps.no_icon")
+            # Always a PNG: the companion service checked it before copying.
+            return Response(path.read_bytes(), media_type="image/png")
         manifest = get_manifest_or_404(app_id)
         if not manifest.icon:
             raise NotFound(f"app {app_id} has no icon", code="apps.no_icon")
@@ -69,6 +80,11 @@ def router(registry, connected_apps, lifecycle, usage, snooze, managed) -> APIRo
             usage.forget(app_id)
             snooze.forget(app_id)
             return result
+        if companions.owns(app_id):
+            result = companions.remove(app_id)
+            usage.forget(app_id)
+            snooze.forget(app_id)
+            return result
         result = lifecycle.uninstall_app(app_id)
         # Removing an app removes the record of having opened it, rather than
         # leaving it to age out of the Frequent window over the next month.
@@ -82,16 +98,20 @@ def router(registry, connected_apps, lifecycle, usage, snooze, managed) -> APIRo
         # which needs a launch ticket. `/api/managed/{id}/launch` issues one;
         # this endpoint starts the service so the older shape keeps working.
         if managed.owns(app_id): return managed.start(app_id)
+        if companions.owns(app_id): return companions.start(app_id)
         return lifecycle.launch_app(app_id)
 
     @api.post("/apps/{app_id}/stop")
     def stop_app(app_id: str) -> dict:
         if managed.owns(app_id): return managed.stop(app_id)
+        # A companion is the owner's own program; Vela does not close it.
+        if companions.owns(app_id): return companions.get(app_id)
         return lifecycle.stop_app(app_id)
 
     @api.get("/apps/{app_id}/status")
     def app_status(app_id: str) -> dict:
         if connected_apps.owns(app_id): return connected_apps.get(app_id)
+        if companions.owns(app_id): return companions.get(app_id)
         if managed.owns(app_id): return managed.status(app_id)
         return lifecycle.app_status(app_id)
 

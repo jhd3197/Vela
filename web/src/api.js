@@ -206,6 +206,27 @@ export const api = {
       body: JSON.stringify(value),
     }),
   disablePhoneAccess: () => request('/api/phone-access', { method: 'DELETE' }),
+  // Companion apps: desktop apps on this computer that registered themselves.
+  getCompanions: () => request('/api/companions'),
+  connectCompanion: (id, fingerprint) =>
+    request(`/api/companions/found/${encodeURIComponent(id)}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    }),
+  reviewCompanion: (id, fingerprint) =>
+    request(`/api/companions/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    }),
+  runCompanionAction: (id, action) =>
+    request(`/api/companions/${encodeURIComponent(id)}/actions/${encodeURIComponent(action)}`, {
+      method: 'POST',
+    }),
+  companionWidgets: (id) => request(`/api/apps/${encodeURIComponent(id)}/widgets`),
+  refreshCompanion: (id) =>
+    request(`/api/companions/${encodeURIComponent(id)}/refresh`, { method: 'POST' }),
   addWebApp: (value) =>
     request('/api/web-apps', {
       method: 'POST',
@@ -620,6 +641,24 @@ export function isProcessApp(app) {
 // the three apart wherever it offers an action.
 export function isManagedApp(app) {
   return app?.runtime === 'managed-service';
+}
+
+// A companion app: a desktop program on the Vela computer that registered
+// itself. It keeps its own window; Vela shows its widgets and runs its actions.
+export function isCompanionApp(app) {
+  return app?.kind === 'companion';
+}
+
+const COMPANION_STATES = {
+  online: { label: 'Running', tone: 'good' },
+  offline: { label: 'Not running', tone: 'idle' },
+  changed: { label: 'Needs review', tone: 'bad' },
+};
+
+export function companionState(app) {
+  const companion = app?.companion;
+  const state = COMPANION_STATES[companion?.state] || COMPANION_STATES.offline;
+  return { ...state, detail: companion?.detail || '' };
 }
 
 const MANAGED_STATES = {

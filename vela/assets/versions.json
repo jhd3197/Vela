@@ -16,5 +16,11 @@
     "source": "manifest-v3.schema.json",
     "version": "0.5.0",
     "sha256": "bc01a08113ca7ddeabedd63e8e3cd0f0a85df75f89c097f401b09071bc028864"
+  },
+  "companion-v1.schema.json": {
+    "repository": "vela-contracts",
+    "source": "companion-v1.schema.json",
+    "version": "0.5.0",
+    "sha256": "6d37e51b529c0ae3828b77ceb9c466cec886be715aa7f9747d7c6a640eb2084b"
   }
 }

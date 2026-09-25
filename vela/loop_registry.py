@@ -34,6 +34,7 @@ EXPECTED_LOOPS: frozenset[str] = frozenset({
     "system.metrics",
     "automations.schedule",
     "managed.reconcile",
+    "companions.scan",
 })
 
 

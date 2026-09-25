@@ -624,6 +624,38 @@ backup. All clients of the same Vela server share these settings.
 This is a host feature, separate from imported app packages. Connected web apps
 do not receive Vela SDK sessions, storage grants or app actions.
 
+## Apps on this computer
+
+Some desktop apps can connect to Vela on their own. Once one is connected, it
+shows up on your desk, in the rail and on every phone signed in to your Vela.
+Prompture Desk and Faro can do this. The app keeps its own window. Vela shows
+its desk widgets and gives you its buttons, such as pausing a running automation
+or pausing file transfers, from any device.
+
+Open the app on the computer that runs Vela. It appears in the **Marketplace**
+under **Found on this computer**. Choose **Connect**, check the program's
+location and the buttons it offers, and connect it. Nothing is shown and
+nothing runs until you do.
+
+- **Its page** shows its buttons and its widgets. Press a button and the app
+  does it on the Vela computer. Buttons that could lose work ask first.
+- **Its widgets** go on your desk like any other app's. When it needs you, such
+  as an automation waiting for an answer, its icon gets a dot. If you have set
+  up notifications, your phone also gets one notification.
+- **When it is closed** Vela shows it as not running and keeps its last
+  widgets, labelled with how old they are. **Start on this computer** opens it
+  again.
+- **If it changes** the program or the buttons it offers, Vela stops talking to
+  it until you look at the change and accept it.
+- **Disconnect** in its details removes it from Vela. The app itself is not
+  touched.
+
+A connected app gets no Vela account, no Vela data and no way to call Vela.
+Vela asks it for widgets and runs its buttons, and only over this computer's
+own loopback address. To make your own app connect, see
+[docs/COMPANIONS.md in vela-contracts](https://github.com/jhd3197/vela-contracts/blob/main/docs/COMPANIONS.md)
+and the [`vela-companion`](https://github.com/jhd3197/vela-companion) Rust crate.
+
 ## Wire apps together
 
 **Automations** runs a set of steps for you — on a schedule, when a request

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jhd3197/vela-contracts/companion-v1.schema.json",
+  "title": "Vela companion registration v1",
+  "description": "What a desktop app running on the same computer as Vela writes to Vela's companions folder so Vela can find it. The app keeps its own window and process; Vela reads its widget summaries and runs its declared actions over a loopback HTTP endpoint, and only after the owner connects it. See docs/COMPANIONS.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["companion", "id", "name", "version", "endpoint", "token", "pid"],
+  "properties": {
+    "companion": {
+      "const": 1,
+      "description": "Registration format version. A host that does not know a version ignores the file rather than guessing."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 40,
+      "description": "Stable identity. Also the registration file's name: <id>.json."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$",
+      "maxLength": 40
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.png$",
+      "description": "A PNG file in the same companions folder, named by file name only. No paths: the host never reads outside that folder."
+    },
+    "endpoint": {
+      "type": "string",
+      "pattern": "^http://(127\\.0\\.0\\.1|localhost|\\[::1\\]):[1-9][0-9]{0,4}$",
+      "description": "Loopback only. The host refuses anything that is not this computer."
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32,128}$",
+      "description": "Random per start. The host sends it as a bearer credential on every request, so the app can refuse any other local caller."
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The process that wrote the file. A file whose process is gone describes an app that is not running."
+    },
+    "executable": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Absolute path of the program, shown when the owner connects it and used to start it again. Changing it needs the owner's review."
+    },
+    "widgets": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "layout", "size"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$"},
+          "name": {"type": "string", "minLength": 1, "maxLength": 40},
+          "layout": {"enum": ["stat", "progress", "list", "actions", "chart", "keyvalue"]},
+          "size": {"enum": ["s", "m", "l"]}
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 40},
+          "description": {"type": "string", "maxLength": 200},
+          "confirm": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "When present, the host asks this question before running the action."
+          }
+        }
+      }
+    }
+  }
+}

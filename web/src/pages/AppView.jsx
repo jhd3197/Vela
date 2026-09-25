@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { isManagedApp, isProcessApp } from '../api.js';
+import { isCompanionApp, isManagedApp, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import AppTitleBar from '../components/AppTitleBar.jsx';
@@ -19,6 +19,7 @@ import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
 import ManagedAppView from '../components/ManagedAppView.jsx';
+import CompanionAppView from '../components/CompanionAppView.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { readLocal, writeLocal } from '../storage.js';
 import { openExternal } from '../clipboard.js';
@@ -33,6 +34,9 @@ export default function AppView() {
   // launch ticket, so it has nothing in common with the same-origin frame the
   // workspace below builds for a packaged app.
   if (isManagedApp(app)) return <ManagedAppView key={id} app={app} onStatus={refreshApps} />;
+  // A companion app has its own window on the Vela computer. What Vela shows is
+  // the part that travels: its widgets and its buttons.
+  if (isCompanionApp(app)) return <CompanionAppView key={id} app={app} onStatus={refreshApps} />;
   return (
     <Workspace key={`${id}:${attempt}`} id={id} retry={() => setAttempt((value) => value + 1)} />
   );

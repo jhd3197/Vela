@@ -8,6 +8,18 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Apps on this computer can connect to Vela.** A desktop app that supports it,
+  such as Prompture Desk or Faro, registers itself when it starts and appears in
+  the Marketplace under **Found on this computer**. Once you connect it, its
+  widgets go on your desk and its buttons work from any phone signed in to your
+  Vela, for example to pause an automation or pause file transfers. Its icon
+  gets a dot when it needs you, with one phone notification if notifications
+  are set up. The app keeps its own window. Vela shows it as not running when it
+  is closed and can start it again. If the program or its buttons change, Vela
+  stops talking to it until you accept the change. A connected app gets no Vela
+  account or data and cannot call Vela. Vela only talks to it over this
+  computer's own loopback address.
+
 - **A top bar that follows what you are looking at.** The dashboard gains a
   menu bar across the top. It shows the name of whatever has focus — click a
   Calculator window on the desk and it reads "Calc", click Notes and it reads

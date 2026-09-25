@@ -67,6 +67,7 @@ from .catalog import Catalog
 from .releases import Releases
 from .actions import Actions
 from .connected_apps import ConnectedApps
+from .companions import Companions
 from .phone_access import PhoneAccess
 from .automations import Automations
 
@@ -74,7 +75,8 @@ from .automations import Automations
 LOG = logging.getLogger(__name__)
 
 
-def create_app(config: Config | None = None, *, connection_transport=None) -> FastAPI:
+def create_app(config: Config | None = None, *, connection_transport=None,
+               companion_transport=None, companion_launcher=None) -> FastAPI:
     # Loops register themselves as they are constructed, process-wide. Mark
     # where this server's begin, so its shutdown stops its own and never those
     # of another app built in the same process — which the test suite does.
@@ -125,6 +127,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 widget_id = declared.get("id") if isinstance(declared, dict) else None
                 if isinstance(widget_id, str) and widget_id:
                     known.add(f"{summary['id']}:{widget_id}")
+        for summary in companions.list_apps():
+            for declared in summary["widgets"]:
+                known.add(f"{summary['id']}:{declared['id']}")
         return known
 
     # Desktops own the desk. `desk.json` is read once, on the way up, and then
@@ -196,6 +201,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         first_delay_s=RECONCILE_INTERVAL_SECONDS,
     )
     widgets = Widgets(storage, registry, actions, snooze, guard=guard)
+    # Desktop apps on this computer that register themselves. Vela polls them
+    # on its own thread; they never call Vela.
+    companions = Companions(config, storage, widgets, notifier=notifier,
+                            transport=companion_transport, launcher=companion_launcher)
+    widgets.companions = companions
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
     updates = UpdateChecker(config, __version__, settings=settings)
@@ -253,6 +263,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     # test suite and the shutdown hook below.
     app.state.managed_apps = managed
     app.state.managed_sessions = gateway_sessions
+    app.state.companions = companions
     app.state.agent_runs = agent_runs
     phone_access = PhoneAccess(app, config, auth)
     app.state.phone_access = phone_access
@@ -283,6 +294,7 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         "backups": backups,
         "bots": bots,
         "catalog": catalog,
+        "companions": companions,
         "config": config,
         "connected_apps": connected_apps,
         "connections": connections,

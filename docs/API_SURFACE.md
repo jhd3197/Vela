@@ -73,6 +73,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/chat/conversations`
 - `GET /api/chat/conversations/{conversation_id}`
 - `GET /api/chat/conversations/{conversation_id}/run`
+- `GET /api/companions`
 - `GET /api/desk`
 - `GET /api/desktops`
 - `GET /api/desktops/attention`
@@ -180,6 +181,10 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/chat`
 - `POST /api/chat/conversations`
 - `POST /api/chat/conversations/import`
+- `POST /api/companions/found/{companion_id}/connect`
+- `POST /api/companions/{app_id}/actions/{action_id}`
+- `POST /api/companions/{app_id}/refresh`
+- `POST /api/companions/{app_id}/review`
 - `POST /api/desktops`
 - `POST /api/desktops/retention/sweep`
 - `POST /api/desktops/{desktop_id}/agent-sessions`

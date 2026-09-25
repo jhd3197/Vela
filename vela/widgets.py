@@ -244,6 +244,9 @@ class Widgets:
         # must not change because the desk was asked to look away — but they
         # carry the expiry so the desk and the rail can leave them out.
         self._snooze = snooze
+        # Companion apps declare widgets without a manifest. Attached after
+        # construction, because the companion service writes through this one.
+        self.companions = None
         with storage.connection() as db:
             db.executescript(
                 """
@@ -288,15 +291,37 @@ class Widgets:
             )
         return {"ok": True, "widgetId": widget_id, "updatedAt": updated_at}
 
-    def forget(self, app_id: str) -> None:
-        """Drop an app's summaries. Called when it is uninstalled: a desk must
-        not keep showing a line from an app that is no longer there."""
+    def put(self, app_id: str, widget_id: str, summary: dict[str, Any]) -> None:
+        """Store a summary Vela fetched itself, already checked by
+        `validate_summary`. There is no session to authorize: a companion app
+        never writes here, Vela reads from it."""
+        updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with self._storage.connection() as db:
-            db.execute("DELETE FROM widget_summaries WHERE app_id=?", (app_id,))
+            db.execute(
+                "INSERT OR REPLACE INTO widget_summaries VALUES (?, ?, ?, ?)",
+                (app_id, widget_id, json.dumps(summary), updated_at),
+            )
+
+    def forget(self, app_id: str, keep: set[str] | None = None) -> None:
+        """Drop an app's summaries. Called when it is uninstalled: a desk must
+        not keep showing a line from an app that is no longer there. `keep`
+        spares the widgets it still offers."""
+        with self._storage.connection() as db:
+            if keep:
+                marks = ",".join("?" * len(keep))
+                db.execute(f"DELETE FROM widget_summaries WHERE app_id=? AND widget_id NOT IN ({marks})",
+                           (app_id, *sorted(keep)))
+            else:
+                db.execute("DELETE FROM widget_summaries WHERE app_id=?", (app_id,))
+
+    def _companion(self, app_id: str) -> bool:
+        return self.companions is not None and self.companions.owns(app_id)
 
     # --------------------------------------------------------------- reading
 
     def declared(self, app_id: str) -> list[dict[str, Any]]:
+        if self._companion(app_id):
+            return self.companions.declared_widgets(app_id)
         manifest = self._registry.get(app_id)
         return list(manifest.widgets) if manifest else []
 
@@ -326,6 +351,10 @@ class Widgets:
         Only asked for when a summary names an action, because it is the one
         thing that makes the question worth the work.
         """
+        if self._companion(app_id):
+            # Connecting a companion is reviewing its actions; there is no
+            # second grant to hold.
+            return self.companions.action_ids(app_id)
         if self._actions is None:
             return []
         try:
@@ -340,7 +369,8 @@ class Widgets:
 
     def for_app(self, app_id: str) -> dict[str, Any]:
         """Every widget this app declares, with its latest summary or none."""
-        if self._registry.get(app_id) is None:
+        if self._registry.get(app_id) is None and not (
+                self._companion(app_id) and self.companions.declared_widgets(app_id)):
             raise WidgetError(404, f"unknown app: {app_id}")
         stored = self._rows(app_id)
         return {
@@ -363,7 +393,10 @@ class Widgets:
         snoozed = self._snooze.active() if self._snooze is not None else {}
         out = []
         granted: dict[str, list[str]] = {}
-        for summary in self._registry.list_apps():
+        apps = self._registry.list_apps()
+        if self.companions is not None:
+            apps += self.companions.list_apps()
+        for summary in apps:
             if not summary.get("installed"):
                 continue
             app_id = summary["id"]

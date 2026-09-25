@@ -27,6 +27,7 @@ export const CATEGORY_MARKS = new Set([
 ]);
 
 export const CONNECTED_PREFIX = 'web--';
+export const COMPANION_PREFIX = 'pc--';
 
 // A connected service is named by the person who added it, so its initial
 // identifies it. Take the first letter or digit rather than the first
@@ -47,7 +48,9 @@ export function artworkKey(app) {
   if (!app) return { kind: 'unknown' };
   if (ID_MARKS.has(app.id)) return { kind: 'id', key: app.id };
 
-  if (isConnected(app)) {
+  // A companion without an icon of its own is named by its initial too: its
+  // category says nothing about what it is.
+  if (isConnected(app) || String(app.id || '').startsWith(COMPANION_PREFIX)) {
     const letter = monogram(app.name);
     if (letter) return { kind: 'monogram', key: letter };
   }

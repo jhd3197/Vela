@@ -77,3 +77,19 @@
   background: #7b4dff; // ratchet: allow tokens app tile art, generated from an app id
   box-shadow: 0 0 0 2px var(--bg-card);
 }
+
+/* A companion app's own icon. The image fills the tile's shape; the tile's
+   wash and ring are dropped because the artwork brings its own. */
+.appicon-image,
+[data-theme='dark'] .appicon-image {
+  background: none;
+  box-shadow: none;
+}
+
+.appicon-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}

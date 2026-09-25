@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowCircleUp, ArrowsClockwise, MagnifyingGlass, Plus } from '@phosphor-icons/react';
 import { api } from '../api.js';
+import FoundCompanions from '../components/FoundCompanions.jsx';
 import { useApps } from '../store.jsx';
 import { useAsyncAction } from '../hooks/useAsyncAction.js';
 import { useResource } from '../hooks/useResource.js';
@@ -188,6 +189,8 @@ export default function Library() {
             have connected.
           </p>
         </header>
+
+        <FoundCompanions />
 
         <div className="seg" role="tablist" aria-label="Marketplace sections">
           {TABS.map((t) => (

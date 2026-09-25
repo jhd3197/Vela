@@ -33,13 +33,26 @@ export default function AppIcon({ app, size = 44, plain, badge }) {
     style['--tile-line-dark'] = tones.lineDark;
   }
 
+  const countBadge = count ? (
+    <span className="appicon-badge" style={{ fontSize: Math.max(9, Math.round(size * 0.2)) }}>
+      {count}
+    </span>
+  ) : null;
+
+  // A companion app brings its own PNG, served by Vela after checking it. It
+  // is drawn as-is, on the tile's shape, rather than recoloured.
+  if (app?.iconUrl && !plain) {
+    return (
+      <span className="appicon appicon-image" style={style} aria-hidden="true">
+        {countBadge}
+        <img src={app.iconUrl} alt="" width={size} height={size} draggable="false" />
+      </span>
+    );
+  }
+
   return (
     <span className={`appicon${isPlain ? ' appicon-plain' : ''}`} style={style} aria-hidden="true">
-      {count ? (
-        <span className="appicon-badge" style={{ fontSize: Math.max(9, Math.round(size * 0.2)) }}>
-          {count}
-        </span>
-      ) : null}
+      {countBadge}
       {Glyph ? (
         <Glyph size={mark} weight="regular" />
       ) : (
