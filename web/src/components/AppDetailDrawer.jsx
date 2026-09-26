@@ -3,7 +3,15 @@ import Drawer from './ui/Drawer.jsx';
 import ReleaseHistory from './ReleaseHistory.jsx';
 import { useLocation } from 'react-router-dom';
 import { X } from '@phosphor-icons/react';
-import { api, isWebApp, isProcessApp } from '../api.js';
+import {
+  api,
+  companionState,
+  isCompanionApp,
+  isManagedApp,
+  isWebApp,
+  isProcessApp,
+  managedState,
+} from '../api.js';
 import { useAppStatus, useApps } from '../store.jsx';
 import { useDeveloperTools } from '../developer.js';
 import useOpenApp from '../desktops/useOpenApp.js';
@@ -13,6 +21,7 @@ import AddToHomeScreen from './AddToHomeScreen.jsx';
 import AppPermissions from './AppPermissions.jsx';
 import AppDiagnostics from './AppDiagnostics.jsx';
 import ConnectedAppForm from './ConnectedAppForm.jsx';
+import ManagedAppPanel from './ManagedAppPanel.jsx';
 
 // App detail drawer: what the app is, who wrote it, what it can reach, what it
 // may do in other apps, and the actions that apply to it. Identifiers, the
@@ -22,7 +31,95 @@ import ConnectedAppForm from './ConnectedAppForm.jsx';
 export default function AppDetailDrawer(props) {
   if (props.app?.kind === 'connected-web')
     return <ConnectedAppDetail key={props.app.id} {...props} />;
+  // A managed web app has its own everything: service state, address, backups
+  // and versions. Its panel is where those live, rather than a package drawer
+  // with most of its rows crossed out.
+  if (isManagedApp(props.app)) return <ManagedAppDetail key={props.app.id} {...props} />;
+  if (isCompanionApp(props.app)) return <CompanionAppDetail key={props.app.id} {...props} />;
   return <PackageAppDetail {...props} />;
+}
+
+function CompanionAppDetail({ app, onClose }) {
+  const { openApp, refreshApps, pushToast } = useApps();
+  const location = useLocation();
+  const [busy, setBusy] = useState(false);
+  const state = companionState(app);
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api.uninstall(app.id);
+      refreshApps();
+      pushToast?.(`${app.name} disconnected`);
+      onClose();
+    } catch (error) {
+      pushToast?.(error.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Drawer open onClose={onClose} aria-label={`${app.name} details`}>
+      <div className="drawer-header">
+        <div className="drawer-title-row">
+          <AppIcon app={app} size={52} />
+          <div>
+            <h2 className="drawer-name">{app.name}</h2>
+            <p className="drawer-meta">
+              On this computer · {state.label}
+              {app.version ? ` · ${app.version}` : ''}
+            </p>
+          </div>
+        </div>
+        <button className="drawer-close" onClick={onClose} aria-label="Close details">
+          <X size={20} />
+        </button>
+      </div>
+      <div className="drawer-body">
+        <section className="drawer-section">
+          {app.description ? <p className="drawer-description">{app.description}</p> : null}
+          <dl className="drawer-facts">
+            <dt>Program</dt>
+            <dd className="connected-app-address">{app.companion?.executable || 'Unknown'}</dd>
+            <dt>Buttons</dt>
+            <dd>
+              {(app.companion?.actions || []).map((action) => action.title).join(', ') || 'None'}
+            </dd>
+            <dt>Access</dt>
+            <dd>No Vela data. Vela asks it for widgets and runs its buttons.</dd>
+          </dl>
+        </section>
+      </div>
+      <div className="drawer-footer">
+        <div className="actions">
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              onClose();
+              openApp(app.id, { returnTo: location.pathname + location.search });
+            }}
+          >
+            Open
+          </button>
+          <button className="btn" onClick={remove} disabled={busy}>
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+function ManagedAppDetail({ app, onClose }) {
+  const { refreshApps } = useApps();
+  const state = managedState(app);
+  return (
+    <>
+      <ManagedAppPanel app={app} onClose={onClose} onChanged={refreshApps} />
+      <span className="sr-only" role="status">
+        {app.name} is {state.label.toLowerCase()}
+      </span>
+    </>
+  );
 }
 
 function ConnectedAppDetail({ app, onClose }) {

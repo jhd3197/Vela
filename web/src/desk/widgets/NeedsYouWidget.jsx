@@ -15,6 +15,8 @@ import AppIcon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
 import { api, relTime } from '../../api.js';
 import { useApps } from '../../store.jsx';
+import { isCompanionApp } from '../../api.js';
+import useCompanionAction from '../useCompanionAction.js';
 import useOpenApp from '../../desktops/useOpenApp.js';
 import { useOperationsContext } from '../../operations/OperationsProvider.jsx';
 import { statusDotState, statusLabel } from '../../operations/status.js';
@@ -23,6 +25,7 @@ import { DeskEmpty, WidgetStatus } from './primitives.jsx';
 
 export default function NeedsYouWidget() {
   const { apps, pushToast } = useApps();
+  const { run, running } = useCompanionAction();
   const openApp = useOpenApp();
   const { data, loaded, refresh } = useDeskData('appWidgets');
   const { needsAttention } = useOperationsContext();
@@ -82,7 +85,11 @@ export default function NeedsYouWidget() {
             <Button
               key={action.action}
               size="small"
-              onClick={() => app && openApp(app.id, { returnTo: '/' })}
+              disabled={running === action.action}
+              onClick={() =>
+                app &&
+                (isCompanionApp(app) ? run(app, action.action) : openApp(app.id, { returnTo: '/' }))
+              }
             >
               {action.label}
             </Button>

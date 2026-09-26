@@ -190,8 +190,12 @@ MAX_DIVIDER_RATIO = 0.8
 #: A window cannot be smaller than this or larger than this, in CSS pixels.
 #: Geometry arrives from a browser that may have been resized, zoomed or moved
 #: to another screen since, so it is bounded on the way in and clamped on the
-#: way out rather than trusted.
-MIN_WINDOW = 240
+#: way out rather than trusted. The minimums are per axis and match what the
+#: viewer itself enforces (window-state.js): a window may be shorter than it is
+#: narrow, and refusing that here only meant every move of a short window was
+#: rejected while the viewer was told nothing.
+MIN_WINDOW_WIDTH = 240
+MIN_WINDOW_HEIGHT = 160
 MAX_WINDOW = 20000
 
 
@@ -266,7 +270,8 @@ def validate_bounds(value: Any) -> dict[str, int] | None:
             raise DesktopError(422, f"Window bounds need a numeric {key}.")
         number = int(number)
         if key in ("width", "height"):
-            if not MIN_WINDOW <= number <= MAX_WINDOW:
+            smallest = MIN_WINDOW_WIDTH if key == "width" else MIN_WINDOW_HEIGHT
+            if not smallest <= number <= MAX_WINDOW:
                 raise DesktopError(422, f"A window's {key} is out of range.")
         elif abs(number) > MAX_WINDOW:
             raise DesktopError(422, f"A window's {key} is out of range.")

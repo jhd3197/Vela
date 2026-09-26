@@ -2,6 +2,8 @@
 // Keep runtime theme values in tokens; add feature rules to their owning module.
 
 @use 'tokens';
+// The stacking order, before any module reads a layer from it.
+@use 'layers';
 @use 'base';
 
 // The primitive layer. Early, so a component partial below can override a
@@ -20,6 +22,7 @@
 @use 'primitives/sparkline';
 @use 'primitives/clock';
 @use 'layout/page';
+@use 'layout/topbar';
 @use 'layout/rail';
 @use 'layout/workspace';
 @use 'layout/nav';
@@ -53,6 +56,7 @@
 @use 'components/dialog';
 @use 'components/welcome';
 @use 'components/connected-apps';
+@use 'components/managed-apps';
 @use 'components/settings';
 @use 'components/security';
 @use 'components/bots';
@@ -60,3 +64,5 @@
 @use 'components/agent';
 // Last: shared touch, scroll and viewport policies override the modules above.
 @use 'layout/mobile';
+// A television's focus and safe-area policy; inert everywhere else.
+@use 'layout/tv';

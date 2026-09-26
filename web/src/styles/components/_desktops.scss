@@ -190,7 +190,7 @@
 .apps-overlay {
   position: fixed;
   inset: 0 0 0 var(--rail-w);
-  z-index: 25;
+  z-index: var(--layer-overlay);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -212,9 +212,9 @@
   position: absolute;
   inset: 0;
   /* Above the desk's own search row, which claims 10 so search results are not
-     swallowed by the board; below All apps, which is 25. A window is foreground
-     content, so it goes over the board rather than under it. */
-  z-index: 20;
+     swallowed by the board; below All apps. A window is foreground content, so
+     it goes over the board rather than under it. */
+  z-index: var(--layer-chrome);
   /* The host itself is not a surface: clicks that miss a window land on the
      wallpaper, where the desk's own menu is. */
   pointer-events: none;
@@ -223,6 +223,10 @@
 .window-frame {
   position: absolute;
   pointer-events: auto;
+  /* Its place in the stack, as a layer rather than as a place in the document.
+     `--window-depth` is the only part of this the component supplies, because
+     it is the only part that is state. */
+  z-index: calc(var(--layer-window) + var(--window-depth, 0));
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -233,6 +237,20 @@
   box-shadow:
     0 18px 48px rgba(var(--scrim-rgb), 0.34),
     inset 0 0 0 1px var(--border);
+  /* The frame is up in 220 ms whether or not the app has answered, so the
+     click feels received immediately. */
+  animation: window-enter 220ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes window-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* A window on its way to or from the rail. It is the live window, moved by
@@ -245,6 +263,9 @@
   pointer-events: none;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
+  /* The motion owns the transform while the window is in flight; the entrance
+     would fight it. */
+  animation: none;
 }
 
 /* Reduced motion never reaches this — the lifecycle settles without drawing —
@@ -263,6 +284,7 @@
 .window-bar {
   flex: none;
   height: 38px;
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -278,11 +300,14 @@
   touch-action: none;
 }
 
-.window-frame:not(.is-fixed) .window-bar {
+/* `is-placed` is the arrangement holding this window, not the app declaring a
+   fixed size: a fixed-size window is still one you pick up and move, so it
+   keeps the grab cursor. */
+.window-frame:not(.is-placed) .window-bar {
   cursor: grab;
 }
 
-.window-frame:not(.is-fixed) .window-bar:active {
+.window-frame:not(.is-placed) .window-bar:active {
   cursor: grabbing;
 }
 
@@ -340,6 +365,50 @@
   color: var(--on-accent);
 }
 
+/* The menu trigger is `sr-only` at rest — the bar shows three buttons — and
+   takes its place in the row when keyboard focus lands on it. */
+.window-menu:focus-visible {
+  position: static;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+
+/* The hairline that owns a cold launch's wait: a sweep travelling under the
+   bar until the app answers. It never pretends to measure progress it does
+   not have. */
+.window-busy-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.window-busy-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--cyan), transparent);
+  animation: window-busy-sweep 1s cubic-bezier(0.3, 0.7, 0.2, 1) infinite;
+}
+
+@keyframes window-busy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
 .window-body {
   position: relative;
   flex: 1 1 auto;
@@ -352,6 +421,13 @@
   height: 100%;
   border: 0;
   display: block;
+}
+
+/* Hidden until the app answers — an app shown early and covered a beat later
+   is the flash the grace period exists to prevent. It still loads and runs:
+   this is paint, not lifetime. */
+.window-frame-app:not(.is-revealed) {
+  opacity: 0;
 }
 
 .window-state {
@@ -369,7 +445,83 @@
 }
 
 .window-state-over {
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* A solid ground over the app frame, not a dimmed peek at a half-loaded
+     page. It renders only once the wait has outlasted the grace period, so
+     it never needs a delay of its own. */
+  background: var(--bg);
+  animation: window-overlay-in 160ms ease-out both;
+}
+
+/* Content arrived: one beat for the icon to leave while the app rises into
+   place, then the overlay is gone. */
+.window-state-over.is-leaving {
+  animation: window-overlay-out 220ms ease-in both;
+}
+
+@keyframes window-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes window-overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The app itself rising in, the other half of the handoff. */
+.window-frame-app.is-revealed {
+  animation: window-content-rise 360ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes window-content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The starting state: nothing but the app's own icon owns the wait — no
+   skeleton rows to mistake for content. The pulse is decoration, and reduced
+   motion stills it through the global rule. */
+.window-starting-icon {
+  display: grid;
+  place-items: center;
+}
+
+.window-starting-icon.is-waiting {
+  animation: window-starting-pulse 820ms ease-in-out infinite;
+}
+
+.window-starting-title {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.window-starting-sub {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+@keyframes window-starting-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
 }
 
 /* The grips are invisible; what they do is give the edges a few pixels of
@@ -585,7 +737,7 @@
   border-radius: 12px;
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-  z-index: 1;
+  z-index: var(--layer-snap-preview);
 }
 
 /* The warp. Above the window it is standing in for, below the rail, the owner's
@@ -594,7 +746,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  z-index: var(--layer-genie);
 }
 
 /* Nothing to reduce here: the motion itself is skipped rather than shortened

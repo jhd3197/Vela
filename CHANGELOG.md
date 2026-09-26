@@ -6,6 +6,165 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Apps on this computer can connect to Vela.** A desktop app that supports it,
+  such as Prompture Desk or Faro, registers itself when it starts and appears in
+  the Marketplace under **Found on this computer**. Once you connect it, its
+  widgets go on your desk and its buttons work from any phone signed in to your
+  Vela, for example to pause an automation or pause file transfers. Its icon
+  gets a dot when it needs you, with one phone notification if notifications
+  are set up. The app keeps its own window. Vela shows it as not running when it
+  is closed and can start it again. If the program or its buttons change, Vela
+  stops talking to it until you accept the change. A connected app gets no Vela
+  account or data and cannot call Vela. Vela only talks to it over this
+  computer's own loopback address.
+
+- **Pair the Vela app for Android.** Settings → General has a new **Vela app**
+  section. With Wi-Fi access on, **Pair the Vela app** shows a QR code that
+  works once, for ten minutes. Scanning it connects the app directly: the
+  QR code carries the certificate fingerprint, so no certificate setup is
+  needed, and the phone never asks for your Vela password. Each paired
+  device is listed with when it last connected. Removing one signs it out
+  immediately without affecting your password or any other device.
+
+  A TV has no camera, so **Add a TV** works the other way round. Type this
+  computer's address on the TV, then enter the code the TV shows. Vela and
+  the TV both show a short check, and matching them confirms the TV is
+  talking to this computer. On a TV, the dashboard is navigated with the
+  remote's arrows and OK, with a clear focus ring and a margin for screens
+  that crop their edges. The Android app is still in development and not
+  yet available to download.
+
+- **A top bar that follows what you are looking at.** The dashboard gains a
+  menu bar across the top. It shows the name of whatever has focus — click a
+  Calculator window on the desk and it reads "Calc", click Notes and it reads
+  "Notes", open the Ask page and it reads "Ask" — along with that app's menus
+  and the things you want reachable from anywhere: search, notifications and
+  the time. Phone layouts are unchanged: there is no bar there, and the rail
+  and the page header stay exactly as they were.
+
+  Apps can put things in it, through the same kind of contract that lets them
+  put summaries on the desk. An app declares its menus in its manifest, so you
+  see them when you install it, and it can publish up to three small status
+  items — a temperature, a queue, a connection light — that sit in the bar
+  while it is running and disappear when you close its window. What an app
+  sends is plain data: Vela draws it, from Vela's own icons and colours, and an
+  app cannot put a picture, a link or any of its own code up there.
+
+- **Windows the shape their app says they are.** An app can now declare that
+  its window is fixed-size or cannot be maximized, and Vela honours it: a
+  calculator shows no maximize button, has no resize grips, and ignores a
+  double-click on its title bar — while still being something you can pick up
+  and move wherever you like. An app can also say what size to open at, which
+  is used the first time and never again, so a window you have resized stays
+  the size you left it. The maximize control is now a square rather than a pair
+  of arrows, which is what it actually does.
+
+- **Host an existing web app.** Vela can now install and run a self-hosted web
+  application — Memos, for example — that was never written for Vela. It
+  downloads the release the package names, checks it against the package's
+  checksum, and shows you the program's source, licence and exact build for this
+  computer before anything is installed. The app keeps its own interface,
+  accounts and database; Vela owns installing it, running it, its web address
+  and its backups. Installing one grants it nothing inside Vela: no app storage,
+  no actions, no desk widgets, no assistant or agent access, and no Vela
+  credentials. The install review says plainly that the program runs with your
+  own permissions, because it does.
+
+  Each app is published on an address of its own, `http://<app>.apps.localhost`,
+  which every browser resolves without setup and on which Vela's own dashboard
+  is never served. Opening an app from Vela hands your browser a link that works
+  once and expires in thirty seconds; signing out, locking Vela, stopping the
+  app or updating it all end that access immediately, including pages already
+  open. Reaching an app from a phone needs one manual step on your network — a
+  wildcard DNS entry for `*.apps.vela.invalid` pointing at this computer — and
+  each app says so beside the address rather than offering a link that fails.
+
+  Closing an app's window leaves it running; Stop is what ends it, and Vela
+  remembers that you stopped it across a restart even with **Start with Vela**
+  on. A crashed app is started again a few times with a growing pause and then
+  left alone with the reason and its log. Backups are taken per app with the
+  service stopped, so a database with a write-ahead log is copied whole; an
+  update takes a checkpoint first, and **Go back** restores the previous version
+  together with its matching data. Removing an app keeps its data and says where
+  it is; erasing that data is a separate, confirmed action.
+
+- **One-command development environment.** `./dev.sh` (Linux/macOS/WSL/Git
+  Bash) and `.\dev.ps1` (native Windows) start the backend and the Vite
+  dashboard together against a disposable `.local/dev-data` directory, creating
+  the virtualenv and installing dependencies on first run. `frontend` mode
+  serves the dashboard with hot reload against an already running server —
+  the quick path for CSS/UI-only work — and `build` refreshes `web/dist`
+  without starting anything. `backend`, `check` and `setup` modes cover the
+  rest; `--backend-port`/`--frontend-port` pin ports, which default to 7700
+  and 5173 and move aside when busy.
+
+- **A launch animation for opening an app.** The window frame lands the
+  moment you click — 220 ms, whether or not the app has answered — with the
+  app's name and an "Opening…" label in the title bar and a hairline sweeping
+  underneath it. The body shows nothing but the app's own icon, gently
+  pulsing: no skeleton rows to mistake for content. When the app answers, the
+  icon hands off and the real content rises into place; an app that answers
+  immediately skips the waiting state entirely.
+
+### Changed
+
+- **Window title bars show three buttons.** Minimize, maximize and close are
+  the only buttons at rest. The arranging menu — move left, move right, swap
+  panes, leave split view — now opens with a right-click on the title bar, or
+  from the keyboard: tabbing into the window's controls reveals its trigger.
+
+- **A window's starting state looks like one.** While an app loads, its window
+  shows the app's icon with a progress ring and what it is doing, on a solid
+  ground rather than a dimmed peek at a half-loaded page. If the app never
+  gets there, the window says so after ten seconds and offers Reload — the
+  same bargain the full-screen app page makes.
+
+### Fixed
+
+- **Clicking a window no longer restarts the app inside it.** Bringing a window
+  to the front reloaded whatever was running in it: an app lost its place, a
+  half-written note went with it, and anything the app had put on screen
+  disappeared. Which window is in front is remembered separately from where the
+  windows are drawn now, so bringing one forward is only that.
+
+- **Restoring a window plays its motion again.** A window brought back from
+  the rail popped in instantly instead of flying out of its icon, because the
+  animation's starting position was never painted before the release was
+  scheduled — both commits landed in the same frame. The restore now waits
+  for a real paint, so it travels over the same 480 ms as the minimize.
+
+- **Windows work on an empty desk.** The work area was measured from the
+  desk's content, so a desk with no widgets gave windows a short strip at the
+  top of the screen: dragging downward stopped at its edge, and maximizing
+  filled only the strip. The desk now fills the workspace whether or not the
+  board has anything on it.
+
+- **Dragging no longer dies over the app inside the window.** Once the app
+  had loaded, moving the pointer across its iframe handed the gesture to the
+  frame and the window simply stopped following. The window's content stays
+  out of the hit test while a drag or resize is active, so the gesture holds
+  for its whole length.
+
+- **Short windows are accepted again.** The server rejected any window
+  shorter than 240 px with a 422, so moves of a short window were never
+  saved — the viewer allows windows down to 160 px tall, and the server now
+  matches it per axis instead of using one minimum for both.
+
+- **Windows no longer wait forever on "Starting…".** A legacy app has no
+  bridge to answer with, so the ready signal the window waited for could
+  never arrive and the starting state stayed up over a fully loaded app. The
+  window now waits only for what the app can actually send: the frame's own
+  load event for a legacy app, the bridge's ready for an isolated one.
+
+- **Opening an app no longer flashes the app before its loading state.** A
+  fast frame painted before the waiting state appeared, was covered, then
+  shown again. The frame stays hidden until the app answers, and the loading
+  state renders only once the wait has actually lasted a moment — a fast app
+  opens straight into content, a slow one shows only the icon and the
+  hairline in between.
+
 ## 0.1.18 - 2026-09-18
 
 No additional release notes were provided.

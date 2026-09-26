@@ -33,8 +33,12 @@ class ContractTests(unittest.TestCase):
         self.assertEqual({manifest.id for manifest in legacy}, {"hello-vela", "system-info", "finance"})
         for manifest in legacy:
             self.assertEqual(manifest.schema_version, 1)
+            # A v1 app never declared window options and behaves as it always
+            # has: a window you can resize and maximize.
             self.assertEqual(
-                manifest.view, {"surface": "embedded", "chrome": "compact", "appearance": "auto"}
+                manifest.view,
+                {"surface": "embedded", "chrome": "compact", "appearance": "auto",
+                 "window": {"resizable": True, "maximizable": True}},
             )
             self.assertEqual(manifest.capabilities, [])
 

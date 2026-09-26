@@ -136,6 +136,40 @@
           ],
           "default": "auto"
         },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resizable": {
+              "type": "boolean",
+              "default": true
+            },
+            "maximizable": {
+              "type": "boolean",
+              "default": true
+            },
+            "defaultSize": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "width",
+                "height"
+              ],
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "minimum": 240,
+                  "maximum": 20000
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 160,
+                  "maximum": 20000
+                }
+              }
+            }
+          }
+        },
         "url": {
           "type": "string",
           "pattern": "^https://[^/\\s]+"
@@ -180,6 +214,22 @@
             "not": {
               "required": [
                 "chrome"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "surface": {
+                "const": "embedded"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "window"
               ]
             }
           }
@@ -458,6 +508,66 @@
               "m",
               "l"
             ]
+          }
+        }
+      }
+    },
+    "topbar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "menus": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "items"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,31}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "label"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,31}$"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 24
+                    },
+                    "action": {
+                      "enum": [
+                        "return",
+                        "close"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

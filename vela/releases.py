@@ -176,6 +176,10 @@ class Releases:
                         # Named, so the review can say which summaries this app
                         # wants to put on the desk rather than only that it does.
                         'widgets': manifest.widgets,
+                        # And which menus it wants in the top bar, for the same
+                        # reason: a capability named alone says less than the
+                        # thing it is asking for.
+                        'topbarMenus': manifest.topbar_menus,
                         'revision': plan['revision'], 'schemaVersion': schema_version,
                         'dataChanges': value != (json.loads(document['value']) if document else None) or (document and document['schema_version'] != schema_version),
                         'rollback': bool(rollback), 'trustedLegacy': manifest.schema_version == 1, 'expiresIn': 1200}

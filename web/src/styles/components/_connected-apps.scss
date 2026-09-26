@@ -80,3 +80,59 @@
     min-height: 44px;
   }
 }
+
+/* ---------- Companion apps ---------- */
+
+/* Programs on the Vela computer: found ones waiting to be connected, and the
+   page a connected one opens to — its buttons first, then its widgets. */
+.companions-found {
+  margin: var(--space-6) 0;
+}
+
+.companions-found-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.companions-found-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+
+  small {
+    overflow: hidden;
+    color: var(--text-dim);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.companion-view {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 960px;
+  padding: var(--space-6);
+}
+
+.companion-note {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.companion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.companion-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.companion-facts {
+  margin: var(--space-4) 0;
+}

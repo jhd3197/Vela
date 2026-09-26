@@ -34,7 +34,14 @@ import {
   fallbackStyle,
   MIN_SCALE,
 } from '../web/src/desktops/motion/genie-fallback.js';
-import { placeView, restorePatch } from '../web/src/desktops/window-state.js';
+import {
+  MIN_HEIGHT,
+  MIN_WIDTH,
+  defaultBounds,
+  maximizePatch,
+  placeView,
+  restorePatch,
+} from '../web/src/desktops/window-state.js';
 
 const DESKTOP = 'desk-1';
 const embedded = (extra = {}) => ({
@@ -255,5 +262,112 @@ describe('who the wallpaper belongs to', () => {
     claimWallpaper(desk, flags('choroni'));
     releaseWallpaper({ id: 'stranger' });
     assert.equal(wallpaperClaim().id, 'choroni');
+  });
+});
+
+describe('a window the shape its app says it is', () => {
+  // `view.window` reaches the desk through the app summary, and the desk's own
+  // geometry is what has to honour it. These are that half: what a declared
+  // size does to where a window opens, and what it must not do to a window
+  // somebody has already put somewhere.
+  const area = { width: 1440, height: 900 };
+  const layout = { arrangement: 'floating', dividerRatio: 0.5 };
+  const view = (window = {}) => ({ id: 'v1', kind: 'app', appId: 'calc', window });
+  const size = { width: 320, height: 460 };
+
+  test('a declared size is what a new window opens at', () => {
+    const bounds = placeView(view(), { layout, area, index: 0, size });
+    assert.equal(bounds.width, 320);
+    assert.equal(bounds.height, 460);
+    // Centred, like any other new window, rather than parked in a corner.
+    assert.equal(bounds.x, Math.round((area.width - 320) / 2));
+  });
+
+  test('an app that declares nothing still gets a window', () => {
+    const bounds = placeView(view(), { layout, area, index: 0 });
+    assert.ok(bounds.width > 320, 'the fraction of the work area, as before');
+    assert.deepEqual(bounds, defaultBounds(area, 0));
+  });
+
+  test('a place this window has been put beats the size its app suggested', () => {
+    // The one that would be maddening: resize a window, come back, and find it
+    // the size the manifest wanted. Seeding happens once.
+    const moved = view({ bounds: { x: 40, y: 40, width: 900, height: 620 } });
+    assert.deepEqual(placeView(moved, { layout, area, index: 0, size }), {
+      x: 40,
+      y: 40,
+      width: 900,
+      height: 620,
+    });
+  });
+
+  test('a declared size is still clamped to the screen in front of somebody', () => {
+    const small = { width: 400, height: 300 };
+    const huge = placeView(view(), { layout, area: small, index: 0, size: { width: 4000, height: 3000 } });
+    assert.equal(huge.width, 400);
+    assert.equal(huge.height, 300);
+    // And a size below what the desk can draw does not make a smaller window.
+    const tiny = defaultBounds(area, 0, { width: 10, height: 10 });
+    assert.equal(tiny.width, MIN_WIDTH);
+    assert.equal(tiny.height, MIN_HEIGHT);
+  });
+
+  test('a size that is not a size is ignored rather than drawn', () => {
+    for (const bad of [null, {}, { width: 320 }, { width: '320', height: 460 }, { width: 0, height: 460 }]) {
+      assert.deepEqual(defaultBounds(area, 0, bad), defaultBounds(area, 0), JSON.stringify(bad));
+    }
+  });
+
+  test('coming back from the rail can use the declared size too', () => {
+    // Only when there is nothing remembered — a window put away on a screen
+    // that is no longer attached, say. Otherwise its own place wins.
+    const away = { id: 'v1', window: { minimized: true } };
+    assert.deepEqual(restorePatch(away, area, 0, size).bounds, defaultBounds(area, 0, size));
+    const remembered = {
+      id: 'v1',
+      window: { minimized: true, restoreBounds: { x: 10, y: 10, width: 800, height: 600 } },
+    };
+    assert.deepEqual(restorePatch(remembered, area, 0, size).bounds, remembered.window.restoreBounds);
+  });
+});
+
+describe('a window that cannot be maximized', () => {
+  const floating = { arrangement: 'floating', maximizedView: null };
+  const full = { arrangement: 'maximized', maximizedView: 'v1' };
+
+  test('an ordinary window maximizes and restores', () => {
+    assert.deepEqual(maximizePatch(floating, 'v1'), {
+      arrangement: 'maximized',
+      maximizedView: 'v1',
+    });
+    assert.deepEqual(maximizePatch(full, 'v1'), {
+      arrangement: 'floating',
+      maximizedView: null,
+    });
+  });
+
+  test('the state path refuses, not only the missing button', () => {
+    // The control is not drawn for this app, so reaching here means something
+    // else asked — a double-click handler, a keyboard, a later caller. The
+    // answer is the same one the chrome gives: nothing happens.
+    assert.equal(maximizePatch(floating, 'v1', { maximizable: false }), null);
+  });
+
+  test('but a window that somehow got maximized can always come back', () => {
+    // A layout saved before the app declared itself fixed-size, or restored
+    // from another machine. Refusing here would strand it at full screen with
+    // no control to press.
+    assert.deepEqual(maximizePatch(full, 'v1', { maximizable: false }), {
+      arrangement: 'floating',
+      maximizedView: null,
+    });
+  });
+
+  test('another window in the arrangement is not this window', () => {
+    assert.deepEqual(maximizePatch(full, 'v2'), {
+      arrangement: 'maximized',
+      maximizedView: 'v2',
+    });
+    assert.equal(maximizePatch(full, 'v2', { maximizable: false }), null);
   });
 });

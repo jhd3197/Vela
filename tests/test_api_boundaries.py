@@ -25,6 +25,10 @@ HTTP_BOUNDARY = {
     "vela/auth.py": "the authentication middleware answers requests itself",
     "vela/phone_access.py": "wraps the ASGI app to serve the Wi-Fi access listener",
     "vela/webapps.py": "the router that serves /apps/{id}/...",
+    "vela/managed/gateway.py": (
+        "an ASGI middleware that answers a managed app's own hostname itself, "
+        "before any router sees the request"
+    ),
     "vela/automations/api.py": "a router",
     "vela/desktops/api.py": "a router",
 }

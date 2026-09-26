@@ -4,20 +4,72 @@
 // iframe and the same bridge the full-screen app page uses, through the same
 // `useAppFrame`. The only things that differ are the chrome and the fact that
 // this one can be minimized without ending anything.
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { useApps, useAppStatus } from '../store.jsx';
+import { useTopBarItems } from '../shell/TopBarProvider.jsx';
 import useAppFrame from './view-lifecycle.js';
 
-export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
+/** How long the starting state waits before saying so, as the full page does. */
+const STARTING_TIMEOUT_MS = 10000;
+
+/** The handoff: the icon's beat to leave while the real content rises. */
+const HANDOFF_MS = 240;
+
+/** How long a wait may be before the loading state renders at all. */
+const OVERLAY_GRACE_MS = 200;
+
+export default function AppWindow({ view, frameRef, onDirty, onDisconnect, onBusy }) {
   const { apps } = useApps();
-  const { status } = useAppStatus(view.appId);
   const summary = apps?.find((item) => item.id === view.appId);
-  const app = summary && { ...summary, ...status };
-  const isolated = summary?.schemaVersion === 2;
-  const surface = summary?.view?.surface || 'embedded';
-  const running = Boolean(app?.running && app?.url && surface === 'embedded' && view.available);
+  // Reload starts the session, the bridge and the frame over from nothing —
+  // the same thing the full page's retry does by remounting its workspace.
+  const [attempt, setAttempt] = useState(0);
+
+  if (!view.available) {
+    return (
+      <div className="window-state" role="status">
+        <p>
+          {view.unavailableReason === 'reinstalled'
+            ? 'This app was reinstalled. Open it again to use this window.'
+            : 'This app is no longer installed.'}
+        </p>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="window-state" role="status">
+        <p>Looking for this app…</p>
+      </div>
+    );
+  }
+
+  return (
+    <AppWindowContent
+      key={attempt}
+      view={view}
+      summary={summary}
+      frameRef={frameRef}
+      onDirty={onDirty}
+      onDisconnect={onDisconnect}
+      onBusy={onBusy}
+      onReload={() => setAttempt((value) => value + 1)}
+    />
+  );
+}
+
+function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBusy, onReload }) {
+  const { status } = useAppStatus(view.appId);
+  // The top bar's right rail, for as long as this window is open. The bridge
+  // sends an empty list on its way out, so nothing has to remember to clear it.
+  const topbar = useTopBarItems();
+  const app = { ...summary, ...status };
+  const isolated = summary.schemaVersion === 2;
+  const surface = summary.view?.surface || 'embedded';
+  const running = Boolean(app.running && app.url && surface === 'embedded' && view.available);
   const [loaded, setLoaded] = useState(false);
 
   // The context a window sends is smaller than the page's: a window has no
@@ -36,6 +88,7 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
       reportAppActivity();
       onDirty?.(state);
     },
+    onTopBarItems: (items) => topbar.publish(view.id, view.appId, items),
   });
 
   contextRef.current = () => ({
@@ -69,25 +122,55 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
     [isolated, disconnect, onDisconnect, setError],
   );
 
-  if (!view.available) {
-    return (
-      <div className="window-state" role="status">
-        <p>
-          {view.unavailableReason === 'reinstalled'
-            ? 'This app was reinstalled. Open it again to use this window.'
-            : 'This app is no longer installed.'}
-        </p>
-      </div>
-    );
-  }
+  // What "still starting" means depends on the app. An isolated app answers
+  // `vela:ready` over its bridge; a legacy frame has no bridge to answer with,
+  // so its own load event is all there is to wait for. Waiting for a ready
+  // that can never come is how the starting state used to stay up forever.
+  const starting = running && !error && (isolated ? !ready || !loaded : !loaded);
 
-  if (!app) {
-    return (
-      <div className="window-state" role="status">
-        <p>Looking for this app…</p>
-      </div>
-    );
-  }
+  // If the app never gets there, say so and offer a way out rather than
+  // spinning forever — the same bargain the full page makes.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!starting) {
+      setTimedOut(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setTimedOut(true), STARTING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
+
+  // The bar owns the wait: the hairline and the "Opening…" label live there,
+  // reported up so the frame can draw them. A stall stops the sweep.
+  useEffect(() => {
+    onBusy?.(starting && !timedOut);
+    return () => onBusy?.(false);
+  }, [starting, timedOut, onBusy]);
+
+  // When the app arrives, the icon gets one beat to leave while the content
+  // rises — then the overlay is gone rather than snapped away mid-frame.
+  const [departed, setDeparted] = useState(false);
+  useEffect(() => {
+    if (starting) {
+      setDeparted(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setDeparted(true), HANDOFF_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
+
+  // The skip, honestly: the frame underneath is hidden until the app answers,
+  // and the loading state only renders at all once the wait has lasted a
+  // moment. An app that answers inside the grace period opens straight into
+  // content — showing it early and covering it a beat later is the flash this
+  // replaces.
+  const [showOverlay, setShowOverlay] = useState(false);
+  useEffect(() => {
+    if (!starting) return undefined;
+    const timer = setTimeout(() => setShowOverlay(true), OVERLAY_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [starting]);
+  const overlay = showOverlay && (starting || !departed);
 
   if (!running) {
     return (
@@ -106,7 +189,7 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
       <iframe
         key={session?.token || app.url}
         ref={frameRef}
-        className="window-frame-app"
+        className={`window-frame-app${starting ? '' : ' is-revealed'}`}
         src={app.url}
         title={app.name}
         // The same sandbox the full-screen page uses. Making the frame
@@ -117,15 +200,35 @@ export default function AppWindow({ view, frameRef, onDirty, onDisconnect }) {
         onLoad={onLoad}
         onError={() => setError('The app could not load. Your Vela controls are still available.')}
       />
-      {(!ready || !loaded) && !error ? (
-        <div className="window-state window-state-over" role="status">
-          <AppIcon app={app} size={40} />
-          <p>Starting {app.name}…</p>
+      {overlay ? (
+        <div
+          className={`window-state window-state-over window-starting${starting ? '' : ' is-leaving'}`}
+          role="status"
+        >
+          {/* Nothing but the app's own icon owns the wait — no skeleton rows
+              to mistake for content. Text appears only when there is something
+              to say: the wait ran long, and here is the way out. */}
+          <span className={`window-starting-icon${timedOut || !starting ? '' : ' is-waiting'}`}>
+            <AppIcon app={app} size={64} />
+          </span>
+          {timedOut ? (
+            <>
+              <p className="window-starting-title">This app did not respond</p>
+              <p className="window-starting-sub">{app.name} has not finished loading.</p>
+              <button type="button" className="btn btn-primary" onClick={onReload}>
+                Reload
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
       {error ? (
         <div className="window-state window-state-over" role="alert">
-          <p>{error}</p>
+          <p className="window-starting-title">Couldn’t open the app</p>
+          <p className="window-starting-sub">{error}</p>
+          <button type="button" className="btn" onClick={onReload}>
+            Retry
+          </button>
         </div>
       ) : null}
     </>

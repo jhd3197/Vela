@@ -1,0 +1,54 @@
+// The stacking order, written down once.
+//
+// Every surface that has to sit above another one names a layer from this
+// scale instead of writing a number where it is used. That is the whole point:
+// a number at the point of use is a number nobody can compare against the
+// others, and the way overlapping overlays end up in the wrong order is that
+// two files each picked a plausible one. The prototype this bar comes from had
+// exactly that bug — its search field sat under its rail, which sat under its
+// bar — and the fix is not better numbers, it is one list.
+//
+// The order, outermost last:
+//
+//   base         the ambient glow behind everything
+//   workspace    the page, and the windows drawn on the desk inside it
+//   rail         the persistent rail beside the workspace
+//   topbar       the global bar above both
+//   chrome       a page's contextual header, and the window host over the desk
+//   overlay      All apps, drawn over the workspace it does not replace
+//   pop          a panel attached to a control: search results, notifications
+//   flyout       a panel that leaves its container: rail flyouts, drawers
+//   menu         menus, and the toasts that must clear them
+//
+// Windows have a band of their own inside the host that draws them, because
+// which window is in front is *state* — `window.stack`, kept by the server —
+// and not the order they happen to appear in the document. It used to be the
+// document order, and raising a window therefore moved its element, which
+// reloads the iframe inside it and restarts the app. A window carries its
+// depth as `--window-depth` and reads its layer from here.
+//
+// The values are the ones these surfaces already used, so naming them changed
+// no stacking. Add a layer by adding it here, in its place in the order, not
+// by reaching for a free number.
+//
+// This partial defines custom properties and nothing else. It owns no class,
+// so it is not competing with any component for one.
+
+:root {
+  --layer-base: 0;
+  --layer-workspace: 1;
+  --layer-rail: 2;
+  --layer-topbar: 12;
+  --layer-chrome: 20;
+  --layer-overlay: 25;
+  --layer-pop: 30;
+  --layer-flyout: 40;
+  --layer-menu: 60;
+
+  /* Inside the window host, whose own place is --layer-chrome. A desktop holds
+     at most eight views, so the deepest window sits well under the two
+     decorations that must stay over all of them. */
+  --layer-window: 1;
+  --layer-snap-preview: 20;
+  --layer-genie: 30;
+}

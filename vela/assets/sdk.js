@@ -118,6 +118,11 @@
     // Publish one of the widgets this app declared in its manifest. The host
     // renders the summary itself, so this sends data and never markup.
     widgets: Object.freeze({ publish: (id, summary = {}) => invoke('widgets.publish', { id, summary }) }),
+    // Put a few small status items in Vela's top bar while this window is
+    // open. Same bargain as widgets: data, never markup, drawn by the host
+    // from its own icon set. Publishing replaces whatever was there, so an
+    // empty list takes them down, and closing the window takes them down too.
+    topbar: Object.freeze({ publish: (items = []) => invoke('topbar.publish', { items }) }),
     navigation: Object.freeze({ returnToApps: () => invoke('navigation.return'), close: () => invoke('navigation.close') }),
     setUnsavedChanges: (dirty) => invoke('navigation.dirty', { dirty: Boolean(dirty), canSave: Boolean(saveHandler) }),
     onSave(callback) { saveHandler = callback; },

@@ -1,4 +1,6 @@
 // Host-only bridge. Never include this module or the bearer token in app content.
+import { validateItems } from '../shell/topbar-contract.js';
+
 export function createBridge({
   frame,
   session,
@@ -7,6 +9,12 @@ export function createBridge({
   onNavigate,
   onReady,
   onError,
+  // What this app has put in the top bar. Unlike every other operation here,
+  // it does not travel to the engine: the items belong to this one window, are
+  // never stored, and the surface that draws them is in this same page. So the
+  // host holds them, and the bridge closing takes them down — see decision D05
+  // in `plans/TOP-BAR-PROGRESS.md`.
+  onTopBarItems,
   fetcher = fetch,
 }) {
   const nonce = crypto.randomUUID();
@@ -293,6 +301,18 @@ export function createBridge({
             method: 'PUT',
             body: JSON.stringify({ summary: payload.summary ?? {} }),
           });
+        } else if (message.operation === 'topbar.publish') {
+          // Declared in the manifest and granted at install, exactly like
+          // widgets. An app that was never granted the top bar should not be
+          // able to make the host draw anything there at all.
+          if (!(session.capabilities || []).includes('topbar'))
+            throw Object.assign(new Error('Top bar capability was not granted'), { status: 403 });
+          if (Object.keys(payload).some((key) => key !== 'items'))
+            throw new Error('Invalid top bar request');
+          // Checked before it is kept, not while it is drawn: an app that sent
+          // something this host will not show should be told so.
+          onTopBarItems?.(validateItems(payload.items ?? []));
+          result = { ok: true, items: (payload.items ?? []).length };
         } else if (message.operation === 'navigation.dirty') {
           onDirty({ dirty: payload.dirty === true, canSave: payload.canSave === true });
         } else if (['navigation.return', 'navigation.close'].includes(message.operation)) {
@@ -336,6 +356,10 @@ export function createBridge({
       closed = true;
       clearTimeout(timer);
       removeEventListener('message', listener);
+      // Whatever this app put in the top bar goes with its window. Not a
+      // courtesy: an item left behind would name an app that is no longer
+      // there and raise a window that no longer exists.
+      onTopBarItems?.([]);
       // A question asked by a window that is closing has nobody left to answer
       // for. Withdraw each one; the engine cancels them too when the view
       // record closes, and neither side relies on the other remembering.

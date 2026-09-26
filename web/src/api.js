@@ -206,6 +206,42 @@ export const api = {
       body: JSON.stringify(value),
     }),
   disablePhoneAccess: () => request('/api/phone-access', { method: 'DELETE' }),
+  // Companion apps: desktop apps on this computer that registered themselves.
+  getCompanions: () => request('/api/companions'),
+  connectCompanion: (id, fingerprint) =>
+    request(`/api/companions/found/${encodeURIComponent(id)}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    }),
+  reviewCompanion: (id, fingerprint) =>
+    request(`/api/companions/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    }),
+  runCompanionAction: (id, action) =>
+    request(`/api/companions/${encodeURIComponent(id)}/actions/${encodeURIComponent(action)}`, {
+      method: 'POST',
+    }),
+  companionWidgets: (id) => request(`/api/apps/${encodeURIComponent(id)}/widgets`),
+  refreshCompanion: (id) =>
+    request(`/api/companions/${encodeURIComponent(id)}/refresh`, { method: 'POST' }),
+  getDevices: () => request('/api/devices'),
+  startDevicePairing: () => request('/api/devices/pairing', { method: 'POST' }),
+  lookupDeviceRequest: (code) =>
+    request('/api/devices/requests/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  approveDeviceRequest: (code) =>
+    request('/api/devices/requests/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  removeDevice: (id) => request(`/api/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   addWebApp: (value) =>
     request('/api/web-apps', {
       method: 'POST',
@@ -231,6 +267,78 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ app, action, allow, sourceContract, targetContract }),
+    }),
+  // Managed web apps: an existing self-hosted server Vela installs and runs.
+  // `openManaged` returns a one-use link into the app's own web address; it is
+  // never a token to keep, and it expires in thirty seconds.
+  managedApps: (options) => request('/api/managed', options),
+  managedApp: (id, options) => request(`/api/managed/${encodeURIComponent(id)}`, options),
+  managedStatus: (id, options) => request(`/api/managed/${encodeURIComponent(id)}/status`, options),
+  reviewManaged: (source) =>
+    source.file
+      ? request('/api/managed/review/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: source.file,
+        })
+      : request('/api/managed/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder: source.folder }),
+        }),
+  installManaged: (review, { startWithVela = false } = {}) =>
+    request(`/api/managed/review/${review.review}/install`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        artifactDigest: review.artifactDigest,
+        packageDigest: review.packageDigest,
+        trust: 'trusted-native',
+        startWithVela,
+      }),
+    }),
+  cancelManagedReview: (review) => request(`/api/managed/review/${review}`, { method: 'DELETE' }),
+  openManaged: (id, { path, start = true } = {}) =>
+    request(`/api/managed/${encodeURIComponent(id)}/launch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: path ?? null, start }),
+    }),
+  startManaged: (id) => request(`/api/managed/${encodeURIComponent(id)}/start`, { method: 'POST' }),
+  stopManaged: (id) => request(`/api/managed/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+  setManagedStartup: (id, startWithVela) =>
+    request(`/api/managed/${encodeURIComponent(id)}/startup`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startWithVela }),
+    }),
+  backUpManaged: (id, note = '') =>
+    request(`/api/managed/${encodeURIComponent(id)}/snapshots`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }),
+  restoreManaged: (id, snapshot) =>
+    request(
+      `/api/managed/${encodeURIComponent(id)}/snapshots/${encodeURIComponent(snapshot)}/restore`,
+      { method: 'POST' },
+    ),
+  rollbackManaged: (id, release) =>
+    request(
+      `/api/managed/${encodeURIComponent(id)}/releases/${encodeURIComponent(release)}/rollback`,
+      { method: 'POST' },
+    ),
+  eraseManagedData: (id) =>
+    request(`/api/managed/${encodeURIComponent(id)}/data/erase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: id }),
+    }),
+  removeManaged: (id, { eraseData = false } = {}) =>
+    request(`/api/managed/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eraseData }),
     }),
   catalog: (options) => request('/api/catalog', options),
   refreshCatalog: () => request('/api/catalog/refresh', { method: 'POST' }),
@@ -540,6 +648,68 @@ export function isWebApp(app) {
 
 export function isProcessApp(app) {
   return app?.runtime === 'process';
+}
+
+// A managed web app: an application Vela installed and runs as a local service,
+// published on a web address of its own. It is neither a packaged SDK app nor a
+// saved connection to a site someone else runs, and the dashboard has to keep
+// the three apart wherever it offers an action.
+export function isManagedApp(app) {
+  return app?.runtime === 'managed-service';
+}
+
+// A companion app: a desktop program on the Vela computer that registered
+// itself. It keeps its own window; Vela shows its widgets and runs its actions.
+export function isCompanionApp(app) {
+  return app?.kind === 'companion';
+}
+
+const COMPANION_STATES = {
+  online: { label: 'Running', tone: 'good' },
+  offline: { label: 'Not running', tone: 'idle' },
+  changed: { label: 'Needs review', tone: 'bad' },
+};
+
+export function companionState(app) {
+  const companion = app?.companion;
+  const state = COMPANION_STATES[companion?.state] || COMPANION_STATES.offline;
+  return { ...state, detail: companion?.detail || '' };
+}
+
+const MANAGED_STATES = {
+  stopped: { label: 'Stopped', tone: 'idle' },
+  starting: { label: 'Starting', tone: 'busy' },
+  ready: { label: 'Running', tone: 'good' },
+  failed: { label: 'Failed', tone: 'bad' },
+};
+
+const MANAGED_OPERATIONS = {
+  install: 'Installing',
+  update: 'Updating',
+  backup: 'Backing up',
+  restore: 'Restoring',
+  rollback: 'Going back',
+  remove: 'Removing',
+  erase: 'Erasing data',
+};
+
+// What to show for a managed app, in one place, so the window, the row and the
+// drawer cannot disagree about whether an app is running. An operation in
+// progress wins over the service state: "Updating" is more useful than
+// "Stopped" when the reason it stopped is the update.
+export function managedState(app) {
+  const managed = app?.managed;
+  if (!managed) return { label: 'Unknown', tone: 'idle', detail: '' };
+  if (managed.operation) {
+    return {
+      label: MANAGED_OPERATIONS[managed.operation] || 'Working',
+      tone: 'busy',
+      detail: managed.detail || '',
+      busy: true,
+    };
+  }
+  const state = MANAGED_STATES[managed.state] || MANAGED_STATES.stopped;
+  return { ...state, detail: managed.detail || '' };
 }
 
 export function formatBytes(bytes) {

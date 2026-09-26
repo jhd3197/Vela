@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 3,
+  "id": "notebook",
+  "name": "Notebook",
+  "version": "1.4.0",
+  "description": "A self-hosted notebook server, packaged for Vela with its archive inside the package.",
+  "category": "Notes",
+  "author": "Notebook authors",
+  "icon": "icon.png",
+  "color": "#3b82f6",
+  "compatibility": {
+    "managedService": 1,
+    "minimumHost": "0.1.19"
+  },
+  "source": {
+    "upstream": "https://example.invalid/notebook/releases/1.4.0",
+    "homepage": "https://example.invalid/notebook",
+    "license": "MIT",
+    "licenseFile": "LICENSE-upstream.txt",
+    "notes": "Redistributed unchanged; the upstream licence travels with the package."
+  },
+  "view": {
+    "surface": "managed-web",
+    "chrome": "compact",
+    "appearance": "auto",
+    "embedding": "auto"
+  },
+  "integration": {
+    "sdk": false,
+    "agent": false
+  }
+}

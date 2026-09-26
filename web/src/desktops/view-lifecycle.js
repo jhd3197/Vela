@@ -37,6 +37,10 @@ export default function useAppFrame({
   onNavigate,
   onReady,
   onError,
+  // What this app has published to the top bar, and the empty list the bridge
+  // sends when it closes. A window view passes this; the full-screen page does
+  // not, because it has no window for an item to raise.
+  onTopBarItems,
 }) {
   const [opened, setOpened] = useState(null);
   const session = provided || opened;
@@ -45,8 +49,8 @@ export default function useAppFrame({
   const bridge = useRef(null);
   // Held in refs so a changed callback does not tear the bridge down and
   // reload the app underneath the person using it.
-  const handlers = useRef({ onDirty, onNavigate, onReady, onError });
-  handlers.current = { onDirty, onNavigate, onReady, onError };
+  const handlers = useRef({ onDirty, onNavigate, onReady, onError, onTopBarItems });
+  handlers.current = { onDirty, onNavigate, onReady, onError, onTopBarItems };
 
   useEffect(() => {
     if (provided) return undefined;
@@ -96,6 +100,7 @@ export default function useAppFrame({
         setError(message);
         handlers.current.onError?.(message);
       },
+      onTopBarItems: (items) => handlers.current.onTopBarItems?.(items),
     });
     bridge.current = active;
     const update = () => active.updateContext(contextRef.current());

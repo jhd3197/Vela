@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 3,
+  "id": "notebook",
+  "name": "Notebook",
+  "version": "1.4.0",
+  "description": "A self-hosted notebook server, packaged for Vela with its archive inside the package.",
+  "category": "Notes",
+  "author": "Notebook authors",
+  "icon": "icon.png",
+  "color": "#3b82f6",
+  "compatibility": {
+    "managedService": 1,
+    "minimumHost": "0.1.19"
+  },
+  "source": {
+    "upstream": "https://example.invalid/notebook/releases/1.4.0",
+    "homepage": "https://example.invalid/notebook",
+    "license": "MIT",
+    "licenseFile": "LICENSE-upstream.txt",
+    "notes": "Redistributed unchanged; the upstream licence travels with the package."
+  },
+  "service": {
+    "trust": "trusted-native",
+    "artifacts": [],
+    "command": {
+      "args": [
+        "serve",
+        "--addr",
+        "{host}",
+        "--port",
+        "{port}",
+        "--data",
+        "{dataDir}"
+      ],
+      "workingDirectory": "code"
+    },
+    "environment": {
+      "NOTEBOOK_LOG_LEVEL": "info"
+    },
+    "endpoint": {
+      "protocol": "http",
+      "bind": "127.0.0.1",
+      "basePath": "/",
+      "websocket": "optional"
+    },
+    "readiness": {
+      "path": "/healthz",
+      "expectStatus": [
+        200
+      ],
+      "startTimeoutSeconds": 45,
+      "intervalSeconds": 0.5
+    },
+    "lifetime": {
+      "startWithVela": false,
+      "stopTimeoutSeconds": 15,
+      "restart": {
+        "maxRetries": 3,
+        "windowSeconds": 300,
+        "backoffSeconds": 2
+      }
+    },
+    "data": {
+      "directory": "store",
+      "backup": "stop-and-copy",
+      "describe": "Notes database and uploaded attachments."
+    }
+  },
+  "view": {
+    "surface": "managed-web",
+    "chrome": "compact",
+    "appearance": "auto",
+    "embedding": "auto"
+  },
+  "integration": {
+    "sdk": false,
+    "agent": false
+  }
+}

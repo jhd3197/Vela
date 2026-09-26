@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 3,
+  "id": "notebook-lite",
+  "name": "Notebook Lite",
+  "version": "1.4.0",
+  "description": "The same server, packaged so the host downloads and verifies the upstream archive during install review.",
+  "category": "Notes",
+  "author": "Notebook authors",
+  "compatibility": {
+    "managedService": 1
+  },
+  "source": {
+    "upstream": "https://example.invalid/notebook/releases/1.4.0",
+    "license": "MIT"
+  },
+  "service": {
+    "trust": "trusted-native",
+    "artifacts": [
+      {
+        "os": "macos",
+        "arch": "arm64",
+        "format": "tar.gz",
+        "url": "https://example.invalid/notebook/releases/download/1.4.0/notebook_1.4.0_darwin_arm64.tar.gz",
+        "sha256": "aaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999",
+        "size": 18794311,
+        "executable": "notebook"
+      }
+    ],
+    "command": {
+      "args": ["--port", "{port}", "--data", "{dataDir}", "--public-url", "{publicUrl}"]
+    },
+    "endpoint": {
+      "protocol": "http"
+    },
+    "readiness": {
+      "path": "/healthz"
+    },
+    "lifetime": {},
+    "data": {
+      "directory": "store",
+      "backup": "stop-and-copy"
+    }
+  },
+  "view": {
+    "surface": "managed-web"
+  }
+}

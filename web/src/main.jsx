@@ -16,6 +16,7 @@ import ThemeSync from './components/ThemeSync.jsx';
 import SettingsProvider from './components/SettingsProvider.jsx';
 import SecurityProvider from './components/SecurityProvider.jsx';
 import DesktopsProvider from './desktops/DesktopsProvider.jsx';
+import TopBarProvider from './shell/TopBarProvider.jsx';
 import AppsOverlayProvider from './desktops/AppsOverlay.jsx';
 import Desk from './pages/Desk.jsx';
 import DesktopRoute from './desktops/DesktopRoute.jsx';
@@ -28,6 +29,7 @@ import { installErrorReporting } from './errors.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { initTheme } from './theme.js';
 import { sharedViewport } from './viewport.js';
+import { startTvMode } from './tv.js';
 import './styles/main.scss';
 
 registerServiceWorker();
@@ -36,6 +38,8 @@ initTheme();
 installErrorReporting();
 // One viewport owner for the whole dashboard; layout reads its CSS variables.
 sharedViewport();
+// Remote-control focus and a TV layout, only inside the Vela app on a TV.
+startTvMode();
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -55,17 +59,22 @@ const router = createBrowserRouter(
                         all need to agree about which desktop is being looked
                         at. */}
                     <DesktopsProvider>
-                      {/* What the engine is doing, read once for the rail's
-                          dot, the bell, the desk and the System page. */}
-                      <OperationsProvider>
-                        <SettingsProvider>
-                          {/* All apps draws over the page, so its host wraps
-                              the routes rather than being one of them. */}
-                          <AppsOverlayProvider>
-                            <Outlet />
-                          </AppsOverlayProvider>
-                        </SettingsProvider>
-                      </OperationsProvider>
+                      {/* What apps have put in the top bar while they run.
+                          Above the routes because the bar is the shell and
+                          the windows that publish to it are inside a page. */}
+                      <TopBarProvider>
+                        {/* What the engine is doing, read once for the rail's
+                            dot, the bell, the desk and the System page. */}
+                        <OperationsProvider>
+                          <SettingsProvider>
+                            {/* All apps draws over the page, so its host wraps
+                                the routes rather than being one of them. */}
+                            <AppsOverlayProvider>
+                              <Outlet />
+                            </AppsOverlayProvider>
+                          </SettingsProvider>
+                        </OperationsProvider>
+                      </TopBarProvider>
                     </DesktopsProvider>
                   </AppsProvider>
                 </EngineProvider>

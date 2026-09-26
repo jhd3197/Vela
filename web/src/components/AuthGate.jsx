@@ -1,9 +1,31 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { acceptHubSession } from '../api.js';
 import { useConfirm } from '../hooks/useConfirm.js';
+import { readSession, writeSession } from '../storage.js';
 
 const AuthContext = createContext({ remote: false, logout() {} });
 export const useAuth = () => useContext(AuthContext);
+
+// Inside the Vela app for Android the page never holds a password. The app
+// keeps a device credential and starts a new session when asked, then reloads
+// the page. Asking again within a short while would loop on a device that has
+// been removed, so a second expiry waits for a person to press Reconnect.
+const RENEW_KEY = 'vela:native-renew';
+const RENEW_GAP_MS = 30000;
+
+function nativeApp() {
+  return typeof window.VelaAndroid?.renewSession === 'function' ? window.VelaAndroid : null;
+}
+
+function renewInApp({ force = false } = {}) {
+  const app = nativeApp();
+  if (!app) return false;
+  const last = Number(readSession(RENEW_KEY, 0)) || 0;
+  if (!force && Date.now() - last < RENEW_GAP_MS) return false;
+  writeSession(RENEW_KEY, Date.now());
+  app.renewSession();
+  return true;
+}
 
 export default function AuthGate({ children }) {
   const confirm = useConfirm();
@@ -14,6 +36,8 @@ export default function AuthGate({ children }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const inApp = Boolean(nativeApp());
   useEffect(() => {
     let cancelled = false;
     fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' }, cache: 'no-store' })
@@ -22,6 +46,7 @@ export default function AuthGate({ children }) {
         if (!response.ok) {
           if (response.status !== 401)
             setError('The engine is unavailable or this address is not allowed.');
+          else if (renewInApp()) setRenewing(true);
           return;
         }
         const session = await response.json();
@@ -40,6 +65,7 @@ export default function AuthGate({ children }) {
     const expired = () => {
       setAuthenticated(false);
       setRemote(true);
+      if (renewInApp()) setRenewing(true);
     };
     addEventListener('vela:auth-required', expired);
     return () => {
@@ -94,8 +120,20 @@ export default function AuthGate({ children }) {
         <div className="auth-screen">
           <form className="auth-card" onSubmit={login}>
             <img src="/vela-mark.png" width="40" height="40" alt="" />
-            <h1>{checking ? 'Connecting to Vela…' : 'Your Vela, wherever you are.'}</h1>
-            {!checking && (
+            <h1>{checking || renewing ? 'Connecting to Vela…' : 'Your Vela, wherever you are.'}</h1>
+            {!checking && !renewing && inApp && (
+              <>
+                <p>This app could not sign in to Vela.</p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setRenewing(renewInApp({ force: true }))}
+                >
+                  Reconnect
+                </button>
+              </>
+            )}
+            {!checking && !renewing && !inApp && (
               <>
                 <p>Sign in to your engine to open your apps and data.</p>
                 <label htmlFor="vela-password">Password</label>

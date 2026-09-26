@@ -146,6 +146,7 @@ class Registry:
             "view": manifest.view,
             "capabilities": manifest.capabilities,
             "widgets": manifest.widgets,
+            "topbarMenus": manifest.topbar_menus,
             "unavailableCapabilities": manifest.unavailable_capabilities,
             "isolation": "sandbox" if manifest.schema_version == 2 else "trusted-legacy",
             "name": manifest.name,

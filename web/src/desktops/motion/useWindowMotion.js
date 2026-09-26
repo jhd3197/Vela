@@ -192,11 +192,12 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
         };
         // A transition needs a value to leave before it has one to arrive at.
         // Only one case actually lacks one: a window being brought back is not
-        // on screen at all, so it is put at its icon first and released on the
-        // next frame. A window being put away is already drawn where it is, and
-        // a reversal is mid-transition — retargeting either of those in one
-        // commit is what makes them continue from where they are instead of
-        // jumping to an endpoint and easing from there.
+        // on screen at all, so it is put at its icon first and released once
+        // that start has actually been painted. A window being put away is
+        // already drawn where it is, and a reversal is mid-transition —
+        // retargeting either of those in one commit is what makes them
+        // continue from where they are instead of jumping to an endpoint and
+        // easing from there.
         const staged = direction === 'expand' && !isAnimating(previous);
         const run = {
           generation: started.generation,
@@ -225,11 +226,19 @@ export default function useWindowMotion({ desktopId, desktop, area }) {
           finish();
           return;
         }
+        // Two frames, not one. The start commit only counts as somewhere to
+        // leave once it has been painted, and a single rAF fires before that
+        // paint: the end commit would land in the same frame the start first
+        // appears in, the element would mount already at its destination and
+        // the restore would play no motion at all. A second rAF puts a real
+        // paint between the two, which is what the transition starts from.
         fallbackTimers.current.frame = requestAnimationFrame(() => {
-          setFallback((current) =>
-            current?.generation === started.generation ? { ...current, phase: 'end' } : current,
-          );
-          finish();
+          fallbackTimers.current.frame = requestAnimationFrame(() => {
+            setFallback((current) =>
+              current?.generation === started.generation ? { ...current, phase: 'end' } : current,
+            );
+            finish();
+          });
         });
         return;
       }

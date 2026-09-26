@@ -54,6 +54,11 @@ from .errors_http import VelaError
 from .agent_runs.approvals import ApprovalPending
 from .app_services import AppServices
 from .lifecycle import Lifecycle
+from .loop import BackgroundThread
+from .managed.gateway import GatewaySessions, ManagedGateway
+from .managed.service import ManagedApps
+from .managed.store import ManagedStore
+from .managed.supervisor import ManagedSupervisor, RECONCILE_INTERVAL_SECONDS
 from . import loop_registry
 from .logging_setup import audit
 from .logs import LogStore
@@ -62,14 +67,17 @@ from .catalog import Catalog
 from .releases import Releases
 from .actions import Actions
 from .connected_apps import ConnectedApps
+from .companions import Companions
 from .phone_access import PhoneAccess
+from .devices import Devices
 from .automations import Automations
 
 
 LOG = logging.getLogger(__name__)
 
 
-def create_app(config: Config | None = None, *, connection_transport=None) -> FastAPI:
+def create_app(config: Config | None = None, *, connection_transport=None,
+               companion_transport=None, companion_launcher=None) -> FastAPI:
     # Loops register themselves as they are constructed, process-wide. Mark
     # where this server's begin, so its shutdown stops its own and never those
     # of another app built in the same process — which the test suite does.
@@ -120,6 +128,9 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
                 widget_id = declared.get("id") if isinstance(declared, dict) else None
                 if isinstance(widget_id, str) and widget_id:
                     known.add(f"{summary['id']}:{widget_id}")
+        for summary in companions.list_apps():
+            for declared in summary["widgets"]:
+                known.add(f"{summary['id']}:{declared['id']}")
         return known
 
     # Desktops own the desk. `desk.json` is read once, on the way up, and then
@@ -152,6 +163,24 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
     lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage, desktops)
     catalog = Catalog(config)
     registry.catalog = catalog
+    # Managed web apps: existing self-hosted servers Vela installs and runs.
+    # Built here rather than inside the lifecycle because they are a separate
+    # profile with a separate identity space -- an SDK app's manifest, storage
+    # and bridge grants mean nothing to one, and it must not inherit them.
+    managed_store = ManagedStore(config.data_dir)
+    gateway_sessions = GatewaySessions()
+    managed_supervisor = ManagedSupervisor(
+        managed_store, runner, logs_dir=config.logs_dir,
+        public_url=lambda app_id: managed.origin_for(app_id),
+    )
+    managed = ManagedApps(
+        config, store=managed_store, supervisor=managed_supervisor,
+        sessions=gateway_sessions, registry=registry, connected_apps=connected_apps,
+    )
+    # A signed-out or locked Vela session must not leave an app open behind it.
+    # The auth layer already knows when that happens; this is the one place that
+    # says what it means for the app gateway.
+    auth.on_session_ended = managed.revoke_owner
     releases = Releases(config, lifecycle, app_services, catalog)
     actions = Actions(lifecycle, app_services, guard=guard)
     # An agent run invoking a named action goes through this same service, with
@@ -165,7 +194,20 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         log=lambda message: print(f'[vela] {message}', flush=True),
     )
     snooze = SnoozeStore(config.data_dir / "snooze.json")
+    devices = Devices(config.data_dir / "devices.json")
+    # Crashed managed services are restarted here, on a thread: a reconcile tick
+    # stops processes and probes HTTP endpoints, which would otherwise block the
+    # event loop everything else in this server shares.
+    managed_reconciler = BackgroundThread(
+        "managed.reconcile", RECONCILE_INTERVAL_SECONDS, managed.reconcile,
+        first_delay_s=RECONCILE_INTERVAL_SECONDS,
+    )
     widgets = Widgets(storage, registry, actions, snooze, guard=guard)
+    # Desktop apps on this computer that register themselves. Vela polls them
+    # on its own thread; they never call Vela.
+    companions = Companions(config, storage, widgets, notifier=notifier,
+                            transport=companion_transport, launcher=companion_launcher)
+    widgets.companions = companions
     automations = Automations(config, registry, actions, notifier, settings,
                               log=lambda message: print(f'[vela] {message}', flush=True))
     updates = UpdateChecker(config, __version__, settings=settings)
@@ -196,11 +238,35 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
 
     app = FastAPI(title="vela", version=__version__)
     app.middleware("http")(auth.middleware)
+    # Added after the auth middleware and therefore *outside* it: Starlette
+    # builds the stack with the most recently added first. That order is the
+    # whole isolation story for managed apps. A request whose Host names an app
+    # is answered by the gateway and never reaches Vela's auth layer, its
+    # routers or its API, so `memos.apps.localhost/api/apps` is Memos's path
+    # rather than a way into this hub.
+    app.add_middleware(
+        ManagedGateway,
+        resolve=managed.resolve_for_gateway,
+        sessions=gateway_sessions,
+        domains=lambda: config.app_domains,
+        hub_origin=lambda: (config.public_origin or auth.phone_origin
+                            or "http://localhost"
+                            + ("" if config.app_gateway_port == 80
+                               else f":{config.app_gateway_port}")),
+        owner_valid=auth.owner_still_signed_in,
+        attach=lambda gateway: setattr(app.state, "managed_gateway", gateway),
+    )
 
     # Kept on `app.state` because something outside this factory reads them:
     # the tray, the test suite and `vela/desktop.py` all look here.
     app.state.automations = automations
     app.state.desktops = desktops
+    app.state.devices = devices
+    # The managed-app service and its gateway sessions. Read by the tray, the
+    # test suite and the shutdown hook below.
+    app.state.managed_apps = managed
+    app.state.managed_sessions = gateway_sessions
+    app.state.companions = companions
     app.state.agent_runs = agent_runs
     phone_access = PhoneAccess(app, config, auth)
     app.state.phone_access = phone_access
@@ -231,16 +297,19 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         "backups": backups,
         "bots": bots,
         "catalog": catalog,
+        "companions": companions,
         "config": config,
         "connected_apps": connected_apps,
         "connections": connections,
         "conversations": conversations,
         "desktops": desktops,
+        "devices": devices,
         "doctor": doctor,
         "errors": errors,
         "files": files,
         "lifecycle": lifecycle,
         "logs": logs,
+        "managed": managed,
         "notifier": notifier,
         "phone_access": phone_access,
         "platform": platform,
@@ -326,6 +395,32 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         raise exc
 
     @app.on_event("startup")
+    async def start_managed_apps() -> None:
+        """Finish what a crash interrupted, then honour each app's own choice.
+
+        Recovery runs before anything starts. An update that did not reach its
+        commit is undone and an interrupted restore is resolved while nothing is
+        writing, because starting an app onto half-restored data is how a
+        recoverable problem becomes a lost database.
+        """
+        for note in await asyncio.to_thread(managed.recover):
+            LOG.warning("managed: %s %s: %s", note["id"], note["operation"], note["outcome"])
+        for note in await asyncio.to_thread(managed.start_enabled):
+            LOG.info("managed: %s %s", note["id"], note["outcome"])
+
+    @app.on_event("shutdown")
+    async def stop_managed_apps() -> None:
+        # Stopping is what keeps the next start clean: an orphan still holds the
+        # port and the database. The startup preference is untouched, so an app
+        # that was set to come back still does.
+        stopped = await asyncio.to_thread(managed.stop_all)
+        if stopped:
+            LOG.info("managed: stopped %s service(s)", len(stopped))
+        gateway = getattr(app.state, "managed_gateway", None)
+        if gateway is not None:
+            await gateway.aclose()
+
+    @app.on_event("startup")
     async def start_automations() -> None:
         await automations.start()
 
@@ -369,9 +464,11 @@ def create_app(config: Config | None = None, *, connection_transport=None) -> Fa
         # rather than a second startup path.
         for background in background_loops:
             background.start()
+        managed_reconciler.start()
 
     @app.on_event("shutdown")
     async def stop_scheduler() -> None:
+        managed_reconciler.stop()
         await scheduler.stop()
         await system_metrics.stop()
         # In reverse construction order, and after the two above have flushed

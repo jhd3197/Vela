@@ -24,6 +24,9 @@ class Auth:
         self.origin = config.public_origin if config else None
         self.password_file = config.data_dir / "access.json" if config else None
         self.hub_sessions = {}
+        # Hub sessions a paired device started, to the device. Removing the
+        # device ends them rather than leaving them to run out.
+        self.device_sessions = {}
         self.attempts = {}
         # Quick-unlock enrollment, in memory only, keyed by hub session token.
         # A restart, a sign-out or a new access password drops it, and the
@@ -33,8 +36,38 @@ class Auth:
         # passes through here before any handler sees it, so there is one place
         # that decides what a run may reach rather than a check per route.
         self.gateway = None
+        # Set by `create_app`: called with a hub session token whenever that
+        # session stops being one. Managed web apps are reached on their own
+        # origins, so the auth layer cannot end that access by removing a
+        # session here -- it has to say that it happened.
+        self.on_session_ended = None
         if self.remote and (not self.origin or not self.origin.startswith("https://") or not self.password_file.is_file()):
             raise ValueError("Remote access requires an HTTPS public origin and a configured access password")
+
+    def owner_still_signed_in(self, token):
+        """Whether the Vela session that opened an app window is still one.
+
+        The app gateway asks this on every request it carries. A locked session
+        is deliberately not signed in for this purpose: app lock exists to stop
+        the person at the keyboard reaching what is open, and an app on its own
+        origin is exactly what would otherwise stay reachable.
+        """
+        if token is None:
+            return False
+        with self.lock:
+            record = self.quick.get(token)
+            if record is not None and self._locked(record):
+                return False
+        return self.valid_hub_token(token)
+
+    def _session_ended(self, token):
+        """Tell whatever holds authority derived from this session that it ended."""
+        if self.on_session_ended is None:
+            return
+        try:
+            self.on_session_ended(token)
+        except Exception:  # noqa: BLE001 - a sign-out must not fail over this
+            pass
 
     def valid_hub_token(self, token):
         with self.lock:
@@ -56,11 +89,15 @@ class Auth:
     def disable_phone_access(self):
         if self.remote: return
         with self.lock:
+            ended = list(self.hub_sessions)
             self.phone_origin = None
             self.hub_sessions.clear()
+            self.device_sessions.clear()
             self.quick.clear()
             self.sessions = {key: value for key, value in self.sessions.items()
                              if value.get('owner') == self.hub_token}
+        for token in ended:
+            self._session_ended(token)
 
     def bootstrap(self, request):
         if not self.is_remote_request(request): return self.hub_token
@@ -70,8 +107,14 @@ class Auth:
         if not self.valid_hub_token(token): raise AppServiceError(401, "Sign in to Vela")
         return token
 
-    def login(self, request, password):
-        if not self.is_remote_request(request): raise AppServiceError(400, "This engine uses local access")
+    SESSION_SECONDS = 43200
+
+    def throttle(self, request):
+        """Count one attempt at a credential from this peer: five per ten minutes.
+
+        Shared by the password and by device pairing, so a code cannot be
+        guessed on one path while the other is resting.
+        """
         peer = request.client.host
         now = time.monotonic()
         with self.lock:
@@ -81,15 +124,48 @@ class Auth:
             attempts = [stamp for stamp in self.attempts.get(peer, []) if stamp > now - 600]
             if len(attempts) >= 5: raise AppServiceError(429, "Too many sign-in attempts; try again in 10 minutes")
             self.attempts[peer] = attempts + [now]
-        if not verify_password(self.password_file, password):
-            raise AppServiceError(401, "Incorrect password")
-        token = secrets.token_urlsafe(32)
+        return peer
+
+    def forgive(self, peer):
+        """A credential was right: this peer's earlier misses stop counting."""
         with self.lock:
             self.attempts.pop(peer, None)
+
+    def start_session(self, device_id=None):
+        """A new hub session, optionally belonging to a paired device."""
+        token = secrets.token_urlsafe(32)
+        now = time.monotonic()
+        with self.lock:
             self.hub_sessions = {key: expiry for key, expiry in self.hub_sessions.items() if expiry > now}
-            self.hub_sessions[token] = now + 43200
+            self.hub_sessions[token] = now + self.SESSION_SECONDS
+            self.device_sessions = {key: value for key, value in self.device_sessions.items()
+                                    if key in self.hub_sessions}
+            if device_id is not None:
+                self.device_sessions[token] = device_id
             self.quick = {key: value for key, value in self.quick.items() if key in self.hub_sessions}
         return token
+
+    def end_device_sessions(self, device_id):
+        """End every session a removed device holds, and what hangs off them."""
+        with self.lock:
+            ended = [token for token, owner in self.device_sessions.items() if owner == device_id]
+            for token in ended:
+                self.hub_sessions.pop(token, None)
+                self.device_sessions.pop(token, None)
+                self.quick.pop(token, None)
+            self.sessions = {key: value for key, value in self.sessions.items()
+                             if value.get("owner") not in ended}
+        for token in ended:
+            self._session_ended(token)
+        return len(ended)
+
+    def login(self, request, password):
+        if not self.is_remote_request(request): raise AppServiceError(400, "This engine uses local access")
+        peer = self.throttle(request)
+        if not verify_password(self.password_file, password):
+            raise AppServiceError(401, "Incorrect password")
+        self.forgive(peer)
+        return self.start_session()
 
     # ------------------------------------------------------------ quick unlock
     #
@@ -99,6 +175,11 @@ class Auth:
 
     TIMEOUTS = (60, 300, 900)
     MAX_FAILURES = 5
+    #: Where the installed app pairs and starts sessions. Public in the sense
+    #: that they take no hub session; each checks its own credential.
+    DEVICE_PATHS = ("/api/devices/pair", "/api/devices/session",
+                    "/api/devices/requests", "/api/devices/claim")
+
     UNLOCK_PATHS = ("/api/security", "/api/security/unlock", "/api/security/lock")
 
     def quick_session(self, request):
@@ -201,6 +282,9 @@ class Auth:
             # Ends the bridge and any open stream this session started.
             self.sessions = {key: value for key, value in self.sessions.items()
                              if value.get("owner") != token}
+        # And any managed app this session opened on its own web address, which
+        # no amount of removing app sessions here would reach.
+        self._session_ended(token)
         return self.quick_status(request)
 
     def unlock(self, request, secret=None, password=None):
@@ -253,11 +337,20 @@ class Auth:
         return JSONResponse({"detail": "Vela is locked"}, status_code=423)
 
     def logout(self, request):
-        token = request.cookies.get("__Host-vela-session", "")
+        # The cookie on a phone or a configured HTTPS deployment; the bearer on
+        # the computer running Vela, where there is no cookie to remove. Either
+        # way it names the session that is ending, and things holding authority
+        # derived from it -- an app open on its own web address, for one -- have
+        # to be told.
+        token = (request.cookies.get("__Host-vela-session")
+                 or request.headers.get("authorization", "").removeprefix("Bearer ")
+                 or "")
         with self.lock:
             self.hub_sessions.pop(token, None)
+            self.device_sessions.pop(token, None)
             self.quick.pop(token, None)
             self.sessions = {key: value for key, value in self.sessions.items() if value.get("owner") != token}
+        self._session_ended(token)
 
     def issue(self, manifest, identity, owner=None):
         token = secrets.token_urlsafe(32)
@@ -371,6 +464,7 @@ class Auth:
             # and origin rules below still apply, and the secret starts one
             # workflow rather than granting any hub or app access.
             public = (path in ("/api/health", "/api/session", "/api/login", "/api/logout")
+                      or path in self.DEVICE_PATHS
                       or path.startswith("/api/automations/hooks/")
                       or (path.startswith("/api/apps/") and path.endswith("/icon")))
             token = request.headers.get("authorization", "").removeprefix("Bearer ")
@@ -381,6 +475,12 @@ class Auth:
             if path in ("/api/session", "/api/login", "/api/logout"):
                 if not self.allowed_origin(request) or request.headers.get("x-vela-bootstrap") != "1":
                     return JSONResponse({"detail": "Local same-origin bootstrap required"}, status_code=403)
+            elif path in self.DEVICE_PATHS:
+                # The installed app, not a page: it sends no Origin, and a
+                # browser page elsewhere that tries is refused here. Pairing
+                # is meaningless without a network address to pair with.
+                if not remote_request or not self.allowed_origin(request):
+                    return JSONResponse({"detail": "Pair the Vela app over the Wi-Fi address"}, status_code=403)
             elif path.startswith("/api/app/"):
                 try:
                     request.state.app_session = self.resolve(token)

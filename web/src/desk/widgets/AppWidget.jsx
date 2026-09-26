@@ -7,6 +7,8 @@
 import AppIcon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
 import useOpenApp from '../../desktops/useOpenApp.js';
+import { isCompanionApp } from '../../api.js';
+import useCompanionAction from '../useCompanionAction.js';
 import { useDeskData } from '../DeskDataProvider.jsx';
 import { formatRelativeTime } from '../metrics.js';
 import { Bars, Card, KeyValue, Sparkline } from '../../components/ds/index.js';
@@ -24,7 +26,7 @@ function isStale(record) {
   return Number.isFinite(updated) && Date.now() - updated > STALE_MS;
 }
 
-function Body({ layout, summary, size }) {
+export function WidgetBody({ layout, summary, size }) {
   if (layout === 'chart') {
     const series = summary.series || [];
     if (series.length < 2) {
@@ -90,7 +92,8 @@ function Body({ layout, summary, size }) {
 
 export default function AppWidget({ type }) {
   const openApp = useOpenApp();
-  const { data } = useDeskData('appWidgets');
+  const { data, refresh } = useDeskData('appWidgets');
+  const { run, running } = useCompanionAction(refresh);
   const app = type?.app;
   const record = (data?.widgets || []).find(
     (entry) => entry.appId === app?.id && entry.id === type?.widgetId,
@@ -107,6 +110,10 @@ export default function AppWidget({ type }) {
   // no host-initiated action path, and the desk does not act for the user.
   const granted = new Set(record?.grantedActions || []);
   const offered = (summary?.actions || []).filter((action) => granted.has(action.action));
+  // A companion app's buttons do what they say: the owner reviewed them when
+  // connecting it, and it runs on this computer rather than in a frame.
+  const companion = isCompanionApp(app);
+  const press = (action) => (companion ? run(app, action.action) : open());
 
   // The same card a widget Vela wrote itself is drawn on, with the app's own
   // icon in the slot a core widget puts a Phosphor glyph in. The app is named
@@ -141,7 +148,12 @@ export default function AppWidget({ type }) {
       footer={
         type.layout === 'actions' && offered.length
           ? offered.map((action) => (
-              <Button key={action.action} size="small" onClick={open}>
+              <Button
+                key={action.action}
+                size="small"
+                onClick={() => press(action)}
+                disabled={running === action.action}
+              >
                 {action.label}
               </Button>
             ))
@@ -149,9 +161,11 @@ export default function AppWidget({ type }) {
       }
     >
       {summary ? (
-        <Body layout={type.layout} summary={summary} size={type.size} />
+        <WidgetBody layout={type.layout} summary={summary} size={type.size} />
       ) : (
-        <DeskEmpty>Open {app.name} to update this.</DeskEmpty>
+        <DeskEmpty>
+          {companion ? `Waiting for ${app.name}.` : `Open ${app.name} to update this.`}
+        </DeskEmpty>
       )}
 
       {summary && isStale(record) ? (

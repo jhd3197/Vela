@@ -38,7 +38,8 @@ KEEP_BACKUPS = 10
 #: half-finished transfer rather than somebody's documents, and its kept website
 #: sign-ins, which are the nearest thing in the data directory to a password. A
 #: backup is not a copy of a browser session.
-BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.sqlite")
+BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.sqlite",
+                   "managed.sqlite")
 
 #: Directories a backup copies whole, file by file. `themes/` holds the
 #: themes a user imported -- somebody else's work that they chose to keep, and
@@ -46,9 +47,17 @@ BACKED_UP_FILES = ("state.json", "settings.json", "app-data.sqlite", "desktops.s
 #: server and would only go stale inside a backup.
 BACKED_UP_DIRECTORIES = ("themes",)
 
+#: `managed.sqlite` is which web apps are installed, which release of each is
+#: active and which snapshots exist. The *applications' own* data is not here
+#: and is not meant to be: a managed app's database and attachments can be
+#: hundreds of megabytes, and a hub backup that dragged them along would soon
+#: stop being taken. Each managed app is backed up on its own, from its page,
+#: and `docs/APPS.md` says so where someone deciding what is protected will
+#: read it.
+#:
 #: The SQLite databases a backup copies through the engine rather than the file
 #: system, so a write in progress cannot produce a torn copy.
-BACKED_UP_DATABASES = ("app-data.sqlite", "desktops.sqlite")
+BACKED_UP_DATABASES = ("app-data.sqlite", "desktops.sqlite", "managed.sqlite")
 #: A safety copy taken immediately before a restore.
 SAFETY_PREFIX = "pre-restore-"
 DEFAULT_SCHEDULE = {"enabled": False, "time": "03:00", "keep": KEEP_BACKUPS}
@@ -196,6 +205,13 @@ class BackupStore:
                     if filename == "app-data.sqlite":
                         for row in db.execute("SELECT value FROM documents"):
                             json.loads(row[0])
+                    elif filename == "managed.sqlite":
+                        # Which apps are installed and which release each one is
+                        # running. A copy that cannot answer that would restore
+                        # a Vela with services it could not identify.
+                        db.execute(
+                            "SELECT app_id, release_id, generation FROM installations"
+                        ).fetchall()
                     else:
                         # A desktop file that cannot list its desktops would
                         # restore a dashboard with nowhere to go.

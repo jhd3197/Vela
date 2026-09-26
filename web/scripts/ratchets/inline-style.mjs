@@ -20,7 +20,8 @@ export const GEOMETRY_REASONS = {
   'web/src/components/ds/Bars.jsx': 'each bar as tall as the value it is drawing',
   'web/src/components/ds/Meter.jsx': 'the fill, as far along its track as the number it shows',
   'web/src/components/ds/Sparkline.jsx': 'the line stretched to the cell it was given',
-  'web/src/desktops/WindowFrame.jsx': 'window rectangle and resize cursor from window state',
+  'web/src/desktops/WindowFrame.jsx':
+    'window rectangle, stacking depth and resize cursor from window state',
   'web/src/desktops/SplitDivider.jsx': 'divider position from the split ratio',
   'web/src/desktops/EmptyPane.jsx': 'pane rectangle from the split bounds',
   'web/src/desktops/motion/GenieOverlay.jsx': 'animation surface sized to the source frame',

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { isProcessApp } from '../api.js';
+import { isCompanionApp, isManagedApp, isProcessApp } from '../api.js';
 import { useApps, useAppStatus } from '../store.jsx';
 import AppIcon from '../components/AppIcon.jsx';
 import AppTitleBar from '../components/AppTitleBar.jsx';
@@ -14,9 +14,12 @@ import AppSettingsDrawer from '../components/AppSettingsDrawer.jsx';
 import { PermissionNotice } from '../components/AppPermissions.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import useAppFrame from '../desktops/view-lifecycle.js';
+import { useTopBarItems } from '../shell/TopBarProvider.jsx';
 import useViewport from '../hooks/useViewport.js';
 import { intersectRect, occlusionOf, visibleRect } from '../viewport.js';
 import ConnectedAppView from '../components/ConnectedAppView.jsx';
+import ManagedAppView from '../components/ManagedAppView.jsx';
+import CompanionAppView from '../components/CompanionAppView.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { readLocal, writeLocal } from '../storage.js';
 import { openExternal } from '../clipboard.js';
@@ -24,9 +27,16 @@ import { openExternal } from '../clipboard.js';
 export default function AppView() {
   const { id } = useParams();
   const [attempt, setAttempt] = useState(0);
-  const { apps } = useApps();
+  const { apps, refreshApps } = useApps();
   const app = apps?.find((item) => item.id === id);
   if (app?.kind === 'connected-web') return <ConnectedAppView key={id} app={app} />;
+  // A managed web app runs on an address of its own and is entered through a
+  // launch ticket, so it has nothing in common with the same-origin frame the
+  // workspace below builds for a packaged app.
+  if (isManagedApp(app)) return <ManagedAppView key={id} app={app} onStatus={refreshApps} />;
+  // A companion app has its own window on the Vela computer. What Vela shows is
+  // the part that travels: its widgets and its buttons.
+  if (isCompanionApp(app)) return <CompanionAppView key={id} app={app} onStatus={refreshApps} />;
   return (
     <Workspace key={`${id}:${attempt}`} id={id} retry={() => setAttempt((value) => value + 1)} />
   );
@@ -96,6 +106,7 @@ function Workspace({ id, retry }) {
   // bridge — which only calls it after the first render — always finds the
   // current one.
   const contextRef = useRef(() => ({}));
+  const topbar = useTopBarItems();
 
   // The session, the bridge and their teardown are shared with the desktop's
   // windows: two copies of "open a session, attach a bridge, revoke on the way
@@ -113,6 +124,10 @@ function Workspace({ id, retry }) {
       setDirty(state);
     },
     onNavigate: () => leaveRef.current(),
+    // The page is not a window, so its items are keyed by the route instead.
+    // They still clear when the bridge does; there is simply no window for
+    // clicking one to raise, which is right — you are already in the app.
+    onTopBarItems: (items) => topbar.publish(`page:${id}`, id, items),
   });
 
   // The shared service already coalesces viewport events; the app only needs

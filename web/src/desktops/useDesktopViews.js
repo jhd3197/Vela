@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { desktopsApi } from './desktopsApi.js';
 import { exitPatch, freeSlotFor, snapPatch, swapPatch, vacatePatch } from './snap.js';
-import { minimizePatch, restorePatch, stackOrder } from './window-state.js';
+import { maximizePatch, minimizePatch, restorePatch, stackOrder } from './window-state.js';
 
 const EMPTY = {
   views: [],
@@ -201,7 +201,7 @@ export default function useDesktopViews(desktopId) {
   );
 
   const restore = useCallback(
-    (view, index) => {
+    (view, index, size = null) => {
       // Back into its own slot if that slot is still free, and floating
       // otherwise — never evicting whatever took its place in the meantime.
       const slot = freeSlotFor(state.layout, view.id);
@@ -209,7 +209,12 @@ export default function useDesktopViews(desktopId) {
         patchView(view.id, { minimized: false, raise: true }, { immediate: true });
         return saveLayout(snapPatch(state.layout, view.id, slot));
       }
-      return patchView(view.id, restorePatch(view, area.current, index), { immediate: true });
+      // `size` is the app's declared default, used only if this window has no
+      // remembered place at all — which is the case a window put away before
+      // the screen changed can still land in.
+      return patchView(view.id, restorePatch(view, area.current, index, size), {
+        immediate: true,
+      });
     },
     [patchView, saveLayout, state.layout],
   );
@@ -245,13 +250,17 @@ export default function useDesktopViews(desktopId) {
     [saveLayout],
   );
 
+  // Belt and braces. The window's own control is not drawn for an app that
+  // declared `maximizable: false`, and this refuses anyway: a keyboard, a
+  // double-click, a context menu or a later caller must not be able to reach a
+  // state the app said it cannot be in. `maximizePatch` is where that decision
+  // is written down, so it can be checked without a browser.
   const maximize = useCallback(
-    (view) =>
-      saveLayout(
-        state.layout.arrangement === 'maximized' && state.layout.maximizedView === view.id
-          ? { arrangement: 'floating', maximizedView: null }
-          : { arrangement: 'maximized', maximizedView: view.id },
-      ),
+    (view, options) => {
+      const patch = maximizePatch(state.layout, view.id, options);
+      if (!patch) return Promise.resolve({ ok: true, refused: true });
+      return saveLayout(patch);
+    },
     [saveLayout, state.layout],
   );
 

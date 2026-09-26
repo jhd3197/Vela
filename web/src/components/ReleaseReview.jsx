@@ -10,15 +10,21 @@ const CAPABILITY_TEXT = {
   connections: 'Use a connection you have set up',
   actions: 'Ask other apps to do things you allow',
   widgets: 'Show summaries on your desk',
+  topbar: 'Show menus and small items in the top bar',
 };
 
-export function describeCapabilities(capabilities, widgets) {
+export function describeCapabilities(capabilities, widgets, topbarMenus) {
   if (!capabilities?.length) return 'None';
+  // A capability that names what it is asking for says more than its own
+  // label: "Show summaries on your desk (Sync, Queued changes)" is reviewable
+  // in a way that "widgets" is not.
+  const named = { widgets, topbar: topbarMenus };
   return capabilities
     .map((capability) => {
       const text = CAPABILITY_TEXT[capability] || capability;
-      if (capability !== 'widgets' || !widgets?.length) return text;
-      return `${text} (${widgets.map((widget) => widget.name).join(', ')})`;
+      const declared = named[capability];
+      if (!declared?.length) return text;
+      return `${text} (${declared.map((entry) => entry.name || entry.label).join(', ')})`;
     })
     .join('; ');
 }
@@ -92,11 +98,13 @@ export default function ReleaseReview({ source, onClose, onComplete }) {
               </>
             )}
             <dt>Permissions</dt>
-            <dd>{describeCapabilities(review.capabilities, review.widgets)}</dd>
+            <dd>{describeCapabilities(review.capabilities, review.widgets, review.topbarMenus)}</dd>
             {review.newCapabilities.length > 0 && (
               <>
                 <dt>New permissions</dt>
-                <dd>{describeCapabilities(review.newCapabilities, review.widgets)}</dd>
+                <dd>
+                  {describeCapabilities(review.newCapabilities, review.widgets, review.topbarMenus)}
+                </dd>
               </>
             )}
             {review.operations.length > 0 && (

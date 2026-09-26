@@ -1,0 +1,156 @@
+// tokens: spacing
+/* ---------- The global top bar ---------- */
+
+// A translucent strip across the top of the dashboard, above the rail and the
+// workspace both. Its height is a token because the shell's rows and the
+// window work area are measured against it: a bar that grew without the rest
+// knowing would push the desk's windows off the bottom of the screen.
+//
+// Nothing here writes a stacking number. The bar and its menus take their
+// places from the scale in `styles/_layers.scss`, which exists because the
+// prototype this comes from stacked its search under its rail under its bar.
+
+.shell-top {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.topbar {
+  --topbar-h: 36px;
+  position: relative;
+  z-index: var(--layer-topbar);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--space-5) 0 var(--space-5);
+  background: var(--bg-header);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+
+.topbar-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.topbar-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-menus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.topbar-menu {
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.topbar-menu:hover,
+.topbar-menu.is-open {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* The right rail. `margin-left: auto` rather than a spacer element: the bar
+   deliberately centres nothing, so there is no middle zone to hold open. */
+.topbar-rail {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.topbar-statuses {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* One item an app published. It is a button because the one thing it does is
+   raise that app's window; it is never a link, and it never carries an app's
+   own colour — `tone` names a role and the tokens answer it. */
+.topbar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 132px;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.topbar-status:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.topbar-status.is-positive {
+  color: var(--green);
+}
+
+.topbar-status.is-caution {
+  color: var(--amber);
+}
+
+.topbar-status.is-critical {
+  color: var(--red);
+}
+
+.topbar-status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-clock {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+  padding-left: var(--space-1);
+}
+
+/* The bar gives search the compact trigger it already has for narrow headers,
+   so the field opens over the workspace instead of holding a column open in a
+   strip 36 pixels tall. `.searchbox-float` already opens downward and to the
+   right, which is where it belongs here too, so the bar adds nothing. */
