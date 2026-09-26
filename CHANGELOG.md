@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.19 - 2026-09-26
+
 ### Added
 
 - **Apps on this computer can connect to Vela.** A desktop app that supports it,
