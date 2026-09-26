@@ -37,7 +37,7 @@ import httpx
 
 from ..config import write_json_atomic
 from ..errors_http import Conflict, Upstream
-from ..state import pid_alive, pid_ctime
+from ..state import pid_ctime
 from .contract import ManagedManifest
 
 LOG = logging.getLogger(__name__)
@@ -176,7 +176,7 @@ class ManagedSupervisor:
         entry = self.record(app_id)
         if not entry:
             return None
-        if not pid_alive(entry.get("pid", -1), entry.get("pid_ctime")):
+        if not self.runner.status(entry.get("pid", -1), entry.get("pid_ctime")):
             return None
         return entry
 
@@ -336,7 +336,7 @@ class ManagedSupervisor:
         with httpx.Client(timeout=PROBE_TIMEOUT_SECONDS, trust_env=False,
                           follow_redirects=False) as client:
             while time.monotonic() < deadline:
-                if not pid_alive(entry["pid"], entry["pid_ctime"]):
+                if not self.runner.status(entry["pid"], entry["pid_ctime"]):
                     return False, (
                         f"{manifest.name} stopped while starting. "
                         f"{_tail(self.log_path(app_id))}"
@@ -382,7 +382,7 @@ class ManagedSupervisor:
 
     def _stop_process(self, entry: dict[str, Any], manifest: ManagedManifest | None) -> str:
         pid = entry.get("pid")
-        if not pid or not pid_alive(pid, entry.get("pid_ctime")):
+        if not pid or not self.runner.status(pid, entry.get("pid_ctime")):
             # Either it exited, or the number now belongs to something else.
             # Both mean the same thing here: there is nothing of ours to signal.
             return "exited"
@@ -445,7 +445,7 @@ class ManagedSupervisor:
         entry = self.record(app_id)
         if not entry:
             return False
-        if not pid_alive(entry.get("pid", -1), entry.get("pid_ctime")):
+        if not self.runner.status(entry.get("pid", -1), entry.get("pid_ctime")):
             self._save(app_id, None)
             return False
         if entry.get("generation") != generation:
