@@ -33,6 +33,7 @@ import { useApps, useEngine } from '../store.jsx';
 import { getTheme, setTheme } from '../theme.js';
 import { developerToolsPersist, setDeveloperTools, useDeveloperTools } from '../developer.js';
 import AddToHomeScreen from '../components/AddToHomeScreen.jsx';
+import DevicesSection from '../components/DevicesSection.jsx';
 import SecuritySection from '../components/security/SecuritySection.jsx';
 import HealthSection from '../components/HealthSection.jsx';
 import UpdatesSection from '../components/UpdatesSection.jsx';
@@ -980,7 +981,8 @@ const SECTIONS = [
     label: 'General',
     icon: Info,
     description: 'Your server, your devices, and how much Vela shows.',
-    keywords: 'version platform phone install home screen about developer tools logs system',
+    keywords:
+      'version platform phone install home screen about developer tools logs system android app pair devices tv',
   },
   {
     id: 'desk',
@@ -1495,6 +1497,7 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
               </Link>
               <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
             </div>
+            <DevicesSection />
           </section>
 
           <section className="panel" id="settings-appearance" hidden={active !== 'appearance'}>

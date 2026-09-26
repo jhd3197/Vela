@@ -1,0 +1,23 @@
+// TV mode, set by `web/src/tv.js` when the Vela app runs on a television.
+//
+// Read from across a room and driven by a remote, so the one thing that must
+// never be missed is where focus is. Any focused control gets a thick ring,
+// whether or not the browser thinks focus came from a keyboard: to a remote,
+// every move is a keyboard move. Screens that crop their edges get a safe
+// margin, the one Android TV recommends.
+
+:root[data-form='tv'] {
+  body {
+    padding: 27px 48px;
+  }
+
+  :focus {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  // No pointer, so nothing waits for a hover to show itself.
+  * {
+    cursor: none;
+  }
+}

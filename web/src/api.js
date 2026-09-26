@@ -227,6 +227,21 @@ export const api = {
   companionWidgets: (id) => request(`/api/apps/${encodeURIComponent(id)}/widgets`),
   refreshCompanion: (id) =>
     request(`/api/companions/${encodeURIComponent(id)}/refresh`, { method: 'POST' }),
+  getDevices: () => request('/api/devices'),
+  startDevicePairing: () => request('/api/devices/pairing', { method: 'POST' }),
+  lookupDeviceRequest: (code) =>
+    request('/api/devices/requests/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  approveDeviceRequest: (code) =>
+    request('/api/devices/requests/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  removeDevice: (id) => request(`/api/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   addWebApp: (value) =>
     request('/api/web-apps', {
       method: 'POST',

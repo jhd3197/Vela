@@ -27,6 +27,7 @@ A route change belongs in the same commit as the regenerated list.
 - `DELETE /api/desktops/{desktop_id}/takeover/{lease_id}`
 - `DELETE /api/desktops/{desktop_id}/views/{view_id}`
 - `DELETE /api/desktops/{desktop_id}/wallpaper`
+- `DELETE /api/devices/{device_id}`
 - `DELETE /api/errors/{error_id}`
 - `DELETE /api/files/{share_id}`
 - `DELETE /api/logs/{name}`
@@ -98,6 +99,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame`
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame/{digest}`
 - `GET /api/desktops/{desktop_id}/wallpaper`
+- `GET /api/devices`
 - `GET /api/doctor`
 - `GET /api/engine`
 - `GET /api/errors`
@@ -140,6 +142,7 @@ A route change belongs in the same commit as the regenerated list.
 - `PATCH /api/chat/conversations/{conversation_id}`
 - `PATCH /api/desktops/{desktop_id}`
 - `PATCH /api/desktops/{desktop_id}/views/{view_id}`
+- `PATCH /api/devices/{device_id}`
 - `PATCH /api/security`
 - `PATCH /api/settings`
 - `PATCH /api/{unknown_path}`
@@ -202,6 +205,13 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/control`
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/retry`
 - `POST /api/desktops/{desktop_id}/views`
+- `POST /api/devices/claim`
+- `POST /api/devices/pair`
+- `POST /api/devices/pairing`
+- `POST /api/devices/requests`
+- `POST /api/devices/requests/approve`
+- `POST /api/devices/requests/lookup`
+- `POST /api/devices/session`
 - `POST /api/doctor/run`
 - `POST /api/doctor/{key}/repair`
 - `POST /api/errors/client`
