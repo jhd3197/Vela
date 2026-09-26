@@ -6,6 +6,8 @@ the desk's app-widget path is exercised against the real contract. `apps.zip` co
 pre-split app versions for migration, release and action regression tests;
 `scripts/fixture_apps.py` extracts them to a temporary directory per process.
 `catalog/` pins the Health 1.1.0 release used by browser release tests.
+`manifest-v3/` pins the vela-contracts managed web app fixtures (0.5.0) that
+`test_managed_contract.py` checks the vendored schema against.
 
 These snapshots intentionally do not follow edits to sibling app repositories.
 Canonical app source is in `vela-health`, `vela-meals`, `vela-notes`, `vela-ollama`,

@@ -36,7 +36,9 @@ from vela.managed.store import AppPaths, safe_app_id
 from vela.manifest import ManifestError, validate_manifest
 
 ROOT = Path(__file__).resolve().parent.parent
-CONTRACTS = ROOT.parent / "vela-contracts/tests/fixtures/manifest-v3"
+# Pinned from vela-contracts `tests/fixtures/manifest-v3` (0.5.0, c1b811e), so
+# the hub runs its tests without sibling repositories.
+CONTRACTS = ROOT / "tests/fixtures/manifest-v3"
 
 
 def base_manifest() -> dict:

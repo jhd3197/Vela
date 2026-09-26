@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 3,
+  "id": "notebook",
+  "name": "Notebook",
+  "version": "1.4.0",
+  "description": "A self-hosted notebook server, packaged for Vela with its archive inside the package.",
+  "category": "Notes",
+  "author": "Notebook authors",
+  "icon": "icon.png",
+  "color": "#3b82f6",
+  "compatibility": {
+    "managedService": 1,
+    "minimumHost": "0.1.19"
+  },
+  "source": {
+    "upstream": "https://example.invalid/notebook/releases/1.4.0",
+    "homepage": "https://example.invalid/notebook",
+    "license": "MIT",
+    "licenseFile": "LICENSE-upstream.txt",
+    "notes": "Redistributed unchanged; the upstream licence travels with the package."
+  },
+  "service": {
+    "trust": "trusted-native",
+    "artifacts": [
+      {
+        "os": "windows",
+        "arch": "x64",
+        "format": "zip",
+        "file": "artifacts/notebook-1.4.0-windows-x64.zip",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "size": 4096,
+        "executable": "notebook.exe"
+      },
+      {
+        "os": "linux",
+        "arch": "arm64",
+        "format": "tar.gz",
+        "file": "artifacts/notebook-1.4.0-linux-arm64.tar.gz",
+        "sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+        "size": 3072,
+        "executable": "bin/notebook",
+        "expandedSizeLimit": 134217728
+      }
+    ],
+    "command": {
+      "args": [
+        "serve",
+        "--addr",
+        "{host}",
+        "--port",
+        "{port}",
+        "--data",
+        "{dataDir}"
+      ],
+      "workingDirectory": "code"
+    },
+    "environment": {
+      "NOTEBOOK_LOG_LEVEL": "info"
+    },
+    "endpoint": {
+      "protocol": "https",
+      "bind": "127.0.0.1",
+      "basePath": "/",
+      "websocket": "optional"
+    },
+    "readiness": {
+      "path": "/healthz",
+      "expectStatus": [
+        200
+      ],
+      "startTimeoutSeconds": 45,
+      "intervalSeconds": 0.5
+    },
+    "lifetime": {
+      "startWithVela": false,
+      "stopTimeoutSeconds": 15,
+      "restart": {
+        "maxRetries": 3,
+        "windowSeconds": 300,
+        "backoffSeconds": 2
+      }
+    },
+    "data": {
+      "directory": "store",
+      "backup": "stop-and-copy",
+      "describe": "Notes database and uploaded attachments."
+    }
+  },
+  "view": {
+    "surface": "managed-web",
+    "chrome": "compact",
+    "appearance": "auto",
+    "embedding": "auto"
+  },
+  "integration": {
+    "sdk": false,
+    "agent": false
+  }
+}
