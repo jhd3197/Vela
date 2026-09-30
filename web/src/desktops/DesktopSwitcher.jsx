@@ -7,6 +7,7 @@
 // Choosing a desktop changes only this browser. Creating, renaming and deleting
 // change the server, so they are confirmed and they say what they will do.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Check, Monitor, Pencil, Plus, Robot, Trash } from '@phosphor-icons/react';
 import { useDesktops } from './DesktopsProvider.jsx';
 import useAttention, { attentionWord } from './useAttention.js';
@@ -17,6 +18,8 @@ import { useConfirm } from '../hooks/useConfirm.js';
 /** The rail entry: the current desktop, and a menu of the others. */
 export default function DesktopSwitcher({ onNavigate }) {
   const { desktops, selected, selectedId, select, views, remove } = useDesktops();
+  const navigate = useNavigate();
+  const location = useLocation();
   const confirm = useConfirm();
   // What every agent desktop is doing, including the ones you are not looking
   // at. A desktop working in the background is the whole point of the feature,
@@ -50,9 +53,12 @@ export default function DesktopSwitcher({ onNavigate }) {
       ? `${working} other desktop${working === 1 ? '' : 's'} working`
       : '';
 
+  // Choosing a desktop shows it: the rail has no separate Home button, so this
+  // is also the way back to the desk from any page.
   const choose = (id) => {
     select(id);
     setOpen(false);
+    if (location.pathname !== '/') navigate('/');
     onNavigate?.();
     trigger.current?.focus();
   };

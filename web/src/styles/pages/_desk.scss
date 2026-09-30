@@ -181,11 +181,9 @@ body[data-desk] .rail-divider {
   background: rgba(var(--on-wall-rgb), 0.22);
 }
 
-/* The floating controls and the search share one 56px line: the header band
-   is 56px tall with its icons centred, so the 48px search field starts 4px
-   down to sit on the same centre. */
+/* The widgets start a clear step below the top bar rather than against it. */
 .desk-workspace .workspace-content {
-  padding: calc(var(--space-1) + env(safe-area-inset-top, 0px)) var(--space-7) var(--space-7);
+  padding: calc(var(--space-7) + env(safe-area-inset-top, 0px)) var(--space-7) var(--space-7);
   /* A window's work area is measured from the desk, and a desk only as tall as
      its widgets would pen every window into a strip at the top — maximize
      included. The desk fills the content area whether or not the board has
@@ -209,27 +207,18 @@ body[data-desk] .rail-divider {
   position: relative;
 }
 
-/* The command surface: one centred field over the wallpaper — a deliberate
-   departure from the prototype's left-aligned pill. The old buttons moved to
-   the wallpaper menu and the top-right ⋯. */
+/* The arranging controls, shown over the wallpaper only while the desk is
+   being arranged. Search lives in the top bar. */
 .desk-top {
   position: relative;
-  /* The board below is a stacking context of its own, so the search results
-     need this row to sit above it or the first widget would swallow a click. */
+  /* The board below is a stacking context of its own, so this row needs to
+     sit above it or the first widget would swallow a click. */
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
   flex-wrap: wrap;
-}
-
-.desk-top .searchbox {
-  backdrop-filter: blur(20px);
-}
-
-.desk-top .searchbox input::placeholder {
-  color: rgba(var(--on-wall-rgb), 0.7);
 }
 
 .desk-top-actions {
@@ -562,10 +551,6 @@ body[data-desk] .rail-divider {
 
   .desk-top {
     padding-right: 84px;
-  }
-
-  .desk-top .searchbox {
-    flex: 1 1 100%;
   }
 
   /* Arrange mode puts five controls in this row. On a phone they take the

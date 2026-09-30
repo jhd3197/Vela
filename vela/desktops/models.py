@@ -166,7 +166,7 @@ VIEW_KINDS = ("app", "web", "host", "agent")
 #: The owner surfaces a `host` view may be. A closed list on purpose — a `host`
 #: view that could name any path would be a way to put the owner's dashboard,
 #: with its credentials, inside something that is not the owner's dashboard.
-HOST_SURFACES = ("library", "ask")
+HOST_SURFACES = ("library", "ask", "settings")
 
 #: Kinds an agent may be pointed at. The rest are the owner's own controls.
 AGENT_VIEWABLE_KINDS = ("app", "web")

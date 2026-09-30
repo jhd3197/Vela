@@ -123,7 +123,7 @@ try {
   await page.locator('.topbar').waitFor();
 
   // --- T01, T03: the bar names the page when nothing is open ---------------
-  assert.equal(await barName(page), 'Desk', 'an empty desk is the desk');
+  assert.equal(await page.locator('.topbar-name').count(), 0, 'an empty desk names nothing');
   assert.deepEqual(await menuLabels(page), [], 'the desk has no app menus');
 
   for (const [route, expected] of [

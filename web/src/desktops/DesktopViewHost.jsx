@@ -11,6 +11,10 @@
 // arrangement, and close is the only one that ends a view.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon.jsx';
+import { useSettingsPopup } from '../components/SettingsProvider.jsx';
+import Settings from '../pages/Settings.jsx';
+import { coreById } from '../navigation.js';
+import { hostSurfaceName } from '../shell/focus.js';
 import { useApps } from '../store.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import AppWindow from './AppWindow.jsx';
@@ -36,6 +40,13 @@ import { useConfirm } from '../hooks/useConfirm.js';
  *  in `vela/manifest.py`, which is what the engine fills in for every app. */
 const DEFAULT_WINDOW = { resizable: true, maximizable: true };
 
+// Vela's own screens, when they open as windows. Settings asks for the size a
+// settings window has on a desktop OS: room for the list and a section beside
+// it, clamped like any other to the screen in front of somebody.
+const HOST_WINDOWS = {
+  settings: { ...DEFAULT_WINDOW, defaultSize: { width: 980, height: 680 } },
+};
+
 /**
  * How this view's window behaves, from the app that owns it.
  *
@@ -46,6 +57,7 @@ const DEFAULT_WINDOW = { resizable: true, maximizable: true };
  * take a window's grips away.
  */
 function windowOptionsFor(view, apps) {
+  if (view.kind === 'host') return HOST_WINDOWS[view.surface] || DEFAULT_WINDOW;
   if (view.kind !== 'app') return DEFAULT_WINDOW;
   return apps?.find((app) => app.id === view.appId)?.view?.window || DEFAULT_WINDOW;
 }
@@ -56,7 +68,7 @@ function labelFor(view, apps) {
   if (view.kind === 'app') {
     return apps?.find((app) => app.id === view.appId)?.name || 'App';
   }
-  if (view.kind === 'host') return view.surface === 'library' ? 'Marketplace' : 'Ask';
+  if (view.kind === 'host') return hostSurfaceName(view.surface);
   if (view.kind === 'agent') return 'Agent';
   if (view.kind === 'web') {
     try {
@@ -68,8 +80,29 @@ function labelFor(view, apps) {
   return 'Agent';
 }
 
+/** The mark a window carries in its title bar: the app's, or Vela's own tool's. */
+function iconFor(view, apps, name) {
+  if (view.kind === 'app') {
+    return (
+      <AppIcon
+        app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
+        size={20}
+      />
+    );
+  }
+  const core = view.kind === 'host' ? coreById(view.surface) : null;
+  if (!core) return null;
+  return (
+    <AppIcon
+      app={{ id: core.id, name: core.label, glyph: core.icon, color: core.color }}
+      size={20}
+    />
+  );
+}
+
 export default function DesktopViewHost({ views, desktop }) {
   const { apps } = useApps();
+  const { sectionRequest } = useSettingsPopup() || {};
   const host = useRef(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
   // A window being dragged is drawn from this rather than from the server copy,
@@ -303,14 +336,7 @@ export default function DesktopViewHost({ views, desktop }) {
           <WindowFrame
             key={view.id}
             title={name}
-            icon={
-              view.kind === 'app' ? (
-                <AppIcon
-                  app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
-                  size={20}
-                />
-              ) : null
-            }
+            icon={iconFor(view, apps, name)}
             bounds={held}
             area={area}
             selected={layout.selectedView === view.id}
@@ -340,6 +366,14 @@ export default function DesktopViewHost({ views, desktop }) {
                 onDirty={(state) => setDirty((previous) => ({ ...previous, [view.id]: state }))}
                 onDisconnect={() => setDirty((previous) => ({ ...previous, [view.id]: null }))}
                 onBusy={(state) => setBusy((previous) => ({ ...previous, [view.id]: state }))}
+              />
+            ) : view.kind === 'host' && view.surface === 'settings' ? (
+              // Owner chrome in a window, like the agent window below: the
+              // dashboard's own Settings, not a page loaded into a frame.
+              <Settings
+                windowed
+                sectionRequest={sectionRequest}
+                onClose={() => requestClose(view)}
               />
             ) : view.kind === 'agent' ? (
               // Owner chrome in a window, not an app. Nothing in the agent's

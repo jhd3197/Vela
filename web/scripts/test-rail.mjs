@@ -55,13 +55,14 @@ try {
       );
 
   // An empty installation still exposes the fixed destinations and the default
-  // pins: Desk and All apps above, Ask and the Library pinned, Settings
-  // at the foot. No secondary "More" menu, and exactly one way to All apps —
-  // the rail's own entry, which opens it over the page rather than navigating.
+  // pins: the Vela mark (All apps) and the desktop menu above, Ask and the
+  // Library pinned, Settings at the foot. No Home button, no secondary "More"
+  // menu, and exactly one way to All apps — the mark, which opens it over the
+  // page rather than navigating.
   await page.goto(`${base}?apps=empty`);
   await page.locator('.rail').waitFor();
   await page.locator('.rail-apps-group').first().waitFor();
-  assert.deepEqual(await groupNames('.rail-group'), ['Desk', 'All apps']);
+  assert.equal(await page.locator('.rail-group').count(), 0, 'no fixed buttons besides the mark');
   assert.deepEqual(
     await page
       .locator('.rail-apps-group[aria-label="Pinned apps"] a')
@@ -72,12 +73,9 @@ try {
   assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'All apps', exact: true }).count(), 1);
   assert.equal(
-    await page
-      .locator('.rail-group')
-      .getByRole('button', { name: 'All apps', exact: true })
-      .count(),
-    1,
-    'All apps is a rail entry, not a second drawer control',
+    await page.locator('.rail-home').getAttribute('aria-label'),
+    'All apps',
+    'the Vela mark is the way into All apps, not a second control beside it',
   );
   // Settings, then the avatar for whoever this Vela belongs to.
   assert.equal(await page.locator('.rail-foot button').count(), 2);
@@ -98,11 +96,11 @@ try {
     true,
     'the avatar takes focus',
   );
+  // On a wide screen Settings is a window on the desk, so it joins the rail's
+  // open windows rather than covering the page as a popup.
   await avatar.click();
-  await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
-  await page.keyboard.press('Escape');
-  await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor({ state: 'detached' });
-  assert.equal(await page.locator('.rail a[href="/"]').getAttribute('aria-current'), 'page');
+  await page.locator('.rail-views .rail-tip', { hasText: 'Settings' }).waitFor();
+  assert.equal(await page.getByRole('dialog', { name: 'Settings' }).count(), 0);
   await noOverflow('empty');
 
   // Many apps: the pinned tools stay put, and the running apps that are not
@@ -274,7 +272,8 @@ try {
       .filter({ has: page.locator('.rail-tip', { hasText: name }) });
 
   // An app workspace keeps one rail beside it at phone widths, with no
-  // hamburger and no second rail, so Desk and Settings stay one tap away.
+  // hamburger and no second rail, so All apps, the desktops (the way back to
+  // the desk) and Settings stay one tap away.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(base);
@@ -283,7 +282,8 @@ try {
     assert.equal(await page.locator('.rail').count(), 1, `two rails at ${width}px`);
     assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
     assert.equal(await railApp('Workspace app').getAttribute('aria-current'), 'page');
-    assert.equal(await page.locator('.rail a[href="/"]').count(), 1);
+    assert.equal(await page.locator('.rail .rail-home').count(), 1);
+    assert.equal(await page.locator('.rail .rail-desktop-item').count(), 1);
     // Exact: the foot avatar's label mentions General settings, and a loose
     // match would count it as a second Settings control.
     assert.equal(

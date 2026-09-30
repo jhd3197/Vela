@@ -545,8 +545,9 @@ toggling the Launchpad from another route, and no horizontal overflow at 320,
 The rail suite uses an isolated Vite fixture with disposable app records to check
 the narrow rail: an empty installation with the default pins, many apps, long and
 duplicate names, stable ordering, keyboard focus and selection, pin, unpin and
-reorder from the rail and the app-window menus, the Launchpad as a rail
-destination, no secondary menu or All apps control, the shortcut sheet opening
+reorder from the rail and the app-window menus, the Vela mark as the one way
+into the Launchpad, no Home button, secondary menu or separate All apps
+control, the avatar opening the Settings window, the shortcut sheet opening
 with `?` and `Ctrl+1` opening the first pinned app, a short window, every page
 keeping the rail on a phone with no hamburger and without covering its content,
 and an app workspace keeping one rail beside itself at 390 and 320 pixels.
@@ -578,11 +579,13 @@ widget, the phone board staying its own board, long-press reaching Arrange mode,
 the health widget reporting the last sweep and running one when asked,
 and no sideways overflow while arranging at 320 and 390 pixels. It switches the
 settle transition off so geometry is never measured mid-animation.
-The settings suite checks the wide popup and the phone screens: category
+The settings suite checks the wide Settings window and the phone screens: one
+window on the desk, named in the top bar and the rail, brought forward at the
+section asked for by search and deep links and kept across a reload; category
 navigation, the edge-to-edge list, one section at a time with Back, Escape
-stepping through the same screens, retained page and form drafts,
-preference saving and rollback, keyboard focus and deep links, with disposable
-API responses. The two compositions are checked at 320, 390, 430, 768, 860, 861
+stepping through the phone screens, retained form drafts, preference saving
+and rollback, with disposable API responses and an in-memory desk
+(`web/scripts/fixtures/desktops-mock.js`). The two compositions are checked at 320, 390, 430, 768, 860, 861
 and 1440 pixels, in a short landscape window, at 200% zoom, with reduced motion
 and with a stand-in open keyboard, keeping one unsent form draft through all of
 them and across the crossover between them. It also checks Settings › Updates — the privacy copy naming the one anonymous

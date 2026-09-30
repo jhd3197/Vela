@@ -274,12 +274,16 @@ export default function Launchpad({ onClose }) {
       // so it is counted here for the same tab to rank them together.
       api.recordUsage(item.id).catch(() => {});
       if (item.popup) {
+        // On a wide screen Settings is a window on the desk, so the grid is put
+        // away the way opening any app puts it away. A phone's Settings screen
+        // opens over the grid instead, as it always has.
+        if (!phone) onClose?.();
         openSettings();
         return;
       }
       navigate(item.to, { state: { returnTo: '/apps' } });
     },
-    [openApp, openSettings, navigate],
+    [openApp, openSettings, navigate, phone, onClose],
   );
 
   const iconSize = phone ? 52 : 72;

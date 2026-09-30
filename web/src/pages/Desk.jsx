@@ -6,7 +6,6 @@ import {
   ArrowSquareOut,
   ArrowUUpLeft,
   Crop,
-  DotsThreeOutline,
   PaintBrush,
   Plus,
   Trash,
@@ -15,7 +14,6 @@ import { useApps } from '../store.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { PHONE } from '../breakpoints.js';
 import WorkspacePage from '../components/WorkspacePage.jsx';
-import GlobalSearch from '../components/GlobalSearch.jsx';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
@@ -24,7 +22,7 @@ import DeskGrid from '../desk/grid/DeskGrid.jsx';
 import { DeskDataProvider } from '../desk/DeskDataProvider.jsx';
 import WidgetLibrary from '../desk/WidgetLibrary.jsx';
 import WidgetOptions from '../desk/WidgetOptions.jsx';
-import PersonaliseSheet from '../desk/PersonaliseSheet.jsx';
+import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import DesktopViewHost from '../desktops/DesktopViewHost.jsx';
@@ -78,22 +76,21 @@ export default function Desk() {
   const { desktops, selectedId, appearance, views } = useDesktops();
   const { boards, revision, loaded, save } = useDeskBoards(knownTypes, selectedId);
 
-  // How this desktop is dressed, plus the one desk setting that is global. The
-  // sheet hands back what it saved, so the wallpaper changes as soon as it is
-  // chosen rather than on the next load.
+  // How this desktop is dressed, plus the one desk setting that is global.
+  // Both are changed in Settings › Appearance: the look through the desktops
+  // provider, which this reads live, and the weather through the settings API,
+  // which Settings announces so this can read it again.
   const loadSettings = useCallback((options) => api.getSettings(options), []);
-  const { data: settings } = useResource(loadSettings);
-  const [deskPrefs, setDeskPrefs] = useState(null);
-  const stored = useMemo(
+  const { data: settings, refresh: refreshSettings } = useResource(loadSettings);
+  useEffect(() => {
+    const onChanged = () => refreshSettings();
+    addEventListener('vela:desk-settings-changed', onChanged);
+    return () => removeEventListener('vela:desk-settings-changed', onChanged);
+  }, [refreshSettings]);
+  const desk = useMemo(
     () => ({ ...appearance, weather: settings?.desk?.weather }),
     [appearance, settings],
   );
-  const desk = useMemo(() => deskPrefs || stored, [deskPrefs, stored]);
-  // A desktop change replaces what the sheet was editing; keeping the optimistic
-  // copy would show the previous desktop's wallpaper over this one's board.
-  useEffect(() => {
-    setDeskPrefs(null);
-  }, [selectedId]);
 
   // The wallpaper, the dim toggle and the desk flag all belong to the whole
   // shell rather than to this page's scroll box: the picture sits behind the
@@ -105,7 +102,7 @@ export default function Desk() {
   const [selected, setSelected] = useState(null);
   const [library, setLibrary] = useState(false);
   const [options, setOptions] = useState(null);
-  const [personalise, setPersonalise] = useState(false);
+  const { openSettings } = useSettingsPopup();
   const [announcement, setAnnouncement] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -209,7 +206,7 @@ export default function Desk() {
       disabled: !loaded || revision === null,
       onSelect: () => setEdit(true),
     },
-    { label: 'Personalise', icon: PaintBrush, onSelect: () => setPersonalise(true) },
+    { label: 'Personalise', icon: PaintBrush, onSelect: () => openSettings('appearance') },
     { separator: true },
     {
       label: 'Reset desk',
@@ -333,27 +330,6 @@ export default function Desk() {
     setEdit(true);
     setSelected(placed.i);
     setAnnouncement(`${app.name} added to the desk.`);
-  };
-
-  // The Ask toggle changes this board rather than a preference, so it saves
-  // immediately: Personalise is not an arrange session with a Done button.
-  const toggleAsk = async (on) => {
-    const current = widgetsOf(boards, boardKey);
-    const next = on
-      ? [
-          ...current,
-          {
-            i: nextWidgetId(current),
-            type: 'ask',
-            ...findFreeSpot(current, Math.min(2, cols), 1, cols),
-            w: Math.min(2, cols),
-            h: 1,
-            cfg: {},
-          },
-        ]
-      : current.filter((entry) => entry.type !== 'ask');
-    const result = await save(withWidgets(boards, boardKey, compact(next)));
-    if (!result.ok) pushToast(result.message || 'The desk changed elsewhere; reloaded.', 'error');
   };
 
   const onWidgetMenu = (action, widget) => {
@@ -481,26 +457,7 @@ export default function Desk() {
   const blocked = blocker.state === 'blocked';
 
   return (
-    <WorkspacePage
-      search={false}
-      className="desk-workspace"
-      actions={
-        edit ? null : (
-          <Button
-            ref={deskMenuButton}
-            size="icon"
-            aria-label="Desk options"
-            aria-haspopup="menu"
-            onClick={(event) => {
-              const box = event.currentTarget.getBoundingClientRect();
-              openDeskMenu(box.right - 210, box.bottom + 6, event.currentTarget);
-            }}
-          >
-            <DotsThreeOutline size={16} weight="fill" aria-hidden="true" />
-          </Button>
-        )
-      }
-    >
+    <WorkspacePage compactSearch className="desk-workspace">
       <DeskDataProvider>
         <div
           className={`desk${edit ? ' desk-arranging' : ''}`}
@@ -517,12 +474,11 @@ export default function Desk() {
             openDeskMenu(event.clientX, event.clientY);
           }}
         >
-          {/* The command surface: one centred field over the wallpaper. This is a
-              deliberate departure from the prototype's left-aligned search. The
-              buttons that used to sit beside it moved to the wallpaper menu. */}
-          <div className="desk-top">
-            <GlobalSearch variant="hero" />
-            {edit && (
+          {/* Search lives in the top bar, which opens it centred over this
+              spot, so the wallpaper carries only the arranging controls, and
+              only while arranging. */}
+          {edit && (
+            <div className="desk-top">
               <div className="desk-top-actions">
                 <Button size="icon" aria-label="Undo" disabled={!canUndo || busy} onClick={undo}>
                   <ArrowCounterClockwise size={16} aria-hidden="true" />
@@ -541,8 +497,8 @@ export default function Desk() {
                   Done
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <p className="sr-only" role="status" aria-live="polite">
             {announcement}
           </p>
@@ -605,19 +561,6 @@ export default function Desk() {
             cols={cols}
             onAdd={addWidget}
             onClose={() => setLibrary(false)}
-          />
-        )}
-
-        {personalise && (
-          <PersonaliseSheet
-            desk={desk}
-            askOn={widgets.some((entry) => entry.type === 'ask')}
-            onChange={setDeskPrefs}
-            onToggleAsk={toggleAsk}
-            onClose={() => {
-              setPersonalise(false);
-              deskMenuButton.current?.focus({ preventScroll: true });
-            }}
           />
         )}
 
