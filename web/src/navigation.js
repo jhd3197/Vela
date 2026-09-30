@@ -17,26 +17,27 @@ import Automations from './pages/Automations.jsx';
 
 // These pages share the dashboard shell. Embedded app routes stay in main.jsx.
 //
-// `rail: 'primary'` fixes a destination at the top of the rail (Desk and the
-// Launchpad); `rail: 'foot'` sits at the bottom (Settings). Everything else the
+// `rail: 'primary'` fixes a destination at the top of the rail (none today:
+// the Vela mark opens All apps and the desktop menu leads to the desk); `rail: 'foot'` sits at the bottom (Settings). Everything else the
 // user reaches is either an installed app or a `core` app — Vela's own tools,
 // which appear in the Launchpad's "Vela" section, rank in search like apps, and
 // can be pinned to the rail like any app. `developer` marks a destination that
 // only appears while "Show developer tools" is on; its route stays valid
 // either way. `color` tints its icon tile in the Nocturne accent family.
 export const dashboardPages = [
-  { to: '/', label: 'Desk', end: true, icon: HouseSimple, rail: 'primary', component: Desk },
+  // The desk has no rail button of its own. The Vela mark opens All apps, and
+  // choosing a desktop in the rail's desktop menu is the way back here.
+  { to: '/', label: 'Desk', end: true, icon: HouseSimple, component: Desk },
   // All Apps: a grid of every app over the blurred wallpaper. It replaces the
   // All apps drawer and the old Manage apps page as the one place that answers
   // "which apps do I have". It is an overlay rather than a page — looking for
   // an app does not leave what you were doing — so the route renders the desk
-  // and `AppsOverlayProvider` draws the grid over it. See `overlay: true`.
+  // and `AppsOverlayProvider` draws the grid over it. See `overlay: true`. Its
+  // way in on the rail is the Vela mark, not a button of its own.
   {
     to: '/apps',
     label: 'All apps',
     icon: SquaresFour,
-    rail: 'primary',
-    railOrder: 2,
     end: true,
     overlay: true,
     component: Desk,

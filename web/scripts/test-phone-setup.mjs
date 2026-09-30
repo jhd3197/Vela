@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { createDesktopsMock } from './fixtures/desktops-mock.js';
 
 // Real production UI with disposable, intercepted API responses. No live
 // server, installed apps, credentials or network configuration are touched.
@@ -30,6 +31,8 @@ async function fixture({
     serviceWorkers: 'block',
   });
   const apiCalls = [];
+  // Settings opens as a desk window at this width, so the desk has to answer.
+  const desktops = createDesktopsMock();
   let phoneEnabled = remote;
   await context.addInitScript(
     ({ standalone, blockedStorage }) => {
@@ -60,6 +63,12 @@ async function fixture({
           fingerprint: 'A'.repeat(64),
         },
       });
+    }
+    if (url.pathname.startsWith('/api/desktops')) {
+      const request = route.request();
+      return route.fulfill(
+        desktops.answer(request.method(), url.pathname, request.postDataJSON() || {}),
+      );
     }
     if (url.pathname.startsWith('/api/')) {
       apiCalls.push(url.pathname);
@@ -307,12 +316,17 @@ try {
   const blocked = await fixture({ blockedStorage: true });
   await blocked.page.goto(blocked.base);
   await blocked.page.getByRole('button', { name: 'Done for now' }).click();
-  await blocked.page.locator('.rail').getByRole('button', { name: 'Settings' }).click();
+  // Dismissed stays dismissed through Settings and through navigating away,
+  // even though this browser could not store the choice.
   await blocked.page
-    .getByRole('dialog', { name: 'Settings', exact: true })
-    .getByRole('button', { name: 'Done', exact: true })
+    .locator('.rail')
+    .getByRole('button', { name: 'Settings', exact: true })
     .click();
-  await blocked.page.locator('.rail').getByRole('link', { name: 'Desk', exact: true }).click();
+  assert.equal(await blocked.page.getByRole('dialog').isVisible(), false);
+  await blocked.page.getByRole('button', { name: 'Search apps, notes and settings' }).click();
+  await blocked.page.getByRole('searchbox', { name: 'Search', exact: true }).fill('automations');
+  await blocked.page.getByRole('button', { name: 'Automations Vela' }).click();
+  await blocked.page.waitForURL('**/automations');
   assert.equal(await blocked.page.getByRole('dialog').isVisible(), false);
   await blocked.context.close();
   assert.deepEqual(errors, []);

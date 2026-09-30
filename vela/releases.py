@@ -11,6 +11,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .app_storage import AppServiceError
 from .manifest import load_manifest, validate_manifest, ManifestError
@@ -180,6 +181,9 @@ class Releases:
                         # reason: a capability named alone says less than the
                         # thing it is asking for.
                         'topbarMenus': manifest.topbar_menus,
+                        # And which public service it reaches, before any
+                        # secret is ever pasted in for it.
+                        'connectionHost': urlsplit(manifest.raw['connection']['baseUrl']).hostname if manifest.raw.get('connection', {}).get('provider') == 'http' else None,
                         'revision': plan['revision'], 'schemaVersion': schema_version,
                         'dataChanges': value != (json.loads(document['value']) if document else None) or (document and document['schema_version'] != schema_version),
                         'rollback': bool(rollback), 'trustedLegacy': manifest.schema_version == 1, 'expiresIn': 1200}

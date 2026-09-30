@@ -8,7 +8,10 @@ from ..app_storage import AppServiceError
 
 class ConnectionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    endpoint: str = Field(min_length=1, max_length=256)
+    # An ollama binding takes an address; an http one takes the secret the
+    # manifest asks for. The service checks which one this app accepts.
+    endpoint: str | None = Field(default=None, min_length=1, max_length=256)
+    secret: str | None = Field(default=None, min_length=1, max_length=4096)
 
 
 class OperationRequest(BaseModel):
@@ -26,7 +29,7 @@ def router(connections) -> APIRouter:
 
     @api.put("/apps/{app_id}/connection")
     async def bind_connection(app_id: str, payload: ConnectionRequest):
-        return await connections.bind(app_id, payload.endpoint)
+        return await connections.bind(app_id, payload.endpoint, payload.secret)
 
     @api.delete("/apps/{app_id}/connection")
     def disconnect_connection(app_id: str):

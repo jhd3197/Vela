@@ -136,12 +136,16 @@ class DesktopViewTests(unittest.TestCase):
         self.assertEqual(self.open(kind="app", appId="not-a-real-app").status_code, 404)
 
     def test_owner_surfaces_are_a_closed_list_and_not_agent_targets(self):
-        library = self.open(kind="host", surface="library")
-        self.assertEqual(library.status_code, 201, library.text)
-        self.assertFalse(library.json()["agentViewable"], "owner controls are not agent targets")
+        for surface in ("library", "settings"):
+            with self.subTest(surface=surface):
+                opened = self.open(kind="host", surface=surface)
+                self.assertEqual(opened.status_code, 201, opened.text)
+                self.assertFalse(
+                    opened.json()["agentViewable"], "owner controls are not agent targets"
+                )
         # A host view that could name any path would put the owner's dashboard,
         # with its credentials, inside something that is not the dashboard.
-        for surface in ("settings", "../settings", "https://example.com", ""):
+        for surface in ("admin", "../settings", "settings/security", "https://example.com", ""):
             with self.subTest(surface=surface):
                 self.assertEqual(self.open(kind="host", surface=surface).status_code, 422)
 

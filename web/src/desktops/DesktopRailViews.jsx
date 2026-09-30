@@ -13,11 +13,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import AppIcon from '../components/AppIcon.jsx';
 import { useApps } from '../store.jsx';
 import { useDesktops } from './DesktopsProvider.jsx';
+import { coreById } from '../navigation.js';
+import { hostSurfaceName } from '../shell/focus.js';
 
 function label(view, apps) {
   if (view.title) return view.title;
   if (view.kind === 'app') return apps?.find((app) => app.id === view.appId)?.name || 'App';
-  if (view.kind === 'host') return view.surface === 'library' ? 'Marketplace' : 'Ask';
+  if (view.kind === 'host') return hostSurfaceName(view.surface);
   if (view.kind === 'web') {
     try {
       return new URL(view.url).hostname;
@@ -26,6 +28,12 @@ function label(view, apps) {
     }
   }
   return 'Agent';
+}
+
+/** Vela's own tool behind a `host` window, drawn with its usual mark. */
+function core(view) {
+  const entry = view.kind === 'host' ? coreById(view.surface) : null;
+  return entry ? { id: entry.id, name: entry.label, glyph: entry.icon, color: entry.color } : null;
 }
 
 export default function DesktopRailViews({ onNavigate }) {
@@ -85,6 +93,8 @@ export default function DesktopRailViews({ onNavigate }) {
                 app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
                 size={34}
               />
+            ) : core(view) ? (
+              <AppIcon app={core(view)} size={34} />
             ) : (
               <span className="rail-view-mark" aria-hidden="true">
                 {name.slice(0, 1)}

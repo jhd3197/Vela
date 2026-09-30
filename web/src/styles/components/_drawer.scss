@@ -237,6 +237,23 @@
   margin-top: var(--space-7);
 }
 
+/* In Settings › Appearance, under light and dark: which desktop these choices
+   dress, since each desktop keeps its own. */
+.personalise {
+  margin-top: var(--space-7);
+}
+
+.personalise-scope {
+  margin: 0 0 var(--space-5);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.personalise-scope strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* ---------- the theme picker ---------- */
 
 /* Built like the wallpaper picker next to it, because they are the same kind

@@ -104,8 +104,15 @@
     --rail-top: 10px;
   }
 
+  /* The mark opens All apps, so a short window shrinks it rather than
+     dropping it. */
+  .rail-home {
+    margin-bottom: var(--space-1);
+  }
+
   .rail-mark {
-    display: none;
+    width: 22px;
+    height: 22px;
   }
 
   .workspace-content {

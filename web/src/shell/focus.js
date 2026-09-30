@@ -47,13 +47,21 @@ export function pageFor(pathname, pages = []) {
   return pages.find((page) => head(page.to) === segment) || null;
 }
 
+/** The names of Vela's own screens when they open as windows. */
+const HOST_NAMES = { library: 'Marketplace', ask: 'Ask', settings: 'Settings' };
+
+/** What to call a `host` view: one of Vela's own screens, by its surface. */
+export function hostSurfaceName(surface) {
+  return HOST_NAMES[surface] || 'Vela';
+}
+
 /** What to call a view whose app is not in the list — or is not an app. */
 function viewName(view, apps) {
   if (view.title) return view.title;
   if (view.kind === 'app') {
     return apps?.find((app) => app.id === view.appId)?.name || 'App';
   }
-  if (view.kind === 'host') return view.surface === 'library' ? 'Marketplace' : 'Ask';
+  if (view.kind === 'host') return hostSurfaceName(view.surface);
   if (view.kind === 'agent') return 'Agent';
   if (view.kind === 'web') {
     try {

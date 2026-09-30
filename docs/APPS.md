@@ -11,11 +11,21 @@ The board is the same on a wide screen and a phone, laid out differently: six
 columns of widgets on a desktop, two in your hand. Each is remembered on its
 own, so arranging one never rearranges the other.
 
-A narrow rail runs down the left of the dashboard: **Desk** and the
-**Launchpad** at the top, then the apps you have **pinned** — Ask and the
-Library to begin with — a divider, and the apps that are **open** but not
-pinned. Settings sits at the bottom. Hover or tab to an icon to see its name.
-The open destination is marked on the rail, so you always know where you are.
+A narrow rail runs down the left of the dashboard. The Vela logo at the top
+opens **All apps**, the way an operating system's logo opens its launcher;
+click it again, or anything else on the rail, to put it away. Below it are your
+desktops — choose one to go back to its desk from anywhere — then the windows
+open on this desktop, the apps you have **pinned** — Ask and the Library to
+begin with — a divider, and the apps that are **open** but not pinned. Settings
+sits at the bottom. Hover or tab to an icon to see its name. The open
+destination is marked on the rail, so you always know where you are.
+
+On a wide screen **Settings** opens as a window on your desk, with its sections
+in a list down the side, the way a desktop operating system's settings app
+does. Move it, snap it, minimize it or close it like any other window. There is
+only ever one: opening Settings again, or a link to one part of it such as
+**Personalise** or a notification's settings, brings that window forward at the
+section asked for. On a phone Settings is a full screen, as before.
 
 Pin whatever you reach for: right-click an app on the rail or in the Launchpad,
 or press and hold it on a phone, and choose **Pin to rail** — then **Move up**
@@ -98,10 +108,10 @@ work, leaving it asks before anything is lost. **App settings**,
 in the title-bar menu or the Vela menu, holds the app's permissions, its
 connection, updates and removal.
 
-The desk opens with a single search field centred over the wallpaper — start
-typing to reach an app, a note, a setting or Ask. The desk's own controls live
-in the **⋯** menu at the top-right (next to the bell), or a **right-click** — a
-long press on a phone — anywhere on the wallpaper: **Add widget**, **Arrange
+Search is in the top bar (on a phone, the magnifier at the top-right): click it or press **⌘K** / **Ctrl+K** and
+the field opens in the middle of the screen, ready to reach an app, a note, a
+setting or Ask. The desk's own controls open with a **right-click** — a long
+press on a phone — anywhere on the wallpaper: **Add widget**, **Arrange
 desk**, **Personalise** and **Reset desk**, which puts the board being looked at
 back to the one Vela ships (your other board is left alone).
 
@@ -142,16 +152,19 @@ separate board: arranging one never rearranges the other.
 
 ## Make the desk yours
 
-**Personalise**, in the desk menu, sets what the desk looks like.
+**Settings › Appearance** sets what the desk looks like: light or dark, the
+style, and this desktop's wallpaper, dimming, labels and weather. **Personalise**
+in the desk menu opens it there. To add or remove the Ask widget, use **Add
+widget** or the widget's own menu, like any other widget.
 
-**Theme** decides what every surface in Vela is made of: the ground, the cards,
+**Style** decides what every surface in Vela is made of: the ground, the cards,
 the lines, and the colour that marks what is running. Vela ships seven —
 Vela, Caribe, Tepuy, Cayena, Llano, Sereno and Alto contraste — and the strip
 beside each name is drawn from its own colours, so you can see what you are
 choosing. Picking one changes the dashboard, every app window's title bar and
-the rail at once, with no reload. **Light** and **Dark** stay where they were,
-in Settings › Appearance: a theme decides what light and dark are made of, not
-which of the two you are in. Some themes suggest a wallpaper that suits them;
+the rail at once, with no reload. **Light** and **Dark** are chosen just above
+it: a style decides what light and dark are made of, not which of the two you
+are in. Some themes suggest a wallpaper that suits them;
 Vela says so and changes nothing until you press **Use it**.
 
 **Import a theme…** takes a theme file somebody made. Vela shows you its name,
@@ -224,7 +237,7 @@ the parts Vela can actually report. On a phone the same line appears at the top
 of the Launchpad instead.
 
 On a phone, press and hold an empty part of the wallpaper to open the desk menu,
-then choose Personalise.
+then choose Personalise to open Settings › Appearance.
 
 ## App widgets on the desk
 

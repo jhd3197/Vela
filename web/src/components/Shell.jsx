@@ -18,8 +18,9 @@ import { PHONE } from '../breakpoints.js';
 // keeps the hub's chrome renders its own `Shell` around itself so the same rail
 // names and selects it.
 //
-// The bar spans the full width above both, the way a menu bar does, and is not
-// rendered at phone widths: there the rail is the only chrome, and everything
+// The rail runs the full height of the window, and the bar sits above the
+// workspace beside it, so the rail reads as one column rather than a strip cut
+// off by the bar. The bar is not rendered at phone widths: there the rail is the only chrome, and everything
 // the bar carries is still in the workspace header. Whether it is rendered is
 // decided here rather than hidden in CSS, so there is one owner per control per
 // layout — one bell polling, one search listening for ⌘K — instead of two
@@ -36,11 +37,13 @@ export default function Shell({ children }) {
 
   return (
     <div className="shell-top">
-      {!phone && <TopBar />}
       <div className="shell">
         <div className="ambient-glow" aria-hidden="true" />
         <AppRail />
-        <div className="workspace">{children || <Outlet />}</div>
+        <div className="shell-main">
+          {!phone && <TopBar />}
+          <div className="workspace">{children || <Outlet />}</div>
+        </div>
 
         <Toasts toasts={toasts} onDismiss={dismissToast} />
         <ShortcutSheet open={shortcutsOpen} onClose={closeShortcuts} />

@@ -19,6 +19,24 @@ const THEME_FIXTURES = [
   'theme-no-slug.json',
   'theme-bundled-slug.json',
 ];
+/**
+ * A right-click on bare wallpaper. Sent to the desk element itself, because a
+ * full board can leave no bare spot to aim the mouse at.
+ */
+async function rightClickWallpaper(page) {
+  await page.locator('.desk').evaluate((desk) => {
+    const box = desk.getBoundingClientRect();
+    desk.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: box.left + box.width / 2,
+        clientY: box.top + 8,
+      }),
+    );
+  });
+}
+
 async function readFixtures() {
   const entries = await Promise.all(
     THEME_FIXTURES.map(async (name) => [
@@ -98,17 +116,23 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
 
   const done = page.getByRole('button', { name: 'Done', exact: true });
-  // Arrange desk, Add widget and Personalise moved off the search row into the
-  // top-right "Desk options" ⋯ menu (and the wallpaper right-click). In Arrange
-  // mode, Add widget is a toolbar button. These helpers reach whichever is live.
-  const deskOptions = page.getByRole('button', { name: 'Desk options', exact: true });
+  // Arrange desk, Add widget and Personalise live in the wallpaper menu, which
+  // a right-click on bare wallpaper opens. In Arrange mode, Add widget is a
+  // toolbar button. These helpers reach whichever is live.
+  const deskOptions = {
+    click: async () => {
+      await rightClickWallpaper(page);
+      await page.getByRole('menu', { name: 'Desk options' }).waitFor();
+    },
+  };
   const menuItem = (name) => page.getByRole('menuitem', { name, exact: true });
   const arrange = {
     click: async () => {
       await deskOptions.click();
       await menuItem('Arrange desk').click();
     },
-    waitFor: () => deskOptions.waitFor(),
+    // Back in view mode: the arranging toolbar has gone.
+    waitFor: () => done.waitFor({ state: 'detached' }),
   };
   const add = {
     click: async () => {
@@ -699,7 +723,8 @@ try {
   await arrange.waitFor();
   await strip.waitFor();
 
-  // Personalise: a real setting each time, focus returned on Escape.
+  // Personalise: a real setting each time. The desk menu's Personalise opens
+  // Settings › Appearance, which on a wide screen is a window on the desk.
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto(base + '/');
   await page.locator('.desk-grid').waitFor();
@@ -709,20 +734,15 @@ try {
       await menuItem('Personalise').click();
     },
   };
+  const settingsWindow = page.locator('.window-frame', { has: page.locator('.settings-window') });
+  const sheet = page.locator('#settings-appearance');
+  const closeSheet = async () => {
+    await settingsWindow.getByRole('button', { name: 'Close Settings', exact: true }).click();
+    await settingsWindow.waitFor({ state: 'detached' });
+  };
   await personalise.click();
-  const sheet = page.getByRole('dialog', { name: 'Personalise', exact: true });
   await sheet.waitFor();
-  // A panel sliding in over the page lifts off it, at the top of the elevation
-  // scale, from the token rather than from a shadow written at the call site.
-  const lift = await page
-    .locator('.drawer')
-    .first()
-    .evaluate((drawer) => ({
-      drawer: getComputedStyle(drawer).boxShadow,
-      token: getComputedStyle(document.documentElement).getPropertyValue('--shadow-lg').trim(),
-    }));
-  assert.ok(lift.drawer && lift.drawer !== 'none', 'the drawer draws no elevation');
-  assert.ok(lift.token, '--shadow-lg resolved to nothing');
+  assert.equal(await settingsWindow.count(), 1, 'Personalise opens the Settings window');
   const wallpaperOf = () =>
     page.evaluate(
       () => getComputedStyle(document.querySelector('.shell'), '::before').backgroundImage,
@@ -937,33 +957,8 @@ try {
     .locator('.personalise-theme[data-theme-slug="prestado"]')
     .waitFor({ state: 'detached' });
 
-  // --- the Theme row on a phone, and at 200 % zoom -------------------------
-  //
-  // A swatch strip is the widest thing in the sheet, so it is the first thing
-  // that would push the panel sideways. The sheet is already open, so this
-  // narrows the window around it rather than reopening it by the phone's own
-  // long-press path, which the phone section below already covers. The sheet is
-  // still open from the remove above.
-  for (const [label, size] of [
-    ['a phone', { width: 390, height: 844 }],
-    ['a phone at 200%', { width: 195, height: 422 }],
-  ]) {
-    await page.setViewportSize(size);
-    const strip = sheet.locator('.personalise-theme').first();
-    await strip.waitFor();
-    const overflow = await sheet.evaluate((panel) => ({
-      panel: panel.scrollWidth - panel.clientWidth,
-      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    }));
-    assert.equal(overflow.panel, 0, `the theme row overflows the sheet on ${label}`);
-    assert.equal(overflow.page, 0, `the theme row overflows the page on ${label}`);
-    // And it is reachable: the sheet scrolls to it rather than hiding it.
-    await strip.scrollIntoViewIfNeeded();
-    assert.ok(await strip.isVisible(), `the theme row is not reachable on ${label}`);
-  }
-  // Back to the width the rest of this block works at, with the sheet still
-  // open: the wallpaper checks below carry on in it.
-  await page.setViewportSize({ width: 1366, height: 900 });
+  // The rest of this block carries on in the same window. The Theme row on a
+  // phone is checked in the phone section below, where Settings is a screen.
 
   // The painted set previews as real thumbnails rather than empty swatches, so
   // a picture can be chosen by looking at it. Gradients keep their CSS preview.
@@ -1044,8 +1039,7 @@ try {
   const labelsToggle = sheet.getByLabel('Show app names');
   await labelsToggle.uncheck();
   assert.equal(await labelsToggle.isChecked(), false);
-  await page.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'detached' });
+  await closeSheet();
   await page.reload();
   await page.locator('.desk-grid').waitFor();
   await personalise.click();
@@ -1065,39 +1059,11 @@ try {
   await page.waitForFunction(() => document.body.dataset.deskDim === 'off');
   await sheet.getByLabel('Dim the wallpaper').check();
 
-  // The Ask toggle adds and removes that widget from this board, and it stays.
-  // This one edits the board rather than a preference, so it saves to the
-  // server before the switch settles; the widget going away is the signal.
-  await sheet.getByLabel('Ask on this board').click();
-  await page.getByRole('region', { name: 'Ask', exact: true }).waitFor({ state: 'detached' });
-  // The widget leaves the board as soon as the switch moves, but the point of
-  // this check is that the choice survives a reload — so wait for the server to
-  // have it rather than racing the save.
-  await page.waitForFunction(async () => {
-    const session = await fetch('/api/session', { headers: { 'X-Vela-Bootstrap': '1' } });
-    const { token } = await session.json();
-    const desk = await (
-      await fetch('/api/desk', { headers: { Authorization: `Bearer ${token}` } })
-    ).json();
-    return !desk.boards.desktop.widgets.some((widget) => widget.type === 'ask');
-  });
-  await page.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'detached' });
-  assert.equal(
-    await page.evaluate(() => document.activeElement.getAttribute('aria-label')),
-    'Desk options',
-    'closing Personalise returns focus to the desk-options control that opened it',
-  );
-  await page.reload();
-  await page.locator('.desk-grid').waitFor();
-  assert.ok(!(await labels(page)).includes('Ask'), await labels(page));
-  await personalise.click();
-  await sheet.waitFor();
-  await sheet.getByLabel('Ask on this board').click();
-  await page.getByRole('region', { name: 'Ask', exact: true }).waitFor();
+  // Ask is a widget like any other, added and removed from the board, so
+  // Appearance offers no switch for it.
+  assert.equal(await sheet.getByLabel('Ask on this board').count(), 0);
   await sheet.getByRole('button', { name: /^Choroní/ }).click();
-  await page.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'detached' });
+  await closeSheet();
 
   // It fits a phone, where long-pressing bare wallpaper is the way in.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1125,8 +1091,33 @@ try {
     sheetBox.x >= -1 && sheetBox.x + sheetBox.width <= 391,
     `Personalise at 390px: ${JSON.stringify(sheetBox)}`,
   );
+
+  // --- the Theme row on a phone, and at 200 % zoom -------------------------
+  //
+  // A swatch strip is the widest thing in the section, so it is the first
+  // thing that would push the screen sideways.
+  for (const [label, size] of [
+    ['a phone', { width: 390, height: 844 }],
+    ['a phone at 200%', { width: 195, height: 422 }],
+  ]) {
+    await page.setViewportSize(size);
+    const strip = sheet.locator('.personalise-theme').first();
+    await strip.waitFor();
+    const overflow = await sheet.evaluate((panel) => ({
+      panel: panel.scrollWidth - panel.clientWidth,
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }));
+    assert.equal(overflow.panel, 0, `the theme row overflows Appearance on ${label}`);
+    assert.equal(overflow.page, 0, `the theme row overflows the page on ${label}`);
+    // And it is reachable: the screen scrolls to it rather than hiding it.
+    await strip.scrollIntoViewIfNeeded();
+    assert.ok(await strip.isVisible(), `the theme row is not reachable on ${label}`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Back walks out the way it came: the section, the list, then the page.
   await page.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'detached' });
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor({ state: 'detached' });
   await page.setViewportSize({ width: 1366, height: 900 });
 
   assert.deepEqual(errors, []);
@@ -1137,7 +1128,7 @@ try {
       'persists; the phone board stays its own; long-press arranges; no overflow at 320/390; ' +
       'an app declares, publishes and renders a widget, raises the rail dot, and loses both on ' +
       'uninstall; the phone board is its own at 320/390/768 and the desktop board at 900; ' +
-      'Personalise changes the wallpaper, the labels and the Ask widget, and opens by long-press; a theme repaints the dashboard, is saved, survives a reload without a flash, and leaves no inline token behind when the stock look is chosen; a theme file is reviewed before it is applied, exports as what was stored, drops what Vela will not take and names it, and falls back to stock when removed',
+      'Personalise opens Settings › Appearance — a window on a wide screen, a screen by long-press on a phone — and changes the wallpaper, dimming and labels; a theme repaints the dashboard, is saved, survives a reload without a flash, and leaves no inline token behind when the stock look is chosen; a theme file is reviewed before it is applied, exports as what was stored, drops what Vela will not take and names it, and falls back to stock when removed',
   );
 } finally {
   await browser?.close();

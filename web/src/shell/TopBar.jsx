@@ -2,7 +2,7 @@
 //
 // It reads like a menu bar on a Mac and it works like one. The left names
 // whatever has focus — the selected window on the desk, or the page you are
-// on — and carries that app's declared menus. The right is the rail of things
+// on — and carries that app's declared menus. An empty desk leaves it blank. The right is the rail of things
 // that must be reachable from anywhere: items apps have published while they
 // run, search, notifications, and the time.
 //
@@ -210,6 +210,10 @@ export default function TopBar() {
     views.patchView(item.viewId, { minimized: false, raise: true }, { immediate: true });
   };
 
+  // An empty desk has nothing in focus, so the bar says nothing rather than
+  // naming the desk you are already looking at.
+  const named = focus.kind !== 'desk' && focus.kind !== 'vela';
+
   const open = menus.find((entry) => entry.id === menu) || null;
   const anchor = menu ? menuButtons.current.get(menu) : null;
   const box = anchor?.getBoundingClientRect();
@@ -218,7 +222,7 @@ export default function TopBar() {
     <header className="topbar">
       <div className="topbar-lead">
         {identity ? <AppIcon app={identity} size={18} /> : null}
-        <span className="topbar-name">{focus.name}</span>
+        {named ? <span className="topbar-name">{focus.name}</span> : null}
         {menus.length ? (
           <nav className="topbar-menus" aria-label={`${focus.name} menus`}>
             {menus.map((entry) => (
@@ -254,7 +258,7 @@ export default function TopBar() {
             ))}
           </div>
         ) : null}
-        <GlobalSearch compact />
+        <GlobalSearch compact centered />
         <NotificationBell />
         <time className="topbar-clock" dateTime={now.toISOString()}>
           {now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}

@@ -67,7 +67,7 @@ export default function AppsOverlayProvider({ children }) {
   // into a form nobody can see. The rail stays live — it is how you get out.
   useEffect(() => {
     if (!open) return undefined;
-    const workspace = document.querySelector('.shell > .workspace');
+    const workspace = document.querySelector('.shell-main > .workspace');
     if (!workspace) return undefined;
     // `inert` takes it out of the tab order and out of hit-testing;
     // `aria-hidden` takes it out of what a screen reader reads. Both, because

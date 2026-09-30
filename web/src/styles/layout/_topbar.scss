@@ -1,8 +1,8 @@
 // tokens: spacing
 /* ---------- The global top bar ---------- */
 
-// A translucent strip across the top of the dashboard, above the rail and the
-// workspace both. Its height is a token because the shell's rows and the
+// A translucent strip across the top of the workspace, beside the rail, which
+// runs the full height of the window. Its height is a token because the shell's rows and the
 // window work area are measured against it: a bar that grew without the rest
 // knowing would push the desk's windows off the bottom of the screen.
 //
@@ -150,7 +150,36 @@
   padding-left: var(--space-1);
 }
 
-/* The bar gives search the compact trigger it already has for narrow headers,
-   so the field opens over the workspace instead of holding a column open in a
-   strip 36 pixels tall. `.searchbox-float` already opens downward and to the
-   right, which is where it belongs here too, so the bar adds nothing. */
+/* The bar keeps search behind an icon so the field does not hold a column
+   open in a strip 36 pixels tall. Opened, it floats in the middle of the
+   workspace just under the bar, where the desk's own field sits, and over the
+   content rather than pushing it down. The bar is the anchor, not the icon. */
+.topbar .searchbox-compact {
+  position: static;
+}
+
+.topbar .searchbox-float-center {
+  top: calc(100% + var(--space-4));
+  left: 50%;
+  right: auto;
+  width: min(560px, calc(100% - var(--space-8)));
+  transform: translateX(-50%);
+  animation: topbar-search-in var(--motion-base) ease-out;
+
+  .searchbox {
+    height: 46px;
+    border-radius: 23px;
+    padding: 0 var(--space-5) 0 var(--space-6);
+  }
+
+  .searchbox input {
+    font-size: 15px;
+  }
+}
+
+@keyframes topbar-search-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}

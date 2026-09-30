@@ -13,12 +13,16 @@ const CAPABILITY_TEXT = {
   topbar: 'Show menus and small items in the top bar',
 };
 
-export function describeCapabilities(capabilities, widgets, topbarMenus) {
+export function describeCapabilities(capabilities, widgets, topbarMenus, connectionHost) {
   if (!capabilities?.length) return 'None';
   // A capability that names what it is asking for says more than its own
   // label: "Show summaries on your desk (Sync, Queued changes)" is reviewable
   // in a way that "widgets" is not.
-  const named = { widgets, topbar: topbarMenus };
+  const named = {
+    widgets,
+    topbar: topbarMenus,
+    connections: connectionHost ? [{ name: connectionHost }] : null,
+  };
   return capabilities
     .map((capability) => {
       const text = CAPABILITY_TEXT[capability] || capability;
@@ -98,12 +102,24 @@ export default function ReleaseReview({ source, onClose, onComplete }) {
               </>
             )}
             <dt>Permissions</dt>
-            <dd>{describeCapabilities(review.capabilities, review.widgets, review.topbarMenus)}</dd>
+            <dd>
+              {describeCapabilities(
+                review.capabilities,
+                review.widgets,
+                review.topbarMenus,
+                review.connectionHost,
+              )}
+            </dd>
             {review.newCapabilities.length > 0 && (
               <>
                 <dt>New permissions</dt>
                 <dd>
-                  {describeCapabilities(review.newCapabilities, review.widgets, review.topbarMenus)}
+                  {describeCapabilities(
+                    review.newCapabilities,
+                    review.widgets,
+                    review.topbarMenus,
+                    review.connectionHost,
+                  )}
                 </dd>
               </>
             )}
