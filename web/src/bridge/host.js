@@ -1,6 +1,14 @@
 // Host-only bridge. Never include this module or the bearer token in app content.
 import { validateItems } from '../shell/topbar-contract.js';
 
+// The site an http connection belongs to: its host without the first label
+// when there are more than two, so api.github.com gives github.com.
+export function connectionSite(status) {
+  if (status?.provider !== 'http' || typeof status.endpoint !== 'string') return null;
+  const labels = new URL(status.endpoint).hostname.split('.');
+  return (labels.length > 2 ? labels.slice(1) : labels).join('.');
+}
+
 export function createBridge({
   frame,
   session,
@@ -315,6 +323,32 @@ export function createBridge({
           result = { ok: true, items: (payload.items ?? []).length };
         } else if (message.operation === 'navigation.dirty') {
           onDirty({ dirty: payload.dirty === true, canSave: payload.canSave === true });
+        } else if (message.operation === 'navigation.open') {
+          if (
+            Object.keys(payload).some((key) => key !== 'url') ||
+            typeof payload.url !== 'string' ||
+            payload.url.length > 2048
+          )
+            throw new Error('Invalid link');
+          // A sandboxed app cannot open windows itself. It may ask for a link
+          // on the site of the service it is connected to (api.github.com
+          // allows github.com and its subdomains), and nowhere else.
+          const status = await appFetch('/api/app/connection');
+          const site = connectionSite(status);
+          const link = new URL(payload.url);
+          if (
+            !site ||
+            link.protocol !== 'https:' ||
+            link.username ||
+            link.password ||
+            !(link.hostname === site || link.hostname.endsWith(`.${site}`))
+          )
+            throw Object.assign(
+              new Error('Apps can only open links on the site they are connected to'),
+              { status: 403 },
+            );
+          window.open(link.href, '_blank', 'noopener,noreferrer');
+          result = { ok: true };
         } else if (['navigation.return', 'navigation.close'].includes(message.operation)) {
           onNavigate();
         } else {

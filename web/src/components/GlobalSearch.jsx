@@ -122,6 +122,9 @@ function searchAppData(q, limit = 5) {
 // `showResults={false}` then hands the result surface to that page.
 export default function GlobalSearch({
   compact = false,
+  // The top bar opens its compact field in the middle of the screen, under
+  // the bar, instead of dropping it from the icon at the right.
+  centered = false,
   variant = 'default',
   value,
   onQueryChange,
@@ -349,7 +352,9 @@ export default function GlobalSearch({
       >
         <MagnifyingGlass size={16} aria-hidden="true" />
       </button>
-      {expanded && <div className="searchbox-float">{box}</div>}
+      {expanded && (
+        <div className={`searchbox-float${centered ? ' searchbox-float-center' : ''}`}>{box}</div>
+      )}
     </div>
   );
 }

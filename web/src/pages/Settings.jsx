@@ -40,9 +40,10 @@ import UpdatesSection from '../components/UpdatesSection.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { useForm } from '../hooks/useForm.js';
 import { removeLocal } from '../storage.js';
+import PersonaliseFields from '../desk/PersonaliseFields.jsx';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
-// stops being a popup and becomes a screen inside the app.
+// is a screen inside the app; above it, a window on the desk.
 const COMPACT = '(max-width: 860px)';
 
 // Settings backed by the hub's settings API: theme, chat retention, ntfy
@@ -889,9 +890,6 @@ function FilesSection({ settings, onPatched, onPendingChange }) {
 
   return (
     <section className="panel" id="settings-files">
-      <div className="panel-head">
-        <h2>Files</h2>
-      </div>
       <p className="panel-note panel-lead">
         Add a folder here and the Files app can show it. Nothing outside these folders is ever
         served, and Vela's own data folder cannot be added. Deleting from Files moves things to a
@@ -1002,8 +1000,8 @@ const SECTIONS = [
     id: 'appearance',
     label: 'Appearance',
     icon: Palette,
-    description: 'Make Vela feel at home.',
-    keywords: 'theme light dark',
+    description: 'Light or dark, the style, and how this desktop looks.',
+    keywords: 'theme light dark style wallpaper background personalise dim labels weather',
   },
   {
     id: 'security',
@@ -1078,11 +1076,27 @@ function resolveSection(id) {
   return SECTIONS.some((s) => s.id === wanted) ? wanted : 'general';
 }
 
-export default function Settings({ initialSection = 'appearance', explicit = false, onClose }) {
+/**
+ * Settings, as a screen on a phone or as a window on the desk.
+ *
+ * `windowed` draws it inside a desk window: the window's own title bar closes
+ * it, so there is no close button or Done, and Escape does not dismiss it any
+ * more than it would dismiss any other window. `sectionRequest` (`{ id, n }`)
+ * is how a window that is already open is sent to a section: each new `n` is a
+ * new request, so asking twice for the same section still switches to it.
+ */
+export default function Settings({
+  initialSection = 'appearance',
+  explicit = false,
+  onClose,
+  windowed = false,
+  sectionRequest = null,
+}) {
   const { platform, pushToast } = useApps();
   const { engine } = useEngine();
   const developer = useDeveloperTools();
-  const compact = useMediaQuery(COMPACT);
+  const narrow = useMediaQuery(COMPACT);
+  const compact = narrow && !windowed;
   const [active, setActive] = useState(() => resolveSection(initialSection));
   // Compact screens open on the category list unless the caller, a bookmark or
   // a search result asked for one section. Wide screens keep the two-pane popup
@@ -1171,6 +1185,17 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
   }, [active, listed]);
+
+  // Asked for a section while already open: go there, as a settings window on
+  // any desktop OS does when another part of the system links into it.
+  const requestId = sectionRequest?.id;
+  const requestN = sectionRequest?.n;
+  useEffect(() => {
+    if (!requestN || !requestId) return;
+    setActive(resolveSection(requestId));
+    setListed(false);
+    setQuery('');
+  }, [requestId, requestN]);
 
   // Moving between phone screens carries focus with the reader: into the
   // section's heading on the way in, back onto the row they chose on the way
@@ -1285,18 +1310,8 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
     setListed(false);
   };
 
-  return (
-    <Dialog
-      open
-      pending={pending}
-      onClose={dismiss}
-      closeOnBackdrop={!compact}
-      className={`modal-dialog settings-dialog${compact ? ' settings-screen' : ''}${
-        onList ? ' is-list' : ''
-      }`}
-      initialFocusRef={closeRef}
-      aria-labelledby="settings-title"
-    >
+  const body = (
+    <>
       <aside className="settings-sidebar">
         <div className="settings-list-head">
           <h1 id="settings-title">Settings</h1>
@@ -1355,35 +1370,44 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
         </div>
       </aside>
       <div className="settings-main">
-        <header className="settings-header">
-          {compact && (
-            <button
-              type="button"
-              className="icon-btn settings-back"
-              aria-label={subScreen ? 'Back to Security' : 'Back to Settings'}
-              disabled={pending}
-              onClick={dismiss}
-            >
-              <CaretLeft size={20} />
-            </button>
-          )}
-          <div>
-            <h2 tabIndex={-1} ref={headingRef}>
-              {section.label}
-            </h2>
-            <p>{section.description}</p>
-          </div>
-          <button
-            ref={onList ? null : closeRef}
-            type="button"
-            className="icon-btn"
-            aria-label="Close settings"
-            disabled={pending}
-            onClick={onClose}
-          >
-            <X size={19} />
-          </button>
-        </header>
+        {/* The list beside the section already says where you are, so a
+            wide screen names the section only for a screen reader. A phone
+            shows one screen at a time and needs the title and the way back. */}
+        {compact ? (
+          <header className="settings-header">
+            {compact && (
+              <button
+                type="button"
+                className="icon-btn settings-back"
+                aria-label={subScreen ? 'Back to Security' : 'Back to Settings'}
+                disabled={pending}
+                onClick={dismiss}
+              >
+                <CaretLeft size={20} />
+              </button>
+            )}
+            <div>
+              <h2 tabIndex={-1} ref={headingRef}>
+                {section.label}
+              </h2>
+              <p>{section.description}</p>
+            </div>
+            {!windowed && (
+              <button
+                ref={onList ? null : closeRef}
+                type="button"
+                className="icon-btn"
+                aria-label="Close settings"
+                disabled={pending}
+                onClick={onClose}
+              >
+                <X size={19} />
+              </button>
+            )}
+          </header>
+        ) : (
+          <h2 className="sr-only">{section.label}</h2>
+        )}
         <div className="settings-content" ref={contentRef}>
           {loadError && (
             <p className="inline-error" role="alert">
@@ -1392,9 +1416,6 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
           )}
 
           <section className="panel" id="settings-general" hidden={active !== 'general'}>
-            <div className="panel-head">
-              <h2>General</h2>
-            </div>
             {/* What this server is called and who it belongs to. Both are
                 labels: the address Vela answers on is further down this page,
                 and naming the server here changes nothing about the network. */}
@@ -1501,9 +1522,6 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
           </section>
 
           <section className="panel" id="settings-appearance" hidden={active !== 'appearance'}>
-            <div className="panel-head">
-              <h2>Appearance</h2>
-            </div>
             <div className="settings-row">
               <div>
                 <h3>Theme</h3>
@@ -1546,6 +1564,10 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
                 </button>
               ))}
             </div>
+            <PersonaliseFields
+              weather={settings?.desk?.weather}
+              onWeatherChange={(weather) => onPatched({ desk: { weather } })}
+            />
           </section>
           <div id="settings-security" hidden={active !== 'security'}>
             <SecuritySection onPendingChange={onPendingChange} onSubScreen={onSubScreen} />
@@ -1711,12 +1733,12 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
               </span>
             ) : (
               <span role="status">
-                {pending ? 'Working…' : 'Theme and chat preferences save automatically.'}
+                {pending ? 'Working…' : 'Appearance and chat preferences save automatically.'}
               </span>
             )}
             {/* A phone already has Back and Close in its header; a permanent
               Done footer would only take space from the form. */}
-            {!compact && (
+            {!compact && !windowed && (
               <Button disabled={pending} onClick={onClose}>
                 Done
               </Button>
@@ -1724,6 +1746,34 @@ export default function Settings({ initialSection = 'appearance', explicit = fal
           </footer>
         )}
       </div>
+    </>
+  );
+
+  if (windowed) {
+    return (
+      <div
+        className="settings-dialog settings-window"
+        aria-labelledby="settings-title"
+        role="region"
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog
+      open
+      pending={pending}
+      onClose={dismiss}
+      closeOnBackdrop={!compact}
+      className={`modal-dialog settings-dialog${compact ? ' settings-screen' : ''}${
+        onList ? ' is-list' : ''
+      }`}
+      initialFocusRef={closeRef}
+      aria-labelledby="settings-title"
+    >
+      {body}
     </Dialog>
   );
 }

@@ -25,12 +25,14 @@ server.on('error', (error) => {
   output += error.message;
 });
 // Where each destination lives: `rail` is a shortcut beside the workspace,
-// `more` is the labelled secondary menu, `popup` opens over the current page.
+// `more` is the labelled secondary menu, `popup` is Settings: a desk window on
+// a wide screen and a screen over the current page on a phone.
 // All apps is an overlay like Settings — it draws over the page rather than
 // replacing it. System is absent entirely until Developer tools is on, and is
 // checked separately below.
 const pages = [
-  ['/', 'Desk', 'rail'],
+  // The desk has no rail button: the desktop menu is the way back to it.
+  ['/', 'Desk', 'none'],
   ['/ask', 'Ask', 'rail'],
   ['/apps', 'All apps', 'overlay'],
   ['/library', 'Marketplace', 'rail'],
@@ -82,7 +84,10 @@ try {
         });
         // Every workspace keeps the rail on screen at every width.
         if (where === 'popup') {
-          await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
+          // A window on the desk on a wide screen, a screen over the page on
+          // a phone.
+          if (viewport.width > 860) await page.locator('.settings-window').waitFor();
+          else await page.getByRole('dialog', { name: 'Settings', exact: true }).waitFor();
         } else if (where === 'overlay') {
           // The grid is over the page, and the rail underneath it is still the
           // way out.
@@ -92,11 +97,11 @@ try {
           assert.equal(await page.getByRole('button', { name: 'Open navigation' }).count(), 0);
           const nav = page.locator('.rail');
           await nav.waitFor();
-          // Desk is fixed at the top and All apps sits beside it as a button,
-          // because it opens over the page. Ask and the Library are the default
+          // The Vela mark opens All apps over the page; there is no Home or
+          // All apps button beside it. Ask and the Library are the default
           // pins. There is no secondary menu. Settings closes the set.
-          assert.equal(await nav.locator('.rail-group a').count(), 1);
-          assert.equal(await nav.locator('.rail-group button').count(), 1);
+          assert.equal(await nav.locator('.rail-home').getAttribute('aria-label'), 'All apps');
+          assert.equal(await nav.locator('.rail-group').count(), 0);
           assert.equal(await nav.locator('.rail-foot button').count(), 1);
           assert.equal(await nav.getByRole('button', { name: 'More', exact: true }).count(), 0);
           if (where === 'rail') {
@@ -107,8 +112,8 @@ try {
               'page',
             );
           } else {
-            // Automations is reachable from the Launchpad and search, not the
-            // rail, so no rail item is marked while it is open.
+            // The desk and Automations have no rail link of their own, so no
+            // rail item is marked while they are open.
             assert.equal(await nav.locator('a[aria-current="page"]').count(), 0);
           }
         }
@@ -362,7 +367,7 @@ try {
   // server is the one that decides, so a bad path comes back as its refusal
   // rather than as something the page guessed.
   await page.goto(base + '/settings#desk');
-  const desk = page.getByRole('dialog', { name: 'Settings', exact: true });
+  const desk = page.locator('.settings-window');
   await desk.getByRole('heading', { name: 'Volumes', exact: true }).waitFor();
   // Settings › Files has a Folder field of its own, so this one is reached
   // through the Desk panel rather than by label alone.

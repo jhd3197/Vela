@@ -396,7 +396,9 @@ export default function Ask() {
     return () => ac.abort();
   }, [refreshBots]);
 
-  useEffect(() => writeLocal(TAB_KEY, tab), [tab]);
+  useEffect(() => {
+    writeLocal(TAB_KEY, tab);
+  }, [tab]);
 
   useEffect(() => {
     const update = (event) => setSettings((current) => ({ ...current, ...event.detail }));

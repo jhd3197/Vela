@@ -97,7 +97,8 @@ function RailItem({
   );
 }
 
-// The Vela rail: Desk and the Launchpad fixed at the top, then the apps the
+// The Vela rail: the mark (which opens All apps) and the desktop menu at the
+// top, then the apps the
 // user pinned (core tools and installed apps alike, in their saved order),
 // a divider, the apps that are open but not pinned, and the account controls.
 // It is rendered once beside the workspace, and again inside the phone drawer,
@@ -109,7 +110,7 @@ export default function AppRail({ onNavigate }) {
   const openApp = useOpenApp();
   const { remote, logout } = useAuth();
   const { openSettings } = useSettingsPopup();
-  const { appsOpen, openApps } = useAppsOverlay();
+  const { appsOpen, closeApps, toggleApps } = useAppsOverlay();
   const { views } = useDesktops();
   const developer = useDeveloperTools();
   const location = useLocation();
@@ -237,28 +238,39 @@ export default function AppRail({ onNavigate }) {
     ];
   }, [menu, pins, movePin, unpinApp, pinApp, openFrom]);
 
-  return (
-    <nav className="rail" aria-label="Vela">
-      <img className="rail-mark" src="/vela-mark.png" alt="" aria-hidden="true" />
+  const primary = railGroup('primary', developer);
 
-      <div className="rail-group">
-        {railGroup('primary', developer).map(({ to, end, label, overlay, icon: Icon }) =>
-          // All apps opens over the page rather than replacing it, so its rail
-          // entry asks the overlay to open instead of navigating away.
-          overlay ? (
-            <RailItem
-              key={to}
-              label={label}
-              className={appsOpen ? 'rail-item-active' : ''}
-              onActivate={() => {
-                onNavigate?.();
-                openApps();
-              }}
-              longPress={{}}
-            >
-              <Icon size={20} weight="fill" aria-hidden="true" />
-            </RailItem>
-          ) : (
+  return (
+    <nav
+      className="rail"
+      aria-label="Vela"
+      // All apps is a launcher, so anything else chosen on the rail puts it
+      // away first, the way clicking a taskbar item closes a Start menu. The
+      // mark is left to its own toggle.
+      onClickCapture={(event) => {
+        if (appsOpen && !event.target.closest?.('.rail-home')) closeApps();
+      }}
+    >
+      {/* The mark opens All apps, the way an OS logo opens its launcher, so the
+          rail needs no separate All apps button. It opens over the page rather
+          than replacing it. */}
+      <button
+        type="button"
+        className={`rail-home${appsOpen ? ' is-open' : ''}`}
+        aria-label="All apps"
+        aria-expanded={appsOpen}
+        onClick={() => {
+          onNavigate?.();
+          toggleApps();
+        }}
+      >
+        <img className="rail-mark" src="/vela-mark.png" alt="" aria-hidden="true" />
+        <span className="rail-tip">All apps</span>
+      </button>
+
+      {primary.length > 0 && (
+        <div className="rail-group">
+          {primary.map(({ to, end, label, icon: Icon }) => (
             <RailItem
               key={to}
               to={to}
@@ -269,9 +281,9 @@ export default function AppRail({ onNavigate }) {
             >
               <Icon size={20} weight="fill" aria-hidden="true" />
             </RailItem>
-          ),
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Which workspace this is. In the rail because the rail is the one piece
           of chrome that is there at every width and under every layout. */}

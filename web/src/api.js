@@ -383,6 +383,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ endpoint }),
     }),
+  saveConnectionSecret: (id, secret) =>
+    request(`/api/apps/${encodeURIComponent(id)}/connection`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret }),
+    }),
   disconnectConnection: (id) =>
     request(`/api/apps/${encodeURIComponent(id)}/connection`, { method: 'DELETE' }),
   openSession: (id) => request(`/api/apps/${encodeURIComponent(id)}/session`, { method: 'POST' }),

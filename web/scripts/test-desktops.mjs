@@ -29,6 +29,24 @@ server.on('error', (error) => {
   output += error.message;
 });
 
+/**
+ * A right-click on bare wallpaper. Sent to the desk element itself, because a
+ * full board can leave no bare spot to aim the mouse at.
+ */
+async function rightClickWallpaper(page) {
+  await page.locator('.desk').evaluate((desk) => {
+    const box = desk.getBoundingClientRect();
+    desk.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: box.left + box.width / 2,
+        clientY: box.top + 8,
+      }),
+    );
+  });
+}
+
 const labels = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll('.desk-frame')].map((frame) => frame.getAttribute('aria-label')),
@@ -60,6 +78,12 @@ const waitForDesktop = (page, name) =>
   );
 
 /** Open the rail's desktop menu and wait for it. */
+/** The wallpaper menu, opened the way it is: a right-click on bare wallpaper. */
+async function openDeskMenu(page) {
+  await rightClickWallpaper(page);
+  await page.getByRole('menu', { name: 'Desk options' }).waitFor();
+}
+
 async function openMenu(page) {
   await page.locator('.rail-desktop-item').click();
   await page.locator('.desktop-menu').waitFor();
@@ -133,7 +157,7 @@ try {
   );
 
   // Put something on it, and check the first one is untouched.
-  await page.getByRole('button', { name: 'Desk options' }).click();
+  await openDeskMenu(page);
   await page.getByRole('menuitem', { name: 'Add widget' }).click();
   await page.getByRole('dialog').waitFor();
   await page.getByRole('button', { name: /^Clock/ }).click();
@@ -153,15 +177,17 @@ try {
   // --- each desktop is dressed its own way --------------------------------
   await choose(page, 'Taxes');
   await page.locator('.desk-frame[aria-label="Clock"]').waitFor();
-  await page.getByRole('button', { name: 'Desk options' }).click();
+  await openDeskMenu(page);
   await page.getByRole('menuitem', { name: 'Personalise' }).click();
-  const sheet = page.getByRole('dialog', { name: 'Personalise' });
+  // Settings › Appearance, in a window on this desktop.
+  const sheet = page.locator('#settings-appearance');
   await sheet.waitFor();
-  assert.match(await sheet.innerText(), /Taxes/, 'the sheet says which desktop it is changing');
+  assert.match(await sheet.innerText(), /Taxes/, 'Appearance says which desktop it is changing');
   await sheet.getByRole('button', { name: /^Canaima/ }).click();
   await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'canaima');
-  await page.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'detached' });
+  const settingsWindow = page.locator('.window-frame', { has: page.locator('.settings-window') });
+  await settingsWindow.getByRole('button', { name: 'Close Settings', exact: true }).click();
+  await settingsWindow.waitFor({ state: 'detached' });
 
   await choose(page, 'Desktop 1');
   await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'choroni');
@@ -319,7 +345,7 @@ try {
     'the desk stays mounted underneath the grid',
   );
   assert.equal(
-    await page.locator('.shell > .workspace').getAttribute('aria-hidden'),
+    await page.locator('.shell-main > .workspace').getAttribute('aria-hidden'),
     'true',
     'the page underneath is scenery while the grid is up',
   );
@@ -327,7 +353,7 @@ try {
   await page.locator('.launch-empty').getByText('zzzz-no-such-app', { exact: false }).waitFor();
   await page.keyboard.press('Escape');
   await page.locator('.apps-overlay').waitFor({ state: 'detached' });
-  assert.equal(await page.locator('.shell > .workspace').getAttribute('aria-hidden'), null);
+  assert.equal(await page.locator('.shell-main > .workspace').getAttribute('aria-hidden'), null);
   await page.locator('.desk-grid').waitFor();
 
   // --- windows on a desktop -----------------------------------------------

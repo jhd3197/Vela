@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { createDesktopsMock } from './fixtures/desktops-mock.js';
 
 // Built dashboard with disposable API responses; never accesses installed data.
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -106,9 +107,16 @@ try {
       },
     };
   };
+  const desktops = createDesktopsMock();
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname !== 'vela.test') return route.abort();
+    if (url.pathname.startsWith('/api/desktops')) {
+      const request = route.request();
+      return route.fulfill(
+        desktops.answer(request.method(), url.pathname, request.postDataJSON() || {}),
+      );
+    }
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/updates') return route.fulfill({ json: updateState });
       if (url.pathname === '/api/updates/job') return route.fulfill({ json: updateJob });
@@ -226,6 +234,8 @@ try {
         '/api/health': { version: '0.1.0' },
         '/api/platforms': { current: 'windows', supported: ['windows'] },
         '/api/notifications': { notifications: [] },
+        // Settings › Appearance lists the styles this server has.
+        '/api/themes': { themes: [], selected: 'vela' },
         '/api/ai/status': {
           reachable: true,
           models: ['fixture-model'],
@@ -257,114 +267,111 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   page.on('pageerror', (error) => errors.push(error.message));
-  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+  // On a wide screen Settings is a window on the desk: one of it, named in the
+  // rail and the top bar, closed by its own title bar rather than a Done.
+  const win = page.locator('.window-frame', { has: page.locator('.settings-window') });
+  const closeWindow = async (target = win) => {
+    await target.getByRole('button', { name: 'Close Settings', exact: true }).click();
+    await target.waitFor({ state: 'detached' });
+  };
   await page.goto('https://vela.test/ask');
-  const composer = page.locator('textarea');
-  await composer.fill('Keep this unfinished question');
   const opener = page.locator('.rail').getByRole('button', { name: 'Settings', exact: true });
   await opener.click();
-  await dialog.waitFor();
-  assert.equal(new URL(page.url()).pathname, '/ask');
-  await dialog.getByRole('button', { name: 'Dark', exact: true }).click();
+  await win.waitFor();
+  assert.equal(new URL(page.url()).pathname, '/', 'windows are drawn on the desk');
+  assert.equal(await page.getByRole('dialog', { name: 'Settings' }).count(), 0, 'not a popup');
+  assert.equal(await page.locator('.topbar-name').innerText(), 'Settings');
+  assert.equal(await win.getByRole('button', { name: 'Done', exact: true }).count(), 0);
+  await win.getByRole('button', { name: 'Dark', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
-  await dialog.getByRole('button', { name: 'Done', exact: true }).waitFor();
   await page.screenshot({ path: path.join(shots, 'desktop-dark.png') });
-  await dialog.getByRole('button', { name: 'Light', exact: true }).click();
+  await win.getByRole('button', { name: 'Light', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   await page.screenshot({ path: path.join(shots, 'desktop-light.png') });
-  await dialog.getByRole('button', { name: 'Notifications', exact: true }).click();
-  await dialog.getByLabel('Topic', { exact: true }).fill('unsaved-fixture-topic');
-  await dialog.getByRole('button', { name: 'Backups & storage', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await win.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await win.getByLabel('Topic', { exact: true }).fill('unsaved-fixture-topic');
+  await win.getByRole('button', { name: 'Backups & storage', exact: true }).click();
+  await win.getByRole('button', { name: 'Notifications', exact: true }).click();
   assert.equal(
-    await dialog.getByLabel('Topic', { exact: true }).inputValue(),
+    await win.getByLabel('Topic', { exact: true }).inputValue(),
     'unsaved-fixture-topic',
   );
   // Two clicks in one tick, which is what a double-clicked Save really is:
   // both land before React has committed the button's pending state.
-  await dialog.getByRole('button', { name: 'Save', exact: true }).evaluate((button) => {
+  await win.getByRole('button', { name: 'Save', exact: true }).evaluate((button) => {
     button.click();
     button.click();
   });
-  await dialog.getByText('Notification settings saved.', { exact: true }).waitFor();
+  await win.getByText('Notification settings saved.', { exact: true }).waitFor();
   assert.equal(settings.ntfy_config.topic, 'unsaved-fixture-topic');
   assert.equal(ntfySaves, 1, 'a double-clicked Save sends one request');
   assert.equal(
-    await dialog.getByRole('button', { name: 'Save', exact: true }).isDisabled(),
+    await win.getByRole('button', { name: 'Save', exact: true }).isDisabled(),
     true,
     'a saved form is no longer dirty',
   );
-  await dialog.getByRole('button', { name: 'Chat & privacy' }).click();
-  await dialog.getByRole('button', { name: 'Off', exact: true }).click();
+  await win.getByRole('button', { name: 'Chat & privacy' }).click();
+  await win.getByRole('button', { name: 'Off', exact: true }).click();
   await page.waitForFunction(() => !localStorage.getItem('vela-chat'));
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.equal(settings.chat_history, false);
-  assert.equal(await composer.inputValue(), 'Keep this unfinished question');
-  assert.equal(await opener.evaluate((el) => el === document.activeElement), true);
+  // Asking again brings the same window forward rather than opening a second.
   await opener.click();
-  const search = dialog.getByRole('searchbox', { name: 'Find a setting' });
+  assert.equal(await page.locator('.settings-window').count(), 1, 'there is one Settings');
+  const search = win.getByRole('searchbox', { name: 'Find a setting' });
   await search.fill('ollama');
-  assert.equal(await dialog.getByRole('navigation').getByRole('button').count(), 1);
+  assert.equal(await win.getByRole('navigation').getByRole('button').count(), 1);
   await search.fill('nothingmatches');
-  await dialog.getByText('No settings found.').waitFor();
+  await win.getByText('No settings found.').waitFor();
   await search.fill('');
-  for (let i = 0; i < 17; i++) {
-    await page.keyboard.press('Tab');
-    // Native dialogs allow a tab stop in browser chrome (body is then active),
-    // but never allow focus into the inert dashboard beneath the popup.
-    assert.equal(
-      await dialog.evaluate(
-        (el) => el.contains(document.activeElement) || document.activeElement === document.body,
-      ),
-      true,
-    );
-  }
   failSave = true;
-  await dialog.getByRole('button', { name: 'Dark', exact: true }).click();
-  await dialog.getByRole('alert').getByText('Fixture save failure').waitFor();
+  await win.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await win.getByRole('button', { name: 'Dark', exact: true }).click();
+  await win.getByRole('alert').getByText('Fixture save failure').waitFor();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
   failSave = false;
+  // Escape does not dismiss a window, any more than it would on a desktop.
   await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'detached' });
-  await opener.click();
-  await page.mouse.click(5, 5);
-  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await win.count(), 1);
+  await closeWindow();
 
-  // Old bookmarks, search shortcuts, small screens, and both themes.
+  // Old bookmarks and search shortcuts open the window at their section.
   await page.goto('https://vela.test/settings#backups');
-  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await win.getByRole('button', { name: 'Create backup' }).waitFor();
   assert.equal(new URL(page.url()).pathname, '/');
+  await closeWindow();
+  const topSearch = page.getByRole('button', { name: 'Search apps, notes and settings' });
+  await topSearch.click();
   await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('storage');
   await page.getByRole('button', { name: 'Backups & storage Settings' }).click();
-  await dialog.getByText('2.0 KB', { exact: true }).waitFor();
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await win.getByText('2.0 KB', { exact: true }).waitFor();
+  // Asked for another section while it is open, it goes there.
+  await topSearch.click();
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('local ai');
+  await page.getByRole('button', { name: 'Local AI Settings' }).click();
+  await win.locator('.settings-nav-item[aria-current="true"]', { hasText: 'Local AI' }).waitFor();
+  assert.equal(await page.locator('.settings-window').count(), 1);
+  await closeWindow();
 
   // Developer tools: off by default, reversible, and presentation only. The
   // data directory is one of the facts it reveals.
-  await page.goto('https://vela.test/ask');
-  const draft = page.locator('textarea');
-  await draft.fill('Draft that must survive the switch');
+  await page.goto('https://vela.test/');
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), null);
   // The rail has no secondary "More" menu; Settings opens from the foot.
   assert.equal(await page.locator('.rail').getByRole('button', { name: 'More' }).count(), 0);
-  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
-  await dialog.waitFor();
+  await opener.click();
+  await win.waitFor();
   assert.equal(
-    await dialog.getByRole('button', { name: 'Developer tools', exact: true }).count(),
+    await win.getByRole('button', { name: 'Developer tools', exact: true }).count(),
     0,
     'Developer tools is not a category until it is switched on',
   );
-  await dialog
-    .getByRole('navigation')
-    .getByRole('button', { name: 'General', exact: true })
-    .click();
+  await win.getByRole('navigation').getByRole('button', { name: 'General', exact: true }).click();
   // The two names. They save together on Save names, not on every keystroke,
   // and the button stays disabled until something actually changed.
-  const saveNames = dialog.getByRole('button', { name: 'Save names', exact: true });
+  const saveNames = win.getByRole('button', { name: 'Save names', exact: true });
   assert.equal(await saveNames.isDisabled(), true, 'nothing to save yet');
-  await dialog.getByLabel('Your name', { exact: true }).fill('Marco');
-  await dialog.getByLabel('Server name', { exact: true }).fill('vela.marco.house');
+  await win.getByLabel('Your name', { exact: true }).fill('Marco');
+  await win.getByLabel('Server name', { exact: true }).fill('vela.marco.house');
   assert.equal(await saveNames.isDisabled(), false);
   await saveNames.click();
   await page.waitForFunction(async () => {
@@ -381,38 +388,35 @@ try {
   assert.match(await railAvatar.getAttribute('aria-label'), /Marco · vela\.marco\.house/);
   assert.equal(await saveNames.isDisabled(), true, 'saved, so nothing left to save');
 
-  const devSwitch = dialog.getByRole('group', { name: 'Show developer tools' });
+  const devSwitch = win.getByRole('group', { name: 'Show developer tools' });
   assert.equal(
     await devSwitch.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'),
     'true',
   );
   await devSwitch.getByRole('button', { name: 'On', exact: true }).click();
-  await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
-  await dialog.getByText('/fixture/data', { exact: true }).waitFor();
+  await win.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
+  await win.getByText('/fixture/data', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), 'on');
-  // Nothing beneath the popup reloaded, remounted or lost its draft.
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-  assert.equal(await draft.inputValue(), 'Draft that must survive the switch');
-  assert.equal(new URL(page.url()).pathname, '/ask');
 
-  // The choice survives a reload, and another tab on the same origin follows.
+  // The choice survives a reload — and so does the window, which is a real
+  // window the desk keeps — and another tab on the same origin follows.
   await page.reload();
-  await page.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
-  await dialog.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
-  await dialog.getByText('/fixture/data', { exact: true }).waitFor();
+  await win.waitFor();
+  await win.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
+  await win.getByText('/fixture/data', { exact: true }).waitFor();
   const second = await context.newPage();
-  await second.goto('https://vela.test/');
+  await second.goto('https://vela.test/automations');
   await second.locator('.rail').waitFor();
   // A real write from the other tab, delivered as a storage event.
   await second.evaluate(() => localStorage.setItem('vela-developer-tools', 'off'));
-  await dialog
+  await win
     .getByRole('navigation')
     .getByRole('button', { name: 'Developer tools' })
     .waitFor({ state: 'detached' });
   // The panel that was open explains itself and offers the switch back.
-  await dialog.getByRole('heading', { name: 'Developer tools are off' }).waitFor();
-  await dialog.getByRole('button', { name: 'Back to General' }).click();
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await win.getByRole('heading', { name: 'Developer tools are off' }).waitFor();
+  await win.getByRole('button', { name: 'Back to General' }).click();
+  await closeWindow();
   await second.close();
 
   // A browser that refuses to store this preference still applies the choice
@@ -432,21 +436,23 @@ try {
   });
   await sealed.goto('https://vela.test/');
   await sealed.locator('.rail').getByRole('button', { name: 'Settings', exact: true }).click();
-  const sealedDialog = sealed.getByRole('dialog', { name: 'Settings', exact: true });
-  await sealedDialog
+  const sealedWindow = sealed.locator('.window-frame', { has: sealed.locator('.settings-window') });
+  await sealedWindow
     .getByRole('navigation')
     .getByRole('button', { name: 'General', exact: true })
     .click();
-  await sealedDialog
+  await sealedWindow
     .getByRole('group', { name: 'Show developer tools' })
     .getByRole('button', { name: 'On', exact: true })
     .click();
-  await sealedDialog
+  await sealedWindow
     .getByRole('navigation')
     .getByRole('button', { name: 'Developer tools' })
     .waitFor();
-  await sealedDialog.getByText(/not storing preferences/).waitFor();
+  await sealedWindow.getByText(/not storing preferences/).waitFor();
+  await closeWindow(sealedWindow);
   await sealed.close();
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
   // ---- A phone: Settings is a screen, not a popup. ----
   await page.goto('https://vela.test/ask');
   const phoneDraft = page.locator('textarea');
@@ -651,34 +657,36 @@ try {
   await still.close();
 
   // Updates: the copy has to say exactly what leaves this computer, and the
-  // switch beside it has to stop the request entirely.
+  // switch beside it has to stop the request entirely. Wide, so these deep
+  // links open the Settings window.
+  const wide = page.locator('.settings-window');
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('https://vela.test/');
   await page.goto('https://vela.test/settings#updates');
-  await dialog.locator('#settings-updates').waitFor();
-  await dialog.getByText('one anonymous request to github.com', { exact: false }).waitFor();
-  await dialog.getByText('no identifier', { exact: false }).waitFor();
-  await dialog.getByText('Vela has not checked yet.').waitFor();
+  await wide.locator('#settings-updates').waitFor();
+  await wide.getByText('one anonymous request to github.com', { exact: false }).waitFor();
+  await wide.locator('#settings-updates').getByText('no identifier', { exact: false }).waitFor();
+  await wide.getByText('Vela has not checked yet.').waitFor();
   assert.equal(updateChecks, 0, 'opening Updates must not check');
 
   // Checking on by default, installing automatically opt-in.
-  const checkSwitch = dialog.getByRole('switch', { name: 'Check for new versions' });
+  const checkSwitch = wide.getByRole('switch', { name: 'Check for new versions' });
   assert.equal(await checkSwitch.getAttribute('aria-checked'), 'true');
 
-  await dialog.getByRole('button', { name: 'Check now' }).click();
-  await dialog.getByRole('heading', { name: 'Vela 0.2.0 is available' }).waitFor();
+  await wide.getByRole('button', { name: 'Check now' }).click();
+  await wide.getByRole('heading', { name: 'Vela 0.2.0 is available' }).waitFor();
   assert.equal(updateChecks, 1);
-  await dialog.getByText('This is the portable Windows folder.').waitFor();
+  await wide.getByText('This is the portable Windows folder.').waitFor();
 
   // Release notes render, with images dropped and links opening elsewhere.
-  await dialog.getByRole('heading', { name: 'Release notes' }).waitFor();
-  await dialog.getByText('A new desk').waitFor();
-  assert.equal(await dialog.locator('.update-notes img').count(), 0, 'images are stripped');
-  assert.equal(await dialog.locator('.update-notes a').first().getAttribute('target'), '_blank');
+  await wide.getByRole('heading', { name: 'Release notes' }).waitFor();
+  await wide.getByText('A new desk').waitFor();
+  assert.equal(await wide.locator('.update-notes img').count(), 0, 'images are stripped');
+  assert.equal(await wide.locator('.update-notes a').first().getAttribute('target'), '_blank');
   await page.screenshot({ path: path.join(shots, 'settings-updates.png') });
 
   // Automatic installing is its own choice, and starts off.
-  const modeGroup = dialog.getByRole('group', { name: 'When an update is available' });
+  const modeGroup = wide.getByRole('group', { name: 'When an update is available' });
   await modeGroup.waitFor();
   assert.equal(
     await modeGroup.getByRole('button', { name: 'Tell me' }).getAttribute('aria-pressed'),
@@ -687,7 +695,7 @@ try {
 
   // Installing is offered where Vela can actually do it, and says what will
   // happen before it starts.
-  await dialog.getByRole('button', { name: 'Update now' }).click();
+  await wide.getByRole('button', { name: 'Update now' }).click();
   await page.getByRole('heading', { name: 'Install Vela 0.2.0?' }).waitFor();
   await page.getByText('check it against its published checksum', { exact: false }).waitFor();
   assert.equal(applied, false, 'the dialog must not install anything by opening');
@@ -708,7 +716,7 @@ try {
   updateJob = { state: 'idle', percent: 0, message: '', rollback: false };
   await page.goto('https://vela.test/');
   await page.goto('https://vela.test/settings#updates');
-  await dialog.locator('#settings-updates').waitFor();
+  await wide.locator('#settings-updates').waitFor();
 
   // Turning the check off disables the button that would make the request.
   await checkSwitch.click();
@@ -721,7 +729,7 @@ try {
         .getAttribute('aria-checked')
         .includes('true'),
   );
-  assert.equal(await dialog.getByRole('button', { name: 'Check now' }).isDisabled(), true);
+  assert.equal(await wide.getByRole('button', { name: 'Check now' }).isDisabled(), true);
   assert.equal(updateChecks, 1, 'turning it off must not check');
 
   await page.goto('https://vela.test/');
@@ -731,26 +739,26 @@ try {
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('https://vela.test/');
   await page.goto('https://vela.test/settings#backups');
-  await dialog.locator('#settings-backups').waitFor();
-  await dialog.getByText('Not scheduled').waitFor();
-  await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
+  await wide.locator('#settings-backups').waitFor();
+  await wide.getByText('Not scheduled').waitFor();
+  await wide.getByRole('button', { name: 'Create backup' }).waitFor();
 
   // The schedule is off until someone turns it on, and then says when.
-  const scheduleSwitch = dialog.getByRole('switch', { name: 'Back up automatically' });
+  const scheduleSwitch = wide.getByRole('switch', { name: 'Back up automatically' });
   assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'false');
-  assert.equal(await dialog.getByLabel('Backups to keep').count(), 0);
+  assert.equal(await wide.getByLabel('Backups to keep').count(), 0);
   await scheduleSwitch.click();
-  await dialog.getByLabel('Backups to keep').waitFor();
+  await wide.getByLabel('Backups to keep').waitFor();
   assert.equal(await scheduleSwitch.getAttribute('aria-checked'), 'true');
-  await dialog.getByLabel('Backups to keep').fill('4');
-  await dialog.getByLabel('Backups to keep').blur();
+  await wide.getByLabel('Backups to keep').fill('4');
+  await wide.getByLabel('Backups to keep').blur();
   await page.waitForFunction(() => !document.body.innerText.includes('Not scheduled'), undefined, {
     timeout: 5000,
   });
   await page.screenshot({ path: path.join(shots, 'settings-backups.png') });
 
   // Restore asks first, in full, and will not act until the name is typed.
-  await dialog.getByRole('button', { name: 'Restore' }).first().click();
+  await wide.getByRole('button', { name: 'Restore' }).first().click();
   const restoreDrawer = page.getByRole('dialog', { name: 'Restore a backup' });
   await restoreDrawer.waitFor();
   await restoreDrawer.getByText('everything your apps saved').waitFor();
@@ -765,12 +773,12 @@ try {
   await restoreDrawer.waitFor({ state: 'detached' });
   assert.equal(restored, '20260916-030000');
   // It says where the copy of what it replaced went.
-  await dialog
+  await wide
     .getByText(/pre-restore-20260916-094500/)
     .first()
     .waitFor();
   // And that copy is listed, marked as one Vela took rather than one you made.
-  await dialog.getByText('taken before a restore').waitFor();
+  await wide.getByText('taken before a restore').waitFor();
 
   await page.goto('https://vela.test/');
 
@@ -780,38 +788,39 @@ try {
   await page.goto('https://vela.test/');
   await page.goto('https://vela.test/settings#health');
   // The section heading, not the popup's own header for the category.
-  await dialog.locator('#settings-health').getByRole('heading', { name: 'Health' }).waitFor();
-  await dialog.getByText('Vela has not checked itself yet.').waitFor();
+  await wide.locator('#settings-health').getByRole('heading', { name: 'Health' }).waitFor();
+  await wide.getByText('Vela has not checked itself yet.').waitFor();
   assert.equal(doctorRuns, 0, 'opening Health must not run the checks');
-  assert.equal(await dialog.locator('.health-row').count(), 0);
+  assert.equal(await wide.locator('.health-row').count(), 0);
 
-  await dialog.getByRole('button', { name: 'Run now' }).click();
-  await dialog.locator('.health-row').first().waitFor();
+  await wide.getByRole('button', { name: 'Run now' }).click();
+  await wide.locator('.health-row').first().waitFor();
   assert.equal(doctorRuns, 1);
   // The failing check leads, a skipped one is summarised rather than listed.
-  assert.deepEqual(await dialog.locator('.health-title').allInnerTexts(), [
+  assert.deepEqual(await wide.locator('.health-title').allInnerTexts(), [
     'App state',
     'Room to work',
   ]);
-  assert.equal(await dialog.locator('.health-row-fail').count(), 1);
-  await dialog.getByText('1 of 2 checks need attention.').waitFor();
-  await dialog.getByText('1 check did not apply to this server and was skipped.').waitFor();
+  assert.equal(await wide.locator('.health-row-fail').count(), 1);
+  await wide.getByText('1 of 2 checks need attention.').waitFor();
+  await wide.getByText('1 check did not apply to this server and was skipped.').waitFor();
   await page.screenshot({ path: path.join(shots, 'settings-health.png') });
 
   // Repair fixes the row it was pressed on, without a second sweep.
-  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 1);
-  await dialog.getByRole('button', { name: 'Repair' }).click();
-  await dialog.getByText('Every app Vela lists as running really is.').waitFor();
-  assert.equal(await dialog.locator('.health-row-fail').count(), 0);
-  assert.equal(await dialog.getByRole('button', { name: 'Repair' }).count(), 0);
+  assert.equal(await wide.getByRole('button', { name: 'Repair' }).count(), 1);
+  await wide.getByRole('button', { name: 'Repair' }).click();
+  await wide.getByText('Every app Vela lists as running really is.').waitFor();
+  assert.equal(await wide.locator('.health-row-fail').count(), 0);
+  assert.equal(await wide.getByRole('button', { name: 'Repair' }).count(), 0);
   assert.equal(doctorRuns, 1, 'a repair must not trigger a whole sweep');
 
   // Back to the desk, so the next deep link is a real navigation rather than a
   // hash change on the document already open.
   await page.goto('https://vela.test/');
 
-  // A section asked for by name still opens directly, and the wide window
-  // keeps the two-pane popup with its Done footer.
+  // A section asked for by name on a phone still opens directly, and a phone
+  // screen that is still open when the window grows keeps its place as the
+  // two-pane popup with its Done footer rather than closing under a form.
   await page.setViewportSize({ width: 390, height: 700 });
   await page.goto('https://vela.test/settings#backups');
   await dialog.getByRole('button', { name: 'Create backup' }).waitFor();
@@ -822,7 +831,7 @@ try {
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings popup, the update check with its privacy copy and switch, the backup schedule and a confirmed restore, Health checks with Run now and Repair, page/draft preservation, saves and rollback, category search, focus containment/restoration, Escape/backdrop, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
+    'PASS: settings as one desk window (named in the top bar and rail, raised at the asked-for section, kept across reloads), the update check with its privacy copy and switch, the backup schedule and a confirmed restore, Health checks with Run now and Repair, saves and rollback, category search, Escape leaving a window open, deep links, the developer-tools preference across reloads/tabs/denied storage, the phone screens with Back and Escape, and 320/390/430/768/860/861/1440, short landscape, 200% zoom, reduced motion and an open keyboard keeping one draft',
   );
 } finally {
   await browser.close();

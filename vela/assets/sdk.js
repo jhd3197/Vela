@@ -123,7 +123,9 @@
     // from its own icon set. Publishing replaces whatever was there, so an
     // empty list takes them down, and closing the window takes them down too.
     topbar: Object.freeze({ publish: (items = []) => invoke('topbar.publish', { items }) }),
-    navigation: Object.freeze({ returnToApps: () => invoke('navigation.return'), close: () => invoke('navigation.close') }),
+    // Open a link in a new browser tab. The host only opens https links on the
+    // site of this app's http connection (api.github.com allows github.com).
+    navigation: Object.freeze({ returnToApps: () => invoke('navigation.return'), close: () => invoke('navigation.close'), openLink: (url) => invoke('navigation.open', { url: String(url) }) }),
     setUnsavedChanges: (dirty) => invoke('navigation.dirty', { dirty: Boolean(dirty), canSave: Boolean(saveHandler) }),
     onSave(callback) { saveHandler = callback; },
     // Called when a change this app asked for is waiting for the person who

@@ -335,3 +335,33 @@ test('an app that cannot wait is told so, and the question is withdrawn rather t
     'the question is withdrawn',
   );
 });
+
+test('an app opens links only on the site of its http connection', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => { listener = callback; };
+  globalThis.removeEventListener = () => {};
+  const opened = [];
+  globalThis.window = { open: (url, target, features) => opened.push({ url, target, features }) };
+  const messages = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  createBridge({ frame: { contentWindow: source },
+    session: { token: 'scoped-secret', installationId: 'installation-one', capabilities: ['connections'] },
+    context: { installationId: 'installation-one' },
+    onReady() {}, onDirty() {}, onNavigate() {}, onError() {},
+    fetcher: async () => new Response(JSON.stringify({ provider: 'http', endpoint: 'https://api.github.com' })),
+  });
+  await listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } });
+  const nonce = messages[0].session;
+  const open = async (url, id) => {
+    await listener({ source, origin: 'null', data: { type: 'vela:request', protocol: 1, id, session: nonce, operation: 'navigation.open', payload: { url } } });
+    return messages.at(-1);
+  };
+  assert.equal((await open('https://github.com/jhd3197/vela/pull/1', 'a')).result.ok, true);
+  assert.equal((await open('https://gist.github.com/x', 'b')).result.ok, true);
+  for (const [url, id] of [['https://evil.example/github.com', 'c'], ['http://github.com/x', 'd'], ['https://github.com.evil.example/', 'e'], ['https://user:pass@github.com/', 'f'], ['javascript:alert(1)', 'g']]) {
+    assert.ok((await open(url, id)).error, url);
+  }
+  assert.deepEqual(opened.map((entry) => entry.url), ['https://github.com/jhd3197/vela/pull/1', 'https://gist.github.com/x']);
+  assert.equal(opened[0].features, 'noopener,noreferrer');
+  delete globalThis.window;
+});

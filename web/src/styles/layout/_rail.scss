@@ -20,12 +20,36 @@
   min-height: 0;
 }
 
-.rail-mark {
+/* The mark, and the way into All apps. */
+.rail-home {
+  position: relative;
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  cursor: pointer;
   flex: none;
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: transform var(--motion-fast) ease;
+}
+
+.rail-home:hover,
+.rail-home.is-open {
+  transform: scale(1.08);
+}
+
+.rail-home:hover .rail-tip,
+.rail-home:focus-visible .rail-tip {
+  opacity: 1;
+}
+
+.rail-mark {
+  display: block;
   width: 30px;
   height: 30px;
   object-fit: contain;
-  margin-bottom: var(--space-3);
 }
 
 .rail-group,

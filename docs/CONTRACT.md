@@ -368,7 +368,7 @@ the same copy do not duplicate records. Browser data is never deleted.
 | `GET /api/app/storage/snapshots`               | App storage grant; own backup metadata                                                          |
 | `POST /api/app/storage/snapshots`              | App storage grant; snapshot current saved document                                              |
 | `POST /api/app/storage/snapshots/{id}/restore` | App storage grant; `{revision}`; validates schema, snapshots current data, writes next revision |
-| `GET/PUT/DELETE /api/apps/{id}/connection`     | Hub; inspect, test/bind `{endpoint}`, disconnect                                                |
+| `GET/PUT/DELETE /api/apps/{id}/connection`     | Hub; inspect, test/bind `{endpoint}` (ollama) or save `{secret}` (http), disconnect             |
 | `GET /api/app/connection`                      | App connections grant; own binding status                                                       |
 | `POST /api/app/connection/invoke`              | App connections grant; `{operation, payload}` within manifest allowlist                         |
 
@@ -378,12 +378,64 @@ connection binding and revokes sessions. App exports download the saved document
 with its revision/schema metadata. They are portable recovery copies; uploading
 arbitrary exports as live document replacements is not implemented.
 
-The only connection provider is `ollama`; `connection.operations` can declare
-`models.list`, `models.show`, and `server.version`. URLs are bound by the hub,
-restricted to HTTP(S) loopback/private LAN IPs, and never supplied by the frame.
-Named calls use fixed API paths, a five-second deadline and a 1 MiB response cap.
-Redirects and credential-bearing URLs are rejected. No hub credentials are sent
-upstream. The wrapper never starts, stops, pulls or deletes Ollama or its models.
+There are two connection providers.
+
+`ollama`: `connection.operations` can declare `models.list`, `models.show`, and
+`server.version`. URLs are bound by the hub, restricted to HTTP(S)
+loopback/private LAN IPs, and never supplied by the frame. Named calls use fixed
+API paths, a five-second deadline and a 1 MiB response cap. Redirects and
+credential-bearing URLs are rejected. No hub credentials are sent upstream. The
+wrapper never starts, stops, pulls or deletes Ollama or its models.
+
+`http`: one public HTTPS origin, fixed by the manifest and shown in the install
+review. This is how an app uses a web API that needs a key or token:
+
+```json
+"capabilities": { "required": ["connections"] },
+"connection": {
+  "provider": "http",
+  "baseUrl": "https://api.github.com",
+  "operations": ["request"],
+  "methods": ["GET"],
+  "headers": { "Accept": "application/vnd.github+json" },
+  "exposeHeaders": ["x-ratelimit-remaining"],
+  "secret": {
+    "label": "Personal access token",
+    "description": "Optional. Raises the rate limit and includes private repositories.",
+    "placeholder": "ghp_…",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "required": false
+  }
+}
+```
+
+- `baseUrl` is `https://` plus a DNS name and an optional port, with no path. IP
+  literals and single-label names such as `localhost` are refused.
+- `methods` defaults to `["GET"]`. `headers` are up to eight static values.
+  Neither they nor `secret.header` may set `Host`, `Cookie`, `Content-Type`,
+  `Content-Length`, `Proxy-Authorization` or hop-by-hop headers.
+- The owner pastes the secret into the app's Vela settings
+  (`PUT /api/apps/{id}/connection` with `{secret}`). It is stored in
+  `app-data.sqlite` beside the binding. No API returns it, including to the app.
+  The engine adds it as `secret.header: prefix + value`, and only while the
+  manifest's `baseUrl` still matches the one it was saved for. An update that
+  moves the app to another origin needs the secret saved again. With
+  `required: true`, requests fail with 409 until the secret is saved.
+- The app calls `Vela.connections.invoke('request', {method, path, query, body})`.
+  `path` is an absolute path with no query string, no dot segments and no
+  encoded separators. `query` is a flat object of at most 32 text, number or
+  boolean values. `body` is JSON of at most 256 KiB, and is refused on GET.
+- The answer is `{status, headers, body}`. Every upstream status, including 4xx
+  and 3xx, is returned rather than raised. Redirects are not followed.
+  `headers` holds only the names in `exposeHeaders`. `body` is parsed JSON when
+  the response says it is JSON, and text otherwise.
+- Calls have a 15-second deadline (504) and a 2 MiB response cap (502). No hub
+  credentials or cookies are sent. Disconnecting removes the saved secret.
+- `Vela.navigation.openLink(url)` opens an https link in a new tab through the
+  host. The frame's sandbox has no popups. Links are allowed only on the
+  connection's site: its host without the first label when it has more than
+  two, so `api.github.com` allows `github.com` and its subdomains.
 
 `python -m vela --set-password` stores a salted scrypt password hash in
 `access.json`. LAN hosting requires `--host`, TLS `--cert`/`--key`, and an exact
@@ -1420,33 +1472,44 @@ Surfaces that overlap take their stacking from one named scale
 (`web/src/styles/_layers.scss`) rather than a number chosen where it is used:
 base, workspace, rail, top bar, window title bar, attached panel, flyout, menu.
 
-- **Top bar** (36px, wide layouts only): a translucent strip across the top.
-  The left names whatever has **focus** and carries that app's declared top bar
-  menus; the right holds the status items running apps have published, the ⌘K
-  search palette, the notification bell and the clock. Focus has one answer:
-  on the desk it is the selected window (and "Desk" when none is open or the
-  selected one is minimized), on `/app/{id}` it is that app, on every other
-  route it is that page, and "Vela" is the fallback. It is not rendered at
-  phone widths — the rail is the only chrome there, and the workspace header
-  carries search and the bell instead, so exactly one copy of each control
-  exists at any width.
-- **Rail** (desktop, 62px): the Vela mark, then **Desk** and the **Launchpad**
-  fixed at the top, then the apps the user **pinned** (core tools and installed
-  apps alike, in the saved order), a separator, the apps that are **open but not
-  pinned** under an **OPEN** label, and Settings — plus, for a remote session,
-  Sign out — at the foot. The default pins are **Ask** and the **Marketplace**.
-  There is no "More" menu and no "All apps" control; every other app lives in
-  the Launchpad. The OPEN label is absent, not empty, when nothing unpinned is
-  running, and a pinned app that is also running stays in the pinned group
-  rather than appearing twice. An app carries an attention dot only when one of
-  its own published widget summaries says `attention`. Pins are stored on the
-  server as `rail.pinned` (core ids or app ids; the dashboard drops any that no
-  longer resolve). Right-click, Shift+F10 or long-press a pinned item to unpin
-  it or move it up or down, or an open item to pin it; the same pin actions are
-  in the Launchpad and the app-window menu. The open destination gets a raised
-  surface, an edge marker and `aria-current`; every icon is named on hover and
-  keyboard focus, and the app region scrolls so the foot controls stay reachable
-  in a short window.
+- **Top bar** (36px, wide layouts only): a translucent strip across the top of
+  the workspace, beside the full-height rail. The left names whatever has
+  **focus** and carries that app's declared top bar menus; the right holds the
+  status items running apps have published, the ⌘K search palette (which opens
+  centred under the bar), the notification bell and the clock. Focus has one
+  answer: on the desk it is the selected window, on `/app/{id}` it is that app,
+  and on every other route it is that page. When nothing has focus — an empty
+  desk, or a selected window that is minimized — the left is blank. It is not
+  rendered at phone widths — the rail is the only chrome there, and the
+  workspace header carries search and the bell instead, so exactly one copy of
+  each control exists at any width.
+- **Rail** (desktop, 62px): the Vela mark, which opens and closes the
+  **Launchpad** (a click anywhere else on the rail also closes it), then the
+  desktop menu — choosing a desktop also returns to the desk, so there is no
+  separate Home button — and the windows open on this desktop, then the apps the
+  user **pinned** (core tools and installed apps alike, in the saved order), a
+  separator, the apps that are **open but not pinned** under an **OPEN** label,
+  and Settings — plus, for a remote session, Sign out — at the foot. The default
+  pins are **Ask** and the **Marketplace**. There is no "More" menu and no
+  separate "All apps" control; every other app lives in the Launchpad. The OPEN
+  label is absent, not empty, when nothing unpinned is running, and a pinned app
+  that is also running stays in the pinned group rather than appearing twice. An
+  app carries an attention dot only when one of its own published widget
+  summaries says `attention`. Pins are stored on the server as `rail.pinned`
+  (core ids or app ids; the dashboard drops any that no longer resolve).
+  Right-click, Shift+F10 or long-press a pinned item to unpin it or move it up
+  or down, or an open item to pin it; the same pin actions are in the Launchpad
+  and the app-window menu. The open destination gets a raised surface, an edge
+  marker and `aria-current`; every icon is named on hover and keyboard focus,
+  and the app region scrolls so the foot controls stay reachable in a short
+  window.
+- **Settings**: on wide layouts a desk window — a `host` view with surface
+  `settings`, one per desktop — with the section list beside the section, like
+  a desktop OS settings app. Asking for a section (`/settings#section`, search,
+  the bell, the desk's Personalise) opens that window or brings it forward at
+  that section. Host views are owner chrome: they are never agent targets, and
+  the surface list is closed (`library`, `ask`, `settings`). At phone widths
+  Settings is a full-screen view over the page instead.
 - **Launchpad** (`/apps`): a full-screen app grid over the blurred wallpaper,
   the one place that answers "which apps do I have". It replaces the earlier
   All apps drawer and the Manage apps page. A centred hero search sits at the
@@ -1594,34 +1657,34 @@ base, workspace, rail, top bar, window title bar, attached panel, flyout, menu.
   kept. Counters that go backwards (a reboot, an interface reset) are skipped
   rather than guessed at.
 - **Weather** (`settings.desk.weather`: `enabled`, `latitude`, `longitude`,
-  `label`): the only outbound request the desk makes, off until the user names
-  a place in Personalise. `POST /api/weather/locate` geocodes a typed name once
-  through Open-Meteo and stores the coordinates, not the name;
-  `GET /api/weather` returns the current temperature and the WMO code in words,
+  `label`): the only outbound request the desk makes, off until the user names a
+  place in Settings › Appearance. `POST /api/weather/locate` geocodes a typed
+  name once through Open-Meteo and stores the coordinates, not the name; `GET
+  /api/weather` returns the current temperature and the WMO code in words,
   cached for 15 minutes, and returns `{"enabled": false}` without making any
-  request while the switch is off. Coordinates are rounded to two decimal
-  places before they leave the computer, and nothing else is sent — no key, no
-  account, no identifier. The clock widget shows the reading when there is one.
+  request while the switch is off. Coordinates are rounded to two decimal places
+  before they leave the computer, and nothing else is sent — no key, no account,
+  no identifier. The clock widget shows the reading when there is one.
 - **Dragging an app onto the desk**: an app tile in the desk's **Your apps**
   widget is draggable and carries `application/x-vela-app`. Dropping it on bare
   board adds that app's first declared widget at the cell it landed on, pushing
   neighbours down if it does not fit, and opens Arrange so it can be moved at
   once. An app that declares no widget, or one already on the board, says so
   instead of placing something unrelated.
-- **Personalise** (a desk control, and a long press on bare wallpaper on a
-  phone): the wallpaper — the eight painted images `choroni` (the default),
-  `paramo`, `medanos`, `chiguire`, `pueblo`, `avila`, `castillo` and `canaima`,
-  the `sage` and `night` gradients, `daily` (a standing choice that resolves to
-  one of the painted set by the local day of the year and moves on at midnight),
-  or `custom` — plus **Dim the wallpaper**, **Show app names** and
-  **Ask on this board**, which adds or removes that board's Ask widget and saves
-  immediately. `GET/PUT/DELETE /api/wallpaper` stores one image in the data
-  directory: JPEG, PNG or WebP only, checked against its own header rather than
-  its declared type, at most 8 MB, replaced rather than accumulated, and
-  removing it returns the desk to `choroni`. The drawn picture rides on
-  `data-desk-wallpaper` and the standing choice on `data-desk-choice`, which
-  differ only under `daily`; `data-desk-tone` carries a per-image `light`/`dark`
-  hint that nudges the overlay so widget text stays readable over either.
+- **Personalise** (Settings › Appearance; the desk menu's Personalise, and a
+  long press on bare wallpaper on a phone, open it there): the wallpaper — the
+  eight painted images `choroni` (the default), `paramo`, `medanos`, `chiguire`,
+  `pueblo`, `avila`, `castillo` and `canaima`, the `sage` and `night` gradients,
+  `daily` (a standing choice that resolves to one of the painted set by the
+  local day of the year and moves on at midnight), or `custom` — plus **Dim the
+  wallpaper** and **Show app names**. `GET/PUT/DELETE /api/wallpaper` stores one
+  image in the data directory: JPEG, PNG or WebP only, checked against its own
+  header rather than its declared type, at most 8 MB, replaced rather than
+  accumulated, and removing it returns the desk to `choroni`. The drawn picture
+  rides on `data-desk-wallpaper` and the standing choice on `data-desk-choice`,
+  which differ only under `daily`; `data-desk-tone` carries a per-image
+  `light`/`dark` hint that nudges the overlay so widget text stays readable over
+  either.
 - **Desk widgets and their sources**: `clock` (the browser's clock),
   `apps` and `running` (`/api/apps`), `ask` (`/api/chat/conversations`),
   `system` and `volume` (`GET /api/system/metrics`), `flows`

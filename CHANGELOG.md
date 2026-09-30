@@ -6,6 +6,54 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Apps can use web APIs that need a key or token.** An app can now declare
+  one public HTTPS service it talks to, such as `api.github.com`. The install
+  review names that address. Paste the service's API key or token into the
+  app's settings in Vela. Vela stores it and adds it to the app's requests from
+  the server, so the app never sees it, and nothing shows it again once saved.
+  **Remove** deletes it. If an update points the app at a different address,
+  you need to paste the token in again. Such an app can also open links on that
+  service's site in a new tab, for example a pull request on `github.com`.
+  See the `http` provider in
+  [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
+
+### Changed
+
+- **The top bar sits beside the rail.** The rail now runs the full height of
+  the window and the top bar starts beside it. The bar stays blank on an empty
+  desk and names something only when it has focus, and its search opens in the
+  middle of the screen, over the page rather than pushing it down.
+
+- **The desk is cleaner.** The search field and the **⋯** button no longer sit
+  on the wallpaper. Search is in the top bar (or **⌘K** / **Ctrl+K**), and the
+  desk's menu — Add widget, Arrange desk, Personalise, Reset desk — opens with
+  a right-click, or a long press on a phone. Widgets now start a little lower,
+  clear of the top bar.
+
+- **Vela works more like a desktop.** The Vela logo at the top of the rail
+  opens All apps, and clicking it again, or anything else on the rail, puts it
+  away; the separate Home and All apps buttons are gone. Choose a desktop in
+  the rail's desktop menu to go back to its desk from any page. On a wide
+  screen **Settings** opens as a window on the desk, with its sections listed
+  down the side: move, snap, minimize or close it like any other window.
+  There is only one; opening Settings again, or a link to one part of it,
+  brings it forward at that section. Because windows live on the desk,
+  opening Settings from a page such as Ask now takes you to the desk. Phones
+  keep the full-screen Settings.
+
+- **Personalise lives in Settings › Appearance.** Light or dark, the style,
+  and this desktop's wallpaper, dimming, labels and weather are now in one
+  place instead of a separate drawer; **Personalise** in the desk menu opens
+  it there. The **Ask on this board** switch is gone: add or remove the Ask
+  widget with **Add widget** or the widget's own menu, like any other widget.
+
+### Fixed
+
+- **Settings on a phone respects reduced motion.** With reduced motion turned
+  on, the Settings screens no longer slide in.
+
 ## 0.1.19 - 2026-09-26
 
 ### Added

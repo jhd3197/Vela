@@ -249,7 +249,7 @@ same reason: a face Vela does not already load would have to be fetched.
 ### What a theme cannot do
 
 - **It cannot set a wallpaper.** It may `suggest` one that ships, and
-  Personalise offers a "Use it" link. A picture is the user's choice.
+  Settings › Appearance offers a "Use it" link. A picture is the user's choice.
 - **It cannot reach apps.** Apps still receive `theme: "light" | "dark"` and
   nothing more.
 - **It cannot be fetched.** There is no registry and no remote source. A theme
@@ -303,7 +303,7 @@ computer; it is not held to this.
 
 ### Writing one
 
-Export the theme you are using from Personalise, edit its colours, import it
+Export the theme you are using from Settings › Appearance, edit its colours, import it
 back. The review sheet shows its name, its author, what it says about itself and
 how many colours it sets before any of it is applied.
 

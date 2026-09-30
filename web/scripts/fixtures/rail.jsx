@@ -11,6 +11,8 @@ import { routablePages } from '../../src/navigation.js';
 import { AppsProvider } from '../../src/store.jsx';
 import { EngineProvider } from '../../src/engine.jsx';
 import SettingsProvider from '../../src/components/SettingsProvider.jsx';
+import DesktopsProvider from '../../src/desktops/DesktopsProvider.jsx';
+import { createDesktopsMock } from './desktops-mock.js';
 import Shell from '../../src/components/Shell.jsx';
 import AppView from '../../src/pages/AppView.jsx';
 import WorkspacePage from '../../src/components/WorkspacePage.jsx';
@@ -72,6 +74,8 @@ const apps = (SETS[set] || SETS.many).map((app) => ({
   ...app,
 }));
 
+const desktops = createDesktopsMock();
+
 const real = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
@@ -80,6 +84,11 @@ window.fetch = async (input, init) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
+  if (url.includes('/api/desktops')) {
+    const { pathname } = new URL(url, location.origin);
+    const body = init?.body ? JSON.parse(init.body) : {};
+    return json(desktops.answer((init?.method || 'GET').toUpperCase(), pathname, body).json);
+  }
   if (url.includes('/api/session')) return json({ token: 'fixture-token', remote: false });
   if (url.includes('/api/apps')) return json({ apps });
   if (url.includes('/api/engine'))
@@ -121,9 +130,11 @@ const router = createMemoryRouter(
       element={
         <EngineProvider>
           <AppsProvider>
-            <SettingsProvider>
-              <Outlet />
-            </SettingsProvider>
+            <DesktopsProvider>
+              <SettingsProvider>
+                <Outlet />
+              </SettingsProvider>
+            </DesktopsProvider>
           </AppsProvider>
         </EngineProvider>
       }

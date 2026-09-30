@@ -31,8 +31,8 @@ export default function ThemeRow({ wallpaper, onUseWallpaper }) {
 
   const load = useCallback(async () => {
     const body = await api.getThemes();
-    setThemes(body.themes);
-    setSelected(body.selected || STOCK);
+    setThemes(Array.isArray(body?.themes) ? body.themes : []);
+    setSelected(body?.selected || STOCK);
   }, []);
 
   useEffect(() => {
@@ -41,8 +41,10 @@ export default function ThemeRow({ wallpaper, onUseWallpaper }) {
       .getThemes()
       .then((body) => {
         if (cancelled) return;
-        setThemes(body.themes);
-        setSelected(body.selected || STOCK);
+        // It sits inside Settings now, so a malformed answer must leave an
+        // empty row rather than take Settings with it.
+        setThemes(Array.isArray(body?.themes) ? body.themes : []);
+        setSelected(body?.selected || STOCK);
       })
       .catch(() => {
         if (!cancelled) setThemes([]);
