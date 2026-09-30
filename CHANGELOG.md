@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.1.20 - 2026-09-30
+
 ### Added
 
 - **Apps can use web APIs that need a key or token.** An app can now declare
