@@ -19,6 +19,45 @@ until the release workflow prepares a tested server version.
   See the `http` provider in
   [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
 
+### Changed
+
+- **The top bar sits beside the rail.** The rail now runs the full height of
+  the window and the top bar starts beside it. The bar stays blank on an empty
+  desk and names something only when it has focus, and its search opens in the
+  middle of the screen, over the page rather than pushing it down.
+
+- **The desk is cleaner.** The search field and the **⋯** button no longer sit
+  on the wallpaper. Search is in the top bar (or **⌘K** / **Ctrl+K**), and the
+  desk's menu — Add widget, Arrange desk, Personalise, Reset desk — opens with
+  a right-click, or a long press on a phone. Widgets now start a little lower,
+  clear of the top bar.
+
+- **Vela works more like a desktop.** The Vela logo at the top of the rail
+  opens All apps, and clicking it again, or anything else on the rail, puts it
+  away; the separate Home and All apps buttons are gone. Choose a desktop in
+  the rail's desktop menu to go back to its desk from any page. On a wide
+  screen **Settings** opens as a window on the desk, with its sections listed
+  down the side: move, snap, minimize or close it like any other window.
+  There is only one; opening Settings again, or a link to one part of it,
+  brings it forward at that section. Because windows live on the desk,
+  opening Settings from a page such as Ask now takes you to the desk. Phones
+  keep the full-screen Settings.
+
+- **Personalise lives in Settings › Appearance.** Light or dark, the style,
+  and this desktop's wallpaper, dimming, labels and weather are now in one
+  place instead of a separate drawer; **Personalise** in the desk menu opens
+  it there. The **Ask on this board** switch is gone: add or remove the Ask
+  widget with **Add widget** or the widget's own menu, like any other widget.
+
+### Fixed
+
+- **Settings on a phone respects reduced motion.** With reduced motion turned
+  on, the Settings screens no longer slide in.
+
+## 0.1.19 - 2026-09-26
+
+### Added
+
 - **Apps on this computer can connect to Vela.** A desktop app that supports it,
   such as Prompture Desk or Faro, registers itself when it starts and appears in
   the Marketplace under **Found on this computer**. Once you connect it, its
@@ -48,13 +87,11 @@ until the release workflow prepares a tested server version.
   yet available to download.
 
 - **A top bar that follows what you are looking at.** The dashboard gains a
-  menu bar across the top, beside the rail, which still runs the full height
-  of the window. It shows the name of whatever has focus — click a Calculator
-  window on the desk and it reads "Calc", click Notes and it reads "Notes",
-  open the Ask page and it reads "Ask" — and stays blank on an empty desk. It
-  also carries that app's menus and the things you want reachable from
-  anywhere: search, which opens in the middle of the screen over the page and
-  replaces the search field that sat on the desk, notifications and the time. Phone layouts are unchanged: there is no bar there, and the rail
+  menu bar across the top. It shows the name of whatever has focus — click a
+  Calculator window on the desk and it reads "Calc", click Notes and it reads
+  "Notes", open the Ask page and it reads "Ask" — along with that app's menus
+  and the things you want reachable from anywhere: search, notifications and
+  the time. Phone layouts are unchanged: there is no bar there, and the rail
   and the page header stay exactly as they were.
 
   Apps can put things in it, through the same kind of contract that lets them
@@ -123,29 +160,6 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
-- **The desk is cleaner.** The search field and the **⋯** button no longer sit
-  on the wallpaper. Search is in the top bar (or **⌘K** / **Ctrl+K**), and the
-  desk's menu — Add widget, Arrange desk, Personalise, Reset desk — opens with
-  a right-click, or a long press on a phone. Widgets now start a little lower,
-  clear of the top bar.
-
-- **Vela works more like a desktop.** The Vela logo at the top of the rail
-  opens All apps, and clicking it again, or anything else on the rail, puts it
-  away; the separate Home and All apps buttons are gone. Choose a desktop in
-  the rail's desktop menu to go back to its desk from any page. On a wide
-  screen **Settings** opens as a window on the desk, with its sections listed
-  down the side: move, snap, minimize or close it like any other window.
-  There is only one; opening Settings again, or a link to one part of it,
-  brings it forward at that section. Because windows live on the desk,
-  opening Settings from a page such as Ask now takes you to the desk. Phones
-  keep the full-screen Settings.
-
-- **Personalise lives in Settings › Appearance.** Light or dark, the style,
-  and this desktop's wallpaper, dimming, labels and weather are now in one
-  place instead of a separate drawer; **Personalise** in the desk menu opens
-  it there. The **Ask on this board** switch is gone: add or remove the Ask
-  widget with **Add widget** or the widget's own menu, like any other widget.
-
 - **Window title bars show three buttons.** Minimize, maximize and close are
   the only buttons at rest. The arranging menu — move left, move right, swap
   panes, leave split view — now opens with a right-click on the title bar, or
@@ -158,9 +172,6 @@ until the release workflow prepares a tested server version.
   same bargain the full-screen app page makes.
 
 ### Fixed
-
-- **Settings on a phone respects reduced motion.** With reduced motion turned
-  on, the Settings screens no longer slide in.
 
 - **Clicking a window no longer restarts the app inside it.** Bringing a window
   to the front reloaded whatever was running in it: an app lost its place, a
