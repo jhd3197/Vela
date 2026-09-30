@@ -3,13 +3,13 @@
     "repository": "vela-sdk",
     "source": "vela.js",
     "version": "0.5.0",
-    "sha256": "ea4b4ef9be8a89be46aa9e10aa5386f2ff9628d07659e28744ae419c5290c5f0"
+    "sha256": "11b039290f2a035f0e1ade88cc099f57347c0253d47ccb617a64eec1f5aa66f6"
   },
   "manifest-v2.schema.json": {
     "repository": "vela-contracts",
     "source": "manifest-v2.schema.json",
     "version": "0.5.0",
-    "sha256": "787a28d6c30fc9a5d1abcfd19616cdc96934b30d6d2273f7e7674f330314ae60"
+    "sha256": "061966e1fefe5d60d51ce6525458b36495f207b93b1d975ee9285d202a9c6bac"
   },
   "manifest-v3.schema.json": {
     "repository": "vela-contracts",

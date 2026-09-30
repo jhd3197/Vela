@@ -26,6 +26,12 @@ _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _REQUIRED_FIELDS = ("id", "name", "version", "description", "category", "author", "platforms")
 SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets", "topbar"})
+# Headers an http connection may not set: the engine owns framing, and a
+# manifest cannot reach for the host's cookies or a proxy's credentials.
+_CONNECTION_HEADER_DENYLIST = frozenset({
+    "host", "cookie", "connection", "content-length", "content-type", "transfer-encoding",
+    "upgrade", "te", "trailer", "keep-alive", "expect", "proxy-authorization",
+})
 _V2_SCHEMA = json.loads((Path(__file__).resolve().parent / "assets/manifest-v2.schema.json").read_text(encoding="utf-8"))
 
 
@@ -206,6 +212,11 @@ def validate_manifest(data: Any, folder: str, path: Path) -> Manifest:
             raise ManifestError(f"{folder}: legacy storage key must belong to this app's namespace")
         if "connection" in data and "connections" not in (data.get("capabilities", {}).get("required", []) + data.get("capabilities", {}).get("optional", [])):
             raise ManifestError(f"{folder}: connection requires the connections capability")
+        connection = data.get("connection") or {}
+        if connection.get("provider") == "http":
+            named = [*connection.get("headers", {}), connection.get("secret", {}).get("header", "")]
+            if any(name.lower() in _CONNECTION_HEADER_DENYLIST for name in named):
+                raise ManifestError(f"{folder}: connection headers cannot set {', '.join(sorted(_CONNECTION_HEADER_DENYLIST))}")
         if data["view"]["surface"] == "embedded" and not runtime:
             raise ManifestError(f"{folder}: embedded view requires a runtime")
         if "storage" in (data.get("capabilities", {}).get("required", []) + data.get("capabilities", {}).get("optional", [])) and "data" not in data:

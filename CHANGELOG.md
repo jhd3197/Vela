@@ -8,6 +8,17 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Apps can use web APIs that need a key or token.** An app can now declare
+  one public HTTPS service it talks to, such as `api.github.com`. The install
+  review names that address. Paste the service's API key or token into the
+  app's settings in Vela. Vela stores it and adds it to the app's requests from
+  the server, so the app never sees it, and nothing shows it again once saved.
+  **Remove** deletes it. If an update points the app at a different address,
+  you need to paste the token in again. Such an app can also open links on that
+  service's site in a new tab, for example a pull request on `github.com`.
+  See the `http` provider in
+  [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
+
 - **Apps on this computer can connect to Vela.** A desktop app that supports it,
   such as Prompture Desk or Faro, registers itself when it starts and appears in
   the Marketplace under **Found on this computer**. Once you connect it, its

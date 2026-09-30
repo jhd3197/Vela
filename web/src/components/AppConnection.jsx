@@ -68,7 +68,76 @@ function ConnectionForm({ app, setupOnly }) {
   );
 }
 
+// An app that talks to a public API. The address is fixed by its manifest; the
+// owner only supplies the secret, which is sent from the engine and never
+// shown again — not to the app, and not back to this form.
+function SecretForm({ app, setupOnly }) {
+  const [secret, setSecret] = useState('');
+  const [updated, setUpdated] = useState(null);
+  const load = useCallback((options) => api.getConnection(app.id, options), [app.id]);
+  const { data, error: loadError, loading } = useResource(load);
+  const { run, pending, error } = useAsyncAction();
+  const status = updated ?? data;
+  const spec = status?.secret ?? app.connection.secret;
+  const host = new URL(app.connection.baseUrl).host;
+  const configured = Boolean(status?.secret?.configured);
+
+  const save = async () => {
+    const result = await run(() => api.saveConnectionSecret(app.id, secret.trim()));
+    if (result) {
+      setUpdated(result.value);
+      setSecret('');
+    }
+  };
+  const remove = async () => {
+    const result = await run(() => api.disconnectConnection(app.id));
+    if (result) setUpdated(await api.getConnection(app.id));
+  };
+  const failure = error || (!updated && loadError);
+
+  if (!spec) return null;
+  if (setupOnly && (configured || !spec.required)) return null;
+
+  return (
+    <details className="app-migration" open={!configured && Boolean(spec.required)}>
+      <summary>
+        {host} · {configured ? `${spec.label} saved` : spec.required ? 'Setup' : 'Optional'}
+      </summary>
+      <p>
+        {app.name} reaches {host} through your Vela engine. {spec.description} The value is kept on
+        this Vela and added to requests there; {app.name} never sees it.
+      </p>
+      <FormField label={spec.label}>
+        <input
+          id={`secret-${app.id}`}
+          className="connection-input"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={configured ? 'Saved — paste a new value to replace it' : spec.placeholder}
+          value={secret}
+          disabled={pending || loading}
+          onChange={(event) => setSecret(event.target.value)}
+        />
+      </FormField>
+      <div className="actions">
+        <Button size="small" pending={pending} disabled={loading || !secret.trim()} onClick={save}>
+          {configured ? 'Replace' : 'Save'}
+        </Button>
+        {configured && (
+          <Button size="small" pending={pending} onClick={remove}>
+            Remove
+          </Button>
+        )}
+      </div>
+      {failure && <p role="alert">{failure.message}</p>}
+    </details>
+  );
+}
+
 export default function AppConnection({ app, setupOnly = false }) {
   if (!app.connection || !app.installed) return null;
+  if (app.connection.provider === 'http')
+    return <SecretForm key={app.id} app={app} setupOnly={setupOnly} />;
   return <ConnectionForm key={app.id} app={app} setupOnly={setupOnly} />;
 }

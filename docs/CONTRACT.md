@@ -368,7 +368,7 @@ the same copy do not duplicate records. Browser data is never deleted.
 | `GET /api/app/storage/snapshots`               | App storage grant; own backup metadata                                                          |
 | `POST /api/app/storage/snapshots`              | App storage grant; snapshot current saved document                                              |
 | `POST /api/app/storage/snapshots/{id}/restore` | App storage grant; `{revision}`; validates schema, snapshots current data, writes next revision |
-| `GET/PUT/DELETE /api/apps/{id}/connection`     | Hub; inspect, test/bind `{endpoint}`, disconnect                                                |
+| `GET/PUT/DELETE /api/apps/{id}/connection`     | Hub; inspect, test/bind `{endpoint}` (ollama) or save `{secret}` (http), disconnect             |
 | `GET /api/app/connection`                      | App connections grant; own binding status                                                       |
 | `POST /api/app/connection/invoke`              | App connections grant; `{operation, payload}` within manifest allowlist                         |
 
@@ -378,12 +378,64 @@ connection binding and revokes sessions. App exports download the saved document
 with its revision/schema metadata. They are portable recovery copies; uploading
 arbitrary exports as live document replacements is not implemented.
 
-The only connection provider is `ollama`; `connection.operations` can declare
-`models.list`, `models.show`, and `server.version`. URLs are bound by the hub,
-restricted to HTTP(S) loopback/private LAN IPs, and never supplied by the frame.
-Named calls use fixed API paths, a five-second deadline and a 1 MiB response cap.
-Redirects and credential-bearing URLs are rejected. No hub credentials are sent
-upstream. The wrapper never starts, stops, pulls or deletes Ollama or its models.
+There are two connection providers.
+
+`ollama`: `connection.operations` can declare `models.list`, `models.show`, and
+`server.version`. URLs are bound by the hub, restricted to HTTP(S)
+loopback/private LAN IPs, and never supplied by the frame. Named calls use fixed
+API paths, a five-second deadline and a 1 MiB response cap. Redirects and
+credential-bearing URLs are rejected. No hub credentials are sent upstream. The
+wrapper never starts, stops, pulls or deletes Ollama or its models.
+
+`http`: one public HTTPS origin, fixed by the manifest and shown in the install
+review. This is how an app uses a web API that needs a key or token:
+
+```json
+"capabilities": { "required": ["connections"] },
+"connection": {
+  "provider": "http",
+  "baseUrl": "https://api.github.com",
+  "operations": ["request"],
+  "methods": ["GET"],
+  "headers": { "Accept": "application/vnd.github+json" },
+  "exposeHeaders": ["x-ratelimit-remaining"],
+  "secret": {
+    "label": "Personal access token",
+    "description": "Optional. Raises the rate limit and includes private repositories.",
+    "placeholder": "ghp_…",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "required": false
+  }
+}
+```
+
+- `baseUrl` is `https://` plus a DNS name and an optional port, with no path. IP
+  literals and single-label names such as `localhost` are refused.
+- `methods` defaults to `["GET"]`. `headers` are up to eight static values.
+  Neither they nor `secret.header` may set `Host`, `Cookie`, `Content-Type`,
+  `Content-Length`, `Proxy-Authorization` or hop-by-hop headers.
+- The owner pastes the secret into the app's Vela settings
+  (`PUT /api/apps/{id}/connection` with `{secret}`). It is stored in
+  `app-data.sqlite` beside the binding. No API returns it, including to the app.
+  The engine adds it as `secret.header: prefix + value`, and only while the
+  manifest's `baseUrl` still matches the one it was saved for. An update that
+  moves the app to another origin needs the secret saved again. With
+  `required: true`, requests fail with 409 until the secret is saved.
+- The app calls `Vela.connections.invoke('request', {method, path, query, body})`.
+  `path` is an absolute path with no query string, no dot segments and no
+  encoded separators. `query` is a flat object of at most 32 text, number or
+  boolean values. `body` is JSON of at most 256 KiB, and is refused on GET.
+- The answer is `{status, headers, body}`. Every upstream status, including 4xx
+  and 3xx, is returned rather than raised. Redirects are not followed.
+  `headers` holds only the names in `exposeHeaders`. `body` is parsed JSON when
+  the response says it is JSON, and text otherwise.
+- Calls have a 15-second deadline (504) and a 2 MiB response cap (502). No hub
+  credentials or cookies are sent. Disconnecting removes the saved secret.
+- `Vela.navigation.openLink(url)` opens an https link in a new tab through the
+  host. The frame's sandbox has no popups. Links are allowed only on the
+  connection's site: its host without the first label when it has more than
+  two, so `api.github.com` allows `github.com` and its subdomains.
 
 `python -m vela --set-password` stores a salted scrypt password hash in
 `access.json`. LAN hosting requires `--host`, TLS `--cert`/`--key`, and an exact

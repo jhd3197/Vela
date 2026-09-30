@@ -357,29 +357,132 @@
       }
     },
     "connection": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "provider",
-        "operations"
-      ],
-      "properties": {
-        "provider": {
-          "const": "ollama"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "operations"
+          ],
+          "properties": {
+            "provider": {
+              "const": "ollama"
+            },
+            "operations": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "models.list",
+                  "models.show",
+                  "server.version"
+                ]
+              }
+            }
+          }
         },
-        "operations": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "models.list",
-              "models.show",
-              "server.version"
-            ]
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "baseUrl",
+            "operations"
+          ],
+          "properties": {
+            "provider": {
+              "const": "http"
+            },
+            "baseUrl": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^https://(?![0-9.]+(:|$))[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?$"
+            },
+            "operations": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "request"
+                ]
+              }
+            },
+            "methods": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ]
+              }
+            },
+            "headers": {
+              "type": "object",
+              "maxProperties": 8,
+              "propertyNames": {
+                "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[ -~]*$"
+              }
+            },
+            "exposeHeaders": {
+              "type": "array",
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+              }
+            },
+            "secret": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "header"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "placeholder": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "header": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$"
+                },
+                "prefix": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[ -~]*$"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              }
+            }
           }
         }
-      }
+      ]
     },
     "actions": {
       "type": "array",
