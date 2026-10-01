@@ -22,8 +22,25 @@ import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import DesktopRailViews from '../desktops/DesktopRailViews.jsx';
 import useOpenApp from '../desktops/useOpenApp.js';
 import { useAppsOverlay } from '../desktops/AppsOverlay.jsx';
+import { carriesApp, readAppReference, writeAppReference } from '../desktops/app-reference.js';
 import ContextMenu from './ui/ContextMenu.jsx';
 import { useOperationsContext } from '../operations/OperationsProvider.jsx';
+
+/** A pin being dragged within the rail. Its own type, so nothing else mistakes it for an app. */
+const PIN = 'application/x-vela-rail-pin';
+
+/**
+ * Where a drop at `y` lands among the pinned items, as an index into the list.
+ *
+ * Above an item's middle is before it, below is after it, so the line drawn
+ * for the drop is always between two items and never on one.
+ */
+export function pinDropIndex(y, boxes) {
+  for (let index = 0; index < boxes.length; index += 1) {
+    if (y < boxes[index].top + boxes[index].height / 2) return index;
+  }
+  return boxes.length;
+}
 
 // Installed apps in a stable, status-independent order so a shortcut never
 // moves while the user is reaching for it.
@@ -50,6 +67,7 @@ function RailItem({
   onActivate,
   onContextMenu,
   longPress,
+  drag,
   className = '',
   current = false,
   badge,
@@ -61,6 +79,7 @@ function RailItem({
       `rail-item${isActive ? ' rail-item-active' : ''}${className ? ` ${className}` : ''}`,
     onContextMenu,
     ...longPress,
+    ...drag,
   };
   const body = (
     <>
@@ -90,6 +109,7 @@ function RailItem({
       aria-current={current ? 'page' : undefined}
       onClick={onActivate}
       {...longPress}
+      {...drag}
       onContextMenu={onContextMenu}
     >
       {body}
@@ -104,7 +124,7 @@ function RailItem({
 // It is rendered once beside the workspace, and again inside the phone drawer,
 // which passes `onNavigate` so choosing a destination closes it.
 export default function AppRail({ onNavigate }) {
-  const { apps, pinned, pinApp, unpinApp, movePin } = useApps();
+  const { apps, pinned, pinApp, unpinApp, movePin, placePin } = useApps();
   // A pinned app is opened the same way it is opened anywhere else: as a
   // window on the desk, or as a page where a window is not the right answer.
   const openApp = useOpenApp();
@@ -118,6 +138,15 @@ export default function AppRail({ onNavigate }) {
 
   const [menu, setMenu] = useState(null); // { kind, id, x, y }
   const menuOpener = useRef(null);
+  // Where a pin, or an app from All apps, would land if dropped now.
+  const [dropAt, setDropAt] = useState(null);
+  const pinsGroup = useRef(null);
+  // Tooltips wait a moment before showing, so a pointer crossing the rail
+  // does not flash a label at every icon it passes. Once one has shown, the
+  // next shows at once, until the pointer leaves the rail.
+  const [tipsWarm, setTipsWarm] = useState(false);
+  const warmTimer = useRef(0);
+  useEffect(() => () => clearTimeout(warmTimer.current), []);
 
   const loadSummaries = useCallback((options) => api.appWidgets(options), []);
   const { data, refresh: refreshSummaries } = useResource(loadSummaries, { intervalMs: 60000 });
@@ -240,10 +269,77 @@ export default function AppRail({ onNavigate }) {
 
   const primary = railGroup('primary', developer);
 
+  // ---- dragging pins
+  //
+  // A pin can be dragged to a new place among the pins, and an installed app
+  // dragged from All apps can be dropped among them to pin it there. Move up
+  // and Move down in the pin's menu do the same from a keyboard.
+  const dragFor = (pin) => ({
+    draggable: true,
+    'data-pin-id': pin.id,
+    onDragStart: (event) => {
+      event.dataTransfer.setData(PIN, pin.id);
+      if (pin.kind === 'app') writeAppReference(event.dataTransfer, pin.app, 'rail');
+      event.dataTransfer.effectAllowed = 'copyMove';
+    },
+    onDragEnd: () => setDropAt(null),
+  });
+
+  const dropIndexAt = (y) =>
+    pinDropIndex(
+      y,
+      Array.from(pinsGroup.current?.querySelectorAll('[data-pin-id]') || []).map((node) =>
+        node.getBoundingClientRect(),
+      ),
+    );
+
+  const pinsDrop = {
+    onDragOver: (event) => {
+      const types = Array.from(event.dataTransfer?.types || []);
+      if (!types.includes(PIN) && !carriesApp(event.dataTransfer)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = types.includes(PIN) ? 'move' : 'copy';
+      const index = dropIndexAt(event.clientY);
+      if (index !== dropAt) setDropAt(index);
+    },
+    onDragLeave: (event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setDropAt(null);
+    },
+    onDrop: (event) => {
+      // The index is among the pins drawn; the stored list can also hold ids
+      // that no longer name anything, so it is translated to a place there.
+      const drawn = dropIndexAt(event.clientY);
+      const index = drawn < pins.length ? pinned.indexOf(pins[drawn].id) : pinned.length;
+      setDropAt(null);
+      const moving = event.dataTransfer.getData(PIN);
+      if (moving) {
+        event.preventDefault();
+        placePin(moving, index);
+        return;
+      }
+      const app = readAppReference(event.dataTransfer);
+      // Only something the rail can draw: an app that is installed here.
+      if (app && byId.has(app.id)) {
+        event.preventDefault();
+        placePin(app.id, index);
+      }
+    },
+  };
+
   return (
     <nav
       className="rail"
       aria-label="Vela"
+      data-tips-warm={tipsWarm || undefined}
+      onPointerOver={(event) => {
+        if (tipsWarm || !event.target.closest?.('.rail-item, .rail-home')) return;
+        clearTimeout(warmTimer.current);
+        warmTimer.current = setTimeout(() => setTipsWarm(true), 400);
+      }}
+      onPointerLeave={() => {
+        clearTimeout(warmTimer.current);
+        warmTimer.current = setTimeout(() => setTipsWarm(false), 300);
+      }}
       // All apps is a launcher, so anything else chosen on the rail puts it
       // away first, the way clicking a taskbar item closes a Start menu. The
       // mark is left to its own toggle.
@@ -296,11 +392,21 @@ export default function AppRail({ onNavigate }) {
       {(pins.length > 0 || openUnpinned.length > 0) && (
         <div className="rail-apps">
           {pins.length > 0 && (
-            <div className="rail-apps-group" aria-label="Pinned apps" role="group">
-              {pins.map((pin) =>
+            <div
+              ref={pinsGroup}
+              className="rail-apps-group rail-pins"
+              aria-label="Pinned apps"
+              role="group"
+              data-drop-at={dropAt ?? undefined}
+              {...pinsDrop}
+            >
+              {pins.map((pin, index) =>
                 pin.kind === 'core' ? (
                   <CorePin
                     key={pin.id}
+                    drag={dragFor(pin)}
+                    dropBefore={dropAt === index}
+                    dropAfter={dropAt === pins.length && index === pins.length - 1}
                     entry={pin.entry}
                     badge={pin.id === 'library' && availableCount > 0 ? availableCount : null}
                     onNavigate={onNavigate}
@@ -311,7 +417,10 @@ export default function AppRail({ onNavigate }) {
                   <RailItem
                     key={pin.id}
                     label={pin.app.name}
-                    className={location.pathname === `/app/${pin.id}` ? 'rail-item-active' : ''}
+                    drag={dragFor(pin)}
+                    className={`${location.pathname === `/app/${pin.id}` ? 'rail-item-active' : ''}${
+                      dropAt === index ? ' is-drop-before' : ''
+                    }${dropAt === pins.length && index === pins.length - 1 ? ' is-drop-after' : ''}`}
                     current={location.pathname === `/app/${pin.id}`}
                     attention={appsNeedingAttention.has(pin.id)}
                     onActivate={() => openFrom(pin.id)}
@@ -433,7 +542,17 @@ export default function AppRail({ onNavigate }) {
 }
 
 // A pinned core tool. Settings opens its popup; every other tool is a route.
-function CorePin({ entry, badge, onNavigate, openSettings, onContextMenu }) {
+function CorePin({
+  entry,
+  badge,
+  drag,
+  dropBefore,
+  dropAfter,
+  onNavigate,
+  openSettings,
+  onContextMenu,
+}) {
+  const drop = `${dropBefore ? ' is-drop-before' : ''}${dropAfter ? ' is-drop-after' : ''}`;
   const longPress = useLongPress(({ target }) => {
     // Long-press mirrors right-click: raise the same menu at the tile.
     const box = target.getBoundingClientRect();
@@ -449,7 +568,7 @@ function CorePin({ entry, badge, onNavigate, openSettings, onContextMenu }) {
     return (
       <button
         type="button"
-        className="rail-item"
+        className={`rail-item${drop}`}
         aria-haspopup="dialog"
         onContextMenu={onContextMenu}
         onClick={() => {
@@ -457,6 +576,7 @@ function CorePin({ entry, badge, onNavigate, openSettings, onContextMenu }) {
           openSettings();
         }}
         {...longPress}
+        {...drag}
       >
         {icon}
         <span className="rail-tip">{entry.label}</span>
@@ -468,8 +588,10 @@ function CorePin({ entry, badge, onNavigate, openSettings, onContextMenu }) {
       to={entry.to}
       label={entry.label}
       badge={badge}
+      className={drop.trim()}
       onActivate={onNavigate}
       longPress={longPress}
+      drag={drag}
       onContextMenu={onContextMenu}
     >
       {icon}

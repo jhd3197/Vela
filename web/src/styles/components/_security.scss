@@ -381,6 +381,27 @@
   }
 }
 
+/* The time, large and quiet, above everything else on the lock screen. */
+.lock-screen .lock-time {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  max-width: none;
+  margin: 0 0 var(--space-6);
+  color: var(--text);
+  time {
+    font-size: clamp(48px, 9vw, 80px);
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+}
+
+.lock-date {
+  color: var(--text-dim);
+  font-size: var(--text-md);
+}
+
 .lock-password {
   display: flex;
   width: min(300px, 100%);
@@ -414,7 +435,8 @@
   .lock-screen {
     justify-content: flex-start;
     gap: var(--space-2);
-    img {
+    img,
+    .lock-time {
       display: none;
     }
   }

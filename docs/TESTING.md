@@ -152,7 +152,12 @@ It also drives the shell from the keyboard: typing on a tile goes to search,
 menu type-ahead, stepping between desktops, maximize and restore by key, the
 window switcher, show desktop, close, and the grouped shortcut sheet; and it
 checks that the tab title follows the focused window and that a click inside an
-app brings its window forward.
+app brings its window forward. Snap layouts are opened by key, from the window
+menu and by resting on maximize; a quarter and two thirds land where they
+should; a title-bar drag to the top maximizes; Show desktop and Bring windows
+back work from the desk menu; the overview counts windows; and quick settings
+switches light and dark. `test-rail.mjs` also drags a pin to a new place, and
+`test-security.mjs` locks with Alt+Shift+L and from quick settings.
 
 `test_agent_conversion.py` is the one that means something: a listening Vela on
 a disposable data directory, an installed app, a window open on the desk, and a

@@ -30,6 +30,18 @@ function label(view, apps) {
   return 'Agent';
 }
 
+/** What a window is doing, in a few words, for its tooltip. */
+export function windowState(view, layout) {
+  if (!view.available) return 'Needs reopening';
+  if (view.window?.minimized) return 'Minimized';
+  if (layout?.arrangement === 'maximized' && layout.maximizedView === view.id) return 'Maximized';
+  if (layout?.arrangement === 'split') {
+    if (layout.primaryView === view.id) return 'Left half';
+    if (layout.secondaryView === view.id) return 'Right half';
+  }
+  return layout?.selectedView === view.id ? 'In front' : 'Open';
+}
+
 /** Vela's own tool behind a `host` window, drawn with its usual mark. */
 function core(view) {
   const entry = view.kind === 'host' ? coreById(view.surface) : null;
@@ -100,10 +112,9 @@ export default function DesktopRailViews({ onNavigate }) {
                 {name.slice(0, 1)}
               </span>
             )}
-            <span className="rail-tip">
-              {name}
-              {minimized ? ' — minimized' : ''}
-              {view.available ? '' : ' — needs reopening'}
+            <span className="rail-tip rail-tip-card" aria-hidden="true">
+              <span className="rail-tip-name">{name}</span>
+              <span className="rail-tip-state">{windowState(view, views.layout)}</span>
             </span>
             <span className="sr-only">
               {name}

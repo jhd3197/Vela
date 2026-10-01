@@ -1541,8 +1541,11 @@ base, workspace, rail, top bar, window title bar, attached panel, flyout, menu.
   order, `Alt+Shift+←/→` to step between desktops, `Esc`, and `?` or `Ctrl+/`
   for the sheet. The window host owns the window keys, which act on the
   selected window: `` Alt+` `` switcher (Alt held; release chooses), `Alt+↑/↓`
-  maximize and restore-or-minimize, `Alt+←/→` halves, `Alt+Shift+W` close and
-  `Alt+Shift+D` show desktop. Letters match `event.code`, so Option on a Mac
+  maximize and restore-or-minimize, `Alt+←/→` halves, `Alt+Z` the layout
+  picker, `Alt+Shift+W` close and `Alt+Shift+D` show desktop (a toggle kept by
+  `useDesktopViews`, which remembers what it put away per desktop).
+  `Alt+Shift+↑` opens the desktop overview and `Alt+Shift+L` locks through the
+  existing app lock when one is enrolled. Letters match `event.code`, so Option on a Mac
   works. Modifier chords fire even in a field; plain keys and the Alt
   shortcuts yield to editable targets. None of them reach an app's iframe.
 - **Workspace**: an optional context panel, a contextual header and the content

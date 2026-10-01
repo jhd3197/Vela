@@ -62,9 +62,11 @@ button to reach them.
 
 From a keyboard: **Ctrl+K** searches, **Ctrl+Space** opens or closes the
 Launchpad, **Ctrl+1** to **Ctrl+9** open the pinned apps by their place on the
-rail, **Alt+Shift+←** and **Alt+Shift+→** step between desktops, **Esc** backs
-out of the Launchpad, a menu or a dialog, and **?** (or **Ctrl+/**) shows the
-whole list. On a Mac, Ctrl is **Cmd** and Alt is **Option**.
+rail, **Alt+Shift+←** and **Alt+Shift+→** step between desktops,
+**Alt+Shift+↑** shows every desktop at once, **Alt+Shift+L** locks Vela when an
+app lock is set up, **Esc** backs out of the Launchpad, a menu or a dialog, and
+**?** (or **Ctrl+/**) shows the whole list. On a Mac, Ctrl is **Cmd** and Alt
+is **Option**.
 
 Windows have keys of their own, for the window you are using:
 
@@ -73,6 +75,7 @@ Windows have keys of their own, for the window you are using:
 - **Alt+↑** maximizes, and **Alt+↓** restores a maximized window or minimizes
   any other.
 - **Alt+←** and **Alt+→** move the window to the left or right half.
+- **Alt+Z** opens the layout picker for the window.
 - **Alt+Shift+W** closes it, asking first if it has unsaved work.
 - **Alt+Shift+D** shows the desktop, and pressing it again brings the same
   windows back where they were.
@@ -86,11 +89,31 @@ keys.
 Opening an app puts it in a **window on your desk**, the way an app on any other
 computer does. The frame is up the moment you click — the app's icon holds the
 wait under a sweeping hairline in the title bar, and the app rises into place
-when it answers. Drag its title bar to move it, its edges to resize it, and drag it
-to the left or right edge to snap it to that half. Right-click the title bar for
-the same arranging without a drag. Windows stay where you leave
-them, each desktop keeps its own, and the app keeps running whatever the window
-is doing.
+when it answers. Drag its title bar to move it and its edges to resize it.
+Dragging it to the left or right edge snaps it to that half, to the top
+maximizes it, and to a corner puts it in that quarter; an outline shows where
+it will go before you let go. Rest the pointer on the maximize button for
+**snap layouts**: halves, thirds, two thirds and a third, a half and two
+quarters, or four quarters. Click a space to put the window there. The two
+halves share a divider you can drag; every other layout leaves the window
+where you put it, free to move. Right-click the title bar for the same
+arranging without a drag. Windows stay where you leave them, each desktop keeps
+its own, and the app keeps running whatever the window is doing.
+
+Right-click the wallpaper and choose **Show desktop** to put every window away
+at once; **Bring windows back** puts the same ones back as they were. With more
+than one desktop, **All desktops** (also in the rail's desktop menu) shows them
+side by side with their wallpaper, how many windows each has open and whether
+one needs you.
+
+The sliders button beside the bell opens **quick settings**: light or dark,
+the next wallpaper and this desktop's dimming and labels, Show desktop, All
+desktops, the shortcut list, and Lock when an app lock is set up.
+
+Pinned apps on the rail can be dragged into a new order, and an installed app
+dragged from All apps onto the pinned group is pinned where you drop it. Hover
+over a rail icon for its name; an open window's label also says whether it is
+in front, minimized, maximized or in one half.
 
 The title bar has three controls, and they do three different things:
 

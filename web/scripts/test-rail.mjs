@@ -173,6 +173,32 @@ try {
     ].map((tip) => tip.textContent);
     return names.indexOf('Gamma') < names.indexOf('Marketplace');
   });
+  // Dragging does the same as the menu: Gamma dropped below the last pin
+  // becomes the last pin.
+  const pinnedNames = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.rail-apps-group[aria-label="Pinned apps"] .rail-tip')].map(
+        (tip) => tip.textContent,
+      ),
+    );
+  const lastPin = page.locator('.rail-apps-group[aria-label="Pinned apps"] [data-pin-id]').last();
+  const lastBox = await lastPin.boundingBox();
+  await pinnedTile('Gamma').dragTo(lastPin, {
+    targetPosition: { x: lastBox.width / 2, y: lastBox.height - 2 },
+  });
+  await page.waitForFunction(() => {
+    const names = [
+      ...document.querySelectorAll('.rail-apps-group[aria-label="Pinned apps"] .rail-tip'),
+    ].map((tip) => tip.textContent);
+    return names[names.length - 1] === 'Gamma';
+  });
+  assert.equal((await pinnedNames()).at(-1), 'Gamma', 'a dragged pin lands where it is dropped');
+  assert.equal(
+    await page.locator('.rail-pins .is-drop-before, .rail-pins .is-drop-after').count(),
+    0,
+    'the drop line goes away after the drop',
+  );
+
   await pinnedTile('Gamma').click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Unpin from rail' }).click();
   await page.waitForFunction(() =>
@@ -350,7 +376,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: default pins, pin/unpin/reorder from the rail menus, the OPEN group and its absence, no More or All apps control, stable order, landmarks and named icons, keyboard focus, 200% zoom, short-window reach, a phone rail beside content, and app workspaces keeping one rail at 390/320px',
+    'PASS: default pins, pin/unpin/reorder from the rail menus and by dragging, the OPEN group and its absence, no More or All apps control, stable order, landmarks and named icons, keyboard focus, 200% zoom, short-window reach, a phone rail beside content, and app workspaces keeping one rail at 390/320px',
   );
 } finally {
   await browser?.close();

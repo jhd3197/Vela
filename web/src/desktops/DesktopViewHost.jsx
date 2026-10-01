@@ -26,18 +26,13 @@ import useWindowMotion from './motion/useWindowMotion.js';
 import useFrameFocus from './useFrameFocus.js';
 import WindowSwitcher from './WindowSwitcher.jsx';
 import { useAppsOverlay } from './apps-overlay-context.js';
-import {
-  chosenWindow,
-  openSwitcher,
-  restoreFromSnapshot,
-  showDesktopSnapshot,
-  stepSwitcher,
-  verticalCommand,
-} from './window-commands.js';
+import { chosenWindow, openSwitcher, stepSwitcher, verticalCommand } from './window-commands.js';
+import SnapLayoutPicker from './SnapLayoutPicker.jsx';
+import { cellBounds, cellById, snapZone, zoneBounds } from './layouts.js';
 import { comboLabel, isEditable, matches } from '../shell/keys.js';
 import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
-import { panes, previewBounds, snapTargetFor } from './snap.js';
+import { panes } from './snap.js';
 import {
   SPLIT_MIN_WIDTH,
   placeView,
@@ -168,21 +163,31 @@ export default function DesktopViewHost({ views, desktop }) {
     [views],
   );
 
-  // Where the pointer is during a title-bar drag, turned into an offer of a
-  // half. Dropping while an offer is showing takes it; dropping anywhere else
-  // leaves the window exactly where the drag put it.
+  // Where the pointer is during a title-bar drag, turned into an offer: a half
+  // at a side edge, the whole desk at the top, a quarter in a corner. Dropping
+  // while an offer is showing takes it; dropping anywhere else leaves the
+  // window exactly where the drag put it.
   const onDragPoint = useCallback(
     (viewId) =>
       (point, options = {}) => {
         if (point) {
           const view = views.ordered.find((entry) => entry.id === viewId);
-          const snappable = !view || windowOptionsFor(view, apps).resizable !== false;
-          setSnapping({ id: viewId, side: snappable ? snapTargetFor(point, area) : null });
+          const allowed = view ? windowOptionsFor(view, apps) : DEFAULT_WINDOW;
+          let zone = allowed.resizable === false ? null : snapZone(point, area);
+          // The top means maximize, and an app that cannot be maximized is not
+          // offered it.
+          if (zone === 'top' && allowed.maximizable === false) zone = null;
+          setSnapping({ id: viewId, side: zone });
           return;
         }
         const offered = snapping?.id === viewId ? snapping.side : null;
         setSnapping(null);
-        if (offered && options.drop) views.snap(viewId, offered);
+        if (!offered || !options.drop) return;
+        const view = views.ordered.find((entry) => entry.id === viewId);
+        if (offered === 'left' || offered === 'right') views.snap(viewId, offered);
+        else if (offered === 'top') {
+          if (view) views.maximize(view, { maximizable: true });
+        } else views.place(viewId, cellBounds(cellById(offered), area));
       },
     [apps, area, snapping, views],
   );
@@ -258,9 +263,12 @@ export default function DesktopViewHost({ views, desktop }) {
   const { appsOpen } = useAppsOverlay() || {};
   // The switcher while Alt is held: which windows, and which one is chosen.
   const [switcher, setSwitcher] = useState(null);
-  // What "show the desktop" put away, for the same key to bring back. Per
-  // desktop: switching desktops and pressing it again is a different desk.
-  const shownDesktop = useRef({ desktopId: null, snapshot: null });
+  // The layout picker, for one window at a time: where it opens, and whether
+  // it came from a key (so it takes focus) or from resting on maximize.
+  const [picker, setPicker] = useState(null);
+  const pickerTimers = useRef({ open: 0, close: 0 });
+  const pickerNow = useRef(null);
+  pickerNow.current = picker;
 
   const bringBack = useCallback(
     (viewId) => {
@@ -277,19 +285,71 @@ export default function DesktopViewHost({ views, desktop }) {
     [focusView, putAway, views],
   );
 
-  const toggleDesktop = useCallback(() => {
-    const snapshot = showDesktopSnapshot(views.layout, views.ordered);
-    if (snapshot) {
-      shownDesktop.current = { desktopId: views.desktopId, snapshot };
-      views.minimizeMany(snapshot.viewIds);
+  // ---- the layout picker
+  //
+  // Resting on maximize opens it after a moment, so passing over the button
+  // on the way somewhere else does not; leaving both the button and the picker
+  // closes it a moment later, so the pointer can cross the gap between them.
+  const clearPickerTimers = () => {
+    clearTimeout(pickerTimers.current.open);
+    clearTimeout(pickerTimers.current.close);
+  };
+  useEffect(() => clearPickerTimers, []);
+
+  const openPicker = useCallback((viewId, anchor, { keyboard: fromKey = false } = {}) => {
+    clearPickerTimers();
+    setPicker({ viewId, x: anchor.x, y: anchor.y, focus: fromKey });
+  }, []);
+
+  const closePicker = useCallback((options = {}) => {
+    clearPickerTimers();
+    const current = pickerNow.current;
+    setPicker(null);
+    if (current && options.restoreFocus) {
+      // Back to the window's own bar, so focus is not left on nothing.
+      const frame = host.current?.querySelector(`[data-view-id="${current.viewId}"]`);
+      const back =
+        frame?.querySelector('.window-control[aria-pressed]') ||
+        frame?.querySelector('.window-controls button');
+      back?.focus({ preventScroll: true });
+    }
+  }, []);
+
+  const hoverMaximize = (viewId) => (rect) => {
+    clearPickerTimers();
+    if (!rect) {
+      pickerTimers.current.close = setTimeout(() => setPicker(null), 300);
       return;
     }
-    const remembered = shownDesktop.current;
-    if (remembered.desktopId !== views.desktopId) return;
-    const restore = restoreFromSnapshot(remembered.snapshot, views.ordered);
-    shownDesktop.current = { desktopId: null, snapshot: null };
-    if (restore) views.restoreMany(restore);
-  }, [views]);
+    if (picker?.viewId === viewId) return;
+    pickerTimers.current.open = setTimeout(
+      () => openPicker(viewId, { x: rect.left + rect.width / 2, y: rect.bottom + 6 }),
+      450,
+    );
+  };
+
+  const pickCell = useCallback(
+    (viewId, cell) => {
+      setPicker(null);
+      if (cell.pane) views.snap(viewId, cell.pane);
+      else views.place(viewId, cellBounds(cell, area));
+    },
+    [area, views],
+  );
+
+  /** The picker for a window, opened at its title bar, for a key or a menu. */
+  const pickerAtBar = useCallback(
+    (viewId) => {
+      const frame = host.current?.querySelector(`[data-view-id="${viewId}"]`);
+      const button =
+        frame?.querySelector('.window-control[aria-pressed]') ||
+        frame?.querySelector('.window-bar');
+      const box = button?.getBoundingClientRect();
+      if (box)
+        openPicker(viewId, { x: box.left + box.width / 2, y: box.bottom + 6 }, { keyboard: true });
+    },
+    [openPicker],
+  );
 
   // Read at the moment a key is pressed, so the listeners below are attached
   // once rather than on every render.
@@ -303,7 +363,7 @@ export default function DesktopViewHost({ views, desktop }) {
     bringBack,
     putAway,
     requestClose: null,
-    toggleDesktop,
+    pickerAtBar,
   };
 
   useEffect(() => {
@@ -349,7 +409,7 @@ export default function DesktopViewHost({ views, desktop }) {
       }
       if (matches(event, 'show-desktop')) {
         event.preventDefault();
-        now.toggleDesktop();
+        now.views.showDesktop();
         return;
       }
 
@@ -370,6 +430,11 @@ export default function DesktopViewHost({ views, desktop }) {
         event.preventDefault();
         if (options.resizable === false) return;
         now.views.snap(view.id, matches(event, 'snap-left') ? 'left' : 'right');
+        return;
+      }
+      if (matches(event, 'snap-layouts')) {
+        event.preventDefault();
+        if (options.resizable !== false) now.pickerAtBar(view.id);
         return;
       }
       if (matches(event, 'close-window')) {
@@ -490,6 +555,11 @@ export default function DesktopViewHost({ views, desktop }) {
       items.push(
         { separator: true },
         {
+          label: 'Snap layouts…',
+          shortcut: comboLabel('snap-layouts'),
+          onSelect: () => pickerAtBar(view.id),
+        },
+        {
           label:
             split && layout.primaryView === view.id ? 'Already on the left' : 'Move to the left',
           shortcut: comboLabel('snap-left'),
@@ -571,6 +641,7 @@ export default function DesktopViewHost({ views, desktop }) {
             onSelect={() => focusView(view.id)}
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
+            onMaximizeHover={options.resizable !== false ? hoverMaximize(view.id) : undefined}
             actions={menuFor(view, depth)}
             onMinimize={() => putAway(view, depth)}
             onMaximize={() => views.maximize(view, { maximizable: options.maximizable !== false })}
@@ -648,7 +719,7 @@ export default function DesktopViewHost({ views, desktop }) {
           className="snap-preview"
           aria-hidden="true"
           style={(() => {
-            const box = previewBounds(snapping.side, area, layout.dividerRatio ?? 0.5);
+            const box = zoneBounds(snapping.side, area, { ratio: layout.dividerRatio ?? 0.5 });
             return {
               left: `${box.x}px`,
               top: `${box.y}px`,
@@ -659,9 +730,22 @@ export default function DesktopViewHost({ views, desktop }) {
         />
       )}
 
-      {/* Above the window it replaces and below everything the owner needs.
-          Decoration: it takes no pointer input and is not in the accessibility
-          tree, so every real control stays exactly as reachable as it was. */}
+      {picker ? (
+        <SnapLayoutPicker
+          x={picker.x}
+          y={picker.y}
+          focus={picker.focus}
+          title={labelFor(views.ordered.find((view) => view.id === picker.viewId) || {}, apps)}
+          onPick={(cell) => pickCell(picker.viewId, cell)}
+          onClose={closePicker}
+          onPointerEnter={() => clearPickerTimers()}
+          onPointerLeave={() => {
+            if (picker.focus) return;
+            pickerTimers.current.close = setTimeout(() => setPicker(null), 300);
+          }}
+        />
+      ) : null}
+
       {switcherEntries?.length ? (
         <WindowSwitcher
           entries={switcherEntries}
@@ -673,6 +757,9 @@ export default function DesktopViewHost({ views, desktop }) {
         />
       ) : null}
 
+      {/* Above the window it replaces and below everything the owner needs.
+          Decoration: it takes no pointer input and is not in the accessibility
+          tree, so every real control stays exactly as reachable as it was. */}
       <GenieOverlay
         run={motion.run}
         area={area}

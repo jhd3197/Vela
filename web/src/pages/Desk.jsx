@@ -6,8 +6,10 @@ import {
   ArrowSquareOut,
   ArrowUUpLeft,
   Crop,
+  Desktop,
   PaintBrush,
   Plus,
+  SquaresFour,
   Trash,
 } from '@phosphor-icons/react';
 import { useApps } from '../store.jsx';
@@ -26,6 +28,8 @@ import { useSettingsPopup } from '../components/SettingsProvider.jsx';
 import useDeskBoards from '../desk/useDeskBoards.js';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import DesktopViewHost from '../desktops/DesktopViewHost.jsx';
+import { openDesktopOverview } from '../desktops/DesktopOverview.jsx';
+import { comboLabel } from '../shell/keys.js';
 import useOpenApp from '../desktops/useOpenApp.js';
 import { firstWidget } from '../desk/addAppWidget.js';
 import { useWallpaperBody } from '../desk/wallpaper.js';
@@ -196,6 +200,35 @@ export default function Desk() {
     if (!result.ok) pushToast(result.message || 'The desk changed elsewhere; reloaded.', 'error');
   }, [save, boards, boardKey, pushToast]);
 
+  // The windows on this desktop, put away or brought back as one, and every
+  // desktop at a glance. Offered only when there is something to do, so the
+  // menu never lists a thing it cannot do.
+  const windowItems = [];
+  if (views.ordered?.some((view) => !view.window?.minimized)) {
+    windowItems.push({
+      label: 'Show desktop',
+      icon: Desktop,
+      shortcut: comboLabel('show-desktop'),
+      onSelect: () => views.showDesktop(),
+    });
+  } else if (views.desktopShown) {
+    windowItems.push({
+      label: 'Bring windows back',
+      icon: Desktop,
+      shortcut: comboLabel('show-desktop'),
+      onSelect: () => views.showDesktop(),
+    });
+  }
+  if (desktops.length > 1) {
+    windowItems.push({
+      label: 'All desktops',
+      icon: SquaresFour,
+      shortcut: comboLabel('desktop-overview'),
+      onSelect: openDesktopOverview,
+    });
+  }
+  if (windowItems.length) windowItems.push({ separator: true });
+
   // The wallpaper menu, opened from the top-right ⋯ or a right-click / long
   // press on empty board. Reuses the shared ContextMenu.
   const deskMenuItems = [
@@ -208,6 +241,7 @@ export default function Desk() {
     },
     { label: 'Personalise', icon: PaintBrush, onSelect: () => openSettings('appearance') },
     { separator: true },
+    ...windowItems,
     {
       label: 'Reset desk',
       icon: ArrowUUpLeft,

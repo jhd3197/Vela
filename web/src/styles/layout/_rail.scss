@@ -162,6 +162,54 @@
   opacity: 1;
 }
 
+/* Hover intent: a label waits a moment before showing, so a pointer crossing
+   the rail does not flash one at every icon. Keyboard focus is never kept
+   waiting, and once a label has shown the rail is warm and the next one shows
+   at once. Leaving is always immediate. */
+.rail-item:hover .rail-tip {
+  transition-delay: 400ms;
+}
+
+.rail[data-tips-warm] .rail-item:hover .rail-tip,
+.rail-item:focus-visible .rail-tip {
+  transition-delay: 0ms;
+}
+
+/* An open window's label says what the window is doing, under its name. */
+.rail-tip-card {
+  display: grid;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.rail-tip-state {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* Where a dragged pin would land: a line between two items, never over one. */
+.rail-pins .rail-item.is-drop-before::before,
+.rail-pins .rail-item.is-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  width: auto;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.rail-pins .rail-item.is-drop-before::before {
+  top: -4px;
+}
+
+.rail-pins .rail-item.is-drop-after::after {
+  bottom: -4px;
+}
+
 .rail-badge {
   position: absolute;
   top: -2px;

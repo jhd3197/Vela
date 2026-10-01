@@ -10,6 +10,16 @@ import { useShowTrail } from './trailPreference.js';
 // browser makes everything behind it inert while it is open — but the real
 // protection is the engine, which refuses protected requests for a locked
 // session whatever this page does.
+/** The time, kept current to the minute. */
+function useMinute() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
 export default function LockScreen({ status, checking = false, onUnlocked }) {
   const [pin, setPin] = useState('');
   const [dots, setDots] = useState([]);
@@ -22,6 +32,7 @@ export default function LockScreen({ status, checking = false, onUnlocked }) {
   const showTrail = useShowTrail();
   const method = status?.method;
   const forced = Boolean(status?.passwordRequired);
+  const now = useMinute();
 
   useEffect(() => {
     if (forced) setUsePassword(true);
@@ -73,6 +84,14 @@ export default function LockScreen({ status, checking = false, onUnlocked }) {
   return (
     <Dialog open pending className="modal-dialog lock-dialog" aria-labelledby="lock-title">
       <div className="lock-screen">
+        <p className="lock-time">
+          <time dateTime={now.toISOString()}>
+            {now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </time>
+          <span className="lock-date">
+            {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+          </span>
+        </p>
         <img src="/vela-mark.png" width="40" height="40" alt="" />
         <h1 id="lock-title">Vela is locked</h1>
         <p>

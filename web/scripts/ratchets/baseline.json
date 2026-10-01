@@ -12,11 +12,14 @@
     "web/src/desk/ThemeRow.jsx": 1,
     "web/src/desktops/EmptyPane.jsx": 1,
     "web/src/desktops/motion/GenieOverlay.jsx": 1,
+    "web/src/desktops/SnapLayoutPicker.jsx": 2,
     "web/src/desktops/SplitDivider.jsx": 1,
     "web/src/desktops/WindowFrame.jsx": 2,
-    "web/src/pages/Launchpad.jsx": 1
+    "web/src/pages/Launchpad.jsx": 1,
+    "web/src/shell/QuickSettings.jsx": 1
   },
   "status-vocabulary": {},
   "style-ownership": {},
+  "themes": {},
   "tokens": {}
 }

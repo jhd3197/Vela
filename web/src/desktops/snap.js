@@ -32,9 +32,10 @@ export const RATIO_STEP = 0.02;
 /**
  * Which half a pointer is offering to snap into, or null.
  *
- * Only ever left or right. A top edge means maximize in most desktops and it
- * would need its own preview, its own undo and its own keyboard equivalent, so
- * it is deliberately not half-built here.
+ * Only ever left or right: this is the two-pane split. The top edge (maximize)
+ * and the corners (quarters) are `snapZone` in `layouts.js`, which is what a
+ * title-bar drag asks; each of those has its own preview, and a keyboard and
+ * menu equivalent in the window menu and the layout picker.
  */
 export function snapTargetFor(point, area) {
   if (!area?.width || !Number.isFinite(point?.x)) return null;

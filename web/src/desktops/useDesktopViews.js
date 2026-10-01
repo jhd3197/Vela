@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { desktopsApi } from './desktopsApi.js';
 import { exitPatch, freeSlotFor, snapPatch, swapPatch, vacatePatch } from './snap.js';
 import { maximizePatch, minimizePatch, restorePatch, stackOrder } from './window-state.js';
-import { vacateAllPatch } from './window-commands.js';
+import { restoreFromSnapshot, showDesktopSnapshot, vacateAllPatch } from './window-commands.js';
 
 const EMPTY = {
   views: [],
@@ -261,6 +261,48 @@ export default function useDesktopViews(desktopId) {
     [desktopId, load, saveLayout],
   );
 
+  // "Show the desktop" as one toggle: put away what is on screen, and the same
+  // ask again brings back exactly that. What it put away is remembered per
+  // desktop, so pressing it on another desktop never restores this one's.
+  const [shown, setShown] = useState(null);
+  const showDesktop = useCallback(() => {
+    const snapshot = showDesktopSnapshot(state.layout, stackOrder(state.views));
+    if (snapshot) {
+      setShown({ desktopId, snapshot });
+      return minimizeMany(snapshot.viewIds);
+    }
+    setShown(null);
+    if (shown?.desktopId !== desktopId) return Promise.resolve();
+    const restore = restoreFromSnapshot(shown.snapshot, stackOrder(state.views));
+    return restore ? restoreMany(restore) : Promise.resolve();
+  }, [desktopId, minimizeMany, restoreMany, shown, state.layout, state.views]);
+
+  /** Whether "show the desktop" is holding windows it can bring back. */
+  const desktopShown =
+    shown?.desktopId === desktopId &&
+    Boolean(restoreFromSnapshot(shown.snapshot, stackOrder(state.views)));
+
+  // ---- a window in a layout cell
+  //
+  // A cell other than the two halves is an ordinary floating window at that
+  // rectangle. Getting there from a split or from maximized means leaving that
+  // arrangement first, which is one layout save, and then placing the window,
+  // which is the same patch a drag would make.
+  const place = useCallback(
+    async (viewId, bounds) => {
+      if (state.layout.arrangement !== 'floating') {
+        await saveLayout({
+          arrangement: 'floating',
+          maximizedView: null,
+          primaryView: null,
+          secondaryView: null,
+        });
+      }
+      patchView(viewId, { bounds, minimized: false, raise: true }, { immediate: true });
+    },
+    [patchView, saveLayout, state.layout.arrangement],
+  );
+
   // ---- split placement
   //
   // Every one of these is a layout change and nothing else. No view is closed,
@@ -323,6 +365,9 @@ export default function useDesktopViews(desktopId) {
     restore,
     minimizeMany,
     restoreMany,
+    showDesktop,
+    desktopShown,
+    place,
     maximize,
     snap,
     swapPanes,

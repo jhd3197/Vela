@@ -194,6 +194,31 @@ export function AppsProvider({ children }) {
     [persistPins],
   );
 
+  // Dragging a pin, or dropping an app onto the rail, puts it at a place in
+  // one step. `index` is where it should end up in the list as it is now.
+  const placePin = useCallback(
+    (id, index) =>
+      setPinned((prev) => {
+        const from = prev.indexOf(id);
+        const without = prev.filter((entry) => entry !== id);
+        // Removing it from above its target moves the target up by one.
+        const at = Math.max(
+          0,
+          Math.min(without.length, from !== -1 && from < index ? index - 1 : index),
+        );
+        const next = [...without.slice(0, at), id, ...without.slice(at)];
+        if (
+          next.every((entry, position) => entry === prev[position]) &&
+          next.length === prev.length
+        ) {
+          return prev;
+        }
+        persistPins(next);
+        return next;
+      }),
+    [persistPins],
+  );
+
   const value = {
     platform,
     apps,
@@ -212,6 +237,7 @@ export function AppsProvider({ children }) {
     pinApp,
     unpinApp,
     movePin,
+    placePin,
   };
 
   return (

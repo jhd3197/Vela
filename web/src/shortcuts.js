@@ -15,7 +15,10 @@ import { coreById, isCoreId } from './navigation.js';
 import { useSettingsPopup } from './components/SettingsProvider.jsx';
 import { useAppsOverlay } from './desktops/AppsOverlay.jsx';
 import { useDesktops } from './desktops/DesktopsProvider.jsx';
-import { isEditable, matches } from './shell/keys.js';
+import { OPEN_SHORTCUTS, isEditable, matches } from './shell/keys.js';
+import { openDesktopOverview } from './desktops/DesktopOverview.jsx';
+import { useSecurity } from './components/SecurityProvider.jsx';
+import { api } from './api.js';
 
 const LAUNCHPAD = '/apps';
 
@@ -35,6 +38,8 @@ export function useGlobalShortcuts() {
   const { openSettings } = useSettingsPopup();
   const { toggleApps } = useAppsOverlay();
   const { desktops, selectedId, select: selectDesktop } = useDesktops();
+  const { status: security, apply: applySecurity } = useSecurity();
+  const lockable = Boolean(security?.enrolled && !security?.locked);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -90,6 +95,22 @@ export function useGlobalShortcuts() {
       // The remaining shortcuts yield to a field: there, Alt+Shift+arrows
       // select by word, and ? is a question mark.
       if (isEditable(event.target)) return;
+      // Locking is what the app lock already does from Settings; this is the
+      // short way to it. Without a lock set up there is nothing to lock with.
+      if (matches(event, 'lock')) {
+        if (!lockable) return;
+        event.preventDefault();
+        api
+          .lockNow()
+          .then(applySecurity)
+          .catch(() => {});
+        return;
+      }
+      if (matches(event, 'desktop-overview')) {
+        event.preventDefault();
+        openDesktopOverview();
+        return;
+      }
       if (matches(event, 'next-desktop') || matches(event, 'previous-desktop')) {
         event.preventDefault();
         stepDesktop(matches(event, 'next-desktop') ? 1 : -1);
@@ -113,7 +134,16 @@ export function useGlobalShortcuts() {
     desktops,
     selectedId,
     selectDesktop,
+    lockable,
+    applySecurity,
   ]);
+
+  // Anything can ask for the sheet: the quick settings panel does.
+  useEffect(() => {
+    const open = () => setShortcutsOpen(true);
+    addEventListener(OPEN_SHORTCUTS, open);
+    return () => removeEventListener(OPEN_SHORTCUTS, open);
+  }, []);
 
   return { shortcutsOpen, closeShortcuts: () => setShortcutsOpen(false) };
 }

@@ -560,6 +560,115 @@ try {
   await page.keyboard.press('Escape');
   await shortcutSheet.waitFor({ state: 'hidden' });
 
+  // --- layouts ------------------------------------------------------------
+  const host = await page.locator('.view-host').boundingBox();
+  const appWindow = page.locator('.window-frame').first();
+  const near = (a, b, slack = 12) => Math.abs(a - b) <= slack;
+
+  // The rail says what an open window is doing, not just its name.
+  assert.equal(
+    await page.locator('.rail-views .rail-view-item .rail-tip-state').first().innerText(),
+    'In front',
+  );
+
+  // Alt+Z opens the picker with focus on a cell; Escape puts it away.
+  await appWindow.locator('.window-title').click();
+  await page.keyboard.press('Alt+KeyZ');
+  const picker = page.getByRole('dialog', { name: /^Snap layouts for / });
+  await picker.waitFor();
+  assert.ok(
+    await picker.evaluate((node) => node.contains(document.activeElement)),
+    'the picker opened from a key takes focus',
+  );
+  await page.keyboard.press('Escape');
+  await picker.waitFor({ state: 'detached' });
+
+  // From the window menu: a quarter is a floating window in that corner.
+  await appWindow.locator('.window-title').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: /^Snap layouts/ }).click();
+  await picker.getByRole('button', { name: 'Top left quarter' }).first().click();
+  await picker.waitFor({ state: 'detached' });
+  await page.waitForFunction((half) => {
+    const box = document.querySelector('.window-frame')?.getBoundingClientRect();
+    return box && Math.abs(box.width - half) < 12;
+  }, host.width / 2);
+  let box = await appWindow.boundingBox();
+  assert.ok(near(box.x, host.x) && near(box.y, host.y), 'the quarter is in the top-left corner');
+  assert.ok(near(box.height, host.height / 2), 'and half as tall as the desk');
+
+  // Resting on maximize offers the same picker, without taking focus.
+  await appWindow.getByRole('button', { name: /^Maximize / }).hover();
+  await picker.waitFor();
+  await picker.getByRole('button', { name: 'Right two thirds' }).click();
+  await page.waitForFunction(
+    (x) => {
+      const box = document.querySelector('.window-frame')?.getBoundingClientRect();
+      return box && Math.abs(box.x - x) < 12;
+    },
+    host.x + host.width / 3,
+  );
+
+  // Dragging the title bar to the top of the desk maximizes.
+  box = await appWindow.locator('.window-title').boundingBox();
+  await page.mouse.move(box.x + 30, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(host.x + host.width / 2, host.y + 20, { steps: 6 });
+  await page.mouse.move(host.x + host.width / 2, host.y - 6, { steps: 4 });
+  await page.locator('.snap-preview').waitFor();
+  await page.mouse.up();
+  await page.locator('.window-frame.is-placed').waitFor();
+  await page.keyboard.press('Alt+ArrowDown');
+  await page.waitForFunction(() => !document.querySelector('.window-frame.is-placed'));
+
+  // --- show desktop from the desk menu ------------------------------------
+  await openDeskMenu(page);
+  await page.getByRole('menuitem', { name: /^Show desktop/ }).click();
+  await page.locator('.window-frame').waitFor({ state: 'detached' });
+  await openDeskMenu(page);
+  await page.getByRole('menuitem', { name: /^Bring windows back/ }).click();
+  await page.locator('.window-frame').waitFor();
+
+  // --- every desktop at once ----------------------------------------------
+  await appWindow.locator('.window-title').click();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  const overview = page.getByRole('dialog', { name: 'Desktops' });
+  await overview.waitFor();
+  const cards = overview.locator('.desktop-card');
+  assert.ok((await cards.count()) >= 1);
+  await page.waitForFunction(() =>
+    /window/.test(
+      document.querySelector('.desktop-card.is-current .desktop-card-meta')?.textContent,
+    ),
+  );
+  assert.match(await overview.locator('.desktop-card.is-current').innerText(), /1 window/);
+  await page.keyboard.press('Escape');
+  await overview.waitFor({ state: 'hidden' });
+
+  // --- quick settings -----------------------------------------------------
+  const baseTheme = await page.evaluate(() => document.documentElement.dataset.theme || 'light');
+  const flipped = baseTheme === 'dark' ? 'Light' : 'Dark';
+  await page.getByRole('button', { name: 'Quick settings' }).click();
+  const quick = page.getByRole('dialog', { name: 'Quick settings' });
+  await quick.waitFor();
+  await quick.getByRole('button', { name: flipped, exact: true }).click();
+  await page.waitForFunction(
+    (want) => document.documentElement.dataset.theme === want,
+    flipped.toLowerCase(),
+  );
+  await quick
+    .getByRole('button', { name: baseTheme === 'dark' ? 'Dark' : 'Light', exact: true })
+    .click();
+  await page.waitForFunction(
+    (want) => (document.documentElement.dataset.theme || 'light') === want,
+    baseTheme,
+  );
+  assert.ok(
+    await quick.getByRole('button', { name: /Show desktop/ }).isEnabled(),
+    'show desktop is offered while a window is open',
+  );
+  await page.keyboard.press('Escape');
+  await quick.waitFor({ state: 'detached' });
+
   // Minimize: the window goes, the rail entry stays, and nothing ended.
   await window.getByRole('button', { name: /^Minimize / }).click();
   await page.locator('.window-frame').waitFor({ state: 'detached' });
@@ -628,6 +737,8 @@ try {
       'a rename that lost its race, deletion leaving apps installed, All apps over the desk, ' +
       'type-to-search and menu type-ahead, the tab title, a click inside an app bringing its ' +
       'window forward, window keys, the switcher, show desktop and the shortcut sheet, ' +
+      'snap layouts from a key, the menu and a hover, a drag to the top, the desktop ' +
+      'overview, quick settings, ' +
       'and a window minimized, restored from the rail, maximized and closed',
   );
   await context.close();

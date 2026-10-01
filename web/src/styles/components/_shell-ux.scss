@@ -1,0 +1,268 @@
+// tokens: spacing
+@use '../wallpapers';
+
+/* ---------- Snap layouts: the picker under a window's maximize button ---------- */
+
+/* Drawings of the screen, each cell a button. It is measured before it is
+   shown, so it never appears in the wrong place for a frame. */
+.snap-layouts {
+  position: fixed;
+  z-index: var(--layer-menu);
+  display: grid;
+  grid-template-columns: repeat(3, 84px);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-pop);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+  visibility: hidden;
+}
+
+.snap-layouts.is-ready {
+  visibility: visible;
+  animation: context-menu-in var(--motion-fast) var(--ease) both;
+}
+
+.snap-layout {
+  position: relative;
+  height: 52px;
+}
+
+/* A cell is its fraction of the drawing, with a little air so neighbours read
+   as separate. The fill is the accent wash on hover and focus: a line around
+   it would be lost at this size. */
+.snap-layout-cell {
+  position: absolute;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--bg-pop);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  box-shadow: inset 0 0 0 1px var(--border);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease);
+}
+
+.snap-layout-cell:hover,
+.snap-layout-cell:focus-visible {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
+}
+
+/* ---------- Desktop overview ---------- */
+
+.desktop-overview {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.desktop-overview h2 {
+  margin: 0 0 var(--space-5);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.desktop-overview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-5);
+}
+
+.desktop-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-card:hover,
+.desktop-card:focus-visible {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  outline: none;
+}
+
+.desktop-card:focus-visible .desktop-card-picture {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.desktop-card-picture {
+  display: block;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset) center / cover no-repeat;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* The one you are on is marked by an edge, as the chosen wallpaper is. */
+.desktop-card.is-current .desktop-card-picture {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.desktop-card-picture[data-wallpaper='sage'] {
+  background-image: wallpapers.paint(wallpapers.$sage);
+}
+
+.desktop-card-picture[data-wallpaper='night'] {
+  background-image: wallpapers.paint(wallpapers.$night);
+}
+
+.desktop-card-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.desktop-card-meta {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  min-height: 1.2em;
+}
+
+/* ---------- Quick settings ---------- */
+
+.quick-settings {
+  position: fixed;
+  z-index: var(--layer-pop);
+  width: min(300px, calc(100vw - 16px));
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--bg-pop);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+  animation: context-menu-in var(--motion-fast) var(--ease) both;
+  transform-origin: top right;
+}
+
+.quick-settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.quick-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+/* On is an edge and a wash, never colour alone. */
+.quick-tile.is-on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+
+.quick-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.quick-settings-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.quick-action,
+.quick-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-action:hover:not(:disabled),
+.quick-action:focus-visible,
+.quick-switch:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  outline: none;
+}
+
+.quick-action:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.quick-action-label {
+  flex: 1;
+}
+
+.quick-action kbd {
+  font-family: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.quick-switch input {
+  accent-color: var(--accent);
+}
+
+.quick-settings-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.quick-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: none;
+  padding: var(--space-1) 0;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.quick-link:hover,
+.quick-link:focus-visible {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.quick-settings-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--red);
+}

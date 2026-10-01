@@ -8,6 +8,7 @@ import { useGlobalShortcuts } from '../shortcuts.js';
 import ShortcutSheet from './ui/ShortcutSheet.jsx';
 import TopBar from '../shell/TopBar.jsx';
 import useDocumentTitle from '../shell/useDocumentTitle.js';
+import DesktopOverview from '../desktops/DesktopOverview.jsx';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { PHONE } from '../breakpoints.js';
 
@@ -49,6 +50,7 @@ export default function Shell({ children }) {
 
         <Toasts toasts={toasts} onDismiss={dismissToast} />
         <ShortcutSheet open={shortcutsOpen} onClose={closeShortcuts} />
+        <DesktopOverview />
         {!hasChildren && !settingsOpen && <WelcomeSetup key={location.key} />}
       </div>
     </div>

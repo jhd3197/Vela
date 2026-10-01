@@ -20,8 +20,16 @@
 // none of these fire while focus is inside an app window. Every one of them is
 // also on a menu, a button or the rail.
 
+/** The event anything can send to open the shortcut sheet. */
+export const OPEN_SHORTCUTS = 'vela:shortcut-sheet';
+
 /** Ctrl on Windows and Linux, ⌘ on a Mac. */
 export const MOD = 'mod';
+
+// Each entry: `combo` is what is pressed (`mod`, `alt`, `shift`, and a `code`
+// or a `key`), `through` closes a range and `also` is a second way to press
+// it. `plain` marks a shortcut that yields to a text field, where the same
+// keys mean something to the field.
 
 export const SHORTCUTS = [
   // ---- anywhere
@@ -56,6 +64,20 @@ export const SHORTCUTS = [
     group: 'Desktops',
     combo: { alt: true, shift: true, code: 'ArrowLeft' },
     label: 'Previous desktop',
+    plain: true,
+  },
+  {
+    id: 'desktop-overview',
+    group: 'Desktops',
+    combo: { alt: true, shift: true, code: 'ArrowUp' },
+    label: 'See every desktop',
+    plain: true,
+  },
+  {
+    id: 'lock',
+    group: 'General',
+    combo: { alt: true, shift: true, code: 'KeyL' },
+    label: 'Lock Vela (when an app lock is set up)',
     plain: true,
   },
   {
@@ -114,6 +136,13 @@ export const SHORTCUTS = [
     group: 'Windows',
     combo: { alt: true, code: 'ArrowRight' },
     label: 'Move the window to the right half',
+    plain: true,
+  },
+  {
+    id: 'snap-layouts',
+    group: 'Windows',
+    combo: { alt: true, code: 'KeyZ' },
+    label: 'Choose a layout for the window',
     plain: true,
   },
   {

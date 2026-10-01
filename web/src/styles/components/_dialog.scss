@@ -47,9 +47,24 @@ dialog.drawer-overlay::backdrop {
   font-size: 18px;
 }
 
-/* Grouped by what they act on: anywhere, desktops, windows. */
-.shortcut-group + .shortcut-group {
-  margin-top: var(--space-6);
+/* Grouped by what they act on: anywhere, desktops, windows. On a wide
+   screen the groups flow into two columns, so the whole list fits without
+   scrolling; a group is never split between them. */
+.shortcut-group {
+  break-inside: avoid;
+  padding-bottom: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .shortcut-sheet {
+    width: min(880px, calc(100vw - 32px));
+    max-width: min(880px, calc(100vw - 32px));
+  }
+
+  .shortcut-groups {
+    columns: 2;
+    column-gap: var(--space-8);
+  }
 }
 
 .shortcut-group-title {
@@ -62,7 +77,7 @@ dialog.drawer-overlay::backdrop {
 }
 
 .shortcut-note {
-  margin: var(--space-6) 0 0;
+  margin: 0;
   font-size: var(--text-xs);
   color: var(--text-faint);
 }

@@ -30,6 +30,22 @@ until the release workflow prepares a tested server version.
   acts on. Keys typed inside an app still go to that app, so click a window's
   title bar first.
 
+- **Snap layouts, show desktop, all desktops and quick settings.** Rest the
+  pointer on a window's maximize button, press **Alt+Z**, or use the window
+  menu to pick a layout: halves, thirds, two thirds and a third, a half and
+  two quarters, or four quarters. Dragging a window to the top of the desk
+  maximizes it, and dragging it into a corner fills that quarter.
+  Right-click the wallpaper for **Show desktop** and **Bring windows back**.
+  **All desktops** (**Alt+Shift+↑**, or the rail's desktop menu) shows every
+  desktop with its wallpaper, its open windows and whether it needs you. The
+  new quick settings button beside the bell switches light and dark, changes
+  this desktop's wallpaper, dimming and labels, and reaches these from one
+  place. With an app lock set up, **Alt+Shift+L** or quick settings locks
+  Vela, and the lock screen now shows the time. Pinned apps can be dragged
+  into a new order on the rail, or dropped there from All apps, and rail
+  labels wait a moment before appearing, then say whether an open window is
+  in front, minimized, maximized or in one half.
+
 ### Changed
 
 - **The top bar sits beside the rail.** The rail now runs the full height of

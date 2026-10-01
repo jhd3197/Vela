@@ -65,6 +65,7 @@ export default function WindowFrame({
   onDragPoint,
   onMinimize,
   onMaximize,
+  onMaximizeHover,
   onClose,
   children,
 }) {
@@ -249,6 +250,20 @@ export default function WindowFrame({
               aria-label={maximized ? `Restore ${title}` : `Maximize ${title}`}
               aria-pressed={maximized}
               aria-keyshortcuts={maximized ? 'Alt+ArrowDown' : 'Alt+ArrowUp'}
+              // Resting here offers the layouts. Reported with where the button
+              // is, so the picker can open under it; null when the pointer leaves.
+              onPointerEnter={
+                onMaximizeHover
+                  ? (event) =>
+                      event.pointerType === 'mouse' &&
+                      onMaximizeHover(event.currentTarget.getBoundingClientRect())
+                  : undefined
+              }
+              onPointerLeave={onMaximizeHover ? () => onMaximizeHover(null) : undefined}
+              // Pressing it is choosing maximize, not waiting for layouts: a
+              // picker that opened a moment later would cover whatever the
+              // pointer goes to next.
+              onPointerDown={onMaximizeHover ? () => onMaximizeHover(null) : undefined}
               title={
                 maximized
                   ? `Restore (${comboLabel('minimize')})`
