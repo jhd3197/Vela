@@ -23,6 +23,7 @@ import SplitDivider from './SplitDivider.jsx';
 import WindowFrame from './WindowFrame.jsx';
 import GenieOverlay from './motion/GenieOverlay.jsx';
 import useWindowMotion from './motion/useWindowMotion.js';
+import useFrameFocus from './useFrameFocus.js';
 import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
@@ -227,6 +228,16 @@ export default function DesktopViewHost({ views, desktop }) {
     current.views.clearWindowMotion(asked.nonce);
   }, [asked, area.width]);
 
+  // Bringing a window forward, from its chrome or from inside the app it runs.
+  const focusView = useCallback(
+    (viewId) => {
+      if (views.layout.selectedView !== viewId) views.select(viewId);
+      views.patchView(viewId, { raise: true });
+    },
+    [views],
+  );
+  useFrameFocus(host, focusView);
+
   const requestClose = useCallback(
     async (view) => {
       // Close is the only one of the three controls that ends anything, so it
@@ -348,10 +359,8 @@ export default function DesktopViewHost({ views, desktop }) {
             travel={travel}
             status={view.available ? null : 'Needs reopening'}
             busy={Boolean(busy[view.id])}
-            onSelect={() => {
-              if (layout.selectedView !== view.id) views.select(view.id);
-              views.patchView(view.id, { raise: true });
-            }}
+            viewId={view.id}
+            onSelect={() => focusView(view.id)}
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
             actions={menuFor(view)}

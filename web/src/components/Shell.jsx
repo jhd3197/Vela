@@ -7,6 +7,7 @@ import { useSettingsPopup } from './SettingsProvider.jsx';
 import { useGlobalShortcuts } from '../shortcuts.js';
 import ShortcutSheet from './ui/ShortcutSheet.jsx';
 import TopBar from '../shell/TopBar.jsx';
+import useDocumentTitle from '../shell/useDocumentTitle.js';
 import useMediaQuery from '../hooks/useMediaQuery.js';
 import { PHONE } from '../breakpoints.js';
 
@@ -34,6 +35,7 @@ export default function Shell({ children }) {
   // One shell is mounted at a time (the routed pages, or an app workspace that
   // renders its own), so the global shortcut listener is owned here.
   const { shortcutsOpen, closeShortcuts } = useGlobalShortcuts();
+  useDocumentTitle();
 
   return (
     <div className="shell-top">

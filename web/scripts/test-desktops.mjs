@@ -394,7 +394,23 @@ try {
   await page.locator('.apps-overlay .launchpad').waitFor();
   const tile = page.locator('.launch-tile', { hasText: 'Widget Fixture' }).first();
   await tile.waitFor();
+  // Typing from the grid is still searching: the letter lands in the box and
+  // focus goes with it.
+  await tile.focus();
+  await page.keyboard.press('w');
+  const search = page.locator('.launchpad-hero input');
+  assert.equal(await search.inputValue(), 'w', 'a letter typed on a tile goes into search');
+  assert.ok(
+    await search.evaluate((input) => input === document.activeElement),
+    'and focus follows it',
+  );
   await tile.click({ button: 'right' });
+  // A letter in a menu moves to the next item that starts with it.
+  const firstItem = await page.evaluate(() => document.activeElement?.textContent?.trim());
+  await page.keyboard.press('o');
+  const typedTo = await page.evaluate(() => document.activeElement?.textContent?.trim());
+  assert.match(typedTo, /^Open/, 'type-ahead lands on an item starting with the letter');
+  assert.notEqual(typedTo, firstItem, 'and moves past the one already focused');
   // `Open` is the window; `Open full screen` is the page. The window is what
   // this suite is about.
   await page.getByRole('menuitem', { name: 'Open', exact: true }).click();
@@ -420,6 +436,41 @@ try {
   );
   // The rail names it, because the rail is the open-window navigator.
   await page.locator('.rail-views .rail-view-item').first().waitFor();
+  // So does the browser tab.
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+
+  // Clicking inside an app brings its window forward, although the click
+  // itself only ever reaches the app's own document.
+  await page.locator('.rail-foot').getByRole('button', { name: 'Settings' }).click();
+  const settingsFrame = page.locator('.window-frame', { has: page.locator('.settings-window') });
+  await settingsFrame.waitFor();
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.waitForFunction(() => document.title === 'Settings · Vela');
+  // Settings opens over the app; move it aside by its title bar so part of the
+  // app is uncovered.
+  const bar = await settingsFrame.locator('.window-title').boundingBox();
+  await page.mouse.move(bar.x + 20, bar.y + bar.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bar.x + 520, bar.y + bar.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+  // By what it holds, not by place: the two frames are in id order.
+  const appFrame = page.locator('.window-frame', { has: page.locator('iframe') });
+  const appBox = await appFrame.locator('.window-body').boundingBox();
+  await page.mouse.click(appBox.x + 40, appBox.y + appBox.height / 2);
+  await page.waitForFunction(
+    () => !document.querySelector('.window-frame.is-selected .settings-window'),
+    null,
+    { timeout: 5000 },
+  );
+  assert.ok(
+    await appFrame.evaluate((node) => node.classList.contains('is-selected')),
+    'the app window is the selected one after a click inside it',
+  );
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+  await settingsFrame.getByRole('button', { name: /^Close / }).click();
+  await settingsFrame.waitFor({ state: 'detached' });
 
   // Minimize: the window goes, the rail entry stays, and nothing ended.
   await window.getByRole('button', { name: /^Minimize / }).click();
@@ -487,7 +538,8 @@ try {
     'PASS: the migrated desk as Desktop 1, a second workspace with its own board and wallpaper, ' +
       'per-device selection, a direct link and an unknown one, keyboard menu and focus return, ' +
       'a rename that lost its race, deletion leaving apps installed, All apps over the desk, ' +
-      'and a window minimized, restored from the rail, maximized and closed',
+      'type-to-search and menu type-ahead, the tab title, a click inside an app bringing its ' +
+      'window forward, and a window minimized, restored from the rail, maximized and closed',
   );
   await context.close();
 } finally {

@@ -40,6 +40,7 @@ const EDGES = [
 ];
 
 export default function WindowFrame({
+  viewId,
   title,
   icon,
   bounds,
@@ -176,6 +177,7 @@ export default function WindowFrame({
         ...travel,
       }}
       aria-labelledby={titleId}
+      data-view-id={viewId}
       onPointerDownCapture={() => onSelect?.()}
     >
       <header

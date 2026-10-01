@@ -49,6 +49,15 @@ until the release workflow prepares a tested server version.
   it there. The **Ask on this board** switch is gone: add or remove the Ask
   widget with **Add widget** or the widget's own menu, like any other widget.
 
+- **Windows and menus respond more like a desktop.** Clicking inside an app
+  now brings its window to the front, and the browser tab is named after the
+  window you are using, such as "Notes · Vela". Windows behind the active one
+  show a dimmer title. In All apps, typing while a tile has focus goes
+  straight into the search box. In any menu, typing a letter jumps to the
+  next item that starts with it, and pressing the right mouse button, moving
+  onto an item and releasing chooses it. Menus and All apps open with a short
+  animation (none with reduced motion) and close at once.
+
 ### Fixed
 
 - **Settings on a phone respects reduced motion.** With reduced motion turned

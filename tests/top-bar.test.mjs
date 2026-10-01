@@ -19,7 +19,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
-import { isDeskRoute, pageFor, resolveFocus, VELA } from '../web/src/shell/focus.js';
+import {
+  DOCUMENT_TITLE,
+  documentTitleFor,
+  isDeskRoute,
+  pageFor,
+  resolveFocus,
+  VELA,
+} from '../web/src/shell/focus.js';
 import {
   MAX_BYTES,
   MAX_ITEMS,
@@ -160,6 +167,33 @@ describe('what has focus', () => {
   test('pageFor matches a segment, not a prefix', () => {
     assert.equal(pageFor('/files', PAGES)?.label, 'Files');
     assert.equal(pageFor('/files-of-mine', PAGES), null);
+  });
+});
+
+describe('the browser tab title', () => {
+  const notes = [{ id: 'notes', name: 'Notes' }];
+
+  test('names the focused window the way the bar does', () => {
+    const views = desk([view('v1', 'notes')], 'v1');
+    const focus = resolveFocus({ pathname: '/', views, apps: notes });
+    assert.equal(documentTitleFor(focus), 'Notes · Vela');
+  });
+
+  test('keeps the product title when nothing is in focus', () => {
+    assert.equal(documentTitleFor(resolveFocus({ pathname: '/' })), DOCUMENT_TITLE);
+    assert.equal(documentTitleFor(VELA), DOCUMENT_TITLE);
+    assert.equal(documentTitleFor(null), DOCUMENT_TITLE);
+  });
+
+  test('a minimized window does not name the tab', () => {
+    const views = desk([view('v1', 'notes', { window: { minimized: true } })], 'v1');
+    const focus = resolveFocus({ pathname: '/', views, apps: notes });
+    assert.equal(documentTitleFor(focus), DOCUMENT_TITLE);
+  });
+
+  test('matches the title the page ships with', () => {
+    const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
+    assert.ok(html.includes(`<title>${DOCUMENT_TITLE}</title>`));
   });
 });
 

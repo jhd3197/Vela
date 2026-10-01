@@ -199,6 +199,20 @@
 .apps-overlay > * {
   flex: 1 1 auto;
   min-height: 0;
+  /* It arrives with intent and leaves at once: closing is getting out of the
+     way, and nobody waits to watch it go. */
+  animation: apps-overlay-in var(--motion-slow) var(--ease) both;
+}
+
+@keyframes apps-overlay-in {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---------- Windows on a desktop ---------- */
@@ -326,6 +340,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A window behind the one in use says so quietly, so the one in front is the
+   one that reads as active even before anybody looks at the shadow. */
+.window-frame:not(.is-selected) .window-title {
+  color: var(--text-dim);
 }
 
 .window-status {
