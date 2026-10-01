@@ -26,6 +26,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Copy, DotsThree, Minus, Square, X } from '@phosphor-icons/react';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
 import { moveBounds, resizeBounds } from './window-state.js';
+import { comboLabel } from '../shell/keys.js';
 
 /** The edges a pointer can grab, and the cursor each one shows. */
 const EDGES = [
@@ -40,6 +41,7 @@ const EDGES = [
 ];
 
 export default function WindowFrame({
+  viewId,
   title,
   icon,
   bounds,
@@ -63,6 +65,7 @@ export default function WindowFrame({
   onDragPoint,
   onMinimize,
   onMaximize,
+  onMaximizeHover,
   onClose,
   children,
 }) {
@@ -176,6 +179,7 @@ export default function WindowFrame({
         ...travel,
       }}
       aria-labelledby={titleId}
+      data-view-id={viewId}
       onPointerDownCapture={() => onSelect?.()}
     >
       <header
@@ -233,6 +237,8 @@ export default function WindowFrame({
             type="button"
             className="window-control"
             aria-label={`Minimize ${title}`}
+            aria-keyshortcuts="Alt+ArrowDown"
+            title={`Minimize (${comboLabel('minimize')})`}
             onClick={onMinimize}
           >
             <Minus size={14} weight="bold" aria-hidden="true" />
@@ -243,6 +249,26 @@ export default function WindowFrame({
               className="window-control"
               aria-label={maximized ? `Restore ${title}` : `Maximize ${title}`}
               aria-pressed={maximized}
+              aria-keyshortcuts={maximized ? 'Alt+ArrowDown' : 'Alt+ArrowUp'}
+              // Resting here offers the layouts. Reported with where the button
+              // is, so the picker can open under it; null when the pointer leaves.
+              onPointerEnter={
+                onMaximizeHover
+                  ? (event) =>
+                      event.pointerType === 'mouse' &&
+                      onMaximizeHover(event.currentTarget.getBoundingClientRect())
+                  : undefined
+              }
+              onPointerLeave={onMaximizeHover ? () => onMaximizeHover(null) : undefined}
+              // Pressing it is choosing maximize, not waiting for layouts: a
+              // picker that opened a moment later would cover whatever the
+              // pointer goes to next.
+              onPointerDown={onMaximizeHover ? () => onMaximizeHover(null) : undefined}
+              title={
+                maximized
+                  ? `Restore (${comboLabel('minimize')})`
+                  : `Maximize (${comboLabel('maximize')})`
+              }
               onClick={onMaximize}
             >
               {/* One square to fill the desk with; two, offset, to put it back
@@ -259,6 +285,8 @@ export default function WindowFrame({
             type="button"
             className="window-control window-close"
             aria-label={`Close ${title}`}
+            aria-keyshortcuts="Alt+Shift+W"
+            title={`Close (${comboLabel('close-window')})`}
             onClick={onClose}
           >
             <X size={14} weight="bold" aria-hidden="true" />

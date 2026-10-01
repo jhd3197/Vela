@@ -1,9 +1,12 @@
-// One keyboard-shortcut owner for the whole shell. A single keydown listener
-// on `window` drives the OS-level shortcuts so no page has to grow its own
-// global handler. Plain-key shortcuts are ignored while an editable target has
-// focus (inputs, textareas, selects, contenteditable), and the listener cannot
-// see keys pressed inside an app's iframe because those events go to the
-// frame's own document, not this window.
+// One keyboard-shortcut owner for the shell's global shortcuts. A single
+// keydown listener on `window` drives them so no page has to grow its own
+// global handler. Which keys mean what is written down once, in
+// `shell/keys.js`, which the shortcut sheet reads too; the window shortcuts are
+// answered by the window host, which is where the windows are. Plain-key
+// shortcuts are ignored while an editable target has focus (inputs, textareas,
+// selects, contenteditable), and the listener cannot see keys pressed inside an
+// app's iframe because those events go to the frame's own document, not this
+// window.
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useApps } from './store.jsx';
@@ -11,6 +14,11 @@ import useOpenApp from './desktops/useOpenApp.js';
 import { coreById, isCoreId } from './navigation.js';
 import { useSettingsPopup } from './components/SettingsProvider.jsx';
 import { useAppsOverlay } from './desktops/AppsOverlay.jsx';
+import { useDesktops } from './desktops/DesktopsProvider.jsx';
+import { OPEN_SHORTCUTS, isEditable, matches } from './shell/keys.js';
+import { openDesktopOverview } from './desktops/DesktopOverview.jsx';
+import { useSecurity } from './components/SecurityProvider.jsx';
+import { api } from './api.js';
 
 const LAUNCHPAD = '/apps';
 
@@ -22,20 +30,6 @@ export function launchpadReturnTo() {
   return launchpadReturn || '/';
 }
 
-function isEditable(target) {
-  if (!target) return false;
-  const tag = target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  return Boolean(target.isContentEditable);
-}
-
-// Ctrl+Space (Cmd+Space on a Mac) toggles the Launchpad. Space is
-// `event.code === 'Space'`, stable across layouts.
-function isLaunchpadToggle(event) {
-  const withModifier = event.ctrlKey || event.metaKey;
-  return withModifier && !event.altKey && !event.shiftKey && event.code === 'Space';
-}
-
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,6 +37,9 @@ export function useGlobalShortcuts() {
   const openApp = useOpenApp();
   const { openSettings } = useSettingsPopup();
   const { toggleApps } = useAppsOverlay();
+  const { desktops, selectedId, select: selectDesktop } = useDesktops();
+  const { status: security, apply: applySecurity } = useSecurity();
+  const lockable = Boolean(security?.enrolled && !security?.locked);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -59,11 +56,22 @@ export function useGlobalShortcuts() {
       }
     };
 
+    // The next desktop, or the one before, wrapping. Choosing one shows its
+    // desk, the same as choosing it in the rail's desktop menu.
+    const stepDesktop = (direction) => {
+      if (desktops.length < 2) return;
+      const index = desktops.findIndex((desktop) => desktop.id === selectedId);
+      const next = desktops[(index + direction + desktops.length) % desktops.length];
+      if (!next) return;
+      selectDesktop(next.id);
+      if (location.pathname !== '/') navigate('/');
+    };
+
     const onKey = (event) => {
       if (event.defaultPrevented) return;
-      // The Launchpad toggle is a deliberate modifier chord, so it works even
-      // while a field has focus — including the Launchpad's own search box.
-      if (isLaunchpadToggle(event)) {
+      // The All apps toggle is a deliberate modifier chord, so it works even
+      // while a field has focus — including All apps' own search box.
+      if (matches(event, 'all-apps')) {
         event.preventDefault();
         // All apps opens over the current page, so the toggle does not
         // navigate; the recorded return is still what a `/apps` link uses.
@@ -84,16 +92,58 @@ export function useGlobalShortcuts() {
         setShortcutsOpen((open) => !open);
         return;
       }
-      // The remaining shortcuts are plain keys, so they yield to a field.
+      // The remaining shortcuts yield to a field: there, Alt+Shift+arrows
+      // select by word, and ? is a question mark.
       if (isEditable(event.target)) return;
-      if (event.key === '?') {
+      // Locking is what the app lock already does from Settings; this is the
+      // short way to it. Without a lock set up there is nothing to lock with.
+      if (matches(event, 'lock')) {
+        if (!lockable) return;
+        event.preventDefault();
+        api
+          .lockNow()
+          .then(applySecurity)
+          .catch(() => {});
+        return;
+      }
+      if (matches(event, 'desktop-overview')) {
+        event.preventDefault();
+        openDesktopOverview();
+        return;
+      }
+      if (matches(event, 'next-desktop') || matches(event, 'previous-desktop')) {
+        event.preventDefault();
+        stepDesktop(matches(event, 'next-desktop') ? 1 : -1);
+        return;
+      }
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault();
         setShortcutsOpen((open) => !open);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate, location.pathname, location.search, pinned, openApp, openSettings, toggleApps]);
+  }, [
+    navigate,
+    location.pathname,
+    location.search,
+    pinned,
+    openApp,
+    openSettings,
+    toggleApps,
+    desktops,
+    selectedId,
+    selectDesktop,
+    lockable,
+    applySecurity,
+  ]);
+
+  // Anything can ask for the sheet: the quick settings panel does.
+  useEffect(() => {
+    const open = () => setShortcutsOpen(true);
+    addEventListener(OPEN_SHORTCUTS, open);
+    return () => removeEventListener(OPEN_SHORTCUTS, open);
+  }, []);
 
   return { shortcutsOpen, closeShortcuts: () => setShortcutsOpen(false) };
 }

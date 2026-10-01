@@ -134,3 +134,20 @@ export function resolveFocus({
 
   return { ...VELA };
 }
+
+/** What the browser tab is called when nothing in particular has focus. */
+export const DOCUMENT_TITLE = 'Vela — Virtual Environment for Local Apps';
+
+/**
+ * The browser tab's title for what has focus.
+ *
+ * The tab strip is the one piece of chrome Vela does not draw, and it is what
+ * somebody scans when they have six tabs open. Naming the focused window there
+ * — "Notes · Vela" — is the same answer the top bar gives, in the place a
+ * browser looks for it. An empty desk has nothing to name, so the tab keeps the
+ * product's own title.
+ */
+export function documentTitleFor(focus) {
+  if (!focus?.name || focus.kind === 'desk' || focus.kind === 'vela') return DOCUMENT_TITLE;
+  return `${focus.name} · Vela`;
+}

@@ -192,6 +192,20 @@ try {
   await choose(page, 'Desktop 1');
   await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'choroni');
 
+  // Alt+Shift+arrows step between desktops, wrapping, and each one comes back
+  // dressed as it was.
+  await page.locator('body').focus();
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitForDesktop(page, 'Taxes');
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'canaima');
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitForDesktop(page, 'Desktop 1');
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await waitForDesktop(page, 'Taxes');
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await waitForDesktop(page, 'Desktop 1');
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'choroni');
+
   // --- it all survives a reload -------------------------------------------
   await page.reload();
   await page.locator('.desk-grid').waitFor();
@@ -394,7 +408,23 @@ try {
   await page.locator('.apps-overlay .launchpad').waitFor();
   const tile = page.locator('.launch-tile', { hasText: 'Widget Fixture' }).first();
   await tile.waitFor();
+  // Typing from the grid is still searching: the letter lands in the box and
+  // focus goes with it.
+  await tile.focus();
+  await page.keyboard.press('w');
+  const search = page.locator('.launchpad-hero input');
+  assert.equal(await search.inputValue(), 'w', 'a letter typed on a tile goes into search');
+  assert.ok(
+    await search.evaluate((input) => input === document.activeElement),
+    'and focus follows it',
+  );
   await tile.click({ button: 'right' });
+  // A letter in a menu moves to the next item that starts with it.
+  const firstItem = await page.evaluate(() => document.activeElement?.textContent?.trim());
+  await page.keyboard.press('o');
+  const typedTo = await page.evaluate(() => document.activeElement?.textContent?.trim());
+  assert.match(typedTo, /^Open/, 'type-ahead lands on an item starting with the letter');
+  assert.notEqual(typedTo, firstItem, 'and moves past the one already focused');
   // `Open` is the window; `Open full screen` is the page. The window is what
   // this suite is about.
   await page.getByRole('menuitem', { name: 'Open', exact: true }).click();
@@ -420,6 +450,224 @@ try {
   );
   // The rail names it, because the rail is the open-window navigator.
   await page.locator('.rail-views .rail-view-item').first().waitFor();
+  // So does the browser tab.
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+
+  // Clicking inside an app brings its window forward, although the click
+  // itself only ever reaches the app's own document.
+  await page.locator('.rail-foot').getByRole('button', { name: 'Settings' }).click();
+  const settingsFrame = page.locator('.window-frame', { has: page.locator('.settings-window') });
+  await settingsFrame.waitFor();
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.waitForFunction(() => document.title === 'Settings · Vela');
+  // Settings opens over the app; move it aside by its title bar so part of the
+  // app is uncovered.
+  const bar = await settingsFrame.locator('.window-title').boundingBox();
+  await page.mouse.move(bar.x + 20, bar.y + bar.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bar.x + 520, bar.y + bar.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+  // By what it holds, not by place: the two frames are in id order.
+  const appFrame = page.locator('.window-frame', { has: page.locator('iframe') });
+  const appBox = await appFrame.locator('.window-body').boundingBox();
+  await page.mouse.click(appBox.x + 40, appBox.y + appBox.height / 2);
+  await page.waitForFunction(
+    () => !document.querySelector('.window-frame.is-selected .settings-window'),
+    null,
+    { timeout: 5000 },
+  );
+  assert.ok(
+    await appFrame.evaluate((node) => node.classList.contains('is-selected')),
+    'the app window is the selected one after a click inside it',
+  );
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+  await settingsFrame.getByRole('button', { name: /^Close / }).click();
+  await settingsFrame.waitFor({ state: 'detached' });
+
+  // --- the keyboard ---------------------------------------------------------
+  // Window shortcuts act on the selected window while focus is on Vela itself,
+  // so the title bar is clicked first to take focus out of the app.
+  await window.locator('.window-title').click();
+  await page.keyboard.press('Alt+ArrowUp');
+  await page.locator('.window-frame.is-placed').waitFor();
+  await page.keyboard.press('Alt+ArrowDown');
+  await page.waitForFunction(() => !document.querySelector('.window-frame.is-placed'));
+  assert.equal(await page.locator('.window-frame').count(), 1, 'Alt+↓ restored, not minimized');
+
+  // The window menu lists the same controls with their keys beside them.
+  await window.locator('.window-title').click({ button: 'right' });
+  const maximizeItem = page.getByRole('menuitem', { name: /^Maximize/ });
+  await maximizeItem.waitFor();
+  assert.match(await maximizeItem.innerText(), /Alt\+↑/);
+  await page.keyboard.press('Escape');
+
+  // A second window, then the switcher: one tap of Alt+` goes back to the
+  // window you were in before, and letting go of Alt is the choice.
+  await page.locator('.rail-foot').getByRole('button', { name: 'Settings' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.locator('.window-frame.is-selected .window-title').click();
+  await page.keyboard.down('Alt');
+  await page.keyboard.press('Backquote');
+  const switcher = page.locator('.window-switcher');
+  await switcher.waitFor();
+  assert.equal(await switcher.getByRole('option').count(), 2);
+  assert.match(
+    await switcher.locator('[aria-selected="true"]').innerText(),
+    /Widget Fixture/,
+    'the switcher starts on the window behind the front one',
+  );
+  await page.keyboard.up('Alt');
+  await switcher.waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    () => !document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+
+  // Show the desktop puts both away, and the same key brings both back.
+  await page.locator('.window-frame.is-selected .window-title').click();
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await page.locator('.window-frame').first().waitFor({ state: 'detached' });
+  assert.equal(
+    await page.locator('.rail-views .rail-view-item[data-state="minimized"]').count(),
+    2,
+    'both windows are minimized, not closed',
+  );
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await page.waitForFunction(() => document.querySelectorAll('.window-frame').length === 2);
+
+  // Close by key: the switcher picks Settings, Alt+Shift+W closes it.
+  await page
+    .locator('.window-frame', { has: page.locator('iframe') })
+    .locator('.window-title')
+    .click();
+  await page.keyboard.press('Alt+Backquote');
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.keyboard.press('Alt+Shift+KeyW');
+  await page.waitForFunction(() => document.querySelectorAll('.window-frame').length === 1);
+
+  // The sheet lists what was just used, in its own group.
+  await page.keyboard.press('Shift+Slash');
+  const shortcutSheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await shortcutSheet.waitFor();
+  assert.ok(await shortcutSheet.getByRole('region', { name: 'Windows' }).isVisible());
+  assert.match(await shortcutSheet.innerText(), /Switch windows/);
+  await page.keyboard.press('Escape');
+  await shortcutSheet.waitFor({ state: 'hidden' });
+
+  // --- layouts ------------------------------------------------------------
+  const host = await page.locator('.view-host').boundingBox();
+  const appWindow = page.locator('.window-frame').first();
+  const near = (a, b, slack = 12) => Math.abs(a - b) <= slack;
+
+  // The rail says what an open window is doing, not just its name.
+  assert.equal(
+    await page.locator('.rail-views .rail-view-item .rail-tip-state').first().innerText(),
+    'In front',
+  );
+
+  // Alt+Z opens the picker with focus on a cell; Escape puts it away.
+  await appWindow.locator('.window-title').click();
+  await page.keyboard.press('Alt+KeyZ');
+  const picker = page.getByRole('dialog', { name: /^Snap layouts for / });
+  await picker.waitFor();
+  assert.ok(
+    await picker.evaluate((node) => node.contains(document.activeElement)),
+    'the picker opened from a key takes focus',
+  );
+  await page.keyboard.press('Escape');
+  await picker.waitFor({ state: 'detached' });
+
+  // From the window menu: a quarter is a floating window in that corner.
+  await appWindow.locator('.window-title').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: /^Snap layouts/ }).click();
+  await picker.getByRole('button', { name: 'Top left quarter' }).first().click();
+  await picker.waitFor({ state: 'detached' });
+  await page.waitForFunction((half) => {
+    const box = document.querySelector('.window-frame')?.getBoundingClientRect();
+    return box && Math.abs(box.width - half) < 12;
+  }, host.width / 2);
+  let box = await appWindow.boundingBox();
+  assert.ok(near(box.x, host.x) && near(box.y, host.y), 'the quarter is in the top-left corner');
+  assert.ok(near(box.height, host.height / 2), 'and half as tall as the desk');
+
+  // Resting on maximize offers the same picker, without taking focus.
+  await appWindow.getByRole('button', { name: /^Maximize / }).hover();
+  await picker.waitFor();
+  await picker.getByRole('button', { name: 'Right two thirds' }).click();
+  await page.waitForFunction(
+    (x) => {
+      const box = document.querySelector('.window-frame')?.getBoundingClientRect();
+      return box && Math.abs(box.x - x) < 12;
+    },
+    host.x + host.width / 3,
+  );
+
+  // Dragging the title bar to the top of the desk maximizes.
+  box = await appWindow.locator('.window-title').boundingBox();
+  await page.mouse.move(box.x + 30, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(host.x + host.width / 2, host.y + 20, { steps: 6 });
+  await page.mouse.move(host.x + host.width / 2, host.y - 6, { steps: 4 });
+  await page.locator('.snap-preview').waitFor();
+  await page.mouse.up();
+  await page.locator('.window-frame.is-placed').waitFor();
+  await page.keyboard.press('Alt+ArrowDown');
+  await page.waitForFunction(() => !document.querySelector('.window-frame.is-placed'));
+
+  // --- show desktop from the desk menu ------------------------------------
+  await openDeskMenu(page);
+  await page.getByRole('menuitem', { name: /^Show desktop/ }).click();
+  await page.locator('.window-frame').waitFor({ state: 'detached' });
+  await openDeskMenu(page);
+  await page.getByRole('menuitem', { name: /^Bring windows back/ }).click();
+  await page.locator('.window-frame').waitFor();
+
+  // --- every desktop at once ----------------------------------------------
+  await appWindow.locator('.window-title').click();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  const overview = page.getByRole('dialog', { name: 'Desktops' });
+  await overview.waitFor();
+  const cards = overview.locator('.desktop-card');
+  assert.ok((await cards.count()) >= 1);
+  await page.waitForFunction(() =>
+    /window/.test(
+      document.querySelector('.desktop-card.is-current .desktop-card-meta')?.textContent,
+    ),
+  );
+  assert.match(await overview.locator('.desktop-card.is-current').innerText(), /1 window/);
+  await page.keyboard.press('Escape');
+  await overview.waitFor({ state: 'hidden' });
+
+  // --- quick settings -----------------------------------------------------
+  const baseTheme = await page.evaluate(() => document.documentElement.dataset.theme || 'light');
+  const flipped = baseTheme === 'dark' ? 'Light' : 'Dark';
+  await page.getByRole('button', { name: 'Quick settings' }).click();
+  const quick = page.getByRole('dialog', { name: 'Quick settings' });
+  await quick.waitFor();
+  await quick.getByRole('button', { name: flipped, exact: true }).click();
+  await page.waitForFunction(
+    (want) => document.documentElement.dataset.theme === want,
+    flipped.toLowerCase(),
+  );
+  await quick
+    .getByRole('button', { name: baseTheme === 'dark' ? 'Dark' : 'Light', exact: true })
+    .click();
+  await page.waitForFunction(
+    (want) => (document.documentElement.dataset.theme || 'light') === want,
+    baseTheme,
+  );
+  assert.ok(
+    await quick.getByRole('button', { name: /Show desktop/ }).isEnabled(),
+    'show desktop is offered while a window is open',
+  );
+  await page.keyboard.press('Escape');
+  await quick.waitFor({ state: 'detached' });
 
   // Minimize: the window goes, the rail entry stays, and nothing ended.
   await window.getByRole('button', { name: /^Minimize / }).click();
@@ -487,6 +735,10 @@ try {
     'PASS: the migrated desk as Desktop 1, a second workspace with its own board and wallpaper, ' +
       'per-device selection, a direct link and an unknown one, keyboard menu and focus return, ' +
       'a rename that lost its race, deletion leaving apps installed, All apps over the desk, ' +
+      'type-to-search and menu type-ahead, the tab title, a click inside an app bringing its ' +
+      'window forward, window keys, the switcher, show desktop and the shortcut sheet, ' +
+      'snap layouts from a key, the menu and a hover, a drag to the top, the desktop ' +
+      'overview, quick settings, ' +
       'and a window minimized, restored from the rail, maximized and closed',
   );
   await context.close();

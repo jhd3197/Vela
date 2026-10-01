@@ -8,9 +8,10 @@
 // change the server, so they are confirmed and they say what they will do.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check, Monitor, Pencil, Plus, Robot, Trash } from '@phosphor-icons/react';
+import { Check, Monitor, Pencil, Plus, Robot, SquaresFour, Trash } from '@phosphor-icons/react';
 import { useDesktops } from './DesktopsProvider.jsx';
 import useAttention, { attentionWord } from './useAttention.js';
+import { openDesktopOverview } from './DesktopOverview.jsx';
 import Button from '../components/ui/Button.jsx';
 import Dialog from '../components/ui/Dialog.jsx';
 import { useConfirm } from '../hooks/useConfirm.js';
@@ -106,6 +107,10 @@ export default function DesktopSwitcher({ onNavigate }) {
           onClose={close}
           onAction={async (kind, desktop) => {
             setOpen(false);
+            if (kind === 'overview') {
+              openDesktopOverview();
+              return;
+            }
             if (kind !== 'delete') {
               setDialog({ kind, desktop });
               return;
@@ -260,6 +265,12 @@ function DesktopMenu({
         <Plus size={14} aria-hidden="true" />
         New desktop
       </button>
+      {desktops.length > 1 ? (
+        <button type="button" className="desktop-menu-new" onClick={() => onAction('overview')}>
+          <SquaresFour size={14} aria-hidden="true" />
+          All desktops
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -43,6 +43,7 @@ import {
 import AppIcon from '../components/AppIcon.jsx';
 import GlobalSearch from '../components/GlobalSearch.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
+import QuickSettings from './QuickSettings.jsx';
 import ContextMenu from '../components/ui/ContextMenu.jsx';
 import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import { coreById, dashboardPages } from '../navigation.js';
@@ -259,6 +260,7 @@ export default function TopBar() {
           </div>
         ) : null}
         <GlobalSearch compact centered />
+        <QuickSettings />
         <NotificationBell />
         <time className="topbar-clock" dateTime={now.toISOString()}>
           {now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}

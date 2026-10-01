@@ -1534,11 +1534,20 @@ base, workspace, rail, top bar, window title bar, attached panel, flyout, menu.
   apps and conversations are one gesture away from the chat. A swipe up from the
   desk's bottom edge opens the Launchpad; a swipe down from the top closes it;
   press-and-hold raises the same context menus a right-click gives.
-- **Shortcuts**: one window keydown listener owns the OS-level keys —
-  `Ctrl+K`/`⌘K` search, `Ctrl+Space`/`⌘Space` toggle the Launchpad, `Ctrl+1`..
-  `Ctrl+9` open the pinned apps in rail order, `Esc` backs out, and `?` or
-  `Ctrl+/` opens the shortcut sheet. Modifier chords fire even in a field; plain
-  keys yield to editable targets and never reach an app's iframe.
+- **Shortcuts**: `web/src/shell/keys.js` is the one list of key combinations;
+  the listeners, the shortcut sheet and the hints beside menu items all read
+  it. The shell's listener owns `Ctrl+K`/`⌘K` search, `Ctrl+Space`/`⌘Space`
+  to toggle the Launchpad, `Ctrl+1`..`Ctrl+9` for the pinned apps in rail
+  order, `Alt+Shift+←/→` to step between desktops, `Esc`, and `?` or `Ctrl+/`
+  for the sheet. The window host owns the window keys, which act on the
+  selected window: `` Alt+` `` switcher (Alt held; release chooses), `Alt+↑/↓`
+  maximize and restore-or-minimize, `Alt+←/→` halves, `Alt+Z` the layout
+  picker, `Alt+Shift+W` close and `Alt+Shift+D` show desktop (a toggle kept by
+  `useDesktopViews`, which remembers what it put away per desktop).
+  `Alt+Shift+↑` opens the desktop overview and `Alt+Shift+L` locks through the
+  existing app lock when one is enrolled. Letters match `event.code`, so Option on a Mac
+  works. Modifier chords fire even in a field; plain keys and the Alt
+  shortcuts yield to editable targets. None of them reach an app's iframe.
 - **Workspace**: an optional context panel, a contextual header and the content
   surface. At phone widths, where there is no top bar, the header carries the
   ⌘K search palette (apps, settings entries and same-origin mini-app data) and

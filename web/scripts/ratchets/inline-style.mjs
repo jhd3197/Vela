@@ -29,6 +29,9 @@ export const GEOMETRY_REASONS = {
   'web/src/components/AppIcon.jsx': 'badge text scaled to the icon size it is drawn on',
   'web/src/components/UpdatesSection.jsx': 'the update download bar, filled from live progress',
   'web/src/pages/Launchpad.jsx': 'tile artwork at the icon size the desk is set to',
+  'web/src/desktops/SnapLayoutPicker.jsx':
+    'picker position from the measured button, and each cell as its fraction of the screen',
+  'web/src/shell/QuickSettings.jsx': 'panel position under the measured top-bar button',
 };
 
 export default {

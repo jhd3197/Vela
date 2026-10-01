@@ -241,6 +241,7 @@ try {
   await settings.getByRole('button', { name: 'Lock now' }).click();
   await lock.waitFor();
   await shot('lock-pin.png');
+  assert.ok(await lock.locator('.lock-time time').isVisible(), 'the lock screen tells the time');
   // The rail behind the lock is inert; the engine has already stopped serving it.
   assert.equal(
     await page.locator('.rail').getByRole('button', { name: 'Settings' }).isEnabled(),
@@ -254,6 +255,27 @@ try {
   await lock.waitFor({ state: 'detached' });
   // Unlocking returns to the workspace that was already open.
   await settings.getByRole('heading', { name: 'App lock', level: 2 }).waitFor();
+
+  // ---- The short ways to lock: a key, and quick settings. ----
+  await page.locator('body').focus();
+  await page.keyboard.press('Alt+Shift+KeyL');
+  await lock.waitFor();
+  await typePin('013759');
+  await lock.waitFor({ state: 'detached' });
+  // Quick settings lives in the top bar, which a phone does not draw.
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await settings.waitFor({ state: 'detached' });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole('button', { name: 'Quick settings' }).click();
+  await page
+    .getByRole('dialog', { name: 'Quick settings' })
+    .getByRole('button', { name: 'Lock' })
+    .click();
+  await lock.waitFor();
+  await typePin('013759');
+  await lock.waitFor({ state: 'detached' });
+  await page.setViewportSize({ width: 390, height: 780 });
+  await openSecurity();
 
   // ---- Five wrong attempts fall back to the Vela password. ----
   await settings.getByRole('button', { name: 'Lock now' }).click();
@@ -340,7 +362,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: app-lock setup with password verification and confirmation, Back through the setup steps, lock now, wrong attempts and the password fallback, pattern enrollment by drag and by sequential dots, a locked engine answer restoring the lock, and a short landscape layout',
+    'PASS: app-lock setup with password verification and confirmation, Back through the setup steps, lock now (from Settings, Alt+Shift+L and quick settings, with the time shown), wrong attempts and the password fallback, pattern enrollment by drag and by sequential dots, a locked engine answer restoring the lock, and a short landscape layout',
   );
 } finally {
   await browser.close();

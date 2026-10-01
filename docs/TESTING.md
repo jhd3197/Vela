@@ -15,9 +15,19 @@ The same command runs in CI: lint, formatting verification, the ratchet guards,
 Node tests, Python tests, then the dashboard build. It stops at the first
 failure. Use `npm --prefix web run format` to fix formatting, or run individual
 checks while iterating: `npm --prefix web run lint`, `node --test
-tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
-tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
-step.
+tests/bridge.test.mjs tests/resource.test.mjs`, `python
+scripts/run-python-tests.py`, and `npm --prefix web run build`. Browser
+acceptance remains a separate step.
+
+The Python suite runs through `scripts/run-python-tests.py`: the same tests as
+`python -m unittest discover -s tests`, spread over worker processes. Serially
+it takes over twenty minutes, mostly waiting for managed-app services to stop;
+in parallel it takes a few. It uses half the CPUs (at most 12) by default; set
+`--workers N` or `VELA_TEST_WORKERS` to change that, and pass file patterns to
+run part of it, for example `python scripts/run-python-tests.py
+"test_managed*.py"`. It remembers how long each test took in `.local/` and starts
+the slowest first. `unittest discover` still works and runs the same suite
+serially.
 
 ### Managed web apps
 
@@ -148,6 +158,16 @@ board and wallpaper, the selection staying on the device that made it, a direct
 `/desktops/<id>` link and one that names nothing, the menu from the keyboard
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
+It also drives the shell from the keyboard: typing on a tile goes to search,
+menu type-ahead, stepping between desktops, maximize and restore by key, the
+window switcher, show desktop, close, and the grouped shortcut sheet; and it
+checks that the tab title follows the focused window and that a click inside an
+app brings its window forward. Snap layouts are opened by key, from the window
+menu and by resting on maximize; a quarter and two thirds land where they
+should; a title-bar drag to the top maximizes; Show desktop and Bring windows
+back work from the desk menu; the overview counts windows; and quick settings
+switches light and dark. `test-rail.mjs` also drags a pin to a new place, and
+`test-security.mjs` locks with Alt+Shift+L and from quick settings.
 
 `test_agent_conversion.py` is the one that means something: a listening Vela on
 a disposable data directory, an installed app, a window open on the desk, and a

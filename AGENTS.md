@@ -6,7 +6,7 @@ on that experience. Python/Node setup belongs in `docs/DEVELOPMENT.md`.
 
 ## Repository boundaries
 
-Work on `dev` or a feature branch targeting `dev`. A reviewed `dev` → `main` PR
+Work directly on `dev`; do not create feature branches. A reviewed `dev` → `main` PR
 is the release boundary: pushes to `main` automatically build and publish server
 downloads. Do not push routine work straight to `main` or manually bump patch
 versions for the automation. Keep changelog entries under Unreleased; the
@@ -62,7 +62,7 @@ Use disposable data for tests; do not modify a user's installed apps or data
 to verify a change. Run checks appropriate to the affected behavior:
 
 ```bash
-python -m unittest discover -s tests
+python scripts/run-python-tests.py   # same suite as unittest discover, in parallel
 node --test tests/bridge.test.mjs
 npm --prefix web run build
 ```

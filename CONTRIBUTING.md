@@ -25,7 +25,7 @@ personal app data from logs. For vulnerabilities, use [SECURITY.md](SECURITY.md)
 Core checks, from the hub root:
 
 ```bash
-python -m unittest discover -s tests
+python scripts/run-python-tests.py
 node --test tests/bridge.test.mjs
 npm --prefix web run build
 ```

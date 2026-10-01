@@ -408,6 +408,23 @@ export default function Launchpad({ onClose }) {
       if (item) openMenuAt(item, box.left + box.width / 2, box.bottom, tile);
       return;
     }
+    // Typing from the grid is still looking for an app. The letter goes into
+    // the search box and focus goes with it, so nobody has to tab back up.
+    if (
+      event.key.length === 1 &&
+      event.key !== ' ' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      const search = document.querySelector('.launchpad-hero input');
+      if (search) {
+        event.preventDefault();
+        setQuery((current) => `${current}${event.key}`);
+        search.focus({ preventScroll: true });
+        return;
+      }
+    }
     // Arrow keys roam the grid. Left/Right step through the flat order;
     // Up/Down find the geometrically nearest tile in that direction, which is
     // correct however many columns the responsive grid settled on.

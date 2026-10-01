@@ -21,6 +21,33 @@ until the release workflow prepares a tested server version.
   See the `http` provider in
   [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
 
+- **Keyboard shortcuts for windows and desktops.** **Alt+\`** switches between
+  windows: keep Alt held to go further, and let go to choose. **Alt+↑**
+  maximizes, **Alt+↓** restores or minimizes, **Alt+←** and **Alt+→** move a
+  window to half the screen, **Alt+Shift+W** closes it, and **Alt+Shift+D**
+  shows the desktop and then brings the same windows back.
+  **Alt+Shift+←** and **Alt+Shift+→** step between desktops. On a Mac, Alt is
+  Option. The title bar's menu now also has Minimize, Maximize and Close, with
+  their keys beside them, and **?** shows every shortcut grouped by what it
+  acts on. Keys typed inside an app still go to that app, so click a window's
+  title bar first.
+
+- **Snap layouts, show desktop, all desktops and quick settings.** Rest the
+  pointer on a window's maximize button, press **Alt+Z**, or use the window
+  menu to pick a layout: halves, thirds, two thirds and a third, a half and
+  two quarters, or four quarters. Dragging a window to the top of the desk
+  maximizes it, and dragging it into a corner fills that quarter.
+  Right-click the wallpaper for **Show desktop** and **Bring windows back**.
+  **All desktops** (**Alt+Shift+↑**, or the rail's desktop menu) shows every
+  desktop with its wallpaper, its open windows and whether it needs you. The
+  new quick settings button beside the bell switches light and dark, changes
+  this desktop's wallpaper, dimming and labels, and reaches these from one
+  place. With an app lock set up, **Alt+Shift+L** or quick settings locks
+  Vela, and the lock screen now shows the time. Pinned apps can be dragged
+  into a new order on the rail, or dropped there from All apps, and rail
+  labels wait a moment before appearing, then say whether an open window is
+  in front, minimized, maximized or in one half.
+
 ### Changed
 
 - **The top bar sits beside the rail.** The rail now runs the full height of
@@ -50,6 +77,21 @@ until the release workflow prepares a tested server version.
   place instead of a separate drawer; **Personalise** in the desk menu opens
   it there. The **Ask on this board** switch is gone: add or remove the Ask
   widget with **Add widget** or the widget's own menu, like any other widget.
+
+- **Windows and menus respond more like a desktop.** Clicking inside an app
+  now brings its window to the front, and the browser tab is named after the
+  window you are using, such as "Notes · Vela". Windows behind the active one
+  show a dimmer title. In All apps, typing while a tile has focus goes
+  straight into the search box. In any menu, typing a letter jumps to the
+  next item that starts with it, and pressing the right mouse button, moving
+  onto an item and releasing chooses it. Menus and All apps open with a short
+  animation (none with reduced motion) and close at once.
+
+- **The Python tests run in parallel.** `npm --prefix web run check` now runs
+  the Python suite through `scripts/run-python-tests.py`, which spreads the same
+  tests over worker processes. A full run drops from over twenty minutes to
+  about three on an 8-core machine or larger. `python -m unittest discover -s
+  tests` still runs the same suite serially.
 
 ### Fixed
 

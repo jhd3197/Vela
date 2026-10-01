@@ -23,9 +23,16 @@ import SplitDivider from './SplitDivider.jsx';
 import WindowFrame from './WindowFrame.jsx';
 import GenieOverlay from './motion/GenieOverlay.jsx';
 import useWindowMotion from './motion/useWindowMotion.js';
+import useFrameFocus from './useFrameFocus.js';
+import WindowSwitcher from './WindowSwitcher.jsx';
+import { useAppsOverlay } from './apps-overlay-context.js';
+import { chosenWindow, openSwitcher, stepSwitcher, verticalCommand } from './window-commands.js';
+import SnapLayoutPicker from './SnapLayoutPicker.jsx';
+import { cellBounds, cellById, snapZone, zoneBounds } from './layouts.js';
+import { comboLabel, isEditable, matches } from '../shell/keys.js';
 import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
-import { panes, previewBounds, snapTargetFor } from './snap.js';
+import { panes } from './snap.js';
 import {
   SPLIT_MIN_WIDTH,
   placeView,
@@ -81,12 +88,12 @@ function labelFor(view, apps) {
 }
 
 /** The mark a window carries in its title bar: the app's, or Vela's own tool's. */
-function iconFor(view, apps, name) {
+function iconFor(view, apps, name, size = 20) {
   if (view.kind === 'app') {
     return (
       <AppIcon
         app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
-        size={20}
+        size={size}
       />
     );
   }
@@ -95,7 +102,7 @@ function iconFor(view, apps, name) {
   return (
     <AppIcon
       app={{ id: core.id, name: core.label, glyph: core.icon, color: core.color }}
-      size={20}
+      size={size}
     />
   );
 }
@@ -156,21 +163,31 @@ export default function DesktopViewHost({ views, desktop }) {
     [views],
   );
 
-  // Where the pointer is during a title-bar drag, turned into an offer of a
-  // half. Dropping while an offer is showing takes it; dropping anywhere else
-  // leaves the window exactly where the drag put it.
+  // Where the pointer is during a title-bar drag, turned into an offer: a half
+  // at a side edge, the whole desk at the top, a quarter in a corner. Dropping
+  // while an offer is showing takes it; dropping anywhere else leaves the
+  // window exactly where the drag put it.
   const onDragPoint = useCallback(
     (viewId) =>
       (point, options = {}) => {
         if (point) {
           const view = views.ordered.find((entry) => entry.id === viewId);
-          const snappable = !view || windowOptionsFor(view, apps).resizable !== false;
-          setSnapping({ id: viewId, side: snappable ? snapTargetFor(point, area) : null });
+          const allowed = view ? windowOptionsFor(view, apps) : DEFAULT_WINDOW;
+          let zone = allowed.resizable === false ? null : snapZone(point, area);
+          // The top means maximize, and an app that cannot be maximized is not
+          // offered it.
+          if (zone === 'top' && allowed.maximizable === false) zone = null;
+          setSnapping({ id: viewId, side: zone });
           return;
         }
         const offered = snapping?.id === viewId ? snapping.side : null;
         setSnapping(null);
-        if (offered && options.drop) views.snap(viewId, offered);
+        if (!offered || !options.drop) return;
+        const view = views.ordered.find((entry) => entry.id === viewId);
+        if (offered === 'left' || offered === 'right') views.snap(viewId, offered);
+        else if (offered === 'top') {
+          if (view) views.maximize(view, { maximizable: true });
+        } else views.place(viewId, cellBounds(cellById(offered), area));
       },
     [apps, area, snapping, views],
   );
@@ -227,6 +244,229 @@ export default function DesktopViewHost({ views, desktop }) {
     current.views.clearWindowMotion(asked.nonce);
   }, [asked, area.width]);
 
+  // Bringing a window forward, from its chrome or from inside the app it runs.
+  const focusView = useCallback(
+    (viewId) => {
+      if (views.layout.selectedView !== viewId) views.select(viewId);
+      views.patchView(viewId, { raise: true });
+    },
+    [views],
+  );
+  useFrameFocus(host, focusView);
+
+  // ---- the keyboard
+  //
+  // Window shortcuts act on the selected window, the one the top bar names.
+  // They are answered here because this is where the work area, the app's
+  // window options and the unsaved-work question all are; `shell/keys.js` says
+  // which keys they are.
+  const { appsOpen } = useAppsOverlay() || {};
+  // The switcher while Alt is held: which windows, and which one is chosen.
+  const [switcher, setSwitcher] = useState(null);
+  // The layout picker, for one window at a time: where it opens, and whether
+  // it came from a key (so it takes focus) or from resting on maximize.
+  const [picker, setPicker] = useState(null);
+  const pickerTimers = useRef({ open: 0, close: 0 });
+  const pickerNow = useRef(null);
+  pickerNow.current = picker;
+
+  const bringBack = useCallback(
+    (viewId) => {
+      const index = views.ordered.findIndex((view) => view.id === viewId);
+      const view = views.ordered[index];
+      if (!view) return;
+      if (view.window?.minimized) {
+        putAway(view, index);
+        views.select(viewId);
+      } else {
+        focusView(viewId);
+      }
+    },
+    [focusView, putAway, views],
+  );
+
+  // ---- the layout picker
+  //
+  // Resting on maximize opens it after a moment, so passing over the button
+  // on the way somewhere else does not; leaving both the button and the picker
+  // closes it a moment later, so the pointer can cross the gap between them.
+  const clearPickerTimers = () => {
+    clearTimeout(pickerTimers.current.open);
+    clearTimeout(pickerTimers.current.close);
+  };
+  useEffect(() => clearPickerTimers, []);
+
+  const openPicker = useCallback((viewId, anchor, { keyboard: fromKey = false } = {}) => {
+    clearPickerTimers();
+    setPicker({ viewId, x: anchor.x, y: anchor.y, focus: fromKey });
+  }, []);
+
+  const closePicker = useCallback((options = {}) => {
+    clearPickerTimers();
+    const current = pickerNow.current;
+    setPicker(null);
+    if (current && options.restoreFocus) {
+      // Back to the window's own bar, so focus is not left on nothing.
+      const frame = host.current?.querySelector(`[data-view-id="${current.viewId}"]`);
+      const back =
+        frame?.querySelector('.window-control[aria-pressed]') ||
+        frame?.querySelector('.window-controls button');
+      back?.focus({ preventScroll: true });
+    }
+  }, []);
+
+  const hoverMaximize = (viewId) => (rect) => {
+    clearPickerTimers();
+    if (!rect) {
+      pickerTimers.current.close = setTimeout(() => setPicker(null), 300);
+      return;
+    }
+    if (picker?.viewId === viewId) return;
+    pickerTimers.current.open = setTimeout(
+      () => openPicker(viewId, { x: rect.left + rect.width / 2, y: rect.bottom + 6 }),
+      450,
+    );
+  };
+
+  const pickCell = useCallback(
+    (viewId, cell) => {
+      setPicker(null);
+      if (cell.pane) views.snap(viewId, cell.pane);
+      else views.place(viewId, cellBounds(cell, area));
+    },
+    [area, views],
+  );
+
+  /** The picker for a window, opened at its title bar, for a key or a menu. */
+  const pickerAtBar = useCallback(
+    (viewId) => {
+      const frame = host.current?.querySelector(`[data-view-id="${viewId}"]`);
+      const button =
+        frame?.querySelector('.window-control[aria-pressed]') ||
+        frame?.querySelector('.window-bar');
+      const box = button?.getBoundingClientRect();
+      if (box)
+        openPicker(viewId, { x: box.left + box.width / 2, y: box.bottom + 6 }, { keyboard: true });
+    },
+    [openPicker],
+  );
+
+  // Read at the moment a key is pressed, so the listeners below are attached
+  // once rather than on every render.
+  const keyboard = useRef(null);
+  keyboard.current = {
+    views,
+    apps,
+    area,
+    appsOpen,
+    switcher,
+    bringBack,
+    putAway,
+    requestClose: null,
+    pickerAtBar,
+  };
+
+  useEffect(() => {
+    const selectedView = () => {
+      const { views: current } = keyboard.current;
+      const id = current.layout.selectedView;
+      const index = current.ordered.findIndex((view) => view.id === id);
+      const view = current.ordered[index];
+      return view && !view.window?.minimized ? { view, index } : null;
+    };
+
+    const onKeyDown = (event) => {
+      const now = keyboard.current;
+      if (event.defaultPrevented || now.appsOpen || !now.area.width) return;
+      // The switcher owns these keys while it is up.
+      if (now.switcher) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setSwitcher(null);
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const chosen = chosenWindow(now.switcher);
+          setSwitcher(null);
+          if (chosen) now.bringBack(chosen);
+          return;
+        }
+      }
+      if (isEditable(event.target)) return;
+      // A dialog is in front of the desk; its keys are its own.
+      if (document.querySelector('dialog[open]')) return;
+
+      if (matches(event, 'switch-window') || matches(event, 'switch-window-back')) {
+        event.preventDefault();
+        const direction = matches(event, 'switch-window') ? 1 : -1;
+        setSwitcher((current) =>
+          current
+            ? stepSwitcher(current, direction)
+            : openSwitcher(now.views.ordered, direction, now.views.layout.selectedView),
+        );
+        return;
+      }
+      if (matches(event, 'show-desktop')) {
+        event.preventDefault();
+        now.views.showDesktop();
+        return;
+      }
+
+      const target = selectedView();
+      if (!target) return;
+      const { view, index } = target;
+      const options = windowOptionsFor(view, now.apps);
+      const maximizable = options.maximizable !== false;
+      if (matches(event, 'maximize') || matches(event, 'minimize')) {
+        event.preventDefault();
+        const direction = matches(event, 'maximize') ? 1 : -1;
+        const command = verticalCommand(now.views.layout, view.id, direction, { maximizable });
+        if (command === 'minimize') now.putAway(view, index);
+        else if (command) now.views.maximize(view, { maximizable });
+        return;
+      }
+      if (matches(event, 'snap-left') || matches(event, 'snap-right')) {
+        event.preventDefault();
+        if (options.resizable === false) return;
+        now.views.snap(view.id, matches(event, 'snap-left') ? 'left' : 'right');
+        return;
+      }
+      if (matches(event, 'snap-layouts')) {
+        event.preventDefault();
+        if (options.resizable !== false) now.pickerAtBar(view.id);
+        return;
+      }
+      if (matches(event, 'close-window')) {
+        event.preventDefault();
+        now.requestClose?.(view);
+      }
+    };
+
+    // Letting go of Alt is the choice, the way it is with Alt+Tab.
+    const onKeyUp = (event) => {
+      if (event.key !== 'Alt') return;
+      const current = keyboard.current.switcher;
+      if (!current) return;
+      setSwitcher(null);
+      const chosen = chosenWindow(current);
+      if (chosen) keyboard.current.bringBack(chosen);
+    };
+
+    // Leaving the page with Alt still down (Alt+Tab to another program) never
+    // delivers the keyup, so a switcher left open is put away instead.
+    const onBlur = () => setSwitcher(null);
+
+    addEventListener('keydown', onKeyDown);
+    addEventListener('keyup', onKeyUp);
+    addEventListener('blur', onBlur);
+    return () => {
+      removeEventListener('keydown', onKeyDown);
+      removeEventListener('keyup', onKeyUp);
+      removeEventListener('blur', onBlur);
+    };
+  }, []);
+
   const requestClose = useCallback(
     async (view) => {
       // Close is the only one of the three controls that ends anything, so it
@@ -245,6 +485,8 @@ export default function DesktopViewHost({ views, desktop }) {
     },
     [apps, confirm, dirty, views],
   );
+
+  keyboard.current.requestClose = requestClose;
 
   if (!views.loaded || !views.ordered.length) return null;
 
@@ -287,31 +529,54 @@ export default function DesktopViewHost({ views, desktop }) {
     .filter((view) => !view.window?.minimized)
     .map((view) => ({ id: view.id, label: labelFor(view, apps) }));
 
-  const menuFor = (view) => {
+  const menuFor = (view, depth) => {
+    const options = windowOptionsFor(view, apps);
+    const maximized = layout.arrangement === 'maximized' && layout.maximizedView === view.id;
+    // The three controls again, with the keys that do the same: a menu is where
+    // a keyboard shortcut gets learnt.
+    const items = [
+      {
+        label: 'Minimize',
+        shortcut: comboLabel('minimize'),
+        onSelect: () => putAway(view, depth),
+      },
+    ];
+    if (options.maximizable !== false) {
+      items.push({
+        label: maximized ? 'Restore' : 'Maximize',
+        shortcut: comboLabel(maximized ? 'minimize' : 'maximize'),
+        onSelect: () => views.maximize(view, { maximizable: true }),
+      });
+    }
     // A pane is a size, not a place: taking half the screen means being resized
     // to half the screen. An app that said its window is a fixed size is not
     // offered that, here or by dragging to an edge.
-    const items =
-      windowOptionsFor(view, apps).resizable === false
-        ? []
-        : [
-            {
-              label:
-                split && layout.primaryView === view.id
-                  ? 'Already on the left'
-                  : 'Move to the left',
-              disabled: split && layout.primaryView === view.id,
-              onSelect: () => views.snap(view.id, 'left'),
-            },
-            {
-              label:
-                split && layout.secondaryView === view.id
-                  ? 'Already on the right'
-                  : 'Move to the right',
-              disabled: split && layout.secondaryView === view.id,
-              onSelect: () => views.snap(view.id, 'right'),
-            },
-          ];
+    if (options.resizable !== false) {
+      items.push(
+        { separator: true },
+        {
+          label: 'Snap layouts…',
+          shortcut: comboLabel('snap-layouts'),
+          onSelect: () => pickerAtBar(view.id),
+        },
+        {
+          label:
+            split && layout.primaryView === view.id ? 'Already on the left' : 'Move to the left',
+          shortcut: comboLabel('snap-left'),
+          disabled: split && layout.primaryView === view.id,
+          onSelect: () => views.snap(view.id, 'left'),
+        },
+        {
+          label:
+            split && layout.secondaryView === view.id
+              ? 'Already on the right'
+              : 'Move to the right',
+          shortcut: comboLabel('snap-right'),
+          disabled: split && layout.secondaryView === view.id,
+          onSelect: () => views.snap(view.id, 'right'),
+        },
+      );
+    }
     if (split) {
       items.push(
         { separator: true },
@@ -320,8 +585,32 @@ export default function DesktopViewHost({ views, desktop }) {
         { label: 'Leave split view', onSelect: () => views.exitSplit() },
       );
     }
+    items.push(
+      { separator: true },
+      {
+        label: 'Close',
+        shortcut: comboLabel('close-window'),
+        danger: true,
+        onSelect: () => requestClose(view),
+      },
+    );
     return items;
   };
+
+  const switcherEntries = switcher
+    ? switcher.ids
+        .map((id) => views.ordered.find((view) => view.id === id))
+        .filter(Boolean)
+        .map((view) => {
+          const label = labelFor(view, apps);
+          return {
+            id: view.id,
+            label,
+            icon: iconFor(view, apps, label, 40),
+            minimized: Boolean(view.window?.minimized),
+          };
+        })
+    : null;
 
   return (
     <div className="view-host" ref={host}>
@@ -348,13 +637,12 @@ export default function DesktopViewHost({ views, desktop }) {
             travel={travel}
             status={view.available ? null : 'Needs reopening'}
             busy={Boolean(busy[view.id])}
-            onSelect={() => {
-              if (layout.selectedView !== view.id) views.select(view.id);
-              views.patchView(view.id, { raise: true });
-            }}
+            viewId={view.id}
+            onSelect={() => focusView(view.id)}
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
-            actions={menuFor(view)}
+            onMaximizeHover={options.resizable !== false ? hoverMaximize(view.id) : undefined}
+            actions={menuFor(view, depth)}
             onMinimize={() => putAway(view, depth)}
             onMaximize={() => views.maximize(view, { maximizable: options.maximizable !== false })}
             onClose={() => requestClose(view)}
@@ -431,7 +719,7 @@ export default function DesktopViewHost({ views, desktop }) {
           className="snap-preview"
           aria-hidden="true"
           style={(() => {
-            const box = previewBounds(snapping.side, area, layout.dividerRatio ?? 0.5);
+            const box = zoneBounds(snapping.side, area, { ratio: layout.dividerRatio ?? 0.5 });
             return {
               left: `${box.x}px`,
               top: `${box.y}px`,
@@ -441,6 +729,33 @@ export default function DesktopViewHost({ views, desktop }) {
           })()}
         />
       )}
+
+      {picker ? (
+        <SnapLayoutPicker
+          x={picker.x}
+          y={picker.y}
+          focus={picker.focus}
+          title={labelFor(views.ordered.find((view) => view.id === picker.viewId) || {}, apps)}
+          onPick={(cell) => pickCell(picker.viewId, cell)}
+          onClose={closePicker}
+          onPointerEnter={() => clearPickerTimers()}
+          onPointerLeave={() => {
+            if (picker.focus) return;
+            pickerTimers.current.close = setTimeout(() => setPicker(null), 300);
+          }}
+        />
+      ) : null}
+
+      {switcherEntries?.length ? (
+        <WindowSwitcher
+          entries={switcherEntries}
+          index={switcher.index}
+          onChoose={(viewId) => {
+            setSwitcher(null);
+            bringBack(viewId);
+          }}
+        />
+      ) : null}
 
       {/* Above the window it replaces and below everything the owner needs.
           Decoration: it takes no pointer input and is not in the accessibility
