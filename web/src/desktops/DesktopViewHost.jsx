@@ -24,6 +24,17 @@ import WindowFrame from './WindowFrame.jsx';
 import GenieOverlay from './motion/GenieOverlay.jsx';
 import useWindowMotion from './motion/useWindowMotion.js';
 import useFrameFocus from './useFrameFocus.js';
+import WindowSwitcher from './WindowSwitcher.jsx';
+import { useAppsOverlay } from './apps-overlay-context.js';
+import {
+  chosenWindow,
+  openSwitcher,
+  restoreFromSnapshot,
+  showDesktopSnapshot,
+  stepSwitcher,
+  verticalCommand,
+} from './window-commands.js';
+import { comboLabel, isEditable, matches } from '../shell/keys.js';
 import { anchorFor } from './motion/anchors.js';
 import { fallbackStyle } from './motion/genie-fallback.js';
 import { panes, previewBounds, snapTargetFor } from './snap.js';
@@ -82,12 +93,12 @@ function labelFor(view, apps) {
 }
 
 /** The mark a window carries in its title bar: the app's, or Vela's own tool's. */
-function iconFor(view, apps, name) {
+function iconFor(view, apps, name, size = 20) {
   if (view.kind === 'app') {
     return (
       <AppIcon
         app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
-        size={20}
+        size={size}
       />
     );
   }
@@ -96,7 +107,7 @@ function iconFor(view, apps, name) {
   return (
     <AppIcon
       app={{ id: core.id, name: core.label, glyph: core.icon, color: core.color }}
-      size={20}
+      size={size}
     />
   );
 }
@@ -238,6 +249,159 @@ export default function DesktopViewHost({ views, desktop }) {
   );
   useFrameFocus(host, focusView);
 
+  // ---- the keyboard
+  //
+  // Window shortcuts act on the selected window, the one the top bar names.
+  // They are answered here because this is where the work area, the app's
+  // window options and the unsaved-work question all are; `shell/keys.js` says
+  // which keys they are.
+  const { appsOpen } = useAppsOverlay() || {};
+  // The switcher while Alt is held: which windows, and which one is chosen.
+  const [switcher, setSwitcher] = useState(null);
+  // What "show the desktop" put away, for the same key to bring back. Per
+  // desktop: switching desktops and pressing it again is a different desk.
+  const shownDesktop = useRef({ desktopId: null, snapshot: null });
+
+  const bringBack = useCallback(
+    (viewId) => {
+      const index = views.ordered.findIndex((view) => view.id === viewId);
+      const view = views.ordered[index];
+      if (!view) return;
+      if (view.window?.minimized) {
+        putAway(view, index);
+        views.select(viewId);
+      } else {
+        focusView(viewId);
+      }
+    },
+    [focusView, putAway, views],
+  );
+
+  const toggleDesktop = useCallback(() => {
+    const snapshot = showDesktopSnapshot(views.layout, views.ordered);
+    if (snapshot) {
+      shownDesktop.current = { desktopId: views.desktopId, snapshot };
+      views.minimizeMany(snapshot.viewIds);
+      return;
+    }
+    const remembered = shownDesktop.current;
+    if (remembered.desktopId !== views.desktopId) return;
+    const restore = restoreFromSnapshot(remembered.snapshot, views.ordered);
+    shownDesktop.current = { desktopId: null, snapshot: null };
+    if (restore) views.restoreMany(restore);
+  }, [views]);
+
+  // Read at the moment a key is pressed, so the listeners below are attached
+  // once rather than on every render.
+  const keyboard = useRef(null);
+  keyboard.current = {
+    views,
+    apps,
+    area,
+    appsOpen,
+    switcher,
+    bringBack,
+    putAway,
+    requestClose: null,
+    toggleDesktop,
+  };
+
+  useEffect(() => {
+    const selectedView = () => {
+      const { views: current } = keyboard.current;
+      const id = current.layout.selectedView;
+      const index = current.ordered.findIndex((view) => view.id === id);
+      const view = current.ordered[index];
+      return view && !view.window?.minimized ? { view, index } : null;
+    };
+
+    const onKeyDown = (event) => {
+      const now = keyboard.current;
+      if (event.defaultPrevented || now.appsOpen || !now.area.width) return;
+      // The switcher owns these keys while it is up.
+      if (now.switcher) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setSwitcher(null);
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const chosen = chosenWindow(now.switcher);
+          setSwitcher(null);
+          if (chosen) now.bringBack(chosen);
+          return;
+        }
+      }
+      if (isEditable(event.target)) return;
+      // A dialog is in front of the desk; its keys are its own.
+      if (document.querySelector('dialog[open]')) return;
+
+      if (matches(event, 'switch-window') || matches(event, 'switch-window-back')) {
+        event.preventDefault();
+        const direction = matches(event, 'switch-window') ? 1 : -1;
+        setSwitcher((current) =>
+          current
+            ? stepSwitcher(current, direction)
+            : openSwitcher(now.views.ordered, direction, now.views.layout.selectedView),
+        );
+        return;
+      }
+      if (matches(event, 'show-desktop')) {
+        event.preventDefault();
+        now.toggleDesktop();
+        return;
+      }
+
+      const target = selectedView();
+      if (!target) return;
+      const { view, index } = target;
+      const options = windowOptionsFor(view, now.apps);
+      const maximizable = options.maximizable !== false;
+      if (matches(event, 'maximize') || matches(event, 'minimize')) {
+        event.preventDefault();
+        const direction = matches(event, 'maximize') ? 1 : -1;
+        const command = verticalCommand(now.views.layout, view.id, direction, { maximizable });
+        if (command === 'minimize') now.putAway(view, index);
+        else if (command) now.views.maximize(view, { maximizable });
+        return;
+      }
+      if (matches(event, 'snap-left') || matches(event, 'snap-right')) {
+        event.preventDefault();
+        if (options.resizable === false) return;
+        now.views.snap(view.id, matches(event, 'snap-left') ? 'left' : 'right');
+        return;
+      }
+      if (matches(event, 'close-window')) {
+        event.preventDefault();
+        now.requestClose?.(view);
+      }
+    };
+
+    // Letting go of Alt is the choice, the way it is with Alt+Tab.
+    const onKeyUp = (event) => {
+      if (event.key !== 'Alt') return;
+      const current = keyboard.current.switcher;
+      if (!current) return;
+      setSwitcher(null);
+      const chosen = chosenWindow(current);
+      if (chosen) keyboard.current.bringBack(chosen);
+    };
+
+    // Leaving the page with Alt still down (Alt+Tab to another program) never
+    // delivers the keyup, so a switcher left open is put away instead.
+    const onBlur = () => setSwitcher(null);
+
+    addEventListener('keydown', onKeyDown);
+    addEventListener('keyup', onKeyUp);
+    addEventListener('blur', onBlur);
+    return () => {
+      removeEventListener('keydown', onKeyDown);
+      removeEventListener('keyup', onKeyUp);
+      removeEventListener('blur', onBlur);
+    };
+  }, []);
+
   const requestClose = useCallback(
     async (view) => {
       // Close is the only one of the three controls that ends anything, so it
@@ -256,6 +420,8 @@ export default function DesktopViewHost({ views, desktop }) {
     },
     [apps, confirm, dirty, views],
   );
+
+  keyboard.current.requestClose = requestClose;
 
   if (!views.loaded || !views.ordered.length) return null;
 
@@ -298,31 +464,49 @@ export default function DesktopViewHost({ views, desktop }) {
     .filter((view) => !view.window?.minimized)
     .map((view) => ({ id: view.id, label: labelFor(view, apps) }));
 
-  const menuFor = (view) => {
+  const menuFor = (view, depth) => {
+    const options = windowOptionsFor(view, apps);
+    const maximized = layout.arrangement === 'maximized' && layout.maximizedView === view.id;
+    // The three controls again, with the keys that do the same: a menu is where
+    // a keyboard shortcut gets learnt.
+    const items = [
+      {
+        label: 'Minimize',
+        shortcut: comboLabel('minimize'),
+        onSelect: () => putAway(view, depth),
+      },
+    ];
+    if (options.maximizable !== false) {
+      items.push({
+        label: maximized ? 'Restore' : 'Maximize',
+        shortcut: comboLabel(maximized ? 'minimize' : 'maximize'),
+        onSelect: () => views.maximize(view, { maximizable: true }),
+      });
+    }
     // A pane is a size, not a place: taking half the screen means being resized
     // to half the screen. An app that said its window is a fixed size is not
     // offered that, here or by dragging to an edge.
-    const items =
-      windowOptionsFor(view, apps).resizable === false
-        ? []
-        : [
-            {
-              label:
-                split && layout.primaryView === view.id
-                  ? 'Already on the left'
-                  : 'Move to the left',
-              disabled: split && layout.primaryView === view.id,
-              onSelect: () => views.snap(view.id, 'left'),
-            },
-            {
-              label:
-                split && layout.secondaryView === view.id
-                  ? 'Already on the right'
-                  : 'Move to the right',
-              disabled: split && layout.secondaryView === view.id,
-              onSelect: () => views.snap(view.id, 'right'),
-            },
-          ];
+    if (options.resizable !== false) {
+      items.push(
+        { separator: true },
+        {
+          label:
+            split && layout.primaryView === view.id ? 'Already on the left' : 'Move to the left',
+          shortcut: comboLabel('snap-left'),
+          disabled: split && layout.primaryView === view.id,
+          onSelect: () => views.snap(view.id, 'left'),
+        },
+        {
+          label:
+            split && layout.secondaryView === view.id
+              ? 'Already on the right'
+              : 'Move to the right',
+          shortcut: comboLabel('snap-right'),
+          disabled: split && layout.secondaryView === view.id,
+          onSelect: () => views.snap(view.id, 'right'),
+        },
+      );
+    }
     if (split) {
       items.push(
         { separator: true },
@@ -331,8 +515,32 @@ export default function DesktopViewHost({ views, desktop }) {
         { label: 'Leave split view', onSelect: () => views.exitSplit() },
       );
     }
+    items.push(
+      { separator: true },
+      {
+        label: 'Close',
+        shortcut: comboLabel('close-window'),
+        danger: true,
+        onSelect: () => requestClose(view),
+      },
+    );
     return items;
   };
+
+  const switcherEntries = switcher
+    ? switcher.ids
+        .map((id) => views.ordered.find((view) => view.id === id))
+        .filter(Boolean)
+        .map((view) => {
+          const label = labelFor(view, apps);
+          return {
+            id: view.id,
+            label,
+            icon: iconFor(view, apps, label, 40),
+            minimized: Boolean(view.window?.minimized),
+          };
+        })
+    : null;
 
   return (
     <div className="view-host" ref={host}>
@@ -363,7 +571,7 @@ export default function DesktopViewHost({ views, desktop }) {
             onSelect={() => focusView(view.id)}
             onMove={onMove(view.id)}
             onDragPoint={onDragPoint(view.id)}
-            actions={menuFor(view)}
+            actions={menuFor(view, depth)}
             onMinimize={() => putAway(view, depth)}
             onMaximize={() => views.maximize(view, { maximizable: options.maximizable !== false })}
             onClose={() => requestClose(view)}
@@ -454,6 +662,17 @@ export default function DesktopViewHost({ views, desktop }) {
       {/* Above the window it replaces and below everything the owner needs.
           Decoration: it takes no pointer input and is not in the accessibility
           tree, so every real control stays exactly as reachable as it was. */}
+      {switcherEntries?.length ? (
+        <WindowSwitcher
+          entries={switcherEntries}
+          index={switcher.index}
+          onChoose={(viewId) => {
+            setSwitcher(null);
+            bringBack(viewId);
+          }}
+        />
+      ) : null}
+
       <GenieOverlay
         run={motion.run}
         area={area}

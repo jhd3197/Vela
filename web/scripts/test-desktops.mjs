@@ -192,6 +192,20 @@ try {
   await choose(page, 'Desktop 1');
   await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'choroni');
 
+  // Alt+Shift+arrows step between desktops, wrapping, and each one comes back
+  // dressed as it was.
+  await page.locator('body').focus();
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitForDesktop(page, 'Taxes');
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'canaima');
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitForDesktop(page, 'Desktop 1');
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await waitForDesktop(page, 'Taxes');
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  await waitForDesktop(page, 'Desktop 1');
+  await page.waitForFunction(() => document.body.dataset.deskWallpaper === 'choroni');
+
   // --- it all survives a reload -------------------------------------------
   await page.reload();
   await page.locator('.desk-grid').waitFor();
@@ -472,6 +486,80 @@ try {
   await settingsFrame.getByRole('button', { name: /^Close / }).click();
   await settingsFrame.waitFor({ state: 'detached' });
 
+  // --- the keyboard ---------------------------------------------------------
+  // Window shortcuts act on the selected window while focus is on Vela itself,
+  // so the title bar is clicked first to take focus out of the app.
+  await window.locator('.window-title').click();
+  await page.keyboard.press('Alt+ArrowUp');
+  await page.locator('.window-frame.is-placed').waitFor();
+  await page.keyboard.press('Alt+ArrowDown');
+  await page.waitForFunction(() => !document.querySelector('.window-frame.is-placed'));
+  assert.equal(await page.locator('.window-frame').count(), 1, 'Alt+↓ restored, not minimized');
+
+  // The window menu lists the same controls with their keys beside them.
+  await window.locator('.window-title').click({ button: 'right' });
+  const maximizeItem = page.getByRole('menuitem', { name: /^Maximize/ });
+  await maximizeItem.waitFor();
+  assert.match(await maximizeItem.innerText(), /Alt\+↑/);
+  await page.keyboard.press('Escape');
+
+  // A second window, then the switcher: one tap of Alt+` goes back to the
+  // window you were in before, and letting go of Alt is the choice.
+  await page.locator('.rail-foot').getByRole('button', { name: 'Settings' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.locator('.window-frame.is-selected .window-title').click();
+  await page.keyboard.down('Alt');
+  await page.keyboard.press('Backquote');
+  const switcher = page.locator('.window-switcher');
+  await switcher.waitFor();
+  assert.equal(await switcher.getByRole('option').count(), 2);
+  assert.match(
+    await switcher.locator('[aria-selected="true"]').innerText(),
+    /Widget Fixture/,
+    'the switcher starts on the window behind the front one',
+  );
+  await page.keyboard.up('Alt');
+  await switcher.waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    () => !document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.waitForFunction(() => document.title === 'Widget Fixture · Vela');
+
+  // Show the desktop puts both away, and the same key brings both back.
+  await page.locator('.window-frame.is-selected .window-title').click();
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await page.locator('.window-frame').first().waitFor({ state: 'detached' });
+  assert.equal(
+    await page.locator('.rail-views .rail-view-item[data-state="minimized"]').count(),
+    2,
+    'both windows are minimized, not closed',
+  );
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await page.waitForFunction(() => document.querySelectorAll('.window-frame').length === 2);
+
+  // Close by key: the switcher picks Settings, Alt+Shift+W closes it.
+  await page
+    .locator('.window-frame', { has: page.locator('iframe') })
+    .locator('.window-title')
+    .click();
+  await page.keyboard.press('Alt+Backquote');
+  await page.waitForFunction(() =>
+    document.querySelector('.window-frame.is-selected .settings-window'),
+  );
+  await page.keyboard.press('Alt+Shift+KeyW');
+  await page.waitForFunction(() => document.querySelectorAll('.window-frame').length === 1);
+
+  // The sheet lists what was just used, in its own group.
+  await page.keyboard.press('Shift+Slash');
+  const shortcutSheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await shortcutSheet.waitFor();
+  assert.ok(await shortcutSheet.getByRole('region', { name: 'Windows' }).isVisible());
+  assert.match(await shortcutSheet.innerText(), /Switch windows/);
+  await page.keyboard.press('Escape');
+  await shortcutSheet.waitFor({ state: 'hidden' });
+
   // Minimize: the window goes, the rail entry stays, and nothing ended.
   await window.getByRole('button', { name: /^Minimize / }).click();
   await page.locator('.window-frame').waitFor({ state: 'detached' });
@@ -539,7 +627,8 @@ try {
       'per-device selection, a direct link and an unknown one, keyboard menu and focus return, ' +
       'a rename that lost its race, deletion leaving apps installed, All apps over the desk, ' +
       'type-to-search and menu type-ahead, the tab title, a click inside an app bringing its ' +
-      'window forward, and a window minimized, restored from the rail, maximized and closed',
+      'window forward, window keys, the switcher, show desktop and the shortcut sheet, ' +
+      'and a window minimized, restored from the rail, maximized and closed',
   );
   await context.close();
 } finally {

@@ -18,6 +18,7 @@
 //   overlay      All apps, drawn over the workspace it does not replace
 //   pop          a panel attached to a control: search results, notifications
 //   flyout       a panel that leaves its container: rail flyouts, drawers
+//   switcher     the window switcher, over every window while Alt is held
 //   menu         menus, and the toasts that must clear them
 //
 // Windows have a band of their own inside the host that draws them, because
@@ -43,6 +44,7 @@
   --layer-overlay: 25;
   --layer-pop: 30;
   --layer-flyout: 40;
+  --layer-switcher: 50;
   --layer-menu: 60;
 
   /* Inside the window host, whose own place is --layer-chrome. A desktop holds

@@ -19,6 +19,17 @@ until the release workflow prepares a tested server version.
   See the `http` provider in
   [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
 
+- **Keyboard shortcuts for windows and desktops.** **Alt+\`** switches between
+  windows: keep Alt held to go further, and let go to choose. **Alt+↑**
+  maximizes, **Alt+↓** restores or minimizes, **Alt+←** and **Alt+→** move a
+  window to half the screen, **Alt+Shift+W** closes it, and **Alt+Shift+D**
+  shows the desktop and then brings the same windows back.
+  **Alt+Shift+←** and **Alt+Shift+→** step between desktops. On a Mac, Alt is
+  Option. The title bar's menu now also has Minimize, Maximize and Close, with
+  their keys beside them, and **?** shows every shortcut grouped by what it
+  acts on. Keys typed inside an app still go to that app, so click a window's
+  title bar first.
+
 ### Changed
 
 - **The top bar sits beside the rail.** The rail now runs the full height of

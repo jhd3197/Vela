@@ -148,6 +148,11 @@ board and wallpaper, the selection staying on the device that made it, a direct
 `/desktops/<id>` link and one that names nothing, the menu from the keyboard
 with focus returning, a rename that lost its race, deleting a desktop leaving
 the apps installed, and All apps drawing over the desk without unmounting it.
+It also drives the shell from the keyboard: typing on a tile goes to search,
+menu type-ahead, stepping between desktops, maximize and restore by key, the
+window switcher, show desktop, close, and the grouped shortcut sheet; and it
+checks that the tab title follows the focused window and that a click inside an
+app brings its window forward.
 
 `test_agent_conversion.py` is the one that means something: a listening Vela on
 a disposable data directory, an installed app, a window open on the desk, and a

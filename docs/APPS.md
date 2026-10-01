@@ -62,8 +62,24 @@ button to reach them.
 
 From a keyboard: **Ctrl+K** searches, **Ctrl+Space** opens or closes the
 Launchpad, **Ctrl+1** to **Ctrl+9** open the pinned apps by their place on the
-rail, **Esc** backs out of the Launchpad, a menu or a dialog, and **?** (or
-**Ctrl+/**) shows the whole list.
+rail, **Alt+Shift+←** and **Alt+Shift+→** step between desktops, **Esc** backs
+out of the Launchpad, a menu or a dialog, and **?** (or **Ctrl+/**) shows the
+whole list. On a Mac, Ctrl is **Cmd** and Alt is **Option**.
+
+Windows have keys of their own, for the window you are using:
+
+- **Alt+\`** switches windows. Keep Alt held and press **\`** again to go
+  further, or **Alt+Shift+\`** to go back; let go of Alt to choose.
+- **Alt+↑** maximizes, and **Alt+↓** restores a maximized window or minimizes
+  any other.
+- **Alt+←** and **Alt+→** move the window to the left or right half.
+- **Alt+Shift+W** closes it, asking first if it has unsaved work.
+- **Alt+Shift+D** shows the desktop, and pressing it again brings the same
+  windows back where they were.
+
+Keys typed inside an app go to that app, so click a window's title bar first to
+use these. The title bar's right-click menu lists the same actions with their
+keys.
 
 ## Apps open in windows
 

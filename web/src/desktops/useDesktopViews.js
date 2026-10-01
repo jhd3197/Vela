@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { desktopsApi } from './desktopsApi.js';
 import { exitPatch, freeSlotFor, snapPatch, swapPatch, vacatePatch } from './snap.js';
 import { maximizePatch, minimizePatch, restorePatch, stackOrder } from './window-state.js';
+import { vacateAllPatch } from './window-commands.js';
 
 const EMPTY = {
   views: [],
@@ -219,6 +220,47 @@ export default function useDesktopViews(desktopId) {
     [patchView, saveLayout, state.layout],
   );
 
+  // ---- putting several away at once, and bringing them back
+  //
+  // "Show the desktop" minimizes everything on screen and later restores it.
+  // One window at a time would mean one layout save per split member against
+  // the same revision, and every save after the first would lose; these make
+  // it one save each way.
+
+  const minimizeMany = useCallback(
+    async (viewIds) => {
+      for (const id of viewIds) {
+        const view = state.views.find((entry) => entry.id === id);
+        if (view) patchView(id, minimizePatch(view, area.current), { immediate: true });
+      }
+      const vacated = vacateAllPatch(state.layout, viewIds);
+      if (vacated) await saveLayout(vacated);
+    },
+    [patchView, saveLayout, state.layout, state.views],
+  );
+
+  const restoreMany = useCallback(
+    async ({ viewIds, layout }) => {
+      const coming = new Set(viewIds);
+      setState((previous) => ({
+        ...previous,
+        views: previous.views.map((view) =>
+          coming.has(view.id) ? { ...view, window: { ...view.window, minimized: false } } : view,
+        ),
+      }));
+      // One after another, back to front, so the server stacks them in the
+      // order they were in rather than in whatever order requests land.
+      for (const id of viewIds) {
+        await desktopsApi
+          .updateView(desktopId, id, { minimized: false, raise: true })
+          .catch(() => null);
+      }
+      if (layout) await saveLayout(layout);
+      await load();
+    },
+    [desktopId, load, saveLayout],
+  );
+
   // ---- split placement
   //
   // Every one of these is a layout change and nothing else. No view is closed,
@@ -279,6 +321,8 @@ export default function useDesktopViews(desktopId) {
     patchView,
     minimize,
     restore,
+    minimizeMany,
+    restoreMany,
     maximize,
     snap,
     swapPanes,
