@@ -85,6 +85,12 @@ until the release workflow prepares a tested server version.
   onto an item and releasing chooses it. Menus and All apps open with a short
   animation (none with reduced motion) and close at once.
 
+- **The Python tests run in parallel.** `npm --prefix web run check` now runs
+  the Python suite through `scripts/run-python-tests.py`, which spreads the same
+  tests over worker processes. A full run drops from over twenty minutes to
+  about three on an 8-core machine or larger. `python -m unittest discover -s
+  tests` still runs the same suite serially.
+
 ### Fixed
 
 - **Settings on a phone respects reduced motion.** With reduced motion turned

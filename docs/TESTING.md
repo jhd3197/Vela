@@ -15,9 +15,19 @@ The same command runs in CI: lint, formatting verification, the ratchet guards,
 Node tests, Python tests, then the dashboard build. It stops at the first
 failure. Use `npm --prefix web run format` to fix formatting, or run individual
 checks while iterating: `npm --prefix web run lint`, `node --test
-tests/bridge.test.mjs tests/resource.test.mjs`, `python -m unittest discover -s
-tests`, and `npm --prefix web run build`. Browser acceptance remains a separate
-step.
+tests/bridge.test.mjs tests/resource.test.mjs`, `python
+scripts/run-python-tests.py`, and `npm --prefix web run build`. Browser
+acceptance remains a separate step.
+
+The Python suite runs through `scripts/run-python-tests.py`: the same tests as
+`python -m unittest discover -s tests`, spread over worker processes. Serially
+it takes over twenty minutes, mostly waiting for managed-app services to stop;
+in parallel it takes a few. It uses half the CPUs (at most 12) by default; set
+`--workers N` or `VELA_TEST_WORKERS` to change that, and pass file patterns to
+run part of it, for example `python scripts/run-python-tests.py
+"test_managed*.py"`. It remembers how long each test took in `.local/` and starts
+the slowest first. `unittest discover` still works and runs the same suite
+serially.
 
 ### Managed web apps
 

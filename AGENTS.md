@@ -62,7 +62,7 @@ Use disposable data for tests; do not modify a user's installed apps or data
 to verify a change. Run checks appropriate to the affected behavior:
 
 ```bash
-python -m unittest discover -s tests
+python scripts/run-python-tests.py   # same suite as unittest discover, in parallel
 node --test tests/bridge.test.mjs
 npm --prefix web run build
 ```

@@ -25,5 +25,7 @@ for (const script of ['lint', 'format:check']) run(process.execPath, [npm, 'run'
 run(process.execPath, [path.join(web, 'scripts/ratchet.mjs')], web);
 const tests = readdirSync(path.join(root, 'tests')).filter((name) => name.endsWith('.test.mjs'));
 run(process.execPath, ['--test', ...tests.map((name) => path.join(root, 'tests', name))]);
-run(python, ['-m', 'unittest', 'discover', '-s', 'tests']);
+// The same suite `python -m unittest discover -s tests` runs, spread over
+// worker processes: serially it is mostly waiting on services to stop.
+run(python, ['scripts/run-python-tests.py']);
 run(process.execPath, [npm, 'run', 'build'], web);
