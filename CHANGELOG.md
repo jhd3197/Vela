@@ -8,6 +8,16 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Self-hosted services: the owner sets the connection address.** An app
+  whose web connection declares `selfHosted` — for example a panel you run on
+  your own network — no longer has its address fixed by the app. Set the
+  address in the app's settings in Vela (a public https address, or an http or
+  https address on your network), then save its key as before. Changing the
+  address clears the saved key, because the old key belongs to the old
+  address, and you save it again for the new one. Apps that do not declare
+  `selfHosted` are unaffected. See
+  [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
+
 - **Surface windows: an app can describe a screen that Vela draws.** An app
   with the new `surfaces` capability can serve a surface document — a screen
   described as data, such as a server panel — over its web connection and open

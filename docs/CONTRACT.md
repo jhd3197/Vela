@@ -437,6 +437,25 @@ review. This is how an app uses a web API that needs a key or token:
   connection's site: its host without the first label when it has more than
   two, so `api.github.com` allows `github.com` and its subdomains.
 
+An http connection can declare `selfHosted: true` for a service whose address
+the manifest cannot know — a panel on the owner's network, or one they host
+themselves. `baseUrl` stays required as the placeholder/default, and the owner
+sets the real address in the app's Vela settings
+(`PUT /api/apps/{id}/connection` with `{endpoint}`). Two shapes are accepted:
+a public https DNS URL under the same rule as `baseUrl`, or an http/https
+loopback or private-LAN address (the `ollama` provider's rule) — a panel on
+the same network is the usual case. Credentials, paths and query strings are
+refused either way; the address is an origin and nothing more.
+
+With a self-hosted connection, requests go to the bound address, never the
+manifest's placeholder, and until an address is set every call answers 409.
+The secret is bound to the exact origin it was saved for: changing the address
+drops the saved secret, and it is saved again for the new one. Saving the
+secret before the address exists is a 409. The status answer reports the
+effective `endpoint`, `selfHosted` and `addressSet`, so settings can tell "no
+address yet" apart from "no secret yet"; for a manifest-fixed connection
+`addressSet` is always true and nothing else changes.
+
 `python -m vela --set-password` stores a salted scrypt password hash in
 `access.json`. LAN hosting requires `--host`, TLS `--cert`/`--key`, and an exact
 HTTPS `--origin`. `POST /api/login` accepts `{password}` and requires the same
