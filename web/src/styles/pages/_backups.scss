@@ -1,41 +1,15 @@
 // tokens: spacing
-/* ---------- Backups ---------- */
+/* ---------- Backups (Settings › Backups & storage) ----------
 
-.backup-row {
-  gap: var(--space-4);
-}
+   The rows themselves are settings-kit rows; this only colours the outcome of
+   a restore drill, on the shield and in the sentence beside it. */
 
-.backup-row .ph {
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-
-.backup-row .backup-ok {
-  color: var(--green);
-}
-
-.backup-row .backup-bad {
-  color: var(--red);
-}
-
-.backup-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.backup-meta {
-  font-size: var(--text-xs);
-  color: var(--text-faint);
-  overflow-wrap: anywhere;
-}
-
+.backup-ok,
 .backup-note-ok {
   color: var(--green);
 }
 
+.backup-bad,
 .backup-note-bad {
   color: var(--red);
 }

@@ -48,6 +48,21 @@ until the release workflow prepares a tested server version.
 
 ### Changed
 
+- **Settings has one consistent layout.** Every section now uses the same
+  pattern: a heading, a card of settings, then that group's buttons and
+  messages. Each setting shows its name and a sentence on the left and its
+  control on the right. Every on/off choice is a switch. This replaces the
+  mix of On/Off buttons, checkboxes and chips. Facts like the version or the
+  data folder are rows in the same cards. A save error now appears under the
+  group it belongs to, not at the top or bottom of the window. Text fields,
+  dropdowns and text boxes look the same everywhere in the dashboard.
+  Notification events are switches with a line saying what each one sends.
+  For contributors, settings screens are built from
+  `components/settings/SettingsKit.jsx`, described in
+  [the design system](docs/DESIGN.md#settings-surfaces). Two new check-time
+  guards fail the build if a settings screen goes back to the old classes, or
+  if a stylesheet is never imported.
+
 - **The top bar sits beside the rail.** The rail now runs the full height of
   the window and the top bar starts beside it. The bar stays blank on an empty
   desk and names something only when it has focus, and its search opens in the
@@ -92,6 +107,11 @@ until the release workflow prepares a tested server version.
   tests` still runs the same suite serially.
 
 ### Fixed
+
+- **The name fields in Settings › General are styled again.** Their styles
+  were in a stylesheet nothing imported, so they showed as plain browser
+  boxes. Buttons in Settings were also drawn at body size instead of button
+  size.
 
 - **Settings on a phone respects reduced motion.** With reduced motion turned
   on, the Settings screens no longer slide in.

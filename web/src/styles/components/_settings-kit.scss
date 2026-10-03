@@ -1,0 +1,350 @@
+// tokens: spacing
+/* ---------- Settings kit ----------
+
+   The only stylesheet for the inside of a settings section, rendered by
+   `components/settings/SettingsKit.jsx`. A section is a column of groups; a
+   group is a heading, a card of rows and a footer; a row is text on the left
+   and its control on the right, with an optional body underneath.
+
+   Nothing else styles these classes, and settings markup does not reach for
+   the older panel, fact-grid or form-grid classes: the `settings-kit` ratchet
+   fails the check if it does. To change how settings look, change this file. */
+
+.set-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+/* ---- Groups ---- */
+
+.set-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.set-group-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 0 var(--space-1);
+}
+
+.set-group-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  /* Headings stop at 500 (docs/DESIGN.md); the group title outranks a row
+     title by size, not weight. */
+  h3 {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--text);
+    &:focus {
+      outline: none;
+    }
+  }
+}
+
+.set-group-desc {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.set-group-aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The card is a size container: a row decides whether its control fits beside
+   its text from the card's own width, so the same markup works in a wide
+   window, a narrow window and a phone screen without a viewport rule. */
+.set-card {
+  container: set-card / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.set-group-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-1);
+}
+
+/* A footer whose status line has nothing to say renders no box, so it adds no
+   gap under the card either. */
+.set-group-foot:empty {
+  display: none;
+}
+
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.set-note {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+.set-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.set-status-info {
+  color: var(--text-dim);
+}
+
+.set-status-ok {
+  color: var(--green);
+}
+
+.set-status-error {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* ---- Rows ---- */
+
+.set-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'text control'
+    'body body';
+  align-items: center;
+  column-gap: var(--space-6);
+  min-height: 56px;
+  padding: var(--space-4) var(--space-5);
+  color: var(--text);
+  text-align: left;
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+}
+
+.set-row-has-lead {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lead text control'
+    'lead body body';
+  column-gap: var(--space-4);
+}
+
+.set-row-lead {
+  grid-area: lead;
+  display: flex;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  color: var(--text-faint);
+}
+
+.set-row-text {
+  grid-area: text;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.set-row-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.set-row-desc {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.set-row-control {
+  grid-area: control;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.set-row-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-4);
+}
+
+/* A control too wide to sit beside the text: a row of chips, a seg control
+   with long labels. It goes under the text instead. */
+.set-row-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'text'
+    'control'
+    'body';
+  .set-row-control {
+    justify-content: flex-start;
+    margin-top: var(--space-4);
+  }
+}
+
+/* A read-only fact: the value takes the room it needs, up to 60% of the row,
+   and a long one (a path, an address) wraps rather than pushing the card
+   wide. */
+.set-row-fact {
+  grid-template-columns: minmax(0, 1fr) fit-content(60%);
+  min-height: 48px;
+}
+
+.set-value {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: right;
+  overflow-wrap: anywhere;
+  &.mono {
+    font-size: 12px;
+  }
+}
+
+/* A row that opens a deeper screen: the whole row is the button. */
+.set-row-link {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+  &:first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  &:last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.set-row-caret {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* ---- Controls inside a row ----
+
+   Text fields, selects and numbers share one width in the control column, so
+   a column of fields lines up down the card instead of each taking its
+   content's size. */
+.set-row-control :is(input:not([type='checkbox'], [type='radio'], [type='range']), select) {
+  width: min(280px, 100%);
+}
+
+.set-row-control :is(input[type='number'], input[type='time']) {
+  width: 140px;
+}
+
+/* A field with its own button: the pair takes the field's width together. */
+.set-field-pair {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(340px, 100%);
+  input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* Narrow cards (a phone, a small window, 200% zoom): the control drops under
+   its text and lines up with it, full width for fields. */
+@container set-card (max-width: 520px) {
+  .set-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'text'
+      'control'
+      'body';
+    row-gap: var(--space-3);
+  }
+
+  .set-row-has-lead {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'lead text'
+      'lead control'
+      'lead body';
+  }
+
+  .set-row-control {
+    justify-content: flex-start;
+  }
+
+  .set-row-fact .set-value {
+    text-align: left;
+  }
+
+  /* A switch stays beside its title: it is small, and a switch on its own line
+     reads as a separate setting. */
+  .set-row:has(> .set-row-control > .switch:only-child) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'text control'
+      'body body';
+  }
+
+  .set-row-link {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'text control';
+  }
+
+  .set-row-control :is(input:not([type='checkbox'], [type='radio'], [type='range']), select),
+  .set-field-pair {
+    width: 100%;
+  }
+}

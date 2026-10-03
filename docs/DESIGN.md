@@ -154,15 +154,63 @@ looks right under a theme written next year.
    A bar chart of nothing reads as a measurement of zero that was never taken.
 4. Keep the widget's default `w`/`h` so saved boards do not reflow.
 
+## Settings surfaces
+
+Every settings screen — each section of Settings, and anything else that
+imports the kit — is built from `web/src/components/settings/SettingsKit.jsx`
+and styled only by `web/src/styles/components/_settings-kit.scss`.
+
+```jsx
+<SettingsPage>
+  <SettingsGroup
+    title="Your server"
+    description="One sentence about the group."
+    aside={<Button size="small">Run now</Button>}
+    footer={<SettingsStatus tone="error">{error}</SettingsStatus>}
+  >
+    <SettingRow title="Your name" htmlFor="name" control={<input id="name" />} />
+    <SettingRow title="Show developer tools" toggle={{ checked, onChange }} />
+    <SettingRow title="Vela version" value="0.1.21" mono />
+    <SettingRow title="Unlock method" value="PIN" onClick={openDeeperScreen} />
+  </SettingsGroup>
+</SettingsPage>
+```
+
+| Piece | What it is for |
+| --- | --- |
+| `SettingsPage` | One section: a column of groups |
+| `SettingsGroup` | A heading, a card of rows, then its actions and status under the card |
+| `SettingRow` | Title and description on the left, one control on the right; bigger content goes in its body |
+| `SettingsStatus` | The outcome of the last action in a group: `info`, `ok` or `error` |
+| `SettingsNote`, `SettingsActions` | A footnote and the group's buttons, in the footer |
+
+The rules:
+
+- **A yes/no setting is a `toggle`.** Never On/Off buttons, never a checkbox.
+  A choice between named options is a `.seg` control or a set of chips.
+- **A read-only fact is a row with a `value`.** No separate fact grids.
+- **A text field is a row whose `htmlFor` names it,** so the title is its label.
+  Every text field, select and textarea gets the Vela field look from
+  `_base.scss` without a class.
+- **Errors and confirmations go in the group's footer,** under the thing they
+  are about. Only a page that failed to load at all shows an error above its
+  groups.
+- **Rows reflow by their card's width,** with a container query, not the
+  viewport: under 520px a control drops beneath its text, except a switch.
+- **Dialogs and drawers opened from Settings keep their own layout.**
+
 ## The guards
 
-Both run inside `npm --prefix web run check`, through `scripts/ratchet.mjs`.
+They all run inside `npm --prefix web run check`, through `scripts/ratchet.mjs`.
 
 | Guard | Fails when |
 | --- | --- |
 | `tokens` | `_tokens.scss` has drifted from the generator; a hex, `rgb()` or `hsl()` is written in any other SCSS partial; a partial marked `// tokens: spacing` writes a raw `padding`/`gap`/`margin` between 3px and 28px |
 | `themes` | A bundled theme has drifted from its recipe, or stops clearing the contrast gate in a base it declares |
 | `inline-style` | A `style={{ }}` appears in JSX outside the registered runtime-geometry sites |
+| `settings-kit` | A settings surface uses a layout class the kit replaced (`settings-row`, `fact-grid`, `form-grid`, `panel-head`, `inline-error`…), a bare checkbox, or On/Off buttons |
+| `orphan-partials` | An SCSS partial under `web/src/styles` is never reached by `@use` from an entry stylesheet, so its rules silently never load |
+| `style-ownership` | A class is defined at the top level of more than one partial |
 
 A line may opt out with `// ratchet: allow tokens <reason>`, which is counted
 and listed by `--report`. The escapes that exist are all art rather than

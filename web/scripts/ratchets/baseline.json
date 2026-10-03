@@ -18,6 +18,11 @@
     "web/src/pages/Launchpad.jsx": 1,
     "web/src/shell/QuickSettings.jsx": 1
   },
+  "orphan-partials": {},
+  "settings-kit": {
+    "web/src/components/UpdatesSection.jsx": 3,
+    "web/src/pages/Settings.jsx": 4
+  },
   "status-vocabulary": {},
   "style-ownership": {},
   "themes": {},
