@@ -6,6 +6,14 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Fixed
+
+- **Container deployments honor `VELA_PORT` for the listener.** The
+  container entrypoint read `VELA_PORT` for its gateway configuration but
+  still bound uvicorn to 7700, so a second instance mapped to another host
+  port never answered. It now binds the configured port, and one host can
+  run several Vela containers side by side.
+
 ### Added
 
 - **Self-hosted services: the owner sets the connection address.** An app
