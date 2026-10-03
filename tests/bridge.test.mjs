@@ -166,6 +166,74 @@ test('top bar items are granted, capped, and go down with the window', async () 
   assert.equal(published.length, 0);
 });
 
+test('a surface window opens only with the grant, in the calling app’s name, on a legal path', async () => {
+  let listener;
+  globalThis.addEventListener = (_type, callback) => { listener = callback; };
+  globalThis.removeEventListener = () => {};
+  const messages = [], opened = [];
+  const source = { postMessage: (message) => messages.push(message) };
+  const open = (capabilities, options = {}) => {
+    messages.length = 0;
+    opened.length = 0;
+    createBridge({ frame: { contentWindow: source },
+      session: { token: 'scoped-secret', installationId: 'installation-one', capabilities },
+      context: { installationId: 'installation-one' },
+      appId: options.appId ?? 'panel-app',
+      onReady() {}, onDirty() {}, onNavigate() {}, onError() {},
+      onOpenSurface: options.handler === null ? undefined : async (request) => { opened.push(request); return { ok: true }; },
+      fetcher: async () => new Response(JSON.stringify({ ok: true })),
+    });
+    return listener({ source, origin: 'null', data: { type: 'vela:ready', protocol: 1 } });
+  };
+  const send = (id, payload, session) => listener({ source, origin: 'null',
+    data: { type: 'vela:request', protocol: 1, id, session, operation: 'surfaces.open', payload } });
+
+  await open(['storage', 'surfaces']);
+  let nonce = messages[0].session;
+  await send('one', { source: '/api/v1/server-gui/srv-1', title: 'srv-1' }, nonce);
+  assert.deepEqual(opened.at(-1), { appId: 'panel-app', source: '/api/v1/server-gui/srv-1', title: 'srv-1' },
+    'the host fills in the calling app, never the payload');
+  assert.equal(messages.at(-1).error, undefined);
+  // No request travels: the page hosting the bridge opens the window itself.
+  assert.equal(JSON.stringify(messages).includes('scoped-secret'), false);
+
+  // A title is optional; one that is not a string is refused.
+  await send('two', { source: '/srv-2' }, nonce);
+  assert.equal(opened.at(-1).title, '');
+  await send('three', { source: '/srv-2', title: 42 }, nonce);
+  assert.equal(messages.at(-1).error.status, 422);
+
+  // Bad sources and unknown fields are refused before anything opens.
+  const count = opened.length;
+  for (const [id, payload] of [
+    ['four', { source: 'srv-1' }],
+    ['five', { source: '//evil.example/srv-1' }],
+    ['six', { source: '/srv/../admin' }],
+    ['seven', { source: '/srv/%2e%2e/admin' }],
+    ['eight', { source: '/srv/%5c/admin' }],
+    ['nine', { source: '/srv-1', appId: 'other-app' }],
+  ]) {
+    await send(id, payload, nonce);
+    assert.ok(messages.at(-1).error, id);
+  }
+  assert.equal(opened.length, count, 'a refused request opens nothing');
+
+  // Without the grant the host refuses it, exactly like the top bar.
+  await open(['storage']);
+  nonce = messages[0].session;
+  await send('ten', { source: '/srv-1' }, nonce);
+  assert.equal(messages.at(-1).error.status, 403);
+  assert.equal(opened.length, 0);
+
+  // Where no page can open windows — the agent's browser — the operation is
+  // refused rather than silently dropped.
+  await open(['surfaces'], { handler: null });
+  nonce = messages[0].session;
+  await send('eleven', { source: '/srv-1' }, nonce);
+  assert.equal(messages.at(-1).error.status, 409);
+  assert.equal(opened.length, 0);
+});
+
 test('hub worker never caches authenticated API traffic and retires old API caches', async () => {
   const { readFile } = await import('node:fs/promises');
   const { runInNewContext } = await import('node:vm');

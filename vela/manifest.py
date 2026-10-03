@@ -25,7 +25,7 @@ DEFAULT_WINDOW = {"resizable": True, "maximizable": True}
 _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _REQUIRED_FIELDS = ("id", "name", "version", "description", "category", "author", "platforms")
-SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets", "topbar"})
+SUPPORTED_CAPABILITIES = frozenset({"storage", "connections", "actions", "widgets", "topbar", "surfaces"})
 # Headers an http connection may not set: the engine owns framing, and a
 # manifest cannot reach for the host's cookies or a proxy's credentials.
 _CONNECTION_HEADER_DENYLIST = frozenset({

@@ -9,6 +9,20 @@ export function connectionSite(status) {
   return (labels.length > 2 ? labels.slice(1) : labels).join('.');
 }
 
+// A surface's path under its app's http connection. The same rule the engine
+// applies (`_http_path` in vela/connections.py): one absolute path, no dot
+// segments, no encoded separators. Checked here so a request this host will
+// not send is refused before it travels.
+const SURFACE_PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]{0,1023}$/;
+
+export function surfaceSource(value) {
+  if (typeof value !== 'string' || !SURFACE_PATH.test(value) || value.includes('//')) return null;
+  if (value.split('/').some((segment) => segment === '.' || segment === '..')) return null;
+  const lowered = value.toLowerCase();
+  if (['%2e', '%2f', '%5c'].some((code) => lowered.includes(code))) return null;
+  return value;
+}
+
 export function createBridge({
   frame,
   session,
@@ -17,12 +31,20 @@ export function createBridge({
   onNavigate,
   onReady,
   onError,
+  // The app this bridge hosts. The host fills it into operations that name an
+  // app (surfaces.open), so an app can never speak in another app's name.
+  appId = null,
   // What this app has put in the top bar. Unlike every other operation here,
   // it does not travel to the engine: the items belong to this one window, are
   // never stored, and the surface that draws them is in this same page. So the
   // host holds them, and the bridge closing takes them down — see decision D05
   // in `plans/TOP-BAR-PROGRESS.md`.
   onTopBarItems,
+  // Ask the page hosting this bridge to open a surface window for
+  // `{ appId, source, title }`. Only the dashboard provides one: inside the
+  // agent's browser there is no owner session to open windows with, so the
+  // operation is refused there rather than pretending.
+  onOpenSurface,
   fetcher = fetch,
 }) {
   const nonce = crypto.randomUUID();
@@ -321,6 +343,29 @@ export function createBridge({
           // something this host will not show should be told so.
           onTopBarItems?.(validateItems(payload.items ?? []));
           result = { ok: true, items: (payload.items ?? []).length };
+        } else if (message.operation === 'surfaces.open') {
+          // Declared in the manifest and granted at install, exactly like the
+          // top bar. The document itself is fetched by the hub through the
+          // app's connection; this only asks for the window.
+          if (!(session.capabilities || []).includes('surfaces'))
+            throw Object.assign(new Error('Surfaces capability was not granted'), { status: 403 });
+          if (Object.keys(payload).some((key) => !['source', 'title'].includes(key)))
+            throw new Error('Invalid surface request');
+          if (payload.title !== undefined && typeof payload.title !== 'string')
+            throw new Error('Invalid surface request');
+          const source = surfaceSource(payload.source);
+          if (!source) throw new Error('A surface source is an absolute path on the app’s connection');
+          if (!onOpenSurface || !appId)
+            throw Object.assign(new Error('This window cannot open surfaces'), { status: 409 });
+          // The calling app's id comes from the session this bridge was built
+          // for, never from the payload: an app cannot open a window in
+          // another app's name.
+          result =
+            (await onOpenSurface({
+              appId,
+              source,
+              title: (payload.title || '').slice(0, 120),
+            })) || { ok: true };
         } else if (message.operation === 'navigation.dirty') {
           onDirty({ dirty: payload.dirty === true, canSave: payload.canSave === true });
         } else if (message.operation === 'navigation.open') {
