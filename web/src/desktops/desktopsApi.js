@@ -69,6 +69,23 @@ export const desktopsApi = {
   saveLayout: (id, revision, patch) =>
     request(`${scope(id)}/layout`, json('PUT', { revision, ...patch })),
 
+  // ---- surfaces
+  //
+  // A surface view's document, picture and capabilities, fetched by the hub
+  // through the owning app's http connection. Owner reads the window polls;
+  // the hub draws the document itself and nothing app-supplied executes.
+  surface: (id, viewId, options) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}/surface`, options),
+  surfaceFrame: (id, viewId, params = {}, options) => {
+    const query = new URLSearchParams(params).toString();
+    return request(
+      `${scope(id)}/views/${encodeURIComponent(viewId)}/surface/frame${query ? `?${query}` : ''}`,
+      options,
+    );
+  },
+  surfaceCapabilities: (id, viewId, options) =>
+    request(`${scope(id)}/views/${encodeURIComponent(viewId)}/surface/capabilities`, options),
+
   // The image goes up as raw bytes with its type in the header: one picture
   // does not justify a multipart parser on the server.
   putWallpaper: (id, file) =>

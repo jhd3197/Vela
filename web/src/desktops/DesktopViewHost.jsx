@@ -20,6 +20,7 @@ import AgentWindow from './AgentWindow.jsx';
 import AppWindow from './AppWindow.jsx';
 import EmptyPane from './EmptyPane.jsx';
 import SplitDivider from './SplitDivider.jsx';
+import SurfaceWindow from './SurfaceWindow.jsx';
 import WindowFrame from './WindowFrame.jsx';
 import GenieOverlay from './motion/GenieOverlay.jsx';
 import useWindowMotion from './motion/useWindowMotion.js';
@@ -75,6 +76,7 @@ function labelFor(view, apps) {
   if (view.kind === 'app') {
     return apps?.find((app) => app.id === view.appId)?.name || 'App';
   }
+  if (view.kind === 'surface') return 'Surface';
   if (view.kind === 'host') return hostSurfaceName(view.surface);
   if (view.kind === 'agent') return 'Agent';
   if (view.kind === 'web') {
@@ -89,7 +91,8 @@ function labelFor(view, apps) {
 
 /** The mark a window carries in its title bar: the app's, or Vela's own tool's. */
 function iconFor(view, apps, name, size = 20) {
-  if (view.kind === 'app') {
+  if (view.kind === 'app' || view.kind === 'surface') {
+    // A surface names an app exactly like an app view does, and carries its mark.
     return (
       <AppIcon
         app={apps?.find((app) => app.id === view.appId) || { id: view.appId, name }}
@@ -667,6 +670,10 @@ export default function DesktopViewHost({ views, desktop }) {
               // Owner chrome in a window, not an app. Nothing in the agent's
               // browser can see this or reach what it calls.
               <AgentWindow desktopId={view.desktopId} />
+            ) : view.kind === 'surface' ? (
+              // A document the hub fetches through the owning app's connection
+              // and draws itself. Nothing app-supplied executes in here.
+              <SurfaceWindow view={view} desktopId={view.desktopId} />
             ) : (
               <div className="window-state" role="status">
                 <p>This kind of window is not available yet.</p>

@@ -354,18 +354,18 @@ export function createBridge({
           if (payload.title !== undefined && typeof payload.title !== 'string')
             throw new Error('Invalid surface request');
           const source = surfaceSource(payload.source);
-          if (!source) throw new Error('A surface source is an absolute path on the app’s connection');
+          if (!source)
+            throw new Error('A surface source is an absolute path on the app’s connection');
           if (!onOpenSurface || !appId)
             throw Object.assign(new Error('This window cannot open surfaces'), { status: 409 });
           // The calling app's id comes from the session this bridge was built
           // for, never from the payload: an app cannot open a window in
           // another app's name.
-          result =
-            (await onOpenSurface({
-              appId,
-              source,
-              title: (payload.title || '').slice(0, 120),
-            })) || { ok: true };
+          result = (await onOpenSurface({
+            appId,
+            source,
+            title: (payload.title || '').slice(0, 120),
+          })) || { ok: true };
         } else if (message.operation === 'navigation.dirty') {
           onDirty({ dirty: payload.dirty === true, canSave: payload.canSave === true });
         } else if (message.operation === 'navigation.open') {
