@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from ..app_storage import AppServiceError
+from ..connections import _http_path
 from ..errors_http import VelaError
 
 #: The schema version of `desktops.sqlite`. An older Vela cannot read a newer
@@ -158,10 +160,11 @@ def default_appearance() -> dict[str, Any]:
 # ------------------------------------------------------------------ views --
 
 #: What a view can be. `app` is an installed Vela app, `web` an approved site,
-#: `host` one of the owner surfaces below, and `agent` the task window. The last
-#: two are owner chrome: they are never handed to an agent as something to look
-#: at or click, which is why they are a separate kind rather than a flag.
-VIEW_KINDS = ("app", "web", "host", "agent")
+#: `host` one of the owner surfaces below, `agent` the task window, and
+#: `surface` a document an app serves over its http connection that the hub
+#: draws itself. The last three are never handed to an agent as something to
+#: look at or click, which is why they are separate kinds rather than flags.
+VIEW_KINDS = ("app", "web", "host", "agent", "surface")
 
 #: The owner surfaces a `host` view may be. A closed list on purpose — a `host`
 #: view that could name any path would be a way to put the owner's dashboard,
@@ -234,21 +237,34 @@ def validate_view_target(kind: str, target: Any) -> dict[str, Any]:
         app_id = target.get("appId")
         if not isinstance(app_id, str) or not _APP_ID.match(app_id):
             raise DesktopError(422, "An app view names an installed app.")
-        return {"app_id": app_id, "surface_key": None, "url": None}
+        return {"app_id": app_id, "surface_key": None, "url": None, "source": None}
     if kind == "host":
         surface = target.get("surface")
         if surface not in HOST_SURFACES:
             raise DesktopError(422, "That is not a surface this server can open.")
-        return {"app_id": None, "surface_key": surface, "url": None}
+        return {"app_id": None, "surface_key": surface, "url": None, "source": None}
     if kind == "web":
         url = target.get("url")
         if not isinstance(url, str) or not url.startswith(("http://", "https://")):
             raise DesktopError(422, "A web view needs an http or https address.")
         if len(url) > 2000:
             raise DesktopError(422, "That address is too long to store.")
-        return {"app_id": None, "surface_key": None, "url": url}
+        return {"app_id": None, "surface_key": None, "url": url, "source": None}
+    if kind == "surface":
+        app_id = target.get("appId")
+        if not isinstance(app_id, str) or not _APP_ID.match(app_id):
+            raise DesktopError(422, "A surface view names an installed app.")
+        # The path under the app's http connection the document is fetched
+        # from. The same rule the connection itself applies to every path it
+        # sends: one absolute path, no dot segments, no encoded separators —
+        # so a stored view cannot be aimed outside the connection's origin.
+        try:
+            source = _http_path(target.get("source"))
+        except AppServiceError as exc:
+            raise DesktopError(422, str(exc)) from exc
+        return {"app_id": app_id, "surface_key": None, "url": None, "source": source}
     # `agent`: the task window for this desktop. It points at the desktop itself.
-    return {"app_id": None, "surface_key": None, "url": None}
+    return {"app_id": None, "surface_key": None, "url": None, "source": None}
 
 
 def validate_bounds(value: Any) -> dict[str, int] | None:

@@ -1321,7 +1321,10 @@ class Desktops:
         bounds = validate_bounds(bounds)
 
         installation = None
-        if kind == "app":
+        if kind in ("app", "surface"):
+            # A surface names an app exactly the way an app view does, and binds
+            # to its installation the same way: a reinstall must not inherit a
+            # window the old installation opened.
             if self._storage is None:
                 raise DesktopError(503, "App installations are not available yet.")
             installation = self._storage.installation(checked["app_id"])
@@ -1438,6 +1441,12 @@ class Desktops:
                 if view["installationId"] == installation:
                     return view
                 continue
+            if kind == "surface" and view["appId"] == target["app_id"]:
+                # One window per document: asking for the same surface again
+                # raises the one that is already open.
+                if view["source"] == target["source"] and view["installationId"] == installation:
+                    return view
+                continue
             if kind == "host" and view["surface"] == target["surface_key"]:
                 return view
             if kind == "web" and view["url"] == target["url"]:
@@ -1450,7 +1459,7 @@ class Desktops:
         """A view as the dashboard reads it, with what is true about it now."""
         available = True
         reason = None
-        if view["kind"] == "app":
+        if view["kind"] in ("app", "surface"):
             # Compared on every read rather than invalidated by a hook at
             # uninstall time: a hook is something a future code path can forget
             # to call, and a window pointing at a replaced installation is

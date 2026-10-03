@@ -55,6 +55,9 @@ class OpenView(BaseModel):
     appId: str | None = Field(default=None, max_length=80)
     surface: str | None = Field(default=None, max_length=40)
     url: str | None = Field(default=None, max_length=2000)
+    # A surface view's path under its app's http connection. Bounded loosely
+    # here; `validate_view_target` applies the connection's own path rules.
+    source: str | None = Field(default=None, max_length=1100)
     title: str = Field(default="", max_length=120)
     state: dict[str, Any] | None = None
     bounds: dict[str, Any] | None = None
@@ -264,7 +267,12 @@ def router(desktops, *, runs=None) -> APIRouter:
         return desktops.open_view(
             desktop_id,
             payload.kind,
-            {"appId": payload.appId, "surface": payload.surface, "url": payload.url},
+            {
+                "appId": payload.appId,
+                "surface": payload.surface,
+                "url": payload.url,
+                "source": payload.source,
+            },
             title=payload.title,
             state=payload.state,
             bounds=payload.bounds,

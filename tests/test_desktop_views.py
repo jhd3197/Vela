@@ -163,6 +163,124 @@ class DesktopViewTests(unittest.TestCase):
         refused = self.open(kind="web", url="https://example.com/too-many")
         self.assertEqual(refused.status_code, 429)
 
+    # ---- surface views
+
+    def open_surface(self, source="/api/v1/server-gui/srv-1", app_id="chat-fixture", **extra):
+        return self.open(kind="surface", appId=app_id, source=source, **extra)
+
+    def test_opening_a_surface_binds_app_installation_and_source(self):
+        response = self.open_surface(title="srv-1")
+        self.assertEqual(response.status_code, 201, response.text)
+        view = response.json()
+        self.assertEqual(view["kind"], "surface")
+        self.assertEqual(view["appId"], "chat-fixture")
+        self.assertEqual(view["source"], "/api/v1/server-gui/srv-1")
+        self.assertTrue(view["installationId"])
+        self.assertTrue(view["available"])
+        self.assertFalse(view["agentViewable"], "the hub draws it; an agent is never pointed at it")
+        self.assertEqual(view["title"], "srv-1")
+
+    def test_opening_the_same_surface_again_raises_its_window(self):
+        first = self.open_surface().json()
+        self.patch_view(first["id"], minimized=True)
+        again = self.open_surface()
+        self.assertEqual(again.status_code, 201, again.text)
+        self.assertEqual(again.json()["id"], first["id"], "one window per document, not two")
+        self.assertFalse(again.json()["window"]["minimized"])
+        self.assertEqual(len(self.views()["views"]), 1)
+        # A different source is a different document, and gets its own window.
+        other = self.open_surface("/api/v1/server-gui/srv-2")
+        self.assertEqual(other.status_code, 201, other.text)
+        self.assertNotEqual(other.json()["id"], first["id"])
+
+    def test_a_surface_source_is_a_single_connection_relative_path(self):
+        for bad in (
+            None,
+            "",
+            "api/v1/srv-1",
+            "//evil.example/srv-1",
+            "/srv/../admin",
+            "/srv/./x",
+            "/srv/%2e%2e/admin",
+            "/srv/%2f/admin",
+            "/srv/%5c/admin",
+            "/srv?token=x",
+            42,
+        ):
+            with self.subTest(source=bad):
+                self.assertEqual(self.open_surface(bad).status_code, 422)
+        self.assertEqual(self.views()["views"], [], "a refused source opens nothing")
+
+    def test_a_surface_view_needs_an_installed_app(self):
+        self.assertEqual(self.open(kind="surface", source="/srv-1").status_code, 422)
+        self.assertEqual(
+            self.open(kind="surface", appId="not-a-real-app", source="/srv-1").status_code, 404
+        )
+
+    def test_a_surface_view_goes_unavailable_with_its_installation(self):
+        view = self.open_surface().json()
+        self.assertEqual(
+            self.client.delete("/api/apps/chat-fixture", headers=self.hub).status_code, 200
+        )
+        gone = self.views()["views"][0]
+        self.assertFalse(gone["available"])
+        self.assertEqual(gone["unavailableReason"], "uninstalled")
+
+        self.assertEqual(
+            self.client.post("/api/apps/chat-fixture/install", headers=self.hub).status_code, 200
+        )
+        after = self.views()["views"][0]
+        self.assertEqual(after["unavailableReason"], "reinstalled")
+        # Reopening binds a new window to the new installation.
+        fresh = self.open_surface().json()
+        self.assertNotEqual(fresh["id"], view["id"])
+        self.assertTrue(fresh["available"])
+
+    def test_a_surface_view_survives_a_restart(self):
+        view = self.open_surface().json()
+        self.restart()
+        stored = self.views()["views"][0]
+        self.assertEqual(stored["id"], view["id"])
+        self.assertEqual(stored["kind"], "surface")
+        self.assertEqual(stored["source"], "/api/v1/server-gui/srv-1")
+
+    def test_an_existing_views_table_gains_the_source_column(self):
+        # A database written before surface views has no `source` column; the
+        # store adds it in place rather than refusing the file, and the views
+        # that predate it still read.
+        import sqlite3
+
+        from vela.desktops.store import SCHEMA, DesktopStore
+
+        path = self.root / "old-desktops.sqlite"
+        old_schema = SCHEMA.replace("  url TEXT,\n  source TEXT,\n", "  url TEXT,\n")
+        self.assertNotIn("source TEXT", old_schema)
+        db = sqlite3.connect(path)
+        try:
+            db.executescript(old_schema)
+            db.execute("INSERT INTO meta VALUES ('schema_version', '1')")
+            db.execute(
+                "INSERT INTO desktops VALUES ('%s', 'Desk', 'personal', NULL, 0, 1, 0, 'now', 'now')"
+                % ("a" * 32)
+            )
+            db.execute(
+                "INSERT INTO desktop_views VALUES ('%s', '%s', 'web', NULL, NULL, NULL, "
+                "'https://example.com', '', 'human', 0, '{}', 'now', 'now')" % ("b" * 32, "a" * 32)
+            )
+            db.commit()
+        finally:
+            db.close()
+        store = DesktopStore(path)
+        db = sqlite3.connect(path)
+        try:
+            columns = {row[1] for row in db.execute("PRAGMA table_info(desktop_views)")}
+        finally:
+            db.close()
+        self.assertIn("source", columns)
+        view = store.view("b" * 32)
+        self.assertEqual(view["url"], "https://example.com")
+        self.assertIsNone(view["source"])
+
     # ---- presentation
 
     def test_minimizing_is_presentation_and_keeps_the_view(self):

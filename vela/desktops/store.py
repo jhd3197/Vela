@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS desktop_views (
   installation_id TEXT,
   surface_key TEXT,
   url TEXT,
+  source TEXT,
   title TEXT NOT NULL DEFAULT '',
   opened_by TEXT NOT NULL,
   position INTEGER NOT NULL,
@@ -143,6 +144,13 @@ class DesktopStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as db:
             db.executescript(SCHEMA)
+            # A database from before surface views has no `source` column.
+            # Added in place, the way `Connections` adds a column: the rows
+            # that predate it are simply not surface views, so NULL is right.
+            if "source" not in {
+                row["name"] for row in db.execute("PRAGMA table_info(desktop_views)")
+            }:
+                db.execute("ALTER TABLE desktop_views ADD COLUMN source TEXT")
             stored = db.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
             if stored is None:
                 db.execute(
@@ -499,7 +507,7 @@ class DesktopStore:
                 + 1
             )
             db.execute(
-                "INSERT INTO desktop_views VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO desktop_views VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     view_id,
                     desktop_id,
@@ -508,6 +516,7 @@ class DesktopStore:
                     installation_id,
                     target.get("surface_key"),
                     target.get("url"),
+                    target.get("source"),
                     title,
                     opened_by,
                     position,
@@ -858,6 +867,7 @@ def _view(row: sqlite3.Row) -> dict[str, Any]:
         "installationId": row["installation_id"],
         "surface": row["surface_key"],
         "url": row["url"],
+        "source": row["source"],
         "title": row["title"],
         "openedBy": row["opened_by"],
         "position": int(row["position"]),
