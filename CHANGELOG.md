@@ -8,6 +8,18 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Surface windows: an app can describe a screen that Vela draws.** An app
+  with the new `surfaces` capability can serve a surface document — a screen
+  described as data, such as a server panel — over its web connection and open
+  it as a window on the desk with the new `surfaces.open` bridge operation.
+  Vela fetches the document through the app's connection and draws it with the
+  dashboard's own components; nothing the app supplies runs in the dashboard.
+  A window can show the drawn desktop or a picture the app captures, switched
+  from its toolbar (auto, screen or desktop), and opening the same surface
+  again raises its window instead of opening a copy. Buttons the document
+  shows are inert for now: the viewer is read-only. See
+  [the app contract](docs/CONTRACT.md#app-served-surface-windows).
+
 - **Apps can use web APIs that need a key or token.** An app can now declare
   one public HTTPS service it talks to, such as `api.github.com`. The install
   review names that address. Paste the service's API key or token into the
