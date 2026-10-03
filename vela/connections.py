@@ -54,6 +54,37 @@ def validate_endpoint(endpoint):
         raise AppServiceError(422, "Use a loopback or private LAN IP URL with a port, without credentials, paths or query strings")
 
 
+# A public https DNS address: the rule the manifest schema's `baseUrl` pattern
+# states, kept in sync with it (no IP literals, no single-label names).
+_PUBLIC_HTTPS = re.compile(
+    r"https://(?![0-9.]+(:|$))[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?"
+)
+
+
+def validate_self_hosted_endpoint(endpoint):
+    """The address an owner sets for a self-hosted service.
+
+    Two kinds are legitimate: the public https DNS URL the manifest's `baseUrl`
+    would have been, or a loopback/private-LAN address — a panel on the same
+    network is the usual case, and plain http is acceptable there for the same
+    reason the ollama provider allows it. Credentials, paths and query strings
+    are refused either way: the address is an origin and nothing more.
+    """
+    if not isinstance(endpoint, str):
+        raise AppServiceError(422, "Set the address to a public https URL, or a loopback or private LAN address")
+    candidate = endpoint[:-1] if endpoint.endswith("/") else endpoint
+    if _PUBLIC_HTTPS.fullmatch(candidate):
+        return candidate
+    try:
+        return validate_endpoint(endpoint)
+    except AppServiceError:
+        raise AppServiceError(
+            422,
+            "Use a public https URL, or a loopback or private LAN address with a "
+            "port, without credentials, paths or query strings",
+        )
+
+
 # The http provider: one public HTTPS origin per app, only the methods the
 # manifest declared, and bounded both ways.
 _HTTP_TIMEOUT = 15
@@ -116,12 +147,32 @@ class Connections:
             row = db.execute("SELECT * FROM connections WHERE identity=?", (identity,)).fetchone()
             return dict(row) if row else None
 
+    def _http_endpoint(self, connection, binding):
+        """Where requests for this connection actually go.
+
+        A self-hosted app talks to the address the owner set, never to the
+        manifest's placeholder. Until that address exists there is nowhere to
+        send anything — a setup step (409), not a failure of the service.
+        """
+        if connection.get("selfHosted"):
+            if not binding or binding["provider"] != "http":
+                raise AppServiceError(409, "Set the service address in this app's Vela settings")
+            return binding["endpoint"]
+        return connection["baseUrl"]
+
     def _http_secret(self, connection, binding):
         """The saved secret, but only for the origin it was saved for.
 
         An update that moves the app to another origin must not carry the
-        owner's token there; they save it again for the new one.
+        owner's token there; they save it again for the new one. For a
+        self-hosted app the binding's endpoint *is* the effective endpoint —
+        setting a new address replaces the row and clears the secret — so the
+        same property falls out of the row itself.
         """
+        if connection.get("selfHosted"):
+            if binding and binding["provider"] == "http":
+                return binding["secret"]
+            return None
         if binding and binding["provider"] == "http" and binding["endpoint"] == connection["baseUrl"]:
             return binding["secret"]
         return None
@@ -132,9 +183,20 @@ class Connections:
         connection = manifest.raw["connection"]
         if connection["provider"] == "http":
             spec = connection.get("secret")
+            self_hosted = bool(connection.get("selfHosted"))
+            address_set = bool(binding) if self_hosted else True
             configured = bool(self._http_secret(connection, binding))
-            return {"connected": configured or not (spec and spec.get("required")), "provider": "http",
-                    "ownership": "connected", "endpoint": connection["baseUrl"],
+            return {"connected": address_set and (configured or not (spec and spec.get("required"))),
+                    "provider": "http",
+                    "ownership": "connected",
+                    # Where requests go: the owner's address for a self-hosted
+                    # app, the manifest's for anyone else.
+                    "endpoint": (binding["endpoint"] if binding else None) if self_hosted
+                                else connection["baseUrl"],
+                    "selfHosted": self_hosted,
+                    # Lets the settings UI tell "no address yet" apart from
+                    # "no secret yet"; always true when the manifest fixes it.
+                    "addressSet": address_set,
                     "checked_at": binding["checked_at"] if configured else None,
                     "operations": connection["operations"],
                     "methods": connection.get("methods", ["GET"]),
@@ -188,7 +250,7 @@ class Connections:
         except (ValueError, TypeError) as exc:
             raise AppServiceError(502, "Ollama returned an invalid response") from exc
 
-    async def _http_request(self, connection, secret, payload):
+    async def _http_request(self, connection, secret, payload, endpoint=None):
         if not isinstance(payload, dict) or set(payload) - {"method", "path", "query", "body"}:
             raise AppServiceError(422, "A request takes method, path, query and body")
         method = payload.get("method", "GET")
@@ -196,6 +258,7 @@ class Connections:
             raise AppServiceError(403, "That method is not granted")
         path = _http_path(payload.get("path"))
         params = _http_query(payload.get("query"))
+        endpoint = endpoint or connection["baseUrl"]
         headers = {"User-Agent": "Vela", **connection.get("headers", {})}
         content = None
         if "body" in payload:
@@ -213,10 +276,10 @@ class Connections:
             headers[spec["header"]] = spec.get("prefix", "") + secret
         elif spec and spec.get("required"):
             raise AppServiceError(409, f"Add the {spec['label']} in the app's Vela settings")
-        host = urlsplit(connection["baseUrl"]).hostname
+        host = urlsplit(endpoint).hostname
         try:
             async with asyncio.timeout(_HTTP_TIMEOUT), httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False, trust_env=False, transport=self.transport) as client:
-                async with client.stream(method, connection["baseUrl"] + path, params=params, headers=headers, content=content) as response:
+                async with client.stream(method, endpoint + path, params=params, headers=headers, content=content) as response:
                     body = bytearray()
                     async for chunk in response.aiter_bytes():
                         body.extend(chunk)
@@ -246,15 +309,40 @@ class Connections:
             raise AppServiceError(422, "This app does not use a secret")
         if not isinstance(secret, str) or not _HTTP_SECRET.fullmatch(secret):
             raise AppServiceError(422, "Paste the value without spaces or line breaks, up to 4096 characters")
+        binding = self._binding(identity)
+        # The secret is stored against the exact origin it will be sent to.
+        # For a self-hosted app that is the owner's address, so the address has
+        # to exist first — a secret saved for nowhere is a secret sent anywhere.
+        endpoint = self._http_endpoint(connection, binding)
         with self.storage.connection() as db:
             self.storage._app_id(db, identity)
             db.execute("INSERT OR REPLACE INTO connections (identity, provider, endpoint, checked_at, secret) VALUES (?, 'http', ?, ?, ?)",
-                       (identity, connection["baseUrl"], datetime.now(timezone.utc).isoformat(), secret))
+                       (identity, endpoint, datetime.now(timezone.utc).isoformat(), secret))
         return self.status(app_id)
 
     async def bind(self, app_id, endpoint=None, secret=None):
         manifest, identity = self.context(app_id)
-        if manifest.raw["connection"]["provider"] == "http":
+        connection = manifest.raw["connection"]
+        if connection["provider"] == "http":
+            if connection.get("selfHosted"):
+                # The owner sets the address, then the secret — separately, so
+                # each is checked against the state the other needs.
+                if secret is not None:
+                    if endpoint is not None:
+                        raise AppServiceError(422, "Set the address first, then save the secret")
+                    return self.save_secret(app_id, secret)
+                if endpoint is None:
+                    raise AppServiceError(422, "Supply the service address")
+                endpoint = validate_self_hosted_endpoint(endpoint)
+                with self.storage.connection() as db:
+                    self.storage._app_id(db, identity)
+                    # A new address replaces the row and drops the secret with
+                    # it: the old key was saved for the old origin, and sending
+                    # it to the new one is exactly what the binding exists to
+                    # prevent.
+                    db.execute("INSERT OR REPLACE INTO connections (identity, provider, endpoint, checked_at, secret) VALUES (?, 'http', ?, ?, NULL)",
+                               (identity, endpoint, datetime.now(timezone.utc).isoformat()))
+                return self.status(app_id)
             if endpoint is not None:
                 raise AppServiceError(422, "This app's address is fixed by its manifest")
             return self.save_secret(app_id, secret)
@@ -300,6 +388,7 @@ class Connections:
             connection,
             self._http_secret(connection, binding),
             {"method": "GET", "path": path, "query": query},
+            endpoint=self._http_endpoint(connection, binding),
         )
 
     async def invoke(self, session, operation, payload):
@@ -323,7 +412,10 @@ class Connections:
         binding = self._binding(session["installationId"])
         connection = manifest.raw["connection"]
         if connection["provider"] == "http":
-            return await self._http_request(connection, self._http_secret(connection, binding), payload)
+            endpoint = self._http_endpoint(connection, binding)
+            return await self._http_request(
+                connection, self._http_secret(connection, binding), payload, endpoint=endpoint
+            )
         if not binding:
             raise AppServiceError(409, "Connect an existing Ollama server from the app's Vela settings")
         return await self._request(binding["endpoint"], operation, payload)
