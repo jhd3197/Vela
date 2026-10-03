@@ -281,6 +281,27 @@ class Connections:
             return f"It would send a {method} request to {urlsplit(connection['baseUrl']).hostname}."
         return f"It would send “{operation}” to the service this app is connected to."
 
+    async def owner_get(self, app_id, path, query=None):
+        """A read over an app's http connection, for the owner rather than the app.
+
+        The exact validation, caps and timeouts the app's own calls get — same
+        path rules, same response ceiling, same secret handling. What differs
+        is who is asking: the owner pulling a read-only document needs no
+        grant, so the guard is not consulted here.
+        """
+        manifest = self.registry.get(app_id)
+        if not manifest or not self.registry.is_installed(app_id):
+            raise AppServiceError(404, "App is not installed")
+        connection = manifest.raw.get("connection") or {}
+        if connection.get("provider") != "http":
+            raise AppServiceError(409, "This app has no http connection to read through")
+        binding = self._binding(self.storage.activate(app_id))
+        return await self._http_request(
+            connection,
+            self._http_secret(connection, binding),
+            {"method": "GET", "path": path, "query": query},
+        )
+
     async def invoke(self, session, operation, payload):
         manifest = self.registry.get(session["app_id"])
         if "connections" not in session["capabilities"] or not manifest or operation not in manifest.raw.get("connection", {}).get("operations", []):

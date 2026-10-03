@@ -98,6 +98,9 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/views`
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame`
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame/{digest}`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface/capabilities`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface/frame`
 - `GET /api/desktops/{desktop_id}/wallpaper`
 - `GET /api/devices`
 - `GET /api/doctor`

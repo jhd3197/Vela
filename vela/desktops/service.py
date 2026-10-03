@@ -47,6 +47,7 @@ from .models import (
     validate_kind,
     validate_name,
     validate_revision,
+    validate_surface_document,
     validate_view_id,
     validate_view_kind,
     validate_view_state,
@@ -107,6 +108,10 @@ class Desktops:
         self._view_features: dict[str, tuple[str, ...]] = {}
         self._auth = auth
         self._registry = registry
+        # The connections service, attached after construction the way actions
+        # are: it is built from this service's guard, so it cannot be a
+        # constructor argument. Surface proxy routes refuse until it is there.
+        self.connections = None
         # Named actions, attached after construction because the action service
         # is built from services that are built from this one. An agent invoking
         # an action goes through the same service a person's click does.
@@ -1487,6 +1492,70 @@ class Desktops:
                 else "approvals" in self._view_features[view["id"]]
             ),
         }
+
+    # -------------------------------------------------------- surfaces --
+
+    def _surface_view(self, desktop_id: Any, view_id: Any) -> dict[str, Any]:
+        """The surface view a proxy call names, or the refusal it gets."""
+        desktop_id = validate_id(desktop_id)
+        view = self.store.view(validate_view_id(view_id))
+        # One answer for "not open here" and "not a surface": which kind a view
+        # is says nothing an owner should have to probe for.
+        if view["desktopId"] != desktop_id or view["kind"] != "surface":
+            raise DesktopError(404, "That view is not open on this desktop.")
+        if self.connections is None:
+            raise DesktopError(503, "Connections are not available yet.")
+        return view
+
+    async def _surface_fetch(
+        self, view: dict[str, Any], suffix: str, query: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """One GET on the surface's endpoint, through the app's own connection.
+
+        The owner is pulling read-only data, so no grant is asked for; the
+        connection's path rules, timeouts and caps still apply, exactly as they
+        do to the app's own calls.
+        """
+        try:
+            result = await self.connections.owner_get(
+                view["appId"], view["source"] + suffix, query
+            )
+        except AppServiceError as exc:
+            raise DesktopError(exc.status, str(exc)) from exc
+        if result["status"] != 200 or not isinstance(result["body"], dict):
+            raise DesktopError(502, "The app did not answer with a surface document.")
+        return result["body"]
+
+    async def surface_document(self, desktop_id: Any, view_id: Any) -> dict[str, Any]:
+        """The document a surface view draws, validated whole before it is served."""
+        view = self._surface_view(desktop_id, view_id)
+        return validate_surface_document(await self._surface_fetch(view, "/surface"))
+
+    async def surface_frame(
+        self, desktop_id: Any, view_id: Any, *, scale: Any, quality: Any, format: Any
+    ) -> dict[str, Any]:
+        """A picture of the surface, with the producer's documented clamping."""
+        view = self._surface_view(desktop_id, view_id)
+        try:
+            scale = min(1.0, max(0.1, float(scale)))
+        except (TypeError, ValueError):
+            scale = 0.75
+        try:
+            quality = min(95, max(10, int(quality)))
+        except (TypeError, ValueError):
+            quality = 70
+        format = format if format in ("jpeg", "png") else "jpeg"
+        frame = await self._surface_fetch(
+            view, "/frame", {"scale": scale, "quality": quality, "format": format}
+        )
+        if not isinstance(frame.get("image_base64"), str):
+            raise DesktopError(502, "The app did not answer with a surface frame.")
+        return frame
+
+    async def surface_capabilities(self, desktop_id: Any, view_id: Any) -> dict[str, Any]:
+        """What the surface's producer can do, fetched once by the window."""
+        view = self._surface_view(desktop_id, view_id)
+        return await self._surface_fetch(view, "/capabilities")
 
     # ---------------------------------------------- wallpaper as assets --
 

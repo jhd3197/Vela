@@ -288,6 +288,29 @@ def router(desktops, *, runs=None) -> APIRouter:
     def close_view(desktop_id: str, view_id: str) -> dict:
         return desktops.close_view(desktop_id, view_id)
 
+    # A surface view's document, picture and capabilities, fetched through the
+    # owning app's http connection. Owner-authenticated like every route here:
+    # the hub draws the document itself, and nothing app-supplied executes.
+    @api.get("/{desktop_id}/views/{view_id}/surface")
+    async def view_surface(desktop_id: str, view_id: str) -> dict:
+        return await desktops.surface_document(desktop_id, view_id)
+
+    @api.get("/{desktop_id}/views/{view_id}/surface/frame")
+    async def view_surface_frame(
+        desktop_id: str,
+        view_id: str,
+        scale: float = 0.75,
+        quality: int = 70,
+        format: str = "jpeg",
+    ) -> dict:
+        return await desktops.surface_frame(
+            desktop_id, view_id, scale=scale, quality=quality, format=format
+        )
+
+    @api.get("/{desktop_id}/views/{view_id}/surface/capabilities")
+    async def view_surface_capabilities(desktop_id: str, view_id: str) -> dict:
+        return await desktops.surface_capabilities(desktop_id, view_id)
+
     @api.post("/{desktop_id}/selected-view")
     def select_view(desktop_id: str, payload: SelectView) -> dict:
         return desktops.select_view(desktop_id, payload.viewId)

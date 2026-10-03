@@ -185,7 +185,6 @@ VIEW_ACTORS = ("human", "agent")
 #: How a desktop's views are arranged. `split` is two panes; either may be empty
 #: while the user decides what goes in it.
 ARRANGEMENTS = ("floating", "maximized", "split")
-
 #: The narrowest either pane may be dragged, as a fraction of the work area.
 MIN_DIVIDER_RATIO = 0.2
 MAX_DIVIDER_RATIO = 0.8
@@ -336,3 +335,56 @@ def validate_view_state(value: Any) -> dict[str, Any]:
     if len(json.dumps(out)) > 1000:
         raise DesktopError(422, "That view state is too large to store.")
     return out
+
+
+# --------------------------------------------------------------- surfaces --
+
+#: The limits the surface contract puts on one document, enforced when the hub
+#: fetches it. A document over any of them is refused whole — the renderer
+#: never sees the half that did validate.
+MAX_SURFACE_BYTES = 1048576
+MAX_SURFACE_NODES = 1000
+MAX_SURFACE_DEPTH = 8
+
+
+def validate_surface_document(document: Any) -> dict[str, Any]:
+    """A surface document the hub may draw, checked whole before it is served.
+
+    The hub draws the document itself and nothing app-supplied executes, so
+    the checks are about size and shape, not content: a tree too big to walk
+    cheaply is refused rather than trimmed.
+    """
+    if not isinstance(document, dict) or document.get("surface") != 1:
+        raise DesktopError(422, "That surface is in a format this hub cannot draw.")
+    try:
+        size = len(json.dumps(document).encode("utf-8"))
+    except (TypeError, ValueError) as exc:
+        raise DesktopError(422, "That surface document could not be read.") from exc
+    if size > MAX_SURFACE_BYTES:
+        raise DesktopError(422, "That surface document is too large to draw.")
+    nodes, depth = _measure(document.get("root"), 1)
+    if nodes > MAX_SURFACE_NODES:
+        raise DesktopError(422, "That surface has more parts than this hub can draw.")
+    if depth > MAX_SURFACE_DEPTH:
+        raise DesktopError(422, "That surface is nested deeper than this hub can draw.")
+    return document
+
+
+def _measure(value: Any, depth: int = 0) -> tuple[int, int]:
+    """(nodes, deepest level) of a surface tree. Objects are nodes; lists are
+    transparent, so a row in a list nests exactly as deep as the list does."""
+    if isinstance(value, dict):
+        nodes, deepest = 1, depth
+        for child in value.values():
+            child_nodes, child_depth = _measure(child, depth + 1)
+            nodes += child_nodes
+            deepest = max(deepest, child_depth)
+        return nodes, deepest
+    if isinstance(value, list):
+        nodes, deepest = 0, depth
+        for child in value:
+            child_nodes, child_depth = _measure(child, depth)
+            nodes += child_nodes
+            deepest = max(deepest, child_depth)
+        return nodes, deepest
+    return 0, depth
