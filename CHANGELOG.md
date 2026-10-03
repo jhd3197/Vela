@@ -8,6 +8,13 @@ until the release workflow prepares a tested server version.
 
 ### Fixed
 
+- **Opening any desktop window no longer fails on a database an older server
+  release also uses.** Adding the surface window's column changed the views
+  table's shape; writes now name their columns, so they land correctly on
+  both freshly created and in-place migrated databases. (Older releases
+  sharing the file still cannot write to the migrated table — run only one
+  server version against a data directory.)
+
 - **Container deployments honor `VELA_PORT` for the listener.** The
   container entrypoint read `VELA_PORT` for its gateway configuration but
   still bound uvicorn to 7700, so a second instance mapped to another host

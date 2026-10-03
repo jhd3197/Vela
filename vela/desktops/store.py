@@ -507,7 +507,14 @@ class DesktopStore:
                 + 1
             )
             db.execute(
-                "INSERT INTO desktop_views VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                # Named columns, never positional: a database migrated from an
+                # older schema has `source` appended at the end by ALTER TABLE,
+                # while a fresh database gets it from CREATE TABLE in this
+                # order — and an older server release sharing the file inserts
+                # positionally either way.
+                "INSERT INTO desktop_views (id, desktop_id, kind, app_id, installation_id, "
+                "surface_key, url, source, title, opened_by, position, state, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     view_id,
                     desktop_id,

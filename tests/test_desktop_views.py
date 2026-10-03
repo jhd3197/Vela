@@ -280,6 +280,27 @@ class DesktopViewTests(unittest.TestCase):
         view = store.view("b" * 32)
         self.assertEqual(view["url"], "https://example.com")
         self.assertIsNone(view["source"])
+        # A migrated table has `source` appended at the end, so its column
+        # order differs from a fresh database: writes must name their columns
+        # or every value lands one column off.
+        store.open_view(
+            "a" * 32,
+            kind="surface",
+            target={"app_id": "notes", "source": "/api/v1/server-gui/srv-1"},
+            installation_id=None,
+            title="srv-1",
+            opened_by="human",
+        )
+        db = sqlite3.connect(path)
+        try:
+            row = db.execute(
+                "SELECT kind, app_id, title, source, opened_by, position, state, created_at "
+                "FROM desktop_views WHERE kind='surface'"
+            ).fetchone()
+        finally:
+            db.close()
+        self.assertEqual(row, ("surface", "notes", "srv-1", "/api/v1/server-gui/srv-1",
+                               "human", 1, "{}", row[7]))
 
     # ---- presentation
 
