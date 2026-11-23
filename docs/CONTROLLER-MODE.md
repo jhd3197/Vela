@@ -42,6 +42,58 @@ loopback; the port must stay unpublished beyond it. Anyone who can reach the
 port still needs the token for every API except health, so keep the token
 file readable only by the controller.
 
+## The computer image
+
+The Dockerfile in the Vela repository builds this Vela as the `computer`
+target; the regular server image stays the default target, unchanged:
+
+```bash
+docker build --target computer -t vela-computer .
+```
+
+A controller application (CachiBot) builds the image on the user's machine
+on first use — Docker Engine on Linux, Docker Desktop on Windows and macOS —
+rather than downloading it. The image builds and runs on **linux/amd64 and
+linux/arm64**: Apple Silicon and other ARM machines need no emulation, and
+Playwright ships Chromium for both. The only build argument is the optional
+`VELA_VERSION`, which labels the image; OCI labels carry the title, the
+source, that version and `vela.controller.protocol=1`, the same protocol
+`GET /api/controller` reports.
+
+The image carries exactly what one bot's computer needs: the controller-mode
+entry point, the pinned browser worker (`playwright-core` from the lockfile,
+Chromium and the system libraries it links against) with a Node 22 runtime to
+run it. It runs as a fixed unprivileged uid/gid (**10001**) and ships no
+compiler, no curl and no language toolchains — a bot installs its own tools
+into `/workspace` later, and the image stays lean.
+
+```bash
+docker run -d --name bot-computer \
+  -p 127.0.0.1:7700:7700 \
+  -v /path/to/controller-token:/run/secrets/vela-controller-token:ro \
+  -v bot-computer-data:/data \
+  -v bot-computer-workspace:/workspace \
+  --memory=2g --cpus=2 --pids-limit=512 \
+  vela-computer
+```
+
+- The port publishes on the host's loopback only, as above; the same
+  listener answers inside the container on 7700 (`EXPOSE 7700`).
+- The token file mounts **read-only** at the path
+  `VELA_CONTROLLER_TOKEN_FILE` names. The image defaults that variable to
+  `/run/secrets/vela-controller-token`, so mounting at exactly that path is
+  all a run needs. There is no token build argument and no token environment
+  variable.
+- `/data` (`VELA_DATA_DIR`) and `/workspace` are volumes, owned by the image
+  user. Named volumes keep a bot's data and its own tools across image
+  rebuilds; the controller replaces the container, not the volumes.
+- `--memory`, `--cpus` and `--pids-limit` bound one bot's computer so a busy
+  browser cannot crowd the host or its sibling bots. The values above are a
+  reasonable start for one bot.
+- Agent desktops launch Chromium with its own sandbox on, deliberately — the
+  worker never passes `--no-sandbox`. A host that cannot run that sandbox
+  gets a runtime refusal it can act on, not an unsandboxed browser.
+
 ## What answers, and what is refused
 
 With `Authorization: Bearer <controller token>` the controller is
@@ -88,7 +140,7 @@ a Vela in controller mode, and how far the protocol has got:
 ```
 
 `features` lists the controller-only capabilities this Vela was built with;
-today it carries the mode itself. Later work builds on this mode — a
-`computer` image target, a driver API for the controller, a terminal and a
-full-desktop capture — and those features will exist only in controller
-mode.
+today it carries the mode itself. Later work builds on this mode — a driver
+API for the controller, a terminal and a full-desktop capture — and those
+features will exist only in controller mode; the `computer` image target
+above is the image they ship in.

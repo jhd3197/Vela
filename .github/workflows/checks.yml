@@ -52,3 +52,70 @@ jobs:
           python scripts/build-windows-installer.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/test-windows-distribution.py
+
+  computer-image:
+    # Build the controller-mode image for one architecture and prove the
+    # container a controller would start answers health, /api/controller and
+    # the agent desktop runtime check with a disposable mounted token.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the computer image
+        run: >-
+          docker buildx build --target computer --platform linux/amd64 --load
+          --build-arg VELA_VERSION="ci-${{ github.sha }}"
+          -t vela-computer:ci .
+      - name: Start a container with a disposable controller token
+        run: |
+          python3 -c "import secrets; print(secrets.token_urlsafe(48))" > /tmp/vela-controller-token
+          docker run -d --name vela-computer-ci \
+            -p 127.0.0.1:7700:7700 \
+            -v /tmp/vela-controller-token:/run/secrets/vela-controller-token:ro \
+            vela-computer:ci
+      - name: Wait for /api/health
+        run: |
+          python3 - <<'PY'
+          import time
+          import urllib.request
+
+          address = "http://127.0.0.1:7700/api/health"
+          for waited in range(120):
+              try:
+                  if urllib.request.urlopen(address, timeout=2).status == 200:
+                      print(f"/api/health answered after {waited}s")
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise SystemExit("the computer container did not answer /api/health in time")
+          PY
+      - name: Check the controller and agent desktop runtime surfaces
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          with open("/tmp/vela-controller-token", encoding="utf-8") as handle:
+              token = handle.read().strip()
+
+          def get(path):
+              request = urllib.request.Request(
+                  f"http://127.0.0.1:7700{path}",
+                  headers={"Authorization": f"Bearer {token}"},
+              )
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  return json.load(response)
+
+          controller = get("/api/controller")
+          assert controller["mode"] == "controller", controller
+          runtime = get("/api/desktops/runtime")
+          assert runtime["available"], runtime.get("detail")
+          print("controller mode:", controller["mode"])
+          print("agent desktop runtime: available")
+          PY
+      - name: Show the container logs on failure
+        if: failure()
+        run: docker logs vela-computer-ci
+      - name: Stop and remove the container
+        if: always()
+        run: docker rm -f vela-computer-ci

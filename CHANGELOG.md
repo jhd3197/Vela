@@ -42,6 +42,22 @@ until the release workflow prepares a tested server version.
   Local and remote modes are unchanged. See
   [the controller mode guide](docs/CONTROLLER-MODE.md).
 
+- **A `computer` image target for controller mode.** The repository's
+  Dockerfile now also builds the image a controller application (such as
+  CachiBot) creates on the user's machine on first use and runs one
+  container of per bot: `docker build --target computer`. The image starts
+  `python -m vela.computer` as a fixed unprivileged uid/gid (10001), with the
+  pinned agent desktop browser runtime installed (playwright-core from the
+  lockfile, Chromium with its system libraries, a Node 22 runtime for the
+  worker) and no other toolchains — a bot installs its own tools into
+  `/workspace`. The token still comes only from the file
+  `VELA_CONTROLLER_TOKEN_FILE` names (defaulting to
+  `/run/secrets/vela-controller-token`): there is no token build argument and
+  no token environment variable. `/data` and `/workspace` are volumes, the
+  port is 7700, health is checked against `/api/health` with Python, and the
+  image builds for linux/amd64 and linux/arm64. The default image target is
+  unchanged. See [the controller mode guide](docs/CONTROLLER-MODE.md).
+
 - **Self-hosted services: the owner sets the connection address.** An app
   whose web connection declares `selfHosted` — for example a panel you run on
   your own network — no longer has its address fixed by the app. Set the
