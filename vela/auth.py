@@ -1,4 +1,5 @@
-"""Loopback bootstrap, password-authenticated HTTPS, and scoped app sessions.
+"""Loopback bootstrap, password-authenticated HTTPS, scoped app sessions, and
+the token-only controller mode a single owning process drives.
 
 Trusted legacy apps/native code remain inside the local-user trust boundary.
 """
@@ -19,7 +20,11 @@ class Auth:
         self.hub_token = secrets.token_urlsafe(32)
         self.sessions = {}
         self.lock = threading.RLock()
-        self.remote = bool(config and config.remote_access)
+        self.controller_mode = bool(config and config.controller_mode)
+        self.controller_token = (config.controller_token or "") if config else ""
+        # A controller-mode container has no remote HTTPS origin, no password
+        # and no phone listener; remote access cannot be layered on top of it.
+        self.remote = bool(config and config.remote_access) and not self.controller_mode
         self.phone_origin = None
         self.origin = config.public_origin if config else None
         self.password_file = config.data_dir / "access.json" if config else None
@@ -41,6 +46,8 @@ class Auth:
         # origins, so the auth layer cannot end that access by removing a
         # session here -- it has to say that it happened.
         self.on_session_ended = None
+        if self.controller_mode and not self.controller_token:
+            raise ValueError("Controller mode requires a controller token")
         if self.remote and (not self.origin or not self.origin.startswith("https://") or not self.password_file.is_file()):
             raise ValueError("Remote access requires an HTTPS public origin and a configured access password")
 
@@ -71,6 +78,12 @@ class Auth:
 
     def valid_hub_token(self, token):
         with self.lock:
+            if self.controller_mode:
+                # The controller token is owner-equivalent: it acts as the hub
+                # token everywhere a local or remote mode takes one from a
+                # session. Compared in constant time, like every credential.
+                return bool(token) and secrets.compare_digest(
+                    token.encode(), self.controller_token.encode())
             if not self.remote and secrets.compare_digest(token.encode(), self.hub_token.encode()): return True
             return self.hub_sessions.get(token, 0) > time.monotonic()
 
@@ -100,6 +113,11 @@ class Auth:
             self._session_ended(token)
 
     def bootstrap(self, request):
+        if self.controller_mode:
+            # The container's own loopback is not the owner. There is no local
+            # bootstrap token in controller mode, and the route itself is
+            # refused earlier; this is the belt under that suspender.
+            raise AppServiceError(403, "Controller mode has no local bootstrap; present the controller token")
         if not self.is_remote_request(request): return self.hub_token
         token = request.cookies.get("__Host-vela-session", "")
         if not self.remote and token == self.hub_token:
@@ -453,6 +471,8 @@ class Auth:
 
     async def middleware(self, request, call_next):
         path = request.url.path
+        if path.startswith("/api/") and self.controller_mode:
+            return await self._controller_api(request, call_next)
         remote_request = self.is_remote_request(request)
         if path.startswith("/api/"):
             if remote_request and not self.remote and path != '/api/health' and (
@@ -509,6 +529,11 @@ class Auth:
             # endpoint returns only status/version; all other APIs require HTTPS.
             if remote_request and request.url.scheme != "https" and path != "/api/health":
                 return JSONResponse({"detail": "HTTPS is required"}, status_code=403)
+        return await self._finalize(request, call_next, remote_request)
+
+    async def _finalize(self, request, call_next, remote_request):
+        """Answer the request and attach the security headers every response carries."""
+        path = request.url.path
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -521,3 +546,55 @@ class Auth:
         if path.startswith("/api/apps/") and path.endswith("/icon"):
             response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
         return response
+
+    async def _controller_api(self, request, call_next):
+        """One bearer token is the whole sign-in story in controller mode.
+
+        Health, app icons and automation webhooks keep their existing rules —
+        webhooks carry their own per-workflow secret — and so do the per-app
+        session routes with their scoped app and agent tokens. Every other
+        /api/ route answers to the controller token, throttled like the
+        password login, or not at all.
+        """
+        path = request.url.path
+        token = request.headers.get("authorization", "").removeprefix("Bearer ")
+        if (path == "/api/health"
+                or path.startswith("/api/automations/hooks/")
+                or (path.startswith("/api/apps/") and path.endswith("/icon"))):
+            request.state.hub_token = token
+            return await self._finalize(request, call_next, False)
+        if path.startswith("/api/app/"):
+            try:
+                request.state.app_session = self.resolve(token)
+                if self.gateway is not None:
+                    request.state.effect = self.gateway(
+                        request.state.app_session, request.method, path)
+            except AppServiceError as exc:
+                return JSONResponse({"detail": exc.detail}, status_code=exc.status)
+            request.state.hub_token = token
+            return await self._finalize(request, call_next, False)
+        refused = self._controller_refused(path)
+        if refused is not None:
+            return JSONResponse({"detail": refused}, status_code=403)
+        if not self.valid_hub_token(token):
+            try:
+                self.throttle(request)
+            except AppServiceError as exc:
+                return JSONResponse({"detail": exc.detail}, status_code=exc.status)
+            return JSONResponse({"detail": "Controller authentication required"}, status_code=401)
+        self.forgive(request.client.host)
+        request.state.hub_token = token
+        return await self._finalize(request, call_next, False)
+
+    @staticmethod
+    def _controller_refused(path):
+        """The sentence refusing a person-facing route controller mode does not offer."""
+        if path in ("/api/session", "/api/login", "/api/logout"):
+            return "Controller mode has no person sign-in; use the controller token"
+        if path.startswith("/api/security"):
+            return "App lock protects a person sign-in session and is not available in controller mode"
+        if path == "/api/phone-access":
+            return "Phone access is not available in controller mode"
+        if path.startswith("/api/devices"):
+            return "Device pairing is not available in controller mode"
+        return None

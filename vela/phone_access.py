@@ -262,7 +262,7 @@ class PhoneAccess:
             await self._stop()
 
     async def restore(self):
-        if self.config.remote_access: return
+        if self.config.remote_access or self.config.controller_mode: return
         try:
             record = json.loads((self.directory / 'enabled.json').read_text(encoding='utf-8'))
             await self.start(record['address'], ports=record['ports'])

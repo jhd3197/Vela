@@ -139,6 +139,7 @@ class AssetTests(unittest.TestCase):
     def test_a_checkout_or_a_container_has_no_asset_to_download(self):
         self.assertIsNone(platform_asset(ASSETS, kind="source"))
         self.assertIsNone(platform_asset(ASSETS, kind="container"))
+        self.assertIsNone(platform_asset(ASSETS, kind="controller"))
 
     def test_a_release_without_this_platform_offers_nothing_rather_than_the_wrong_file(self):
         with mock.patch("vela.updates.platform.machine", return_value="riscv64"):
@@ -156,7 +157,15 @@ class AssetTests(unittest.TestCase):
             import os
 
             os.environ.pop("VELA_UPDATE_CAPABILITY", None)
+            os.environ.pop("VELA_CONTROLLER_MODE", None)
             self.assertEqual(capability(), "source")
+
+    def test_controller_mode_reports_itself_as_controller(self):
+        with mock.patch.dict("os.environ", {"VELA_CONTROLLER_MODE": "1"}):
+            import os
+
+            os.environ.pop("VELA_UPDATE_CAPABILITY", None)
+            self.assertEqual(capability(), "controller")
 
     def test_the_capability_can_be_pinned_for_a_distribution_check(self):
         with mock.patch.dict("os.environ", {"VELA_UPDATE_CAPABILITY": "portable"}):
@@ -572,7 +581,7 @@ class ApplyTests(unittest.TestCase):
         self.assertIn("did not back up", str(caught.exception))
 
     def test_a_checkout_or_container_is_told_to_update_another_way(self):
-        for kind in ("source", "container"):
+        for kind in ("source", "container", "controller"):
             with self.subTest(kind=kind):
                 with self.as_capability(kind):
                     with self.assertRaises(UpdateError) as caught:

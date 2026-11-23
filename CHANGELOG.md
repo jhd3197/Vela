@@ -23,6 +23,25 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Controller mode for a container one controller process owns.** A Vela
+  container can now start with `python -m vela.computer` in controller mode:
+  a controller application (such as CachiBot, running one Vela per bot)
+  publishes the port on the host's `127.0.0.1` only and drives Vela with a
+  per-container bearer token read once from the file named by
+  `VELA_CONTROLLER_TOKEN_FILE` — a token passed as an environment variable
+  is refused, so it never shows in `docker inspect`. Every `/api/` route
+  requires the token except `/api/health`, app icons, automation webhooks
+  with their own secret, and the per-app session routes, which keep their
+  scoped app and agent tokens. Person sign-in, app lock, phone access,
+  device pairing and self-update are refused (the update capability reports
+  `controller`; replacing the container is the controller's job), repeated
+  bad tokens are throttled like the login, and `GET /api/controller` with
+  the token reports the mode, version, protocol and controller features.
+  Dashboard pages answer a short plain-text explanation instead of the app,
+  while `/apps/` windows and the agent host keep working for agent desktops.
+  Local and remote modes are unchanged. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md).
+
 - **Self-hosted services: the owner sets the connection address.** An app
   whose web connection declares `selfHosted` — for example a panel you run on
   your own network — no longer has its address fixed by the app. Set the
