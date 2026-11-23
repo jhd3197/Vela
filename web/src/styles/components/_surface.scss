@@ -317,10 +317,10 @@
   background: var(--bg-inset);
 }
 .vela-synth--dusk .vela-synth-wallpaper {
-  background: linear-gradient(160deg, var(--accent-900, #2f0077), var(--bg) 75%);
+  background: linear-gradient(160deg, var(--accent-900), var(--bg) 75%);
 }
 .vela-synth--dawn .vela-synth-wallpaper {
-  background: linear-gradient(160deg, var(--amber-soft, #f7e3c0), var(--bg) 75%);
+  background: linear-gradient(160deg, var(--amber-soft), var(--bg) 75%);
 }
 .vela-synth--grid .vela-synth-wallpaper {
   background:
@@ -328,21 +328,34 @@
     repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 26px), var(--bg-inset);
 }
 .vela-synth--ocean .vela-synth-wallpaper {
-  background: linear-gradient(160deg, var(--cyan-100, #d8f3f6), var(--bg) 75%);
+  background: linear-gradient(160deg, var(--cyan-100), var(--bg) 75%);
 }
 .vela-synth--forest .vela-synth-wallpaper {
-  background: linear-gradient(160deg, var(--green-soft, #d9efe0), var(--bg) 75%);
+  background: linear-gradient(160deg, var(--green-soft), var(--bg) 75%);
 }
 
+/* On a dark ground the washes run stronger, still read from the theme. */
 [data-theme='dark'] {
   .vela-synth--dawn .vela-synth-wallpaper {
-    background: linear-gradient(160deg, rgba(216, 164, 86, 0.24), var(--bg) 75%);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--amber) 24%, transparent),
+      var(--bg) 75%
+    );
   }
   .vela-synth--ocean .vela-synth-wallpaper {
-    background: linear-gradient(160deg, rgba(94, 196, 209, 0.2), var(--bg) 75%);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--cyan) 20%, transparent),
+      var(--bg) 75%
+    );
   }
   .vela-synth--forest .vela-synth-wallpaper {
-    background: linear-gradient(160deg, rgba(105, 190, 130, 0.18), var(--bg) 75%);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--green) 18%, transparent),
+      var(--bg) 75%
+    );
   }
 }
 
