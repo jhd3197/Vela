@@ -75,6 +75,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/chat/conversations/{conversation_id}`
 - `GET /api/chat/conversations/{conversation_id}/run`
 - `GET /api/companions`
+- `GET /api/controller`
 - `GET /api/desk`
 - `GET /api/desktops`
 - `GET /api/desktops/attention`

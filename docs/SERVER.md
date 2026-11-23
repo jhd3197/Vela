@@ -74,6 +74,17 @@ in the image. The image includes Python but does not expose the host's Docker
 socket or desktop. See the [developer guide](DEVELOPMENT.md#container-build)
 for building and checking the image.
 
+## Controller mode
+
+A container can instead run in **controller mode** — token-only access for a
+container one local controller process owns. A controller application starts
+it with `python -m vela.computer`, publishes its port on the host's
+`127.0.0.1` only, and drives it with a per-container bearer token; people
+never open it directly, so there is no dashboard sign-in, password, phone
+access or pairing. See the [controller mode guide](CONTROLLER-MODE.md) for
+the token file, the refused routes and the discovery endpoint.
+
+
 ## Add apps
 
 Open **Library** and import an app release ZIP. Vela shows the permissions for

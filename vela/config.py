@@ -11,6 +11,18 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = Path.home() / ".vela"
 ENV_DATA_DIR = "VELA_DATA_DIR"
+#: Controller mode is opt-in and only ever set by the `vela.computer` entry
+#: point (or a test doing the same thing on disposable data). The flag and the
+#: token travel on `Config`, so every service reads one source of truth.
+ENV_CONTROLLER_MODE = "VELA_CONTROLLER_MODE"
+#: The controller token lives in a file the controller mounts into the
+#: container, never in the environment: `docker inspect` shows environment
+#: variables, and a secret that shows there is not a secret.
+ENV_CONTROLLER_TOKEN_FILE = "VELA_CONTROLLER_TOKEN_FILE"
+ENV_CONTROLLER_TOKEN = "VELA_CONTROLLER_TOKEN"
+#: A shorter token is a guessable token, and whitespace is how secrets end up
+#: truncated or extended when a file is composed by hand.
+CONTROLLER_TOKEN_MIN_LENGTH = 32
 
 
 #: The parent name managed web apps are published under on the computer running
@@ -39,6 +51,8 @@ class Config:
     app_lan_domain: str = DEFAULT_APP_LAN_DOMAIN
     app_gateway_port: int = 7700
     app_gateway_lan_port: int | None = None
+    controller_mode: bool = False
+    controller_token: str | None = None
 
     @property
     def app_domains(self) -> tuple[str, ...]:
@@ -89,8 +103,42 @@ def _port(value: Any, fallback: int) -> int:
     return port if 0 < port < 65536 else fallback
 
 
+def load_controller_token() -> str:
+    """The controller token from its file, validated once, for every entry point.
+
+    The token is read from the file named by `VELA_CONTROLLER_TOKEN_FILE` at
+    startup and kept in memory for the life of the process; it is never
+    logged and never re-read at request time. A token passed directly in
+    `VELA_CONTROLLER_TOKEN` is refused so it can never appear in
+    `docker inspect`. The trailing line breaks a shell redirect adds are
+    tolerated; anything else with whitespace or control characters in it is
+    not a token.
+    """
+    if os.environ.get(ENV_CONTROLLER_TOKEN):
+        raise ValueError(
+            f"Pass the controller token as a file named by {ENV_CONTROLLER_TOKEN_FILE}, "
+            f"not in the {ENV_CONTROLLER_TOKEN} environment variable"
+        )
+    named = os.environ.get(ENV_CONTROLLER_TOKEN_FILE, "")
+    if not named:
+        raise ValueError(f"Set {ENV_CONTROLLER_TOKEN_FILE} to the file containing the controller token")
+    try:
+        raw = Path(named).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise ValueError(f"The controller token file {named} is missing or cannot be read")
+    token = raw.rstrip("\r\n")
+    if len(token) < CONTROLLER_TOKEN_MIN_LENGTH:
+        raise ValueError(
+            f"The controller token must be at least {CONTROLLER_TOKEN_MIN_LENGTH} characters long"
+        )
+    if any(char.isspace() or not char.isprintable() for char in token):
+        raise ValueError("The controller token must not contain whitespace or control characters")
+    return token
+
+
 def load_config() -> Config:
     data_dir = Path(os.environ.get(ENV_DATA_DIR, DEFAULT_DATA_DIR)).expanduser()
+    controller_mode = os.environ.get(ENV_CONTROLLER_MODE) == "1"
     config = Config(
         data_dir=data_dir,
         apps_dir=Path(os.environ.get("VELA_APPS_DIR", data_dir / "sources")).expanduser(),
@@ -105,6 +153,8 @@ def load_config() -> Config:
         # to carry: a managed app is served by this same listener under a
         # different name, not by a second server on a port of its own.
         app_gateway_port=_port(os.environ.get("VELA_PORT"), 7700),
+        controller_mode=controller_mode,
+        controller_token=load_controller_token() if controller_mode else None,
     )
     config.ensure_dirs()
     return config
