@@ -58,7 +58,17 @@ TERMINAL = ("succeeded", "failed", "cancelled", "interrupted", "outcome_unknown"
 #: States where the supervisor holds an execution handle.
 ACTIVE = ("starting", "running", "waiting_approval", "paused", "taking_over", "human_control")
 
+#: Run kinds. A `model` run is carried by Vela's own loop; a `driven` run is
+#: carried step by step by a controller application in controller mode, which
+#: decides and Vela executes. Both are records in the same table, follow the
+#: same states, and are interrupted the same way by a restart.
+RUN_KINDS = ("model", "driven")
+
 MAX_INSTRUCTION = 4000
+MAX_TITLE = 120
+#: The caller's own id for a submission or a driven run, so a retried request
+#: is the same record rather than a second one. One bound for both.
+MAX_CLIENT_REQUEST_ID = 100
 MAX_RUNS_PER_DESKTOP = 200
 MAX_EVENTS_PER_DESKTOP = 2000
 
@@ -66,6 +76,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS agent_runs (
   id TEXT PRIMARY KEY,
   desktop_id TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'model',
   instruction TEXT NOT NULL,
   state TEXT NOT NULL,
   client_request_id TEXT,
@@ -118,6 +129,14 @@ class RunStore:
         self._volatile_sequence: dict[str, int] = {}
         with self.connection() as db:
             db.executescript(SCHEMA)
+            # Databases written before the driven-run API have no `kind`
+            # column. Added the way `vela/desktops/store.py` adds one: checked
+            # by name, never assumed.
+            columns = {row[1] for row in db.execute("PRAGMA table_info(agent_runs)")}
+            if "kind" not in columns:
+                db.execute("ALTER TABLE agent_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'model'")
+            if "title" not in columns:
+                db.execute("ALTER TABLE agent_runs ADD COLUMN title TEXT NOT NULL DEFAULT ''")
 
     @property
     def keeping_history(self) -> bool:
@@ -185,20 +204,31 @@ class RunStore:
         client_request_id: str | None = None,
         model: str | None = None,
         profile: dict[str, Any] | None = None,
+        kind: str = "model",
+        title: str | None = None,
     ) -> dict[str, Any]:
         """Queue one task, or return the one this request already queued.
 
         Deduplication is by the caller's own request id, so a retried submission
         — a flaky connection, a double-tapped button — joins the queue once.
+        `kind` and `title` are how a controller-created run is recorded: it is
+        queued like any other (a `driven` run never is, and reaches this method
+        only through `create_driven`).
         """
+        if kind not in RUN_KINDS:
+            raise AppServiceError(422, f"{kind} is not a run kind.")
         instruction = (instruction or "").strip()
         if not instruction:
             raise AppServiceError(422, "A task needs an instruction.")
         if len(instruction) > MAX_INSTRUCTION:
             raise AppServiceError(422, f"An instruction is at most {MAX_INSTRUCTION} characters.")
+        if title is not None and len(title) > MAX_TITLE:
+            raise AppServiceError(422, f"A title is at most {MAX_TITLE} characters.")
         record = {
             "id": new_run_id(),
             "desktopId": desktop_id,
+            "kind": kind,
+            "title": title or "",
             "instruction": instruction,
             "state": "queued",
             "clientRequestId": client_request_id,
@@ -236,12 +266,14 @@ class RunStore:
                 or 1
             )
             db.execute(
-                "INSERT INTO agent_runs (id, desktop_id, instruction, state, client_request_id,"
-                " model, profile, budget, position, created_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO agent_runs (id, desktop_id, kind, title, instruction, state,"
+                " client_request_id, model, profile, budget, position, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     record["id"],
                     desktop_id,
+                    kind,
+                    record["title"],
                     instruction,
                     "queued",
                     client_request_id,
@@ -255,6 +287,116 @@ class RunStore:
             self._trim_runs(db, desktop_id)
             record["position"] = position
         return record
+
+    def create_driven(
+        self,
+        desktop_id: str,
+        *,
+        title: str,
+        instruction: str = "",
+        client_request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """One controller-driven run, started immediately and never queued.
+
+        Idempotent on the caller's request id like `submit`: a retried create
+        returns the run it first created, whatever state that run has reached,
+        because the retry must not start a second run beside the first.
+        """
+        title = (title or "").strip()
+        if not title:
+            raise AppServiceError(422, "A driven run needs a title.")
+        if len(title) > MAX_TITLE:
+            raise AppServiceError(422, f"A title is at most {MAX_TITLE} characters.")
+        instruction = (instruction or "").strip()
+        if len(instruction) > MAX_INSTRUCTION:
+            raise AppServiceError(422, f"An instruction is at most {MAX_INSTRUCTION} characters.")
+        if not self.keeping_history:
+            existing = self._find_volatile(desktop_id, client_request_id)
+            if existing:
+                if existing["kind"] != "driven":
+                    raise AppServiceError(409, "That request id belongs to a different task.")
+                return dict(existing)
+            record = {
+                "id": new_run_id(),
+                "desktopId": desktop_id,
+                "kind": "driven",
+                "title": title,
+                "instruction": instruction,
+                "state": "running",
+                "clientRequestId": client_request_id,
+                "model": None,
+                "profile": {},
+                "result": None,
+                "detail": None,
+                "outcome": None,
+                "budget": {},
+                "createdAt": _now(),
+                "startedAt": _now(),
+                "endedAt": None,
+            }
+            record["position"] = len(self._volatile_runs) + 1
+            self._volatile_runs[record["id"]] = record
+            return dict(record)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if client_request_id:
+                row = db.execute(
+                    "SELECT * FROM agent_runs WHERE desktop_id=? AND client_request_id=?",
+                    (desktop_id, client_request_id),
+                ).fetchone()
+                if row:
+                    record = _run(row)
+                    if record["kind"] != "driven":
+                        raise AppServiceError(409, "That request id belongs to a different task.")
+                    return record
+            position = (
+                db.execute(
+                    "SELECT COALESCE(MAX(position), 0) + 1 FROM agent_runs WHERE desktop_id=?",
+                    (desktop_id,),
+                ).fetchone()[0]
+                or 1
+            )
+            now = _now()
+            record = {
+                "id": new_run_id(),
+                "desktopId": desktop_id,
+                "createdAt": now,
+            }
+            db.execute(
+                "INSERT INTO agent_runs (id, desktop_id, kind, title, instruction, state,"
+                " client_request_id, model, profile, budget, position, created_at, started_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    record["id"],
+                    desktop_id,
+                    "driven",
+                    title,
+                    instruction,
+                    "running",
+                    client_request_id,
+                    None,
+                    "{}",
+                    "{}",
+                    position,
+                    now,
+                    now,
+                ),
+            )
+            self._trim_runs(db, desktop_id)
+        return self.get(record["id"])
+
+    def find_by_request(
+        self, desktop_id: str, client_request_id: str
+    ) -> dict[str, Any] | None:
+        """The run this caller's request id already made on this desktop, if any."""
+        if not self.keeping_history:
+            return self._find_volatile(desktop_id, client_request_id)
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT * FROM agent_runs WHERE desktop_id=? AND client_request_id=?",
+                (desktop_id, client_request_id),
+            ).fetchone()
+        return _run(row) if row else None
 
     def _find_volatile(self, desktop_id, client_request_id):
         if not client_request_id:
@@ -515,6 +657,8 @@ def _run(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
         "desktopId": row["desktop_id"],
+        "kind": row["kind"],
+        "title": row["title"],
         "instruction": row["instruction"],
         "state": row["state"],
         "clientRequestId": row["client_request_id"],

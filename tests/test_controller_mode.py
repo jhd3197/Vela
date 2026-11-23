@@ -178,7 +178,8 @@ class ControllerModeTests(unittest.TestCase):
         response = self.client.get("/api/controller", headers=self.headers)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"mode": "controller", "version": __version__,
-                                           "protocol": 1, "features": {"controller": True}})
+                                           "protocol": 2,
+                                           "features": {"controller": True, "driver": True}})
 
     def test_person_sign_in_lock_phone_and_pairing_routes_are_refused(self):
         refused = [

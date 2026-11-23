@@ -23,6 +23,28 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Controller mode: a driver API for step-by-step agent runs.** A
+  controller application (such as CachiBot) can now drive an agent desktop
+  one tool call at a time while Vela keeps enforcing everything its own
+  model loop enforces: `POST /api/desktops/{id}/driven-runs` starts a
+  `driven` run (one per desktop, idempotent on `clientRequestId`, never
+  queued, never auto-resumed after a restart — reconcile marks it
+  interrupted like any other run), `POST .../driven-runs/{runId}/steps`
+  executes exactly one call through the existing tool surface — idempotent on
+  `clientStepId`, answered by `result`, `refusal`, `approval` or
+  `needsPerson` — and `POST .../finish` / `.../cancel` end it. A step needing
+  approval returns it, and reading the step back (`GET
+  .../steps/{clientStepId}`) settles it once the owner has answered through
+  the ordinary approvals route; `GET .../driven-runs/tools` exposes the tool
+  catalogue as JSON schemas for the controller to register. Approvals,
+  budgets, effects and unanswered-request outcomes, take-over (a step while
+  a person holds control answers a `person_driving` refusal), events,
+  retention and the run concurrency limits all behave as they do for Vela's
+  own loop. The routes exist only in controller mode and answer 404
+  everywhere else; discovery (`GET /api/controller`) now reports `protocol:
+  2` with a `driver` feature. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md).
+
 - **Controller mode for a container one controller process owns.** A Vela
   container can now start with `python -m vela.computer` in controller mode:
   a controller application (such as CachiBot, running one Vela per bot)

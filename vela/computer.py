@@ -4,8 +4,8 @@ People never open this Vela directly: a controller application runs one
 container per bot, publishes its port on the host's loopback only, and talks
 to it with a per-container bearer token. There is no dashboard to sign in to,
 no password, no phone access — the controller token is the whole sign-in
-story, and later controller features (a driver API, a terminal, full-desktop
-capture) exist only in this mode.
+story, and the controller-only features (the driver API, a terminal,
+full-desktop capture) exist only in this mode.
 """
 
 import os
@@ -13,7 +13,9 @@ import os
 import uvicorn
 
 from .bundled_wallpapers import ensure as ensure_bundled_wallpapers
-from .config import load_config, load_controller_token
+from .config import CONTROLLER_PROTOCOL, load_config, load_controller_token
+
+__all__ = ["CONTROLLER_PROTOCOL", "configure", "main"]
 
 
 def configure():

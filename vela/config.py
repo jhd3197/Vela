@@ -24,6 +24,14 @@ ENV_CONTROLLER_TOKEN = "VELA_CONTROLLER_TOKEN"
 #: truncated or extended when a file is composed by hand.
 CONTROLLER_TOKEN_MIN_LENGTH = 32
 
+#: The controller protocol version, reported by `GET /api/controller` and
+#: carried as the `computer` image's `vela.controller.protocol` label. Bumped
+#: when the mode gains a capability a controller can rely on: 2 is the
+#: driven-run API (`driver` in the discovery features), alongside what 1
+#: already carried. Lives here, and not in `vela.computer`, so that the
+#: dashboard's discovery route does not import the container entry point.
+CONTROLLER_PROTOCOL = 2
+
 
 #: The parent name managed web apps are published under on the computer running
 #: Vela. `*.localhost` resolves to loopback in every browser Vela supports
