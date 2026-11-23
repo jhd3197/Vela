@@ -91,6 +91,9 @@ class Supervisor:
         #: Attached by the run service. Resuming has to know whether a person
         #: still has control, and stopping has to take it back.
         self.leases = None
+        #: Attached by the run service. Stopping a driven run ends it through
+        #: the driver, which owns no task of its own to cancel.
+        self.driver = None
         self.tools = tools if tools is not None else desktops.tools
         self._log = log or (lambda message: None)
         self._runs: dict[str, asyncio.Task] = {}
@@ -238,6 +241,12 @@ class Supervisor:
                 )
                 self.emit(desktop_id, "task.cancelled", {"runId": run_id}, run_id=run_id)
                 return updated
+            if run.get("kind") == "driven":
+                # A driven run has no task here to cancel; the driver ends it,
+                # with the same consequences as stopping any other run.
+                if self.driver is None:
+                    raise AppServiceError(409, "Driven runs are not available yet.")
+                return await self.driver.cancel(desktop_id, run_id)
             self._control[run_id] = "stop"
             task = self._runs.get(run_id)
             if task:
@@ -253,6 +262,12 @@ class Supervisor:
             if run["state"] not in ("running", "starting"):
                 raise AppServiceError(409, "That task is not running.")
             self._control[run_id] = "pause"
+            if run.get("kind") == "driven":
+                # A driven run has no loop to notice the flag; the state moves
+                # now, so what a viewer reads and what its steps are refused
+                # with say the same thing.
+                self.store.update(run_id, state="paused")
+                self.emit(desktop_id, "task.paused", {"runId": run_id}, run_id=run_id)
             return self.store.get(run_id)
 
         if run["state"] != "paused":
@@ -350,13 +365,23 @@ class Supervisor:
             # Whether the next one starts depends on how this one ended. A queue
             # that marched on past a failure would turn one problem into a row
             # of them, each with the same cause and none of them looked at.
-            if not self._stopping:
-                with contextlib.suppress(Exception):
-                    ended = self.store.get(run_id)["state"]
-                    if ended in ADVANCES_QUEUE:
-                        await self._pump(desktop_id)
-                    elif self.store.next_queued(desktop_id) is not None:
-                        self._hold_queue(desktop_id, ended)
+            await self.after_run_ended(desktop_id, run_id)
+
+    async def after_run_ended(self, desktop_id: str, run_id: str) -> None:
+        """Queue bookkeeping once any run on this desktop reaches a terminal state.
+
+        Called by a model run's carrier and by the driver, so a desktop's queue
+        advances — or holds, and says why — the same way no matter which kind
+        of run was carrying it.
+        """
+        if self._stopping:
+            return
+        with contextlib.suppress(Exception):
+            ended = self.store.get(run_id)["state"]
+            if ended in ADVANCES_QUEUE:
+                await self._pump(desktop_id)
+            elif self.store.next_queued(desktop_id) is not None:
+                self._hold_queue(desktop_id, ended)
 
     def _hold_queue(self, desktop_id: str, ended: str) -> None:
         """Stop the queue and say why, once."""

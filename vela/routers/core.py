@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import __version__
-from ..config import dir_size
+from ..config import CONTROLLER_PROTOCOL, dir_size
 from ..errors_http import Forbidden
 from ..manifest import SUPPORTED_PLATFORMS
 
@@ -56,8 +56,9 @@ def router(auth, registry, connected_apps, config, platform) -> APIRouter:
         if not config.controller_mode:
             raise Forbidden("This Vela is not running in controller mode",
                             code="controller.not_controller_mode")
-        return {"mode": "controller", "version": __version__, "protocol": 1,
-                "features": {"controller": True}}
+        return {"mode": "controller", "version": __version__,
+                "protocol": CONTROLLER_PROTOCOL,
+                "features": {"controller": True, "driver": True}}
 
     @api.get("/platforms")
     def platforms() -> dict:

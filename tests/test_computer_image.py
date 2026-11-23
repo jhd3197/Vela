@@ -11,6 +11,8 @@ import re
 import unittest
 from pathlib import Path
 
+from vela.computer import CONTROLLER_PROTOCOL
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -91,6 +93,16 @@ class ComputerImageTests(unittest.TestCase):
 
     def test_it_exposes_the_gateway_port(self):
         self.assertIn("EXPOSE 7700", self.computer_lines())
+
+    def test_the_image_labels_the_controller_protocol(self):
+        # The label is how a controller learns what the image speaks before it
+        # ever starts; it has to be the same number GET /api/controller reports.
+        labels = [line for line in self.computer_lines() if line.startswith("LABEL")]
+        self.assertTrue(labels, "the computer stage carries no OCI labels")
+        self.assertTrue(
+            any(f'vela.controller.protocol="{CONTROLLER_PROTOCOL}"' in line for line in labels),
+            f"the image label must match the protocol the server reports ({CONTROLLER_PROTOCOL})",
+        )
 
     def test_the_token_never_appears_as_an_env_or_build_arg(self):
         for stage in self.all_stages:

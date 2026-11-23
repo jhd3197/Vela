@@ -113,6 +113,31 @@ class SubmitTask(BaseModel):
     model: str | None = Field(default=None, max_length=120)
 
 
+class CreateDrivenRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    #: What the run is called, for the record and the events. The instruction
+    #: is optional context for whoever reads that record later; the controller
+    #: decides each step itself and is not given this text to interpret.
+    title: str = Field(min_length=1, max_length=120)
+    instruction: str | None = Field(default=None, max_length=4000)
+    clientRequestId: str | None = Field(default=None, max_length=100)
+
+
+class DrivenStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tool: str = Field(min_length=1, max_length=64)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    #: The caller's own id for this step, so a retried request settles the
+    #: same step rather than repeating the call's effect.
+    clientStepId: str = Field(min_length=1, max_length=100)
+
+
+class FinishDrivenRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    outcome: str = Field(pattern=r"^(succeeded|failed)$")
+    summary: str = Field(min_length=1, max_length=2000)
+
+
 class ControlTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: str = Field(pattern=r"^(pause|resume|stop)$")
@@ -171,12 +196,13 @@ class SaveLayout(BaseModel):
     clear: list[str] = Field(default_factory=list, max_length=4)
 
 
-def router(desktops, *, runs=None) -> APIRouter:
+def router(desktops, *, runs=None, config=None) -> APIRouter:
     """The desktop routes, and — when a run service exists — its task routes.
 
     `runs` is optional so the desktop surface can be mounted on its own; without
     it the task routes answer 503 rather than being absent, which is easier to
-    diagnose than a 404 that looks like a typo.
+    diagnose than a 404 that looks like a typo. `config` decides whether the
+    controller-driven run routes exist: they answer 404 in every other mode.
     """
     api = APIRouter(prefix="/api/desktops", tags=["desktops"])
 
@@ -566,6 +592,24 @@ def router(desktops, *, runs=None) -> APIRouter:
                               code="desktops.runs_unavailable")
         return runs
 
+    def _driver():
+        """The driven-run surface, which exists only in controller mode.
+
+        The routes are mounted in every mode so the path is one well-known
+        address; outside controller mode they answer 404 rather than 403,
+        because to a caller that is not a controller the address simply does
+        not exist. The auth middleware already required the controller token
+        before any handler runs.
+        """
+        service = _runs()
+        if config is None or not config.controller_mode:
+            raise NotFound(
+                "Driven runs are a controller-mode API, and this Vela is not "
+                "running in controller mode.",
+                code="desktops.driven_runs_unavailable",
+            )
+        return service.driver
+
     @api.post("/{desktop_id}/tasks", status_code=202)
     async def submit_task(desktop_id: str, payload: SubmitTask) -> dict:
         """Queue one instruction. 202: accepted, not finished.
@@ -610,4 +654,42 @@ def router(desktops, *, runs=None) -> APIRouter:
         that needs its own authentication is Phase 10's work, not this one's.
         """
         return _runs().events(desktop_id, after=after, limit=limit)
+
+    # ---------------------------------------------- controller-driven runs --
+    # The protocol these routes speak is documented in docs/CONTROLLER-MODE.md.
+
+    @api.post("/{desktop_id}/driven-runs", status_code=201)
+    async def create_driven_run(desktop_id: str, payload: CreateDrivenRun) -> dict:
+        """Controller mode only: start a run the controller drives step by step."""
+        return await _driver().create(desktop_id, payload.model_dump(exclude_none=True))
+
+    @api.get("/{desktop_id}/driven-runs/tools")
+    def driven_run_tools(desktop_id: str) -> dict:
+        """Controller mode only: the tool catalogue as JSON schemas, to register as its own."""
+        return _driver().tools_catalog(desktop_id)
+
+    @api.post("/{desktop_id}/driven-runs/{run_id}/steps")
+    async def driven_run_step(desktop_id: str, run_id: str, payload: DrivenStep) -> dict:
+        """Controller mode only: execute exactly one tool call for a driven run."""
+        return await _driver().step(desktop_id, run_id, payload.model_dump())
+
+    @api.get("/{desktop_id}/driven-runs/{run_id}/steps/{client_step_id}")
+    async def read_driven_run_step(desktop_id: str, run_id: str, client_step_id: str) -> dict:
+        """Controller mode only: a step's settled answer, or its still-pending approval.
+
+        Reading a step whose change is waiting is the settling call: once the
+        owner has answered through the approvals route, the read re-runs the
+        exact call with the grant behind it and returns the settled result.
+        """
+        return await _driver().read_step(desktop_id, run_id, client_step_id)
+
+    @api.post("/{desktop_id}/driven-runs/{run_id}/finish")
+    async def finish_driven_run(desktop_id: str, run_id: str, payload: FinishDrivenRun) -> dict:
+        """Controller mode only: declare how the run ended, for the record."""
+        return await _driver().finish(desktop_id, run_id, payload.outcome, payload.summary)
+
+    @api.post("/{desktop_id}/driven-runs/{run_id}/cancel")
+    async def cancel_driven_run(desktop_id: str, run_id: str) -> dict:
+        """Controller mode only: stop the run where it is."""
+        return await _driver().cancel(desktop_id, run_id)
     return api

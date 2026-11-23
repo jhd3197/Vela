@@ -57,7 +57,7 @@ rather than downloading it. The image builds and runs on **linux/amd64 and
 linux/arm64**: Apple Silicon and other ARM machines need no emulation, and
 Playwright ships Chromium for both. The only build argument is the optional
 `VELA_VERSION`, which labels the image; OCI labels carry the title, the
-source, that version and `vela.controller.protocol=1`, the same protocol
+source, that version and `vela.controller.protocol=2`, the same protocol
 `GET /api/controller` reports.
 
 The image carries exactly what one bot's computer needs: the controller-mode
@@ -135,12 +135,154 @@ image, the same as the `container` kind.
 a Vela in controller mode, and how far the protocol has got:
 
 ```json
-{"mode": "controller", "version": "0.1.19", "protocol": 1,
- "features": {"controller": true}}
+{"mode": "controller", "version": "0.1.19", "protocol": 2,
+ "features": {"controller": true, "driver": true}}
 ```
 
-`features` lists the controller-only capabilities this Vela was built with;
-today it carries the mode itself. Later work builds on this mode — a driver
-API for the controller, a terminal and a full-desktop capture — and those
-features will exist only in controller mode; the `computer` image target
-above is the image they ship in.
+`features` lists the controller-only capabilities this Vela was built with.
+`driver` marks the driven-run API below; it exists only in controller mode,
+and the routes answer `404` everywhere else. Later work builds on this mode —
+a terminal and a full-desktop capture — and those features will exist only in
+controller mode; the `computer` image target above is the image they ship in.
+
+## Driving a desktop step by step
+
+`protocol: 2` adds the **driver API**: a way for the controller's own agent
+(CachiBot's, say) to drive an agent desktop **one tool call at a time**, while
+Vela keeps enforcing everything it enforces for its own model loop — tool-name
+and argument validation, site policy, approvals, budgets, effect receipts,
+take-over, retention and the concurrency limits. The controller decides; Vela
+executes. A run Vela's own loop would carry out is unchanged by any of this.
+
+All routes are under `/api/desktops/{id}` and require the controller token;
+outside controller mode they answer `404`.
+
+### The tool catalogue
+
+```
+GET /api/desktops/{id}/driven-runs/tools
+```
+
+```json
+{"tools": [{"type": "function",
+            "function": {"name": "desktop.observe",
+                         "description": "Look at a view and get its current controls and text.",
+                         "parameters": {"type": "object", "properties": {...}}}}]}
+```
+
+The same thirteen tools, descriptions and argument schemas Vela's own loop
+offers its model (`tool_definitions` over the declared `AgentTools` surface),
+so the controller can register them as its own tools and never drift from what
+Vela will actually accept. Ending a run is **not** a tool: a `task.finish`
+step only records a proposal and returns it; the run is ended with the finish
+route below.
+
+### Starting a run
+
+```
+POST /api/desktops/{id}/driven-runs
+{"title": "Answer the support mail",
+ "instruction": "optional context, for the record",
+ "clientRequestId": "optional, idempotency key"}
+```
+
+`201` with the run: `{"id", "kind": "driven", "state": "running", "title", ...}`.
+The run is recorded and emits events like any other run, but it is never
+handed to Vela's model loop and never queued. One desktop carries one active
+run; a second create while one is live answers `409`, and if both shared run
+slots are busy the create answers `429`. Retrying with the same
+`clientRequestId` returns the run the first call created — even after it has
+ended — so a retried create never starts a second run.
+
+### Steps
+
+```
+POST /api/desktops/{id}/driven-runs/{runId}/steps
+{"tool": "desktop.observe", "arguments": {"viewId": "v1"}, "clientStepId": "42"}
+```
+
+`200` with exactly one of these answers:
+
+- `{"result": ...}` — the call ran; the result is the tool's own result.
+- `{"refusal": {"code", "detail", "retryable"}}` — the call was refused by the
+  same checks the model loop answers to: an unknown tool name
+  (`unknown_tool`), a site or app the policy denies (`not_allowed`), a stale
+  observation (`stale_observation`, retryable), a person at the keyboard
+  (`person_driving`, retryable), and the rest of the loop's vocabulary.
+- `{"approval": {"requestId", "summary", "expiresAt"}}` — the change needs the
+  owner's approval. The run waits; the `summary` is the approval prompt's own
+  words and never carries secret values.
+- `{"needsPerson": {"reason", "detail", "viewId"}}` — the step asked for a
+  person (a sign-in, a challenge). The run is paused; it continues only when
+  someone says carry on (see below).
+
+Every answer also carries `"budget"`, the run's live counters. Steps are
+idempotent on `clientStepId`: a retried POST returns the recorded answer and
+never repeats the call's effect; the same id with a different call is a `409`.
+
+### Approvals: ask, wait, read back
+
+When a step returns `approval`, show the `summary` through the controller's
+own UI and let the owner answer with the ordinary route — the same one a
+person clicking in Vela uses:
+
+```
+POST /api/desktops/{id}/approvals/{requestId}
+{"decision": "approve"}        # or "deny"; optionally scopeFuture
+```
+
+Then read the step back — the read is the settling call:
+
+```
+GET /api/desktops/{id}/driven-runs/{runId}/steps/{clientStepId}
+```
+
+While the owner is deciding this returns the pending `approval`. The first
+read after the answer settles the step: `approved` re-executes the exact same
+call with the grant behind it and returns its `result` (or, if the asking
+click had already touched the page, a result telling the controller to look
+again first); `denied` settles as a `not_approved` refusal. Until the step is
+settled, new steps are refused with `409` — one call at a time, always. Poll
+the read at about a second; approvals expire on their own, and an expired
+approval settles the step as an `expired` refusal.
+
+### People
+
+- `needsPerson` pauses the run. It resumes through the ordinary task control
+  route: `POST /api/desktops/{id}/tasks/{runId}/control {"action": "resume"}`
+  (releasing a take-over lease never resumes on its own). After a resume the
+  controller should observe again before acting — the screen may have moved.
+- If a person takes over (`POST /api/desktops/{id}/takeover`), steps answer
+  with a `person_driving` refusal until control is released and the run
+  resumed. Taking over stops a driven run exactly as it stops Vela's own.
+
+### Ending a run
+
+```
+POST /api/desktops/{id}/driven-runs/{runId}/finish
+{"outcome": "succeeded", "summary": "what happened, in a sentence"}
+```
+
+`outcome` is `succeeded` or `failed`. A `succeeded` finish is checked against
+the same unanswered-request rule the loop checks: if something was sent to a
+website and no answer came back, the run ends `outcome_unknown`, not
+succeeded, because claiming success that cannot be established is how a thing
+gets sent twice.
+
+```
+POST /api/desktops/{id}/driven-runs/{runId}/cancel
+```
+
+stops the run where it is. What it did stays done; its grants are revoked and
+its queue advances, as with any other run.
+
+### Watching and restarts
+
+`GET /api/desktops/{id}/events` is the activity line: driven runs emit the
+same events as loop runs (`task.starting`, `task.running` with `"driver":
+true`, `step.started`, `step.finished`, `approval.waiting`, `approval.resolved`,
+`task.attention`, `task.paused`, `task.succeeded`, ...) with the same numbered
+cursor. Step records themselves live in memory: a restart marks a driven run
+`interrupted` like any run that was in flight — the controller learns that
+from the run record (`GET /api/desktops/{id}/tasks/{runId}`), never from a
+step, and a driven run is never resumed or auto-restarted.
