@@ -129,6 +129,16 @@ until the release workflow prepares a tested server version.
   boxes. Buttons in Settings were also drawn at body size instead of button
   size.
 
+- **The test suite and the download smoke test run on the macOS 15 CI
+  runners.** The macOS image moved to macOS 15, where the system holds the
+  standard-library HTTP server's startup name lookup behind the
+  local-network privacy prompt; a test server that had bound its port then
+  sat unreachable for tens of seconds, so managed-app tests timed out
+  waiting for readiness. The loopback servers the tests stand up — the
+  managed-app fixture and the update and browser-gateway stand-ins — now
+  bind and listen in one step, like the real services they stand in for.
+  No engine or dashboard behavior changes.
+
 ## 0.1.21 - 2026-10-01
 
 No additional release notes were provided.

@@ -11,6 +11,7 @@ Install it with `python scripts/setup-browser-worker.py`.
 
 import asyncio
 import http.server
+import socketserver
 import tempfile
 import threading
 import unittest
@@ -48,10 +49,26 @@ class _Gateway(http.server.BaseHTTPRequestHandler):
 
 
 def serve():
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Gateway)
+    server = _GatewayServer(("127.0.0.1", 0), _Gateway)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, f"http://127.0.0.1:{server.server_port}"
+
+
+class _GatewayServer(http.server.ThreadingHTTPServer):
+    """Binds and listens in one step.
+
+    The stdlib looks up the server's own fully-qualified name between
+    bind() and listen(), and on macOS 15 that lookup is held behind the
+    local-network privacy prompt -- which would leave this origin
+    unreachable right after a test starts it. The name is never used.
+    """
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
 
 
 @unittest.skipUnless(STATE["available"], STATE["detail"] or "the browser runtime is not installed")
