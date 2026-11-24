@@ -79,6 +79,7 @@ def serve_release(directory):
     a directory, and `VELA_UPDATE_API` points the engine here.
     """
     import http.server
+    import socketserver
     import threading
 
     class Handler(http.server.SimpleHTTPRequestHandler):
@@ -88,7 +89,19 @@ def serve_release(directory):
         def log_message(self, *args):
             pass
 
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    class Server(http.server.ThreadingHTTPServer):
+        # Bind and listen in one step. The stdlib looks up the server's own
+        # fully-qualified name between bind() and listen(), and on macOS 15
+        # that lookup is held behind the local-network privacy prompt -- the
+        # update server would sit unreachable for tens of seconds after
+        # startup. The name is never used.
+        def server_bind(self):
+            socketserver.TCPServer.server_bind(self)
+            host, port = self.server_address[:2]
+            self.server_name = host
+            self.server_port = port
+
+    server = Server(('127.0.0.1', 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 

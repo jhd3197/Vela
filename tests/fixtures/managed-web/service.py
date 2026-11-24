@@ -39,6 +39,7 @@ import mimetypes
 import os
 import re
 import secrets
+import socketserver
 import sqlite3
 import sys
 import threading
@@ -374,6 +375,23 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
 
+class FixtureServer(ThreadingHTTPServer):
+    """Binds and listens in one step, the way a real managed app does.
+
+    The stdlib looks up the server's own fully-qualified name between
+    bind() and listen(). On macOS 15 that lookup is held behind the
+    local-network privacy prompt, so a freshly launched fixture sits
+    unreachable for tens of seconds -- exactly while Vela's readiness
+    probe is knocking. The name is never used, so it is not looked up.
+    """
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
+
+
 def _parse_json(raw: bytes) -> dict:
     try:
         value = json.loads(raw.decode("utf-8") or "{}")
@@ -402,7 +420,7 @@ def main() -> int:
     migrate(root, args.version)
     store = Store(root)
 
-    server = ThreadingHTTPServer((args.addr, args.port), Handler)
+    server = FixtureServer((args.addr, args.port), Handler)
     server.daemon_threads = True
     server.store = store
     server.version = args.version
