@@ -1005,10 +1005,14 @@ running in it.
 **The surface is eleven tools.** `desktop.observe`, `desktop.open_app`,
 `desktop.open_site`, `desktop.select_view`, `desktop.click`, `desktop.type`,
 `desktop.keypress`, `desktop.scroll`, `desktop.wait`, `app.invoke_action` and
-`task.finish`. There is no evaluate, no shell, no file read and no raw request,
-and no path from anything a model says to a script that runs in a page: the only
-inspection code that runs in a controlled view is `observe.mjs`, which is
-versioned host code.
+`task.finish`. (Two more — `desktop.attach_file`, `task.needs_person` — make
+thirteen in the code's own list.) There is no evaluate, no file read and no
+raw request, and no path from anything a model says to a script that runs in a
+page: the only inspection code that runs in a controlled view is
+`observe.mjs`, which is versioned host code. The shell is the one deliberate
+exception and it exists only in controller mode, where the container is the
+sandbox: `vela/terminals.py`, with the `terminal_*` tools in
+`vela/agent_runs/tools.py`. Everywhere else the no-shell rule stands.
 
 **An observation is two halves.** `view` is what Vela knows — the view and
 runtime identities, the URL, the viewport and the device pixel ratio. `page` is
@@ -1206,7 +1210,8 @@ use; those remain the owner actions they already were.
 | Location | Responsibility |
 | --- | --- |
 | `vela/agent_runs/control.py` | The one writer lease, and the checks on a point and a frame's age |
-| `vela/agent_runs/viewer.py` | Frames, the takeover transition, and human input |
+| `vela/agent_runs/viewer.py` | Frames, the takeover transition, and human input — including a terminal's text frame and a person's keystrokes into it |
+| `vela/terminals.py` | The controller-mode terminal: the pty, the workspace-rooted environment, the bounded scrollback, and the lifecycle that takes every shell down with its desktop |
 | `web/src/desktops/RemoteView.jsx` | The picture, passive until control is taken |
 | `web/src/desktops/input-coordinates.js` | Displayed box → view coordinates, and the key allowlist |
 

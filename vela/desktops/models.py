@@ -160,11 +160,13 @@ def default_appearance() -> dict[str, Any]:
 # ------------------------------------------------------------------ views --
 
 #: What a view can be. `app` is an installed Vela app, `web` an approved site,
-#: `host` one of the owner surfaces below, `agent` the task window, and
-#: `surface` a document an app serves over its http connection that the hub
-#: draws itself. The last three are never handed to an agent as something to
-#: look at or click, which is why they are separate kinds rather than flags.
-VIEW_KINDS = ("app", "web", "host", "agent", "surface")
+#: `host` one of the owner surfaces below, `agent` the task window, `surface`
+#: a document an app serves over its http connection that the hub draws itself,
+#: and `terminal` a live shell (controller mode only; the terminal service
+#: opens it, never the ordinary view route). The last three are never handed
+#: to an agent as something to look at or click, which is why they are
+#: separate kinds rather than flags.
+VIEW_KINDS = ("app", "web", "host", "agent", "surface", "terminal")
 
 #: The owner surfaces a `host` view may be. A closed list on purpose — a `host`
 #: view that could name any path would be a way to put the owner's dashboard,
@@ -262,7 +264,9 @@ def validate_view_target(kind: str, target: Any) -> dict[str, Any]:
         except AppServiceError as exc:
             raise DesktopError(422, str(exc)) from exc
         return {"app_id": app_id, "surface_key": None, "url": None, "source": source}
-    # `agent`: the task window for this desktop. It points at the desktop itself.
+    # `agent`: the task window for this desktop. It points at the desktop
+    # itself. `terminal`: a live shell the terminal service opened; it names
+    # nothing.
     return {"app_id": None, "surface_key": None, "url": None, "source": None}
 
 

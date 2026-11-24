@@ -59,10 +59,13 @@ class Viewer:
         watching the same desktop share one capture rather than doubling the
         cost of being watched — the agent is working, and being watched should
         not slow it down.
+
+        A terminal's picture is text, not a capture: its recent screen, served
+        from the scrollback the terminal already keeps (controller mode only;
+        no terminal view exists anywhere else).
         """
         desktop_id = validate_id(desktop_id)
         view_id = validate_view_id(view_id)
-        self.desktops.agent_runtime_for(desktop_id)
         view = next(
             (
                 item
@@ -73,6 +76,12 @@ class Viewer:
         )
         if view is None:
             raise DesktopError(404, "That window is not open on this desktop.")
+        if view["kind"] == "terminal":
+            terminals = self.desktops.terminals
+            if terminals is None:
+                raise DesktopError(503, "Terminals are not available on this server.")
+            return terminals.frame(desktop_id, view_id)
+        self.desktops.agent_runtime_for(desktop_id)
         if not view["agentViewable"]:
             # An owner surface is the person's own window. It is not something
             # the viewer streams, because there is nothing remote about it.
@@ -227,6 +236,21 @@ class Viewer:
         lease = self.leases.require(desktop_id, lease_id)
         request = request if isinstance(request, dict) else {}
         view_id = validate_view_id(request.get("viewId") or lease.view_id or "")
+        view = next(
+            (
+                item
+                for item in self.desktops.views(desktop_id)["views"]
+                if item["id"] == view_id
+            ),
+            None,
+        )
+        if view is None or view["desktopId"] != desktop_id:
+            raise AppServiceError(404, "That window is not open on this desktop.")
+        if view["kind"] == "terminal":
+            # The lease is the whole guard here: there is no picture to be
+            # stale, so text and keys go to the pty as soon as the one writer
+            # says so.
+            return await self._send_terminal_input(desktop_id, view_id, request)
         frame = self._latest.get(view_id)
         if frame is None or frame["desktopId"] != desktop_id:
             raise AppServiceError(409, "Look at this window before typing into it.")
@@ -270,3 +294,24 @@ class Viewer:
         # What was on screen a moment ago no longer is.
         self._latest.pop(view_id, None)
         return {"ok": True, "after": result.get("after")}
+
+    async def _send_terminal_input(
+        self, desktop_id: str, view_id: str, request: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A person's keystrokes, into the terminal that owns this window."""
+        terminals = self.desktops.terminals
+        if terminals is None:
+            raise AppServiceError(503, "Terminals are not available on this server.")
+        kind = request.get("kind")
+        if kind == "text":
+            # Text the person chose, sent deliberately — the same words the
+            # browser path sends, into the pty instead of a page.
+            return terminals.write(desktop_id, terminals.require_by_view(desktop_id, view_id).id,
+                                   text=str(request.get("text") or ""))
+        if kind == "key":
+            key = str(request.get("key") or "").strip().lower()[:32]
+            return terminals.write(desktop_id, terminals.require_by_view(desktop_id, view_id).id,
+                                   keys=key)
+        raise AppServiceError(
+            422, "A terminal takes text or one named key, not clicks or scrolls."
+        )

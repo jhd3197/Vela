@@ -253,7 +253,12 @@ no sign-in, no file, no picture.
 ## What is never available
 
 - No path, directory or file picker reaches the agent.
-- No shell, no arbitrary script, no raw network request.
+- No shell, no arbitrary script, no raw network request. This rule is
+  unchanged everywhere outside controller mode: only a Vela running as a
+  controller-owned container — where the container itself is the sandbox —
+  offers its agent a terminal, and that terminal's routes and tools do not
+  exist on an ordinary Vela. See
+  [the controller mode guide](CONTROLLER-MODE.md#a-terminal-inside-the-computer).
 - Nothing about your other desktops, your settings, your approvals or your own
   windows is visible to it.
 - Vela never reads your clipboard, and never asks to.

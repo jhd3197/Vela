@@ -26,11 +26,18 @@ CONTROLLER_TOKEN_MIN_LENGTH = 32
 
 #: The controller protocol version, reported by `GET /api/controller` and
 #: carried as the `computer` image's `vela.controller.protocol` label. Bumped
-#: when the mode gains a capability a controller can rely on: 2 is the
-#: driven-run API (`driver` in the discovery features), alongside what 1
-#: already carried. Lives here, and not in `vela.computer`, so that the
-#: dashboard's discovery route does not import the container entry point.
-CONTROLLER_PROTOCOL = 2
+#: when the mode gains a capability a controller can rely on: 3 is the terminal
+#: (`terminal` in the discovery features), alongside what 2 already carried
+#: (the driven-run API) and 1 before it. Lives here, and not in
+#: `vela.computer`, so that the dashboard's discovery route does not import the
+#: container entry point.
+CONTROLLER_PROTOCOL = 3
+
+#: The workspace a controller-mode terminal is rooted at. In the computer image
+#: it is the `/workspace` volume a bot's own tools survive in; a test points it
+#: at a disposable directory so nothing it runs can touch the real one.
+ENV_WORKSPACE_DIR = "VELA_WORKSPACE_DIR"
+DEFAULT_WORKSPACE_DIR = "/workspace"
 
 
 #: The parent name managed web apps are published under on the computer running
@@ -61,6 +68,7 @@ class Config:
     app_gateway_lan_port: int | None = None
     controller_mode: bool = False
     controller_token: str | None = None
+    workspace_dir: Path = Path(DEFAULT_WORKSPACE_DIR)
 
     @property
     def app_domains(self) -> tuple[str, ...]:
@@ -163,6 +171,7 @@ def load_config() -> Config:
         app_gateway_port=_port(os.environ.get("VELA_PORT"), 7700),
         controller_mode=controller_mode,
         controller_token=load_controller_token() if controller_mode else None,
+        workspace_dir=Path(os.environ.get(ENV_WORKSPACE_DIR, DEFAULT_WORKSPACE_DIR)).expanduser(),
     )
     config.ensure_dirs()
     return config
