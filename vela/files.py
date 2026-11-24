@@ -53,6 +53,13 @@ _RESERVED = {
     *(f"lpt{n}" for n in range(1, 10)),
 }
 
+#: The share a controller-mode Vela serves for its workspace. It is built in
+#: rather than stored in settings, so it exists from the first request and can
+#: never be shadowed by a stored entry that reuses the id to point elsewhere.
+#: The same rules as every share apply to what is inside it.
+WORKSPACE_SHARE_ID = "workspace"
+WORKSPACE_SHARE_LABEL = "Workspace"
+
 #: What a browser can preview inline, by extension. Everything else downloads.
 _KINDS = {
     "image": {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif"},
@@ -181,6 +188,11 @@ class Files:
 
         A share on a drive that is not plugged in is listed and marked, not
         hidden: the user configured it and should see why it is not working.
+
+        In controller mode the list starts with the built-in Workspace share:
+        the bot's computer has one obvious place its files live, and it answers
+        at the existing `/api/files/{share_id}` routes under the same path and
+        symlink rules as any share.
         """
         stored = (self._settings.get("files") or {}).get("shares")
         if not isinstance(stored, list) or not stored:
@@ -190,8 +202,29 @@ class Files:
                 {"id": "downloads", "label": "Downloads", "path": str(default), "writable": True}
             ]
         out = []
+        if self._config.controller_mode:
+            workspace = Path(self._config.workspace_dir)
+            try:
+                workspace.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                # Listed and marked unreachable, the way an unplugged drive
+                # share is, rather than refusing the whole files surface.
+                pass
+            out.append(
+                {
+                    "id": WORKSPACE_SHARE_ID,
+                    "label": WORKSPACE_SHARE_LABEL,
+                    "path": str(workspace),
+                    "writable": True,
+                    "reachable": workspace.is_dir(),
+                }
+            )
         for entry in stored:
             if not isinstance(entry, dict):
+                continue
+            if self._config.controller_mode and entry.get("id") == WORKSPACE_SHARE_ID:
+                # The built-in share above is the one that answers to this id;
+                # a stored look-alike would be a second, lying entry.
                 continue
             path = Path(str(entry.get("path") or ""))
             out.append(

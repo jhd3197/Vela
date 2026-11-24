@@ -16,6 +16,14 @@ so a shell there is the feature, not a breach. Outside controller mode the
 tools are not listed and not callable — on an ordinary Vela the no-shell rule
 stands exactly as it always has (docs/AGENT-DESKTOPS.md).
 
+There is a second, and it is the same argument one more time: the four
+`workspace_*` and `editor_*` tools, which browse, read and edit the bot's own
+workspace files and open one in a plain-text editor window. The workspace is
+the bot's volume, reachable through the same share and path rules as any
+shared folder, and nothing here gives an agent a path to anywhere else. These
+tools exist only in controller mode too; anywhere else they are not listed
+and refuse as unknown.
+
 Files are the newest place the base rule had to be defended. An agent names an
 artifact id and never a path; Vela turns the id into the file it stored under a
 name it generated; the page receives that. There is no file picker an agent can
@@ -230,18 +238,70 @@ TERMINAL_TOOLS: tuple[dict[str, Any], ...] = (
 
 TERMINAL_TOOL_NAMES = tuple(tool["name"] for tool in TERMINAL_TOOLS)
 
+#: The controller-mode-only surface for the bot's own workspace: browsing,
+#: reading and writing files inside it, and opening one in an editor window.
+#: Like the terminal tools, whether these exist is a property of the server
+#: (controller mode), not of the desktop, so the listing and the enforcement
+#: both consult `tools_for`. Paths are workspace-relative; the share rules
+#: refuse anything that leaves the workspace.
+WORKSPACE_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "workspace_list",
+        "summary": "List the files and folders at a path inside the workspace.",
+        "arguments": {
+            "path": "string, optional — a folder inside the workspace, default its root"
+        },
+        "changes": False,
+    },
+    {
+        "name": "workspace_read",
+        "summary": "Read a UTF-8 text file inside the workspace, with its revision.",
+        "arguments": {
+            "path": "string",
+            "offset": "number, optional — characters to skip from the start",
+            "limit": "number, optional — characters to read, capped",
+        },
+        "changes": False,
+    },
+    {
+        "name": "workspace_write",
+        "summary": "Write a text file inside the workspace atomically. Name the "
+        "revision a read returned, and the save is refused when somebody "
+        "changed the file first.",
+        "arguments": {
+            "path": "string",
+            "content": "string, the file's new text",
+            "expectedRevision": "string, optional — the revision this save expects",
+        },
+        "changes": True,
+    },
+    {
+        "name": "editor_open",
+        "summary": "Open a workspace file in a plain-text editor window on this "
+        "desktop, or focus the one already open.",
+        "arguments": {"path": "string"},
+        "changes": False,
+    },
+)
 
-def tools_for(terminals: Any) -> tuple[dict[str, Any], ...]:
+WORKSPACE_TOOL_NAMES = tuple(tool["name"] for tool in WORKSPACE_TOOLS)
+
+
+def tools_for(terminals: Any, editors: Any = None) -> tuple[dict[str, Any], ...]:
     """The declared surface for this server.
 
-    The thirteen, plus the terminal tools when the terminal service is enabled
-    — controller mode on a platform with a pty. The catalogue a controller
-    registers and the checks `call` enforces read this one list, so a tool the
-    server will not run is never a tool the server lists.
+    The thirteen, plus the workspace tools when the editor service is enabled
+    — controller mode — and the terminal tools when the terminal service is,
+    which additionally needs a POSIX pty. The catalogue a controller registers
+    and the checks `call` enforces read this one list, so a tool the server
+    will not run is never a tool the server lists.
     """
+    tools = TOOLS
+    if editors is not None and editors.supported:
+        tools += WORKSPACE_TOOLS
     if terminals is not None and terminals.supported:
-        return TOOLS + TERMINAL_TOOLS
-    return TOOLS
+        tools += TERMINAL_TOOLS
+    return tools
 
 #: Bounds on what may arrive as an argument, before anything is done with it.
 MAX_TEXT = 4000
@@ -310,6 +370,11 @@ class AgentTools:
         """The terminal service, when this server has one (controller mode)."""
         return getattr(self.desktops, "terminals", None)
 
+    @property
+    def editors(self):
+        """The workspace/editor service, when this server has one (controller mode)."""
+        return getattr(self.desktops, "editors", None)
+
     # ------------------------------------------------------------ calling --
 
     async def call(
@@ -329,7 +394,8 @@ class AgentTools:
         can be expected to act on sensibly.
         """
         terminal_tool = name in TERMINAL_TOOL_NAMES and self._terminals_available()
-        if name not in TOOL_NAMES and not terminal_tool:
+        workspace_tool = name in WORKSPACE_TOOL_NAMES and self._workspace_available()
+        if name not in TOOL_NAMES and not terminal_tool and not workspace_tool:
             raise ToolError("unknown_tool", f"{name} is not a tool this desktop has.")
         arguments = arguments if isinstance(arguments, dict) else {}
         if not isinstance(run_id, str) or not run_id:
@@ -871,6 +937,91 @@ class AgentTools:
         )
         return result
 
+    # ----------------------------------------------------------- workspace --
+
+    def _workspace_available(self) -> bool:
+        editors = self.editors
+        return editors is not None and editors.supported
+
+    def _require_workspace(self):
+        if not self._workspace_available():
+            raise ToolError("unknown_tool", "Workspace tools are not available on this server.")
+
+    async def _workspace_list(self, desktop_id, arguments, *, run_id, actor_id):
+        """The entries at a workspace folder, in the Files app's shape."""
+        self._require_workspace()
+        path = arguments.get("path")
+        if path is not None and not isinstance(path, str):
+            raise ToolError("protocol_error", "A folder path is a string.")
+        # An empty string names the workspace root, the way the Files app
+        # reads a missing path.
+        result = self.editors.list(path if isinstance(path, str) and path.strip() else None)
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_list", target=path or "/",
+            expected="list what is inside this folder",
+        )
+        return result
+
+    async def _workspace_read(self, desktop_id, arguments, *, run_id, actor_id):
+        """A workspace file's text with its revision, sliced as asked."""
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        offset = arguments.get("offset")
+        limit = arguments.get("limit")
+        if offset is not None and (isinstance(offset, bool) or not isinstance(offset, (int, float))):
+            raise ToolError("protocol_error", "offset is a number of characters.")
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
+            raise ToolError("protocol_error", "limit is a number of characters.")
+        result = self.editors.read(path, offset=offset, limit=limit)
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_read", target=path,
+            expected="read this file",
+            result={"revision": result.get("revision"), "truncated": result.get("truncated")},
+        )
+        return result
+
+    async def _workspace_write(self, desktop_id, arguments, *, run_id, actor_id):
+        """One workspace file, replaced atomically.
+
+        A save that names the revision it expected is refused when somebody
+        saved first — the conflict travels as the tool vocabulary's
+        `conflict`, which says to look again, not to push the same save harder.
+        """
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        content = arguments.get("content")
+        if not isinstance(content, str):
+            raise ToolError("protocol_error", "Writing needs the file's new text.")
+        expected = arguments.get("expectedRevision")
+        if expected is not None and not isinstance(expected, str):
+            raise ToolError("protocol_error", "A revision is the string a read returned.")
+        result = self.editors.write(
+            path, content, expected_revision=expected, actor=f"run:{run_id}"
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_write", target=path,
+            expected="replace this file with the text given",
+            outcome="committed", result={"revision": result.get("revision")},
+        )
+        return result
+
+    async def _editor_open(self, desktop_id, arguments, *, run_id, actor_id):
+        """A workspace file in an editor window on this desktop.
+
+        The file is checked whole — there, a file, UTF-8 text, inside the size
+        cap — before the window exists, and asking for a file whose window is
+        open brings that window forward rather than opening a second one.
+        """
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        opened = self.editors.open(desktop_id, path, run_id=run_id)
+        self.log.note_action(
+            desktop_id, run_id, tool="editor_open", target=path,
+            expected="open this file in an editor window",
+            result={"viewId": opened["viewId"]},
+        )
+        return opened
+
     # ----------------------------------------------------------- helpers --
 
     def _view(self, desktop_id: str, view_id: Any, *, allow_default: bool = False):
@@ -987,6 +1138,7 @@ def _code_for(status: int) -> str:
         404: "not_found",
         409: "conflict",
         413: "too_large",
+        415: "unsupported",
         422: "protocol_error",
         503: "runtime_unavailable",
         504: "timed_out",

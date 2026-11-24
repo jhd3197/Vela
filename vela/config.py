@@ -26,12 +26,12 @@ CONTROLLER_TOKEN_MIN_LENGTH = 32
 
 #: The controller protocol version, reported by `GET /api/controller` and
 #: carried as the `computer` image's `vela.controller.protocol` label. Bumped
-#: when the mode gains a capability a controller can rely on: 3 is the terminal
-#: (`terminal` in the discovery features), alongside what 2 already carried
-#: (the driven-run API) and 1 before it. Lives here, and not in
-#: `vela.computer`, so that the dashboard's discovery route does not import the
-#: container entry point.
-CONTROLLER_PROTOCOL = 3
+#: when the mode gains a capability a controller can rely on: 4 is the
+#: workspace and the plain-text editor (`workspace` and `editor` in the
+#: discovery features), 3 the terminal, 2 the driven-run API, 1 the mode
+#: itself. Lives here, and not in `vela.computer`, so that the dashboard's
+#: discovery route does not import the container entry point.
+CONTROLLER_PROTOCOL = 4
 
 #: The workspace a controller-mode terminal is rooted at. In the computer image
 #: it is the `/workspace` volume a bot's own tools survive in; a test points it

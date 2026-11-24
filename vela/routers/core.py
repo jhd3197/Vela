@@ -57,10 +57,11 @@ def router(auth, registry, connected_apps, config, platform) -> APIRouter:
         if not config.controller_mode:
             raise Forbidden("This Vela is not running in controller mode",
                             code="controller.not_controller_mode")
-        features = {"controller": True, "driver": True}
+        features = {"controller": True, "driver": True, "workspace": True, "editor": True}
         # The terminal needs a POSIX pty; said only when it is true, so a
         # controller on a platform without one never sees a feature that
-        # refuses to work.
+        # refuses to work. The workspace and the editor are files and windows,
+        # not processes: they exist in controller mode on every platform.
         if pty_supported():
             features["terminal"] = True
         return {"mode": "controller", "version": __version__,

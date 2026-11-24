@@ -22,7 +22,7 @@ ARG VELA_VERSION=""
 LABEL org.opencontainers.image.title="Vela computer" \
       org.opencontainers.image.source="https://github.com/jhd3197/Vela" \
       org.opencontainers.image.version="${VELA_VERSION}" \
-      vela.controller.protocol="3"
+      vela.controller.protocol="4"
 WORKDIR /app
 # HOME matters twice: the build's npm and Playwright caches live there, and
 # the worker Vela spawns at runtime carries this HOME (and nothing else) to

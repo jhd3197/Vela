@@ -8,6 +8,36 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Controller mode: workspace files and a plain-text editor.** A
+  controller-mode Vela (and only a controller-mode Vela) now serves its
+  workspace as a built-in **Workspace** share through the existing Files
+  app routes and rules — browsing, download and trash behave exactly as
+  they do for any share, and `..`, absolute paths, drive letters and
+  symlinks pointing out refuse with the same `403`. The driven-run tool
+  catalogue and Vela's own loop gain four controller-mode-only tools on the
+  same surface as the terminal's: `workspace_list`, `workspace_read`
+  (UTF-8 text with the file's content-hash revision, sliced by `offset`/
+  `limit`, capped with a head-and-tail marker), `workspace_write` (atomic,
+  1 MB cap, and a save naming the revision it expected is refused with a
+  `conflict` when somebody saved first) and `editor_open` (one workspace
+  file in a plain-text editor window, opened or focused). The editor is a
+  view: a watcher reads a text frame — the file's current content and
+  revision — from the existing frame route, and a person edits through the
+  same take-over lease as any other view, sending the file's whole new text
+  while they hold control; a driver's steps answer `person_driving` in that
+  time. For the controller itself, `POST /api/desktops/{id}/editor` opens
+  or focuses the editor window for a path, and `GET`/`PUT
+  /api/desktops/{id}/editor/content` read and atomically write a file's
+  content with its revision, the PUT refusing a stale `expectedRevision`
+  with `409`. Editor windows close with their desktop, on agent off, on
+  restore quiesce and on shutdown, keeping no process behind them. Outside
+  controller mode nothing changes: there is no share, the tools are not
+  listed and refuse as unknown, the routes answer `404`, and the no-paths
+  rule for agents stands exactly as before. Discovery (`GET /api/controller`)
+  now reports `protocol: 4` with `workspace` and `editor` features, and the
+  `computer` image label carries the same protocol. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#workspace-files-and-a-plain-text-editor).
+
 - **Controller mode: a terminal inside the bot's computer.** A controller-mode
   Vela (and only a controller-mode Vela) now offers its agent a real shell
   through five tools on the driven-run surface and Vela's own loop:
