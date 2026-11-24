@@ -26,6 +26,7 @@ the screen it is now looking at.
 
 from __future__ import annotations
 
+import math
 import secrets
 import threading
 import time
@@ -41,6 +42,15 @@ LEASE_SECONDS = 180
 #: How long a frame may be before input aimed at it is refused. A click decided
 #: from a five-second-old picture is a click at whatever is there now.
 MAX_FRAME_AGE_SECONDS = 10
+
+#: The buttons a person's click may name. The same list the browser worker
+#: accepts; checked here too so a name outside it is a 422 with a sentence
+#: rather than a worker refusal that reads like the browser broke.
+MOUSE_BUTTONS = ("left", "right", "middle")
+
+#: Furthest one scroll may move, in CSS pixels. The same bound the worker
+#: enforces, applied here so the refusal is this server's own.
+MAX_SCROLL_PIXELS = 4000
 
 
 class Lease:
@@ -198,3 +208,36 @@ def check_frame_age(captured_at: Any) -> None:
             "That was decided from a picture more than "
             f"{MAX_FRAME_AGE_SECONDS} seconds old. Wait for a fresh one.",
         )
+
+
+def check_button(value: Any) -> str:
+    """The mouse button a click presses: left, right or middle, nothing else.
+
+    A right click is how a person opens a context menu — the long-press a
+    touch viewer sends — so it is a first-class input, not a flavour of key.
+    """
+    if value not in MOUSE_BUTTONS:
+        raise AppServiceError(422, "A click presses the left, right or middle button.")
+    return value
+
+
+def check_scroll(dx: Any, dy: Any) -> tuple[float, float]:
+    """How far a wheel or a touch-drag scrolls, bounded the way the worker bounds it.
+
+    The deltas are the wheel's own — what a browser reports as `deltaX` and
+    `deltaY` — so a drag that scrolls a page down sends a positive dy, exactly
+    as a mouse wheel would.
+    """
+    try:
+        moved_x, moved_y = float(dx or 0), float(dy or 0)
+    except (TypeError, ValueError) as exc:
+        raise AppServiceError(422, "A scroll moves by numbers of pixels.") from exc
+    if not (math.isfinite(moved_x) and math.isfinite(moved_y)):
+        raise AppServiceError(422, "A scroll moves by numbers of pixels.")
+    if abs(moved_x) > MAX_SCROLL_PIXELS or abs(moved_y) > MAX_SCROLL_PIXELS:
+        raise AppServiceError(
+            422, f"A single scroll may move at most {MAX_SCROLL_PIXELS} pixels."
+        )
+    if moved_x == 0 and moved_y == 0:
+        raise AppServiceError(422, "A scroll needs a direction.")
+    return moved_x, moved_y

@@ -196,6 +196,7 @@ def create_app(config: Config | None = None, *, connection_transport=None,
     # invoking a named action goes through that service.
     agent_runs = AgentRuns(
         desktops, config.data_dir, settings=settings, notifier=notifier,
+        config=config,
         log=lambda message: print(f'[vela] {message}', flush=True),
     )
     # Terminals: a shell inside the bot's own computer, controller mode only.

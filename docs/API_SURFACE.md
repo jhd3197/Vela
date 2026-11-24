@@ -92,6 +92,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/events`
 - `GET /api/desktops/{desktop_id}/files`
 - `GET /api/desktops/{desktop_id}/files/{artifact_id}`
+- `GET /api/desktops/{desktop_id}/frame`
 - `GET /api/desktops/{desktop_id}/grants`
 - `GET /api/desktops/{desktop_id}/layout`
 - `GET /api/desktops/{desktop_id}/policy`
@@ -216,6 +217,7 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/desktops/{desktop_id}/tasks`
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/control`
 - `POST /api/desktops/{desktop_id}/tasks/{run_id}/retry`
+- `POST /api/desktops/{desktop_id}/viewer/heartbeat`
 - `POST /api/desktops/{desktop_id}/views`
 - `POST /api/devices/claim`
 - `POST /api/devices/pair`

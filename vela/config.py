@@ -26,12 +26,20 @@ CONTROLLER_TOKEN_MIN_LENGTH = 32
 
 #: The controller protocol version, reported by `GET /api/controller` and
 #: carried as the `computer` image's `vela.controller.protocol` label. Bumped
-#: when the mode gains a capability a controller can rely on: 4 is the
-#: workspace and the plain-text editor (`workspace` and `editor` in the
-#: discovery features), 3 the terminal, 2 the driven-run API, 1 the mode
-#: itself. Lives here, and not in `vela.computer`, so that the dashboard's
-#: discovery route does not import the container entry point.
-CONTROLLER_PROTOCOL = 4
+#: when the mode gains a capability a controller can rely on: 5 is the
+#: full-desktop preview frame (`desktopFrame` in the discovery features, and
+#: only when it is switched on), 4 the workspace and the plain-text editor
+#: (`workspace` and `editor`), 3 the terminal, 2 the driven-run API, 1 the
+#: mode itself. Lives here, and not in `vela.computer`, so that the
+#: dashboard's discovery route does not import the container entry point.
+CONTROLLER_PROTOCOL = 5
+
+#: The full-desktop preview is opt-in even in controller mode: the one place
+#: Vela will compose a picture of the whole desktop exists only when the
+#: controller sets this to "1". Off everywhere by default, so the
+#: never-capture-the-desktop rule stays the rule unless a controller
+#: explicitly asks for the exception.
+ENV_CONTROLLER_DESKTOP_FRAME = "VELA_CONTROLLER_DESKTOP_FRAME"
 
 #: The workspace a controller-mode terminal is rooted at. In the computer image
 #: it is the `/workspace` volume a bot's own tools survive in; a test points it
@@ -68,6 +76,7 @@ class Config:
     app_gateway_lan_port: int | None = None
     controller_mode: bool = False
     controller_token: str | None = None
+    controller_desktop_frame: bool = False
     workspace_dir: Path = Path(DEFAULT_WORKSPACE_DIR)
 
     @property
@@ -171,6 +180,7 @@ def load_config() -> Config:
         app_gateway_port=_port(os.environ.get("VELA_PORT"), 7700),
         controller_mode=controller_mode,
         controller_token=load_controller_token() if controller_mode else None,
+        controller_desktop_frame=os.environ.get(ENV_CONTROLLER_DESKTOP_FRAME) == "1",
         workspace_dir=Path(os.environ.get(ENV_WORKSPACE_DIR, DEFAULT_WORKSPACE_DIR)).expanduser(),
     )
     config.ensure_dirs()

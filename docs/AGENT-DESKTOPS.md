@@ -211,6 +211,15 @@ different lifetimes.
 A picture of a window exists to be looked at now — by you, watching, or by the
 animation when a window is put away. Nothing keeps one.
 
+Pictures are taken one window at a time, and Vela never photographs the whole
+desktop: a whole-desktop picture is the one that could contain your approval
+prompt, so on your own Vela it does not exist and no address serves one. The
+single, deliberate exception is a Vela running as a controller-owned
+container, where the controller's own token may — only after the controller
+explicitly switches it on — ask for a preview composed out of the windows'
+own pictures, never a screen capture. The rule everywhere else is unchanged;
+see [the controller mode guide](CONTROLLER-MODE.md#the-desktop-frame).
+
 A *record that something happened* is how Vela knows whether a change went
 through, so an unanswered one can be checked rather than repeated. It holds a
 fingerprint and an outcome, not what was sent; it cannot be used to reconstruct

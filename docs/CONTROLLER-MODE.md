@@ -57,7 +57,7 @@ rather than downloading it. The image builds and runs on **linux/amd64 and
 linux/arm64**: Apple Silicon and other ARM machines need no emulation, and
 Playwright ships Chromium for both. The only build argument is the optional
 `VELA_VERSION`, which labels the image; OCI labels carry the title, the
-source, that version and `vela.controller.protocol=4`, the same protocol
+source, that version and `vela.controller.protocol=5`, the same protocol
 `GET /api/controller` reports.
 
 The image carries exactly what one bot's computer needs: the controller-mode
@@ -135,9 +135,9 @@ image, the same as the `container` kind.
 a Vela in controller mode, and how far the protocol has got:
 
 ```json
-{"mode": "controller", "version": "0.1.19", "protocol": 4,
+{"mode": "controller", "version": "0.1.19", "protocol": 5,
  "features": {"controller": true, "driver": true, "workspace": true,
-              "editor": true, "terminal": true}}
+              "editor": true, "terminal": true, "desktopFrame": true}}
 ```
 
 `features` lists the controller-only capabilities this Vela was built with.
@@ -147,7 +147,10 @@ below; `terminal` marks the terminal: a shell inside this computer, described
 in its own section. All exist only in controller mode, and their routes
 answer `404` everywhere else; `terminal` additionally needs a POSIX pty, so
 it is advertised only where one exists — the `computer` image always has one.
-A full-desktop capture is the remaining planned capability in this mode.
+`desktopFrame` marks the full-desktop preview, described in its own section
+below; it is the one capability that is opt-in even here, so it is advertised
+only when the controller switched it on and never merely because the protocol
+knows about it.
 
 ## Driving a desktop step by step
 
@@ -510,3 +513,135 @@ somebody's edit. All three routes require the controller token and answer
                "expectedRevision": "9f1c…"}, "clientStepId": "2"}
 → {"result": {"path": "notes/todo.txt", "revision": "72bd…", "bytes": 28}}
 ```
+
+## Who is watching, and what it is doing
+
+`protocol: 5` adds three things a controller showing the computer in its own
+UI needs: a way to say somebody is watching, a one-line answer to "what is it
+doing", and — behind its own opt-in — one picture of the whole desktop.
+
+### Watchers
+
+A watcher reports that it is watching with a heartbeat:
+
+```
+POST /api/desktops/{id}/viewer/heartbeat
+{"viewerId": "preview-card", "kind": "person", "viewId": "optional"}
+```
+
+`viewerId` is a name the watcher chose for itself — a random id from its tab
+or process, at most 64 printable characters — so a refreshed beat replaces
+itself rather than counting twice. `kind` is `person` or `controller`; left
+out, it is what the caller is (the controller token means `controller`, a
+person's session means `person`), and `controller` is refused anywhere there
+is no controller. A heartbeat lasts **20 seconds**; the answer says so, and
+says who is watching now:
+
+```json
+{"watching": true, "expiresInSeconds": 20,
+ "watchers": {"count": 2, "kinds": {"person": 1, "controller": 1}}}
+```
+
+`GET /api/desktops/{id}/viewer` carries the same `watchers` summary beside
+the control lease and the task, so a direct viewer — a person's own session,
+heartbeating the same way, its kind defaulting to `person` — counts exactly
+like the controller's proxied viewers. Counts and kinds only: no ids, nothing
+personal. Expired heartbeats drop out on their own, a desktop counts at most
+**16** watchers (past that, the watcher closest to expiring is dropped first),
+and the route works in every mode — watching is not a controller-only idea.
+
+Watching is what keeps the computer awake: a controller that sees
+`count: 0` knows nobody is looking.
+
+### The activity line
+
+The same viewer read carries `activity`: one short line saying what the
+desktop is doing, or `null` when it is idle.
+
+```json
+{"activity": {"text": "Running npm run dev", "at": 1732473600.0, "viewId": null}}
+```
+
+The line is **derived from the step that is actually running** — the command
+for `terminal_run`, the path for `workspace_write`, the control's own
+accessible name from the last observation for a click ("Clicking 'Re-run
+failed jobs'") — never invented, and reported by tool name when there is
+nothing truer to say. Both run loops write it at the same point they emit
+`step.started`, so a driven run and a run Vela's own model loop carries out
+read identically. It shows only while the run is working: a paused run, one
+waiting for an approval and one that has ended are all idle, and idle is
+`null`. As a backstop the line expires **150 seconds** after it was set, so a
+controller that died mid-step does not leave "Clicking…" up forever.
+
+Every change also rides the event stream as `desktop.activity`
+(`{"text": …, "viewId": …}`, and `{"text": null}` when the run goes idle), so
+a watcher of `GET .../events` sees the line come and go without polling.
+
+### Right click and scroll from a person
+
+The take-over input route (`POST .../takeover/{leaseId}/input`, the same one
+writer lease as every other person input) speaks two more things a touch
+screen needs, for browser views:
+
+- **Right click** — `{"kind": "click", "button": "right", "point": …,
+  "frameAt": …}`. The button names are a closed list: `left`, `right`,
+  `middle`; anything else is a `422` before it can reach the browser. A tap
+  is a click; a long-press is a right click.
+- **Scroll** — `{"kind": "scroll", "dx": 0, "dy": 240}`. The deltas are the
+  wheel's own — what a browser reports as `deltaX`/`deltaY` — so a drag that
+  scrolls a page down sends a positive `dy`, exactly as a mouse wheel would.
+  One scroll moves at most **4000** pixels per axis, and a scroll that goes
+  nowhere is a `422`.
+
+Click, type and key behave exactly as they always have. Terminals and editors
+refuse what does not apply to them, with the sentences they already had: a
+terminal takes text or one named key, an editor takes the file's new text,
+and neither takes clicks or scrolls.
+
+## The desktop frame
+
+Vela never captures the whole desktop. That rule is unchanged everywhere —
+on a personal Vela there is still no address that answers with a picture of
+everything, because that picture is the one that could contain the owner's
+approval prompt. The **one** exception is here, and it exists only when all
+three of these are true:
+
+1. the Vela runs in **controller mode**;
+2. the caller holds the **controller token** — the auth layer accepts nothing
+   else on this route in this mode, so no person session and no app session
+   ever reaches it;
+3. the controller **opted in** by setting `VELA_CONTROLLER_DESKTOP_FRAME=1`
+   in the container's environment. Off by default, including in the
+   `computer` image: the exception exists where a controller asked for it and
+   nowhere else.
+
+Anywhere else — every other mode, and controller mode without the opt-in —
+`GET /api/desktops/{id}/frame` answers `404`, the way the driven-run routes
+do: to a caller that may not have it, the address does not exist.
+
+```
+docker run -d --name bot-computer \
+  -p 127.0.0.1:7700:7700 \
+  -e VELA_CONTROLLER_DESKTOP_FRAME=1 \
+  …
+```
+
+Even switched on, it is a **composite, not a capture**. Nothing asks the
+operating system or the browser for a new kind of picture: each window is
+drawn from the same per-view frame the watcher route serves — the page's own
+capture for an app or a site, the recent screen text for a terminal or an
+editor — placed by the desktop's own layout on a fixed **1280×800** (16:10)
+canvas with a plain background. A window the per-view frame route refuses —
+the owner's surfaces, the task window — is not drawn at all, so approval
+prompts and everything else those frames hide stay hidden here by
+construction. A window whose capture fails is a blank body, not a failed
+preview.
+
+The answer is a PNG named by its content: the `ETag` is the digest of the
+bytes, a repeat request with `If-None-Match` answers `304`, and an
+`X-Vela-Frame-Revision` header counts recomposes. Polling is rate-limited —
+one compose per desktop per **800 ms**, however loud the polling — and the
+per-window frames underneath are the same shared captures every other watcher
+uses, so a chat preview refreshing every second costs about what one watcher
+costs. Discovery advertises the capability as `"desktopFrame": true` only
+while it is switched on.

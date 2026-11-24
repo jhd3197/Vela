@@ -64,6 +64,11 @@ def router(auth, registry, connected_apps, config, platform) -> APIRouter:
         # not processes: they exist in controller mode on every platform.
         if pty_supported():
             features["terminal"] = True
+        # The full-desktop preview is opt-in; advertised only when the
+        # controller switched it on, so the flag never names an address that
+        # would answer 404.
+        if config.controller_desktop_frame:
+            features["desktopFrame"] = True
         return {"mode": "controller", "version": __version__,
                 "protocol": CONTROLLER_PROTOCOL, "features": features}
 
