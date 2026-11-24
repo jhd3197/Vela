@@ -74,6 +74,13 @@ until the release workflow prepares a tested server version.
   run record (`GET /api/desktops/{id}/tasks/{runId}`) remains the place for
   the run's live counters.
 
+- **The desk's Flows widget counts runs by the local day across a clock
+  change.** The "today" counts and the week of bars behind
+  `GET /api/automations/status` carried today's UTC offset across the whole
+  week, so right after a clock change a run from the first hour of a day was
+  charted on the day before. Each day's boundary is now that date's own
+  local midnight.
+
 ## 0.2.0 - 2026-11-24
 
 ### Added
