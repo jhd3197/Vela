@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-24
+
 ### Added
 
 - **Controller mode: a driver API for step-by-step agent runs.** A
