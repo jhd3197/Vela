@@ -88,6 +88,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/boards`
 - `GET /api/desktops/{desktop_id}/driven-runs/tools`
 - `GET /api/desktops/{desktop_id}/driven-runs/{run_id}/steps/{client_step_id}`
+- `GET /api/desktops/{desktop_id}/editor/content`
 - `GET /api/desktops/{desktop_id}/events`
 - `GET /api/desktops/{desktop_id}/files`
 - `GET /api/desktops/{desktop_id}/files/{artifact_id}`
@@ -203,6 +204,7 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/cancel`
 - `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/finish`
 - `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/steps`
+- `POST /api/desktops/{desktop_id}/editor`
 - `POST /api/desktops/{desktop_id}/enable-agent`
 - `POST /api/desktops/{desktop_id}/files`
 - `POST /api/desktops/{desktop_id}/grants`
@@ -272,6 +274,7 @@ A route change belongs in the same commit as the regenerated list.
 - `PUT /api/desk`
 - `PUT /api/desktops/{desktop_id}/appearance`
 - `PUT /api/desktops/{desktop_id}/boards`
+- `PUT /api/desktops/{desktop_id}/editor/content`
 - `PUT /api/desktops/{desktop_id}/layout`
 - `PUT /api/desktops/{desktop_id}/policy`
 - `PUT /api/desktops/{desktop_id}/wallpaper`

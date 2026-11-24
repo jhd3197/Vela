@@ -57,7 +57,7 @@ rather than downloading it. The image builds and runs on **linux/amd64 and
 linux/arm64**: Apple Silicon and other ARM machines need no emulation, and
 Playwright ships Chromium for both. The only build argument is the optional
 `VELA_VERSION`, which labels the image; OCI labels carry the title, the
-source, that version and `vela.controller.protocol=3`, the same protocol
+source, that version and `vela.controller.protocol=4`, the same protocol
 `GET /api/controller` reports.
 
 The image carries exactly what one bot's computer needs: the controller-mode
@@ -135,17 +135,19 @@ image, the same as the `container` kind.
 a Vela in controller mode, and how far the protocol has got:
 
 ```json
-{"mode": "controller", "version": "0.1.19", "protocol": 3,
- "features": {"controller": true, "driver": true, "terminal": true}}
+{"mode": "controller", "version": "0.1.19", "protocol": 4,
+ "features": {"controller": true, "driver": true, "workspace": true,
+              "editor": true, "terminal": true}}
 ```
 
 `features` lists the controller-only capabilities this Vela was built with.
-`driver` marks the driven-run API below; `terminal` marks the terminal: a
-shell inside this computer, described in its own section. Both exist only in
-controller mode, and their routes answer `404` everywhere else; `terminal`
-additionally needs a POSIX pty, so it is advertised only where one exists —
-the `computer` image always has one. A full-desktop capture is the remaining
-planned capability in this mode.
+`driver` marks the driven-run API below; `workspace` and `editor` mark the
+workspace files and the plain-text editor described in their own section
+below; `terminal` marks the terminal: a shell inside this computer, described
+in its own section. All exist only in controller mode, and their routes
+answer `404` everywhere else; `terminal` additionally needs a POSIX pty, so
+it is advertised only where one exists — the `computer` image always has one.
+A full-desktop capture is the remaining planned capability in this mode.
 
 ## Driving a desktop step by step
 
@@ -398,4 +400,113 @@ POST /api/desktops/{id}/driven-runs/{runId}/steps
  "arguments": {"terminalId": "…", "command": "npm run dev",
                "timeoutSeconds": 5, "waitFor": "output"}, "clientStepId": "2"}
 → {"result": {"exitCode": null, "running": true, "output": "> app@1.0.0 dev\n> vite dev\n", …}}
+```
+
+## Workspace files and a plain-text editor
+
+`protocol: 4` adds the bot's **workspace** as files, and a plain-text
+**editor** for one of them. On an ordinary Vela nothing in this section
+exists: there is no workspace share, no editor view, the tools are not
+listed, and every route answers `404` — the no-paths rule for agents stands
+exactly as it always has (see docs/AGENT-DESKTOPS.md).
+
+### The Workspace share
+
+In controller mode the Files app serves a built-in share, `workspace`
+(labelled **Workspace**), rooted at the configured workspace directory
+(`/workspace` in the image; `VELA_WORKSPACE_DIR` overrides it). It answers
+the existing routes:
+
+```
+GET /api/files                       → shares, including {"id": "workspace", …}
+GET /api/files/workspace?path=…      → the entries at a folder
+GET /api/files/workspace/download?…  → the bytes
+DELETE /api/files/workspace?path=…   → to the trash, like every delete
+```
+
+Everything the Files app enforces applies unchanged: `..`, an absolute path,
+a drive letter and a symlink pointing out all refuse with `403 That path is
+outside the share.`, deletes go to the same thirty-day trash, uploads stream
+under the same cap. The workspace volume is the bot's; Vela adds nothing but
+the door.
+
+### The tools
+
+The catalogue (`GET .../driven-runs/tools`) lists them only in controller
+mode; a step calls them like any other tool. All paths are workspace-relative.
+
+- `workspace_list {"path"?}` — the entries at a folder (default the
+  workspace root), in the Files app's shape: folders first, then by name.
+- `workspace_read {"path", "offset"?, "limit"?}` — a UTF-8 text file's
+  content with its `revision` (the file's content hash). `offset` and
+  `limit` slice in characters; a read answers at most 16 KB of text, and
+  longer files come back as head and tail around an `…[output cut]…` marker
+  with `truncated: true`, so a long answer never pretends to be complete.
+  Files up to 4 MB read this way; bigger ones are reachable through the
+  terminal's `head`/`tail`/`sed` the way a shell always has. Bytes that are
+  not UTF-8, or that carry NULs, refuse as `unsupported` — the editor and
+  the read tools are for text, and saying so beats guessing.
+- `workspace_write {"path", "content", "expectedRevision"?}` — replace a
+  file atomically (a temporary name beside it, then a rename, so a crash
+  mid-save never leaves a half-written file). The save is capped at 1 MB,
+  and the file's parent folder must exist. `expectedRevision` is the
+  `revision` a `workspace_read` answered: when somebody saved first, the
+  save is refused with a `conflict` — *somebody changed this file since it
+  was read; look at it again* — never a silent overwrite. Without one the
+  write is taken as given, which is what creating a file means.
+- `editor_open {"path"}` — a plain-text editor window for the file on this
+  desktop, or the one already open brought forward: one file, one window.
+  The file is checked whole before the window exists — there, a file, UTF-8
+  text, at most 1 MB — and the result carries the `viewId` and the file's
+  `revision`.
+
+### The editor window
+
+The editor is a view, watched like any other. `GET
+/api/desktops/{id}/views/{viewId}/frame` answers for it with a **text
+frame**: the file's current content, its `revision`, and its workspace
+`path`. The revision rises with every save, whoever made it — a run's
+`workspace_write`, the controller's PUT below, or a person at the keyboard —
+so a watcher polling the frame sees the file move. A person edits through
+the same take-over rules as every other view: `POST .../takeover` holds the
+run (`person_driving` refusals answer its steps), and
+`POST .../takeover/{leaseId}/input` with `{"kind": "text", "viewId",
+"text"}` saves the file's whole new text — the lease is the guard, so the
+one writer is asked no revision. Closing the window (`DELETE
+.../views/{viewId}`) closes the editor, and editor windows die with their
+desktop: on delete, on turning the agent off, on restore quiesce and on
+shutdown. Unlike a terminal an editor keeps no process, so a run ending
+leaves its editor windows alone; the files were on disk all along.
+
+### The controller's routes
+
+For the controller itself, outside any run:
+
+```
+POST /api/desktops/{id}/editor            {"path": "notes/todo.txt"}
+→ 201 {"viewId": "…", "path": "notes/todo.txt", "title": "todo.txt",
+       "revision": "…", …}
+
+GET /api/desktops/{id}/editor/content?path=notes/todo.txt
+→ 200 {"path": "notes/todo.txt", "content": "…", "revision": "…", "size": 42}
+
+PUT /api/desktops/{id}/editor/content
+{"path": "notes/todo.txt", "content": "…", "expectedRevision": "…"}
+→ 200 {"path": "notes/todo.txt", "revision": "…", "bytes": 42}
+```
+
+The PUT is the same write the tool makes: atomic, capped, and refusing a
+stale `expectedRevision` with `409` and a sentence instead of landing on
+somebody's edit. All three routes require the controller token and answer
+`404` outside controller mode.
+
+```json
+{"tool": "workspace_read", "arguments": {"path": "notes/todo.txt"}, "clientStepId": "1"}
+→ {"result": {"path": "notes/todo.txt", "content": "- [ ] water the plants\n",
+               "revision": "9f1c…", "size": 27, "truncated": false}}
+
+{"tool": "workspace_write",
+ "arguments": {"path": "notes/todo.txt", "content": "- [x] water the plants\n",
+               "expectedRevision": "9f1c…"}, "clientStepId": "2"}
+→ {"result": {"path": "notes/todo.txt", "revision": "72bd…", "bytes": 28}}
 ```

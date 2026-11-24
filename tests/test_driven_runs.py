@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 from scripts.fixture_apps import APPS as FIXTURE_APPS
 from vela.agent_runs.approvals import ApprovalPending
 from vela.agent_runs.store import TERMINAL, RunStore
-from vela.agent_runs.tools import TOOL_NAMES, TERMINAL_TOOL_NAMES, ToolError
+from vela.agent_runs.tools import TOOL_NAMES, TERMINAL_TOOL_NAMES, WORKSPACE_TOOL_NAMES, ToolError
 from vela.api import create_app
 from vela.config import load_config
 
@@ -274,9 +274,10 @@ class ControllerDrivenTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.text)
         offered = {entry["function"]["name"]: entry["function"] for entry in response.json()["tools"]}
-        # Controller mode on a POSIX host also carries the terminal tools; the
-        # catalogue is what `AgentTools` will accept, so it must list them.
-        expected = set(TOOL_NAMES)
+        # Controller mode also carries the workspace tools — and the terminal
+        # tools on a POSIX host; the catalogue is what `AgentTools` will
+        # accept, so it must list them.
+        expected = set(TOOL_NAMES) | set(WORKSPACE_TOOL_NAMES)
         if os.name == "posix":
             expected |= set(TERMINAL_TOOL_NAMES)
         self.assertEqual(set(offered), expected)

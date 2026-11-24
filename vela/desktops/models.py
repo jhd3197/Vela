@@ -162,11 +162,12 @@ def default_appearance() -> dict[str, Any]:
 #: What a view can be. `app` is an installed Vela app, `web` an approved site,
 #: `host` one of the owner surfaces below, `agent` the task window, `surface`
 #: a document an app serves over its http connection that the hub draws itself,
-#: and `terminal` a live shell (controller mode only; the terminal service
-#: opens it, never the ordinary view route). The last three are never handed
-#: to an agent as something to look at or click, which is why they are
-#: separate kinds rather than flags.
-VIEW_KINDS = ("app", "web", "host", "agent", "surface", "terminal")
+#: `terminal` a live shell and `editor` one workspace file in a plain-text
+#: window (both controller mode only; their services open them, never the
+#: ordinary view route). The last four are never handed to an agent as
+#: something to look at or click, which is why they are separate kinds rather
+#: than flags.
+VIEW_KINDS = ("app", "web", "host", "agent", "surface", "terminal", "editor")
 
 #: The owner surfaces a `host` view may be. A closed list on purpose — a `host`
 #: view that could name any path would be a way to put the owner's dashboard,

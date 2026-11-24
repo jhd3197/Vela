@@ -30,6 +30,7 @@ from .config import Config, load_config
 from .desk import CORE_WIDGET_TYPES
 from .desktops import Desktops, Gateway
 from .agent_runs.service import AgentRuns
+from .editors import Editors
 from .terminals import Terminals
 from .usage import UsageStore
 from .files import Files
@@ -204,6 +205,13 @@ def create_app(config: Config | None = None, *, connection_transport=None,
         desktops, config, log=lambda message: print(f'[vela] {message}', flush=True)
     )
     desktops.terminals = terminals
+    # Editors: the workspace's files and a plain-text editor window, the same
+    # mode's second gift to the bot's computer. Attached the same way, after
+    # the run service because its comings and goings ride the same event line.
+    editors = Editors(
+        desktops, files, config, log=lambda message: print(f'[vela] {message}', flush=True)
+    )
+    desktops.editors = editors
     snooze = SnoozeStore(config.data_dir / "snooze.json")
     devices = Devices(config.data_dir / "devices.json")
     # Crashed managed services are restarted here, on a thread: a reconcile tick
@@ -280,6 +288,7 @@ def create_app(config: Config | None = None, *, connection_transport=None,
     app.state.companions = companions
     app.state.agent_runs = agent_runs
     app.state.terminals = terminals
+    app.state.editors = editors
     phone_access = PhoneAccess(app, config, auth)
     app.state.phone_access = phone_access
 
@@ -499,6 +508,9 @@ def create_app(config: Config | None = None, *, connection_transport=None,
         # Then every shell a terminal left open. Nothing a bot was running
         # outlives the server that started it.
         terminals.stop_all()
+        # And every editor window, which closes the same way: windows do not
+        # survive a restart, and the files they showed were on disk all along.
+        editors.stop_all()
         # A browser left running with nobody to stop it is the thing the
         # worker's own watchdog is a backstop for; this is the ordinary path.
         await desktops.stop_runtime()

@@ -427,7 +427,7 @@ class Supervisor:
         )
         budget.resume()
 
-        declared = tools_for(self.desktops.terminals)
+        declared = tools_for(self.desktops.terminals, self.desktops.editors)
         declared_names = tuple(tool["name"] for tool in declared)
         definitions = tool_definitions(declared)
         refused_finishes = 0

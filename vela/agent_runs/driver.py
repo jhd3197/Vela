@@ -152,9 +152,9 @@ class Driver:
             raise DesktopError(409, "This desktop is not running an agent.")
         # The same `tool_definitions` the model loop builds its surface from,
         # so the catalogue a controller registers can never drift from what
-        # `AgentTools` will actually accept — terminal tools included, which
-        # exist only where the terminal service does.
-        return {"tools": tool_definitions(tools_for(self.desktops.terminals))}
+        # `AgentTools` will actually accept — workspace and terminal tools
+        # included, which exist only where their services do.
+        return {"tools": tool_definitions(tools_for(self.desktops.terminals, self.desktops.editors))}
 
     # ------------------------------------------------------------- stepping --
 

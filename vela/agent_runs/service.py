@@ -92,6 +92,8 @@ class AgentRuns:
             self.viewer.forget_desktop(desktop["id"])
             if self.desktops.terminals is not None:
                 self.desktops.terminals.close_desktop(desktop["id"])
+            if self.desktops.editors is not None:
+                self.desktops.editors.close_desktop(desktop["id"])
             closed.append(desktop["id"])
         await self.desktops.stop_runtime()
         # Every browser lifetime is over, so every site grant bound to one is

@@ -60,9 +60,9 @@ class Viewer:
         cost of being watched — the agent is working, and being watched should
         not slow it down.
 
-        A terminal's picture is text, not a capture: its recent screen, served
-        from the scrollback the terminal already keeps (controller mode only;
-        no terminal view exists anywhere else).
+        A terminal's or an editor's picture is text, not a capture: the recent
+        screen, served from the state the service already keeps (controller
+        mode only; no such view exists anywhere else).
         """
         desktop_id = validate_id(desktop_id)
         view_id = validate_view_id(view_id)
@@ -81,6 +81,11 @@ class Viewer:
             if terminals is None:
                 raise DesktopError(503, "Terminals are not available on this server.")
             return terminals.frame(desktop_id, view_id)
+        if view["kind"] == "editor":
+            editors = self.desktops.editors
+            if editors is None:
+                raise DesktopError(503, "Editors are not available on this server.")
+            return editors.frame(desktop_id, view_id)
         self.desktops.agent_runtime_for(desktop_id)
         if not view["agentViewable"]:
             # An owner surface is the person's own window. It is not something
@@ -251,6 +256,10 @@ class Viewer:
             # stale, so text and keys go to the pty as soon as the one writer
             # says so.
             return await self._send_terminal_input(desktop_id, view_id, request)
+        if view["kind"] == "editor":
+            # The same guard, the same one-writer rule: the lease holder sends
+            # the file's new text whole, and nothing else reaches an editor.
+            return self._send_editor_input(desktop_id, view_id, request)
         frame = self._latest.get(view_id)
         if frame is None or frame["desktopId"] != desktop_id:
             raise AppServiceError(409, "Look at this window before typing into it.")
@@ -314,4 +323,20 @@ class Viewer:
                                    keys=key)
         raise AppServiceError(
             422, "A terminal takes text or one named key, not clicks or scrolls."
+        )
+
+    def _send_editor_input(
+        self, desktop_id: str, view_id: str, request: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A person's save, into the editor their lease holds."""
+        editors = self.desktops.editors
+        if editors is None:
+            raise AppServiceError(503, "Editors are not available on this server.")
+        if request.get("kind") == "text":
+            # Text the person chose and sent deliberately — the same words
+            # the terminal path sends, saved here as the file's whole new
+            # text. The lease is the guard: the one writer needs no revision.
+            return editors.save_view(desktop_id, view_id, str(request.get("text") or ""))
+        raise AppServiceError(
+            422, "An editor takes text, the file's new content, not clicks or scrolls."
         )

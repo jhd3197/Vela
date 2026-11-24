@@ -120,6 +120,10 @@ class Desktops:
         # are. It opens terminal views through this service and this service
         # tells it when one's window was closed.
         self.terminals = None
+        # The editor service, attached after construction the same way. It
+        # opens editor views through this service, and this service tells it
+        # when one's window was closed.
+        self.editors = None
         # The tool surface a run acts through. Lazily built so a server with no
         # agent desktops never assembles one.
         self._tools = None
@@ -245,6 +249,10 @@ class Desktops:
         # A desktop's terminals are its agent's hands; they do not outlive it.
         if self.terminals is not None:
             self.terminals.close_desktop(desktop_id)
+        # Its editor windows belong to the desktop the same way, although
+        # what they showed survives on disk in the workspace.
+        if self.editors is not None:
+            self.editors.close_desktop(desktop_id)
         # Staged transfers and a remembered sign-in go with the workspace. An
         # installed app's own documents are not here and are not touched.
         files = self.artifacts.forget_desktop(desktop_id)
@@ -429,9 +437,12 @@ class Desktops:
         self._runtime_sessions.pop(desktop_id, None)
         self._uncertain.pop(desktop_id, None)
         # Shells belong to the agent's side of the desktop. Giving the desktop
-        # back ends them, exactly as closing its browser does.
+        # back ends them, exactly as closing its browser does. Editor windows
+        # belong to it the same way; their files stay in the workspace.
         if self.terminals is not None:
             self.terminals.close_desktop(desktop_id)
+        if self.editors is not None:
+            self.editors.close_desktop(desktop_id)
         try:
             await self.runtime.close_desktop(desktop_id)
         except RuntimeUnavailable:
@@ -1337,6 +1348,12 @@ class Desktops:
             # this kind without a process behind it is a broken thing to
             # leave on someone's desktop.
             raise DesktopError(422, "A terminal opens with the terminal tools, not as a window.")
+        if kind == "editor":
+            # The same argument the terminal makes: an editor window exists
+            # only through the editor routes, which check the file it shows
+            # at the same time. A window on an unchecked file is a broken
+            # thing to leave on someone's desktop.
+            raise DesktopError(422, "An editor opens with the editor routes, not as a window.")
         opened_by = validate_actor(opened_by)
         checked = validate_view_target(kind, target)
         state = validate_view_state(state)
@@ -1394,6 +1411,27 @@ class Desktops:
         )
         return self._describe(self.store.view(view_id))
 
+    def open_editor_view(
+        self, desktop_id: str, *, source: str, title: str, opened_by: str
+    ) -> dict[str, Any]:
+        """The editor service's own way of opening a window.
+
+        Same store path as every other view — one identity, one layout, one
+        frame route. The workspace-relative path the window shows rides in
+        `source`, and the editor service re-resolves it through the share
+        rules before anything touches the disk.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        view_id = self.store.open_view(
+            desktop_id,
+            kind="editor",
+            target={"app_id": None, "surface_key": None, "url": None, "source": source},
+            title=str(title or "")[:120],
+            opened_by=validate_actor(opened_by),
+        )
+        return self._describe(self.store.view(view_id))
+
     def update_view(self, desktop_id: str, view_id: str, patch: Any) -> dict[str, Any]:
         """Change where a window sits, or what its view remembers.
 
@@ -1430,9 +1468,11 @@ class Desktops:
         self.store.close_view(view_id)
         self._view_features.pop(view_id, None)
         # A terminal's window and its shell are one thing: closing either
-        # ends both.
+        # ends both. The same goes for an editor and its file window.
         if view["kind"] == "terminal" and self.terminals is not None:
             self.terminals.close_by_view(desktop_id, view_id)
+        if view["kind"] == "editor" and self.editors is not None:
+            self.editors.close_by_view(desktop_id, view_id)
         # A question asked by a window that is gone has nobody left to answer
         # for. Approving it now would commit a change into a closed app.
         self._cancel_approvals(
