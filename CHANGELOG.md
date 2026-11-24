@@ -6,6 +6,34 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Controller mode: a terminal inside the bot's computer.** A controller-mode
+  Vela (and only a controller-mode Vela) now offers its agent a real shell
+  through five tools on the driven-run surface and Vela's own loop:
+  `terminal_open` (a window, a `bash`-or-`sh` shell on a pseudo-terminal, and
+  an environment rooted at the workspace — `cwd` in `/workspace`,
+  `HOME=/workspace/.home`, npm prefix, `PYTHONUSERBASE` and PIP user installs
+  under `/workspace/.local`, `PATH` starting at its `bin` — built fresh so no
+  Vela secret reaches it), `terminal_run` (one command line, capped timeout,
+  `waitFor: exit|output|none`, returning the real exit code when finished and
+  capped head/tail output), `terminal_read` (incremental, cursor-based),
+  `terminal_write` (text or one named key, Ctrl-C included) and
+  `terminal_close`. Terminals are views: a watcher reads a text frame from the
+  existing frame route, and a person's input goes through the same take-over
+  lease as any other view, so a person holding control still answers a
+  driver's steps with `person_driving`. Up to four terminals per desktop,
+  256 KB of scrollback each, everything killed with the desktop, on agent
+  off, on restore quiesce and on shutdown; cancelling a run kills only the
+  terminals that run started, while a finished run leaves its dev servers
+  running. Outside controller mode nothing changes: the tools are not listed
+  and refuse as unknown, the no-shell rule for agent desktops stands exactly
+  as before, and a controller-mode Vela without a POSIX pty reports no
+  `terminal` feature and refuses cleanly. Discovery (`GET /api/controller`)
+  now reports `protocol: 3` with a `terminal` feature, and the `computer`
+  image label carries the same protocol. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#a-terminal-inside-the-computer).
+
 ### Fixed
 
 - **A retried driven-run step returns the recorded answer, budget included.**

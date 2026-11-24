@@ -116,6 +116,10 @@ class Desktops:
         # is built from services that are built from this one. An agent invoking
         # an action goes through the same service a person's click does.
         self.actions = None
+        # The terminal service, attached after construction the way actions
+        # are. It opens terminal views through this service and this service
+        # tells it when one's window was closed.
+        self.terminals = None
         # The tool surface a run acts through. Lazily built so a server with no
         # agent desktops never assembles one.
         self._tools = None
@@ -238,6 +242,9 @@ class Desktops:
         # Authority first: after the rows are gone there is nothing left to say
         # which grants belonged to this desktop.
         self.revoke_desktop(desktop_id)
+        # A desktop's terminals are its agent's hands; they do not outlive it.
+        if self.terminals is not None:
+            self.terminals.close_desktop(desktop_id)
         # Staged transfers and a remembered sign-in go with the workspace. An
         # installed app's own documents are not here and are not touched.
         files = self.artifacts.forget_desktop(desktop_id)
@@ -421,6 +428,10 @@ class Desktops:
         self.revoke_desktop(desktop_id, reason="the agent was turned off")
         self._runtime_sessions.pop(desktop_id, None)
         self._uncertain.pop(desktop_id, None)
+        # Shells belong to the agent's side of the desktop. Giving the desktop
+        # back ends them, exactly as closing its browser does.
+        if self.terminals is not None:
+            self.terminals.close_desktop(desktop_id)
         try:
             await self.runtime.close_desktop(desktop_id)
         except RuntimeUnavailable:
@@ -1320,6 +1331,12 @@ class Desktops:
         desktop_id = validate_id(desktop_id)
         self.store.get(desktop_id)
         kind = validate_view_kind(kind)
+        if kind == "terminal":
+            # Terminal windows exist only through the terminal tools, which
+            # open the shell behind the window at the same time. A window of
+            # this kind without a process behind it is a broken thing to
+            # leave on someone's desktop.
+            raise DesktopError(422, "A terminal opens with the terminal tools, not as a window.")
         opened_by = validate_actor(opened_by)
         checked = validate_view_target(kind, target)
         state = validate_view_state(state)
@@ -1354,6 +1371,26 @@ class Desktops:
             opened_by=opened_by,
             state=state,
             bounds=bounds,
+        )
+        return self._describe(self.store.view(view_id))
+
+    def open_terminal_view(
+        self, desktop_id: str, *, title: str, opened_by: str
+    ) -> dict[str, Any]:
+        """The terminal service's own way of opening a window.
+
+        Same store path as every other view — one identity, one layout, one
+        frame route — minus the public refusal, because this caller is the
+        one that starts the process the window stands for.
+        """
+        desktop_id = validate_id(desktop_id)
+        self.store.get(desktop_id)
+        view_id = self.store.open_view(
+            desktop_id,
+            kind="terminal",
+            target={"app_id": None, "surface_key": None, "url": None, "source": None},
+            title=str(title or "")[:120],
+            opened_by=validate_actor(opened_by),
         )
         return self._describe(self.store.view(view_id))
 
@@ -1392,6 +1429,10 @@ class Desktops:
             raise DesktopError(404, "That view is not open on this desktop.")
         self.store.close_view(view_id)
         self._view_features.pop(view_id, None)
+        # A terminal's window and its shell are one thing: closing either
+        # ends both.
+        if view["kind"] == "terminal" and self.terminals is not None:
+            self.terminals.close_by_view(desktop_id, view_id)
         # A question asked by a window that is gone has nobody left to answer
         # for. Approving it now would commit a change into a closed app.
         self._cancel_approvals(

@@ -46,7 +46,7 @@ from .model import tool_definitions
 from .observations import StalledError
 from .store import MAX_CLIENT_REQUEST_ID, TERMINAL
 from .supervisor import MAX_CONCURRENT_RUNS, _approval_detail
-from .tools import TOOLS, ToolError
+from .tools import ToolError, tools_for
 
 #: A controller's own id for one step, so a retried POST is the same step and
 #: not a second effect. Same bound as a task submission's request id.
@@ -152,8 +152,9 @@ class Driver:
             raise DesktopError(409, "This desktop is not running an agent.")
         # The same `tool_definitions` the model loop builds its surface from,
         # so the catalogue a controller registers can never drift from what
-        # `AgentTools` will actually accept.
-        return {"tools": tool_definitions(TOOLS)}
+        # `AgentTools` will actually accept — terminal tools included, which
+        # exist only where the terminal service does.
+        return {"tools": tool_definitions(tools_for(self.desktops.terminals))}
 
     # ------------------------------------------------------------- stepping --
 
@@ -600,7 +601,11 @@ class Driver:
             if run["state"] in TERMINAL:
                 raise AppServiceError(409, f"That task already {run['state'].replace('_', ' ')}.")
             self.supervisor._control.pop(run_id, None)
-            # Stopping takes the desktop back, as it does for a loop run.
+            # Stopping takes the desktop back, as it does for a loop run. The
+            # terminals this run started go with it; ones other runs opened
+            # keep running, the way a finished run's dev server does.
+            if getattr(self.desktops, "terminals", None) is not None:
+                self.desktops.terminals.close_run(desktop_id, run_id)
             if self.supervisor.leases is not None:
                 self.supervisor.leases.drop(desktop_id)
             finished = self.supervisor._finish(

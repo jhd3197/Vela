@@ -57,7 +57,7 @@ rather than downloading it. The image builds and runs on **linux/amd64 and
 linux/arm64**: Apple Silicon and other ARM machines need no emulation, and
 Playwright ships Chromium for both. The only build argument is the optional
 `VELA_VERSION`, which labels the image; OCI labels carry the title, the
-source, that version and `vela.controller.protocol=2`, the same protocol
+source, that version and `vela.controller.protocol=3`, the same protocol
 `GET /api/controller` reports.
 
 The image carries exactly what one bot's computer needs: the controller-mode
@@ -135,19 +135,21 @@ image, the same as the `container` kind.
 a Vela in controller mode, and how far the protocol has got:
 
 ```json
-{"mode": "controller", "version": "0.1.19", "protocol": 2,
- "features": {"controller": true, "driver": true}}
+{"mode": "controller", "version": "0.1.19", "protocol": 3,
+ "features": {"controller": true, "driver": true, "terminal": true}}
 ```
 
 `features` lists the controller-only capabilities this Vela was built with.
-`driver` marks the driven-run API below; it exists only in controller mode,
-and the routes answer `404` everywhere else. Later work builds on this mode —
-a terminal and a full-desktop capture — and those features will exist only in
-controller mode; the `computer` image target above is the image they ship in.
+`driver` marks the driven-run API below; `terminal` marks the terminal: a
+shell inside this computer, described in its own section. Both exist only in
+controller mode, and their routes answer `404` everywhere else; `terminal`
+additionally needs a POSIX pty, so it is advertised only where one exists —
+the `computer` image always has one. A full-desktop capture is the remaining
+planned capability in this mode.
 
 ## Driving a desktop step by step
 
-`protocol: 2` adds the **driver API**: a way for the controller's own agent
+`protocol: 2` added the **driver API**: a way for the controller's own agent
 (CachiBot's, say) to drive an agent desktop **one tool call at a time**, while
 Vela keeps enforcing everything it enforces for its own model loop — tool-name
 and argument validation, site policy, approvals, budgets, effect receipts,
@@ -170,11 +172,12 @@ GET /api/desktops/{id}/driven-runs/tools
                          "parameters": {"type": "object", "properties": {...}}}}]}
 ```
 
-The same thirteen tools, descriptions and argument schemas Vela's own loop
-offers its model (`tool_definitions` over the declared `AgentTools` surface),
-so the controller can register them as its own tools and never drift from what
-Vela will actually accept. Ending a run is **not** a tool: a `task.finish`
-step only records a proposal and returns it; the run is ended with the finish
+The same tools, descriptions and argument schemas Vela's own loop offers its
+model (`tool_definitions` over the declared `AgentTools` surface), so the
+controller can register them as its own tools and never drift from what Vela
+will actually accept. In controller mode that surface includes the five
+terminal tools below. Ending a run is **not** a tool: a `task.finish` step
+only records a proposal and returns it; the run is ended with the finish
 route below.
 
 ### Starting a run
@@ -288,3 +291,111 @@ cursor. Step records themselves live in memory: a restart marks a driven run
 `interrupted` like any run that was in flight — the controller learns that
 from the run record (`GET /api/desktops/{id}/tasks/{runId}`), never from a
 step, and a driven run is never resumed or auto-restarted.
+
+## A terminal inside the computer
+
+`protocol: 3` adds the **terminal**: a real shell inside the bot's own
+computer. The container is the sandbox — the image ships no compiler and no
+toolchains precisely so a bot installs its own into `/workspace` — so a shell
+there is the feature, not a breach. On an ordinary Vela the no-shell rule
+stands exactly as it always has: agent desktops there have no terminal, the
+tools are not listed, and calling them is an `unknown_tool` refusal. Nothing
+in this section applies outside controller mode, and a Vela without a POSIX
+pty (the mode can in principle run elsewhere) reports no `terminal` feature
+and refuses `terminal_open` with a plain sentence.
+
+### The tools
+
+The catalogue (`GET .../driven-runs/tools`) lists them only in controller
+mode; a step calls them like any other tool. All take `terminalId` (from
+`terminal_open`) and refuse names from another desktop.
+
+- `terminal_open {"title"?, "cwd"?}` — a new terminal: a window on the
+  desktop, a shell (`bash` where present, else `sh`) on a pseudo-terminal
+  behind it, and an environment rooted at the workspace. `cwd` must stay
+  inside the workspace and is created if missing. A desktop holds at most
+  **4** terminals; a fifth is refused with a sentence.
+- `terminal_run {"terminalId", "command", "timeoutSeconds"?, "waitFor"?}` —
+  one command line (one line, at most 4000 bytes). `waitFor` is `"exit"`
+  (default), `"output"` or `"none"`. The answer carries `exitCode` (null when
+  it has not finished), `running`, `output` and `cursor`. With `"exit"`, Vela
+  appends a marker the shell prints with the command's status, so the answer
+  carries a real exit code; with `"output"` the call returns the moment
+  anything new appears; with `"none"` the line is sent and the call returns
+  at once — **the command keeps running**, which is what a dev server wants.
+  `timeoutSeconds` is capped at **30**; on timeout the answer says
+  `running: true` with what has appeared so far.
+- `terminal_read {"terminalId", "sinceCursor"?}` — the output since a cursor
+  (0 = everything kept), with the new `cursor` to ask from next and `dropped:
+  true` when the bounded scrollback cut output before it.
+- `terminal_write {"terminalId", "text"? | "keys"?}` — type text, or send one
+  named key: `ctrl-c`, `ctrl-d`, `ctrl-z`, `ctrl-l`, `enter`, `tab`,
+  `escape`, `backspace`, `up`, `down`, `left`, `right`. Ctrl-C reaches the
+  foreground process group, so it stops what is actually running.
+- `terminal_close {"terminalId"}` — kills the shell and everything it
+  started, and closes the window.
+
+Output answers are capped at **16 KB** and longer output comes back as head
+and tail around an `…[output cut]…` marker, so a huge answer never pretends
+to be complete. The scrollback itself is bounded at **256 KB** per terminal;
+reads that reach past the cut are told `dropped: true`.
+
+### The environment
+
+The shell's environment is built, never inherited — nothing of Vela's
+process environment (the controller token's path, session keys, proxies)
+reaches it:
+
+- `cwd`: `/workspace` (or the `cwd` given, inside it)
+- `HOME=/workspace/.home`
+- `PATH` starting `/workspace/.local/bin`, then the system paths
+- `PREFIX=/workspace/.local` and `NPM_CONFIG_PREFIX=/workspace/.local`, so
+  `npm install -g` and friends land there
+- `PYTHONUSERBASE=/workspace/.local` and `PIP_USER=1`, so `pip install --user`
+  lands there too
+- `TMPDIR=/workspace/.tmp`
+
+Because `/workspace` is a volume, all of it survives the container sleeping
+or being replaced.
+
+### Watching it, and a person at the keyboard
+
+A terminal is a view, watched like any other. `GET
+/api/desktops/{id}/views/{viewId}/frame` answers for it with a **text frame**
+instead of a picture: the recent screen — the last 60 lines of scrollback
+with terminal control sequences stripped — plus a `revision` that rises with
+every change and a cursor position. Poll it the way the dashboard polls a
+window's frame. (It is text, not an emulator: a full-screen program will not
+draw faithfully in it; `terminal_read` is the faithful stream.)
+
+Input from a person goes through the same take-over rules as every other
+view: `POST .../takeover` holds the run (`person_driving` refusals answer its
+steps), and `POST .../takeover/{leaseId}/input` with `{"kind": "text",
+"viewId", "text"}` or `{"kind": "key", "viewId", "key": "ctrl-c"}` types into
+the terminal. Releasing the lease never resumes the run by itself, exactly as
+elsewhere.
+
+### What lives, what dies
+
+- Closing the terminal's **window** (`DELETE .../views/{viewId}`) kills the
+  shell, and closing the terminal kills the window. They are one thing.
+- Terminals die with their **desktop**: on delete, on turning the agent off,
+  when Vela quiesces for a restore, and when Vela stops.
+- **Cancelling a run kills the terminals that run started** — the shell and
+  its processes are part of what the cancellation means. A run that merely
+  *ended* leaves its terminals alone: the dev server it started is a thing
+  the next run may need. Terminals opened by hand (`runId: null`) are never
+  killed by a run ending.
+- A restart of Vela kills the processes with it (the shell's tty closes);
+  terminal windows do not survive a restart, and none are remembered.
+
+```json
+POST /api/desktops/{id}/driven-runs/{runId}/steps
+{"tool": "terminal_open", "arguments": {"title": "dev"}, "clientStepId": "1"}
+→ {"result": {"terminalId": "…", "viewId": "…", "cwd": "/workspace", "shell": "/bin/bash", …}}
+
+{"tool": "terminal_run",
+ "arguments": {"terminalId": "…", "command": "npm run dev",
+               "timeoutSeconds": 5, "waitFor": "output"}, "clientStepId": "2"}
+→ {"result": {"exitCode": null, "running": true, "output": "> app@1.0.0 dev\n> vite dev\n", …}}
+```

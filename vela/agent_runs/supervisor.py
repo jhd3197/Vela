@@ -33,7 +33,7 @@ from .approvals import ApprovalPending
 from .budget import Budget, BudgetExhausted, STEP_TIMEOUT_SECONDS, clip_output
 from .model import ModelError, ModelUnavailable, SYSTEM_PROMPT, parse_call, tool_definitions
 from .observations import StalledError
-from .tools import TOOLS, TOOL_NAMES, ToolError
+from .tools import ToolError, tools_for
 
 #: Runs working at once, across every desktop on this server. Two browsers cost
 #: about a gigabyte on the machine this was measured on, so two is the starting
@@ -252,7 +252,11 @@ class Supervisor:
             if task:
                 task.cancel()
             # Dispatch stops now; what already committed stays committed, and an
-            # external result nobody could confirm stays unknown.
+            # external result nobody could confirm stays unknown. The terminals
+            # this run started go with it — a cancelled task's shells are not
+            # something the next task inherits.
+            if getattr(self.desktops, "terminals", None) is not None:
+                self.desktops.terminals.close_run(desktop_id, run_id)
             self.desktops.revoke_run(desktop_id, run_id, reason="you stopped this task")
             if self.leases is not None:
                 self.leases.drop(desktop_id)
@@ -423,7 +427,9 @@ class Supervisor:
         )
         budget.resume()
 
-        definitions = tool_definitions(TOOLS)
+        declared = tools_for(self.desktops.terminals)
+        declared_names = tuple(tool["name"] for tool in declared)
+        definitions = tool_definitions(declared)
         refused_finishes = 0
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -481,7 +487,7 @@ class Supervisor:
             name, arguments = parse_call(answer["calls"][0])
             messages.append({"role": "assistant", "content": answer["content"], "tool_calls": answer["calls"][:1]})
 
-            if name not in TOOL_NAMES:
+            if name not in declared_names:
                 messages.append(_tool_message(name, {"error": "unknown_tool", "detail": f"There is no tool called {name}."}))
                 budget.spend_step(progressed=False)
                 continue
