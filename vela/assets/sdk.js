@@ -126,6 +126,12 @@
     // Open a link in a new browser tab. The host only opens https links on the
     // site of this app's http connection (api.github.com allows github.com).
     navigation: Object.freeze({ returnToApps: () => invoke('navigation.return'), close: () => invoke('navigation.close'), openLink: (url) => invoke('navigation.open', { url: String(url) }) }),
+    // Open a desktop window that draws a surface document fetched through this
+    // app's http connection. Requires the `surfaces` capability. The app names
+    // only a source path allowed by its connection's manifest rules; the host
+    // fills in the app id, fetches the document itself, and draws it — data,
+    // never markup. An optional title names the window.
+    surfaces: Object.freeze({ open: ({ source, title } = {}) => invoke('surfaces.open', { source: String(source), title: title == null ? undefined : String(title) }) }),
     setUnsavedChanges: (dirty) => invoke('navigation.dirty', { dirty: Boolean(dirty), canSave: Boolean(saveHandler) }),
     onSave(callback) { saveHandler = callback; },
     // Called when a change this app asked for is waiting for the person who

@@ -41,6 +41,10 @@ export default function useAppFrame({
   // sends when it closes. A window view passes this; the full-screen page does
   // not, because it has no window for an item to raise.
   onTopBarItems,
+  // Open a surface window for `{ appId, source, title }`. Provided by the
+  // dashboard's window, where the active desktop and an owner session are;
+  // the agent host passes nothing and the bridge refuses the operation there.
+  onOpenSurface,
 }) {
   const [opened, setOpened] = useState(null);
   const session = provided || opened;
@@ -49,8 +53,8 @@ export default function useAppFrame({
   const bridge = useRef(null);
   // Held in refs so a changed callback does not tear the bridge down and
   // reload the app underneath the person using it.
-  const handlers = useRef({ onDirty, onNavigate, onReady, onError, onTopBarItems });
-  handlers.current = { onDirty, onNavigate, onReady, onError, onTopBarItems };
+  const handlers = useRef({ onDirty, onNavigate, onReady, onError, onTopBarItems, onOpenSurface });
+  handlers.current = { onDirty, onNavigate, onReady, onError, onTopBarItems, onOpenSurface };
 
   useEffect(() => {
     if (provided) return undefined;
@@ -90,6 +94,7 @@ export default function useAppFrame({
       frame: frameRef.current,
       session,
       context: contextRef.current(),
+      appId,
       onDirty: (state) => handlers.current.onDirty?.(state),
       onNavigate: () => handlers.current.onNavigate?.(),
       onReady: () => {
@@ -101,6 +106,9 @@ export default function useAppFrame({
         handlers.current.onError?.(message);
       },
       onTopBarItems: (items) => handlers.current.onTopBarItems?.(items),
+      onOpenSurface: handlers.current.onOpenSurface
+        ? (request) => handlers.current.onOpenSurface?.(request)
+        : undefined,
     });
     bridge.current = active;
     const update = () => active.updateContext(contextRef.current());

@@ -69,7 +69,7 @@ ROUTERS: tuple[RouterSpec, ...] = (
     RouterSpec("vela.automations.api", "router", "/api/automations", ("automations",),
                ("automations",)),
     RouterSpec("vela.desktops.api", "router", "/api/desktops", ("desktops",),
-               ("desktops", "runs")),
+               ("desktops", "runs", "config")),
     RouterSpec("vela.routers.security", "router", "/api", ("security",),
                ("auth", "phone_access")),
     RouterSpec("vela.routers.devices", "router", "/api", ("devices",),

@@ -8,11 +8,12 @@ with a switch that turns it off — after which Vela makes no request at all.
 Capability answers what this particular copy could do about an update, which
 depends on how it was installed:
 
-- `installer`  a Windows Inno Setup install, updated by running the new setup
-- `portable`   a Windows folder the user unzipped, updated by swapping it
-- `tarball`    a macOS or Linux folder from a .tar.gz, swapped the same way
-- `source`     a git checkout; `git pull` is the update
-- `container`  inside a container image; the image tag is the update
+- `installer`   a Windows Inno Setup install, updated by running the new setup
+- `portable`    a Windows folder the user unzipped, updated by swapping it
+- `tarball`     a macOS or Linux folder from a .tar.gz, swapped the same way
+- `source`      a git checkout; `git pull` is the update
+- `container`   inside a container image; the image tag is the update
+- `controller`  a controller-mode container; the controller updates the image
 
 Applying one is the second half of this file. Everything up to the moment the
 files are replaced happens in this process and is undoable — a bad checksum, a
@@ -91,6 +92,10 @@ def capability() -> str:
     if os.environ.get("VELA_UPDATE_CAPABILITY"):
         # Set by the distribution checks so they can drive one path at a time.
         return os.environ["VELA_UPDATE_CAPABILITY"]
+    if os.environ.get("VELA_CONTROLLER_MODE") == "1":
+        # A controller-mode container is replaced by its controller, which
+        # rebuilds the image; nothing inside can update itself.
+        return "controller"
     if Path("/.dockerenv").exists() or os.environ.get("VELA_CONTAINER") == "1":
         return "container"
     if not getattr(sys, "frozen", False):
@@ -119,7 +124,7 @@ def platform_asset(assets: list[dict[str, Any]], *, kind: str | None = None) -> 
     `vela-server-<version>-<system>-<arch>[-setup].exe|.zip|.tar.gz`.
     """
     kind = kind or capability()
-    if kind in ("source", "container"):
+    if kind in ("source", "container", "controller"):
         return None
     architecture = platform_architecture()
     if kind == "installer":
@@ -588,7 +593,7 @@ class UpdateJob:
         if not status["available"]:
             raise UpdateError("There is no newer version to install.")
         kind = status["capability"]
-        if kind in ("source", "container"):
+        if kind in ("source", "container", "controller"):
             raise UpdateError(
                 "This copy of Vela updates a different way — see Settings › Updates."
             )

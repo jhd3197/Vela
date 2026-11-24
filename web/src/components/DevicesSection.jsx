@@ -5,6 +5,7 @@ import { api, relTime } from '../api.js';
 import { useResource } from '../hooks/useResource.js';
 import { useConfirm } from '../hooks/useConfirm.js';
 import Button from './ui/Button.jsx';
+import { SettingRow, SettingsGroup, SettingsStatus } from './settings/SettingsKit.jsx';
 
 const FORM_LABEL = { phone: 'Phone', tablet: 'Tablet', tv: 'TV' };
 
@@ -70,138 +71,136 @@ export default function DevicesSection() {
 
   const devices = data?.devices || [];
   const idle = !pairing && !tv;
+  const unavailable = data && !data.available;
   return (
-    <div className="settings-devices">
-      <div className="settings-row">
-        <div>
-          <h3>Vela app</h3>
-          <p>
-            Pair the Vela app for Android. It connects without a certificate setup or your password,
-            and you can remove it here at any time.
-          </p>
-        </div>
-        {idle && (
-          <div className="settings-devices-actions">
-            <Button pending={pending} disabled={data && !data.available} onClick={startPairing}>
+    <SettingsGroup
+      title="Vela app and TVs"
+      description="The Vela app connects without a certificate setup or your password, and you can remove any device here at any time."
+      footer={
+        <SettingsStatus tone="error">{failure || (error && !data && error.message)}</SettingsStatus>
+      }
+    >
+      <SettingRow
+        title="Phone or tablet"
+        description={
+          unavailable
+            ? 'Turn on Wi-Fi access with Set up my phone first.'
+            : 'Pair the Vela app for Android by scanning a one-time code.'
+        }
+        control={
+          idle ? (
+            <Button pending={pending} disabled={unavailable} onClick={startPairing}>
               Pair the Vela app
             </Button>
-            <Button
-              variant="ghost"
-              disabled={data && !data.available}
-              onClick={() => setTv({ code: '' })}
-            >
-              Add a TV
-            </Button>
+          ) : null
+        }
+      >
+        {pairing && (
+          <div className="welcome-handoff welcome-handoff-inline">
+            <div className="welcome-qr">
+              <QRCodeSVG
+                value={pairing.link}
+                size={200}
+                marginSize={4}
+                level="M"
+                title="Scan with the Vela app"
+              />
+            </div>
+            <div>
+              <h3>Scan with the Vela app</h3>
+              <p>
+                Open the Vela app on your Android device and tap Scan QR code. The code works once,
+                for the next 10 minutes.
+              </p>
+              <p className="phone-note">
+                Code <code className="mono">{pairing.code}</code>
+              </p>
+              <Button onClick={done}>Done</Button>
+            </div>
           </div>
         )}
-      </div>
-      {data && !data.available && idle && (
-        <p className="phone-note">Turn on Wi-Fi access with Set up my phone first.</p>
-      )}
-      {pairing && (
-        <div className="welcome-handoff">
-          <div className="welcome-qr">
-            <QRCodeSVG
-              value={pairing.link}
-              size={200}
-              marginSize={4}
-              level="M"
-              title="Scan with the Vela app"
+      </SettingRow>
+      <SettingRow
+        title="TV"
+        description="A TV shows a code, and you type it here."
+        control={
+          idle ? (
+            <Button disabled={unavailable} onClick={() => setTv({ code: '' })}>
+              Add a TV
+            </Button>
+          ) : null
+        }
+      >
+        {tv && !tv.found && (
+          <form className="settings-devices-tv" onSubmit={lookUp}>
+            <p>
+              Open the Vela app on the TV and enter this computer’s address:{' '}
+              <code className="mono">{data?.address}</code>. Then type the code the TV shows.
+            </p>
+            <label className="set-row-title" htmlFor="tv-code">
+              Code on the TV
+            </label>
+            <input
+              id="tv-code"
+              className="mono"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={12}
+              placeholder="K7QM-3XPD"
+              required
+              value={tv.code}
+              onChange={(event) => setTv({ code: event.target.value })}
             />
-          </div>
-          <div>
-            <h3>Scan with the Vela app</h3>
-            <p>
-              Open the Vela app on your Android device and tap Scan QR code. The code works once,
-              for the next 10 minutes.
-            </p>
-            <p className="phone-note">
-              Code <code className="mono">{pairing.code}</code>
-            </p>
-            <Button onClick={done}>Done</Button>
-          </div>
-        </div>
-      )}
-      {tv && !tv.found && (
-        <form className="settings-devices-tv" onSubmit={lookUp}>
-          <p>
-            Open the Vela app on the TV and enter this computer’s address:{' '}
-            <code className="mono">{data?.address}</code>. Then type the code the TV shows.
-          </p>
-          <label className="phone-link-label" htmlFor="tv-code">
-            Code on the TV
-          </label>
-          <input
-            id="tv-code"
-            className="phone-link mono"
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            maxLength={12}
-            placeholder="K7QM-3XPD"
-            required
-            value={tv.code}
-            onChange={(event) => setTv({ code: event.target.value })}
-          />
-          <div className="form-actions">
-            <Button variant="primary" type="submit" pending={pending}>
-              Continue
-            </Button>
-            <Button variant="ghost" onClick={() => setTv(null)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      )}
-      {tv?.found && (
-        <div className="settings-devices-tv">
-          <h3>Add {tv.found.name}?</h3>
-          {tv.found.check ? (
-            <p>
-              The TV must show the check <code className="mono">{tv.found.check}</code>. If it shows
-              anything else, cancel: the TV is not talking to this computer.
-            </p>
-          ) : (
-            <p>It connects to {data?.address} as soon as you add it.</p>
-          )}
-          <div className="form-actions">
-            <Button variant="primary" pending={pending} onClick={approve}>
-              {tv.found.check ? 'They match, add the TV' : 'Add the TV'}
-            </Button>
-            <Button variant="ghost" onClick={() => setTv(null)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-      {devices.length > 0 && (
-        <ul className="settings-volume-list">
-          {devices.map((device) => (
-            <li key={device.id}>
-              <span className="settings-volume-text">
-                <span>{device.name}</span>
-                <small>
-                  {FORM_LABEL[device.form] || 'Device'} · last connected{' '}
-                  {relTime(device.lastSeenAt)}
-                </small>
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Remove ${device.name}`}
-                onClick={() => remove(device)}
-              >
-                <Trash size={16} aria-hidden="true" />
+            <div className="set-actions">
+              <Button variant="primary" type="submit" pending={pending}>
+                Continue
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {(failure || (error && !data)) && (
-        <p className="phone-note" role="alert">
-          {failure || error.message}
-        </p>
-      )}
-    </div>
+              <Button variant="ghost" onClick={() => setTv(null)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+        {tv?.found && (
+          <div className="settings-devices-tv">
+            <h3>Add {tv.found.name}?</h3>
+            {tv.found.check ? (
+              <p>
+                The TV must show the check <code className="mono">{tv.found.check}</code>. If it
+                shows anything else, cancel: the TV is not talking to this computer.
+              </p>
+            ) : (
+              <p>It connects to {data?.address} as soon as you add it.</p>
+            )}
+            <div className="set-actions">
+              <Button variant="primary" pending={pending} onClick={approve}>
+                {tv.found.check ? 'They match, add the TV' : 'Add the TV'}
+              </Button>
+              <Button variant="ghost" onClick={() => setTv(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </SettingRow>
+      {devices.map((device) => (
+        <SettingRow
+          key={device.id}
+          title={device.name}
+          description={`${FORM_LABEL[device.form] || 'Device'} · last connected ${relTime(device.lastSeenAt)}`}
+          control={
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={`Remove ${device.name}`}
+              onClick={() => remove(device)}
+            >
+              <Trash size={16} aria-hidden="true" />
+            </Button>
+          }
+        />
+      ))}
+    </SettingsGroup>
   );
 }

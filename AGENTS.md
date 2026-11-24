@@ -6,11 +6,16 @@ on that experience. Python/Node setup belongs in `docs/DEVELOPMENT.md`.
 
 ## Repository boundaries
 
-Work directly on `dev`; do not create feature branches. A reviewed `dev` → `main` PR
-is the release boundary: pushes to `main` automatically build and publish server
-downloads. Do not push routine work straight to `main` or manually bump patch
-versions for the automation. Keep changelog entries under Unreleased; the
-workflow stamps release metadata and skips CI on its own metadata commit.
+Changes go on a short-lived feature branch cut from `dev`, through a pull
+request into `dev` with green checks, merged with a regular merge commit
+(never squash); do not commit directly to `dev`. A reviewed `dev` → `main` PR
+is the release boundary: pushes to `main` automatically build and publish
+server downloads. Do not push routine work straight to `main` or manually bump
+patch versions for the automation. A minor or major release is chosen by
+setting `__version__` in `vela/__init__.py` on `dev` above the latest tag —
+patch releases still need no manual bump. Keep changelog entries under
+Unreleased; the workflow stamps release metadata and skips CI on its own
+metadata commit.
 
 - `vela/`: Python/FastAPI engine, services, app storage and runtime assets.
 - `web/`: React dashboard and the host side of the app bridge.

@@ -34,6 +34,8 @@ class ReleaseAutomationTests(unittest.TestCase):
         self.assertEqual(release.next_version('0.1.0', []), '0.1.0')
         self.assertEqual(release.next_version('0.1.0', ['v0.9.9', 'v0.10.2', 'agent-v8.0.0']), '0.10.3')
         self.assertEqual(release.next_version('1.0.0', ['v0.10.2']), '1.0.0')
+        self.assertEqual(release.next_version('0.2.0', ['v0.1.20', 'v0.1.21']), '0.2.0')
+        self.assertEqual(release.next_version('0.1.0', ['v0.1.20', 'v0.1.21']), '0.1.22')
         self.assertEqual(release.next_version('0.1.0', ['v0.1.0'], '0.2.0'), '0.2.0')
         for requested in ('0.1.0', '0.0.9', 'v0.2.0', '0.02.0', '0.2.0; echo bad'):
             with self.subTest(requested=requested), self.assertRaises(ValueError):

@@ -48,6 +48,8 @@
   font-weight: 600;
 }
 
-.a2hs .btn {
+/* In a drawer the button sits under its sentence. As a settings row it is
+   the row's control, aligned by the settings kit instead. */
+.drawer-section.a2hs .btn {
   margin-top: var(--space-4);
 }

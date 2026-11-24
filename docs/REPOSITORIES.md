@@ -17,6 +17,7 @@ The hub owns the Python engine and React interface. Its root has no `packages/`,
 | `vela-notes` | Notes app and release builder | `python release.py` |
 | `vela-meals` | Meals app and release builder | `python release.py`; verify its Notes action in the hub |
 | `vela-ollama` | Ollama connection app and release builder | `python release.py`; configure an existing Ollama service in the hub |
+| `vela-serverkit` | ServerKit panel app: server list and per-server surface windows | `python release.py`; import in the hub, bind a panel address and API key, open a server window |
 | `vela-finance` | Legacy Finance app | `python release.py` produces a source archive; v2 migration still needed |
 | `vela-hello` | Legacy Hello Vela example | Same legacy limitation |
 | `vela-system-info` | Legacy native System Info example | Same legacy limitation |

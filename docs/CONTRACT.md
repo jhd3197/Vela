@@ -181,7 +181,7 @@ supported. External and headless entries may declare an empty runtime object.
 | `view.chrome`           | Embedded only: `hub`, `compact` (default), `seamless`                                          |
 | `view.appearance`       | Optional: `light`, `dark`, `auto` (default); the theme of the app's window title bar           |
 | `view.window`           | Embedded only: `{resizable, maximizable, defaultSize}`; how this app's window behaves          |
-| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`, `topbar`; any unknown required grant blocks validation |
+| `capabilities.required` | `storage`, `connections`, `actions`, `widgets`, `topbar`, `surfaces`; any unknown required grant blocks validation |
 | `capabilities.optional` | Known capabilities granted; others reported in `unavailableCapabilities`                       |
 | `data.schemaVersion`    | Positive integer, required when requesting storage                                             |
 | `data.quotaBytes`       | 1 KiBâ€“10 MiB; default 1 MiB                                                                  |
@@ -436,6 +436,25 @@ review. This is how an app uses a web API that needs a key or token:
   host. The frame's sandbox has no popups. Links are allowed only on the
   connection's site: its host without the first label when it has more than
   two, so `api.github.com` allows `github.com` and its subdomains.
+
+An http connection can declare `selfHosted: true` for a service whose address
+the manifest cannot know — a panel on the owner's network, or one they host
+themselves. `baseUrl` stays required as the placeholder/default, and the owner
+sets the real address in the app's Vela settings
+(`PUT /api/apps/{id}/connection` with `{endpoint}`). Two shapes are accepted:
+a public https DNS URL under the same rule as `baseUrl`, or an http/https
+loopback or private-LAN address (the `ollama` provider's rule) — a panel on
+the same network is the usual case. Credentials, paths and query strings are
+refused either way; the address is an origin and nothing more.
+
+With a self-hosted connection, requests go to the bound address, never the
+manifest's placeholder, and until an address is set every call answers 409.
+The secret is bound to the exact origin it was saved for: changing the address
+drops the saved secret, and it is saved again for the new one. Saving the
+secret before the address exists is a 409. The status answer reports the
+effective `endpoint`, `selfHosted` and `addressSet`, so settings can tell "no
+address yet" apart from "no secret yet"; for a manifest-fixed connection
+`addressSet` is always true and nothing else changes.
 
 `python -m vela --set-password` stores a salted scrypt password hash in
 `access.json`. LAN hosting requires `--host`, TLS `--cert`/`--key`, and an exact
@@ -713,6 +732,61 @@ run on both hosts should ask for it under `capabilities.optional` and check
 `topbar.publish` answers the request with "Operation is not granted" rather
 than failing the app. `Vela.topbar.publish` needs SDK `0.5.0` or later; nothing
 else in the SDK changed.
+
+### App-served surface windows
+
+A surface is a screen described as data — the `surface-v1` format in
+[vela-contracts](https://github.com/jhd3197/vela-contracts) — served by an app
+over its `http` connection and drawn by the hub with its own components. It is
+the widget bargain at window size: the app supplies a JSON document, the host
+draws it, and nothing app-supplied executes in the dashboard.
+
+An app with the `surfaces` capability asks for a window with the
+`surfaces.open` bridge operation:
+
+```json
+{ "source": "/api/v1/server-gui/srv-1", "title": "web-01" }
+```
+
+`source` is a connection-relative path under the app's declared `baseUrl`,
+checked against the same rule every connection path is: one absolute path, no
+query string, no dot segments, no encoded separators. The host fills in the
+calling app's id itself — an app cannot open a window in another app's name —
+and opens the view on the active desktop. Asking for the same `(appId,
+source)` twice raises the window that is already open rather than opening a
+second one. A surface view binds to the app's installation exactly like an app
+view, so an uninstall or reinstall marks the window as needing reopening
+rather than handing it to the new installation.
+
+The capability does not require a `connection` in the manifest. The two
+declarations stay independent; an app with `surfaces` but no http connection
+fails cleanly where the connection is used — the bridge operation opens the
+window, and the proxy routes below answer 409 that the app has no http
+connection to read through.
+
+The window fetches its content through three owner-authenticated routes. They
+are the owner pulling read-only data, so no grant or approval is involved; the
+connection's own path rules, timeouts and response caps apply exactly as they
+do to the app's calls.
+
+| Endpoint | Behavior |
+| -------- | -------- |
+| `GET /api/desktops/{id}/views/{viewId}/surface` | Fetch `{source}/surface`; validate the document whole (`surface: 1`, at most 1 MB, 1,000 nodes, eight nesting levels — over any of them is a 422, never a trimmed tree) and return it |
+| `GET /api/desktops/{id}/views/{viewId}/surface/frame` | Fetch `{source}/frame` with `scale` (0.1–1.0, default 0.75), `quality` (10–95, default 70) and `format` (`jpeg`/`png`, default `jpeg`), clamped rather than refused; the answer is `{image_base64, format, width, height, captured_at}` |
+| `GET /api/desktops/{id}/views/{viewId}/surface/capabilities` | Fetch `{source}/capabilities` |
+
+All three answer 404 when the view is not a surface view on that desktop, and
+a clear error — never a 500 — when the app is uninstalled or has no http
+connection. Surface views are never agent targets: `agentViewable` is false,
+they cannot open in the managed browser, and no agent session can be issued
+for one.
+
+The window has two ways to look at one surface, switchable between auto,
+screen and desktop. Desktop mode polls the document — `refresh.every` is a
+floor, never polled faster — and renders it with the design system's pieces.
+Screen mode polls a frame once a second and shows how old the picture is once
+that matters. Auto picks from the capabilities answer. Buttons and actions the
+document declares are inert in this milestone: the viewer is read-only.
 
 ### Automation contract
 

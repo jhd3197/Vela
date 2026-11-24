@@ -173,7 +173,7 @@ try {
       .getByRole('navigation')
       .getByRole('button', { name: /^Security/ })
       .click();
-    await settings.getByRole('heading', { name: 'App lock', level: 2 }).waitFor();
+    await settings.getByRole('heading', { name: 'App lock', level: 3 }).waitFor();
   };
   const typePin = async (digits) => {
     for (const digit of digits)
@@ -191,7 +191,7 @@ try {
     .getByRole('navigation')
     .getByRole('button', { name: /^Security/ })
     .click();
-  await settings.getByRole('heading', { name: 'App lock', level: 2 }).waitFor();
+  await settings.getByRole('heading', { name: 'App lock', level: 3 }).waitFor();
   await shot('security-off.png');
   await settings.getByRole('button', { name: /^App lock/ }).click();
   await settings.getByRole('heading', { name: 'Set up app lock' }).waitFor();
@@ -230,7 +230,7 @@ try {
   await settings.getByRole('button', { name: /^Lock after inactivity/ }).click();
   await settings.getByRole('heading', { name: 'Lock after inactivity' }).waitFor();
   await settings.getByRole('button', { name: 'Back to Security' }).click();
-  await settings.getByRole('heading', { name: 'App lock', level: 2 }).waitFor();
+  await settings.getByRole('heading', { name: 'App lock', level: 3 }).waitFor();
   await settings.getByRole('button', { name: 'Back to Settings' }).click();
   await settings.getByRole('heading', { name: 'Settings', level: 1 }).waitFor();
   await settings.getByRole('button', { name: 'Close settings' }).click();
@@ -254,7 +254,7 @@ try {
   await typePin('013759');
   await lock.waitFor({ state: 'detached' });
   // Unlocking returns to the workspace that was already open.
-  await settings.getByRole('heading', { name: 'App lock', level: 2 }).waitFor();
+  await settings.getByRole('heading', { name: 'App lock', level: 3 }).waitFor();
 
   // ---- The short ways to lock: a key, and quick settings. ----
   await page.locator('body').focus();

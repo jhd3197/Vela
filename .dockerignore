@@ -5,10 +5,23 @@
 !vela/**
 !web/
 !web/**
+# The `computer` target installs the browser worker itself and needs only
+# these files; a developer's local node_modules or provenance must not
+# leak into the build context. Everything else — .git, plans/, local data,
+# build output — stays excluded by the `**` above and the entries below.
+!scripts/
+!scripts/setup-browser-worker.py
+!scripts/browser-worker/
+!scripts/browser-worker/package.json
+!scripts/browser-worker/package-lock.json
+!scripts/browser-worker/src/
+!scripts/browser-worker/src/**
 **/__pycache__/
 **/*.pyc
 web/node_modules/
 web/dist/
+scripts/browser-worker/node_modules/
+scripts/browser-worker/provenance.json
 **/.env
 **/.env.*
 **/*.pem

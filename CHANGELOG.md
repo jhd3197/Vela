@@ -6,6 +6,139 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Controller mode: a driver API for step-by-step agent runs.** A
+  controller application (such as CachiBot) can now drive an agent desktop
+  one tool call at a time while Vela keeps enforcing everything its own
+  model loop enforces: `POST /api/desktops/{id}/driven-runs` starts a
+  `driven` run (one per desktop, idempotent on `clientRequestId`, never
+  queued, never auto-resumed after a restart — reconcile marks it
+  interrupted like any other run), `POST .../driven-runs/{runId}/steps`
+  executes exactly one call through the existing tool surface — idempotent on
+  `clientStepId`, answered by `result`, `refusal`, `approval` or
+  `needsPerson` — and `POST .../finish` / `.../cancel` end it. A step needing
+  approval returns it, and reading the step back (`GET
+  .../steps/{clientStepId}`) settles it once the owner has answered through
+  the ordinary approvals route; `GET .../driven-runs/tools` exposes the tool
+  catalogue as JSON schemas for the controller to register. Approvals,
+  budgets, effects and unanswered-request outcomes, take-over (a step while
+  a person holds control answers a `person_driving` refusal), events,
+  retention and the run concurrency limits all behave as they do for Vela's
+  own loop. The routes exist only in controller mode and answer 404
+  everywhere else; discovery (`GET /api/controller`) now reports `protocol:
+  2` with a `driver` feature. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md).
+
+- **Controller mode for a container one controller process owns.** A Vela
+  container can now start with `python -m vela.computer` in controller mode:
+  a controller application (such as CachiBot, running one Vela per bot)
+  publishes the port on the host's `127.0.0.1` only and drives Vela with a
+  per-container bearer token read once from the file named by
+  `VELA_CONTROLLER_TOKEN_FILE` — a token passed as an environment variable
+  is refused, so it never shows in `docker inspect`. Every `/api/` route
+  requires the token except `/api/health`, app icons, automation webhooks
+  with their own secret, and the per-app session routes, which keep their
+  scoped app and agent tokens. Person sign-in, app lock, phone access,
+  device pairing and self-update are refused (the update capability reports
+  `controller`; replacing the container is the controller's job), repeated
+  bad tokens are throttled like the login, and `GET /api/controller` with
+  the token reports the mode, version, protocol and controller features.
+  Dashboard pages answer a short plain-text explanation instead of the app,
+  while `/apps/` windows and the agent host keep working for agent desktops.
+  Local and remote modes are unchanged. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md).
+
+- **A `computer` image target for controller mode.** The repository's
+  Dockerfile now also builds the image a controller application (such as
+  CachiBot) creates on the user's machine on first use and runs one
+  container of per bot: `docker build --target computer`. The image starts
+  `python -m vela.computer` as a fixed unprivileged uid/gid (10001), with the
+  pinned agent desktop browser runtime installed (playwright-core from the
+  lockfile, Chromium with its system libraries, a Node 22 runtime for the
+  worker) and no other toolchains — a bot installs its own tools into
+  `/workspace`. The token still comes only from the file
+  `VELA_CONTROLLER_TOKEN_FILE` names (defaulting to
+  `/run/secrets/vela-controller-token`): there is no token build argument and
+  no token environment variable. `/data` and `/workspace` are volumes, the
+  port is 7700, health is checked against `/api/health` with Python, and the
+  image builds for linux/amd64 and linux/arm64. The default image target is
+  unchanged. See [the controller mode guide](docs/CONTROLLER-MODE.md).
+
+- **Self-hosted services: the owner sets the connection address.** An app
+  whose web connection declares `selfHosted` — for example a panel you run on
+  your own network — no longer has its address fixed by the app. Set the
+  address in the app's settings in Vela (a public https address, or an http or
+  https address on your network), then save its key as before. Changing the
+  address clears the saved key, because the old key belongs to the old
+  address, and you save it again for the new one. Apps that do not declare
+  `selfHosted` are unaffected. See
+  [the app contract](docs/CONTRACT.md#app-data-connections-and-https).
+
+- **Surface windows: an app can describe a screen that Vela draws.** An app
+  with the new `surfaces` capability can serve a surface document — a screen
+  described as data, such as a server panel — over its web connection and open
+  it as a window on the desk with the new `surfaces.open` bridge operation.
+  Vela fetches the document through the app's connection and draws it with the
+  dashboard's own components; nothing the app supplies runs in the dashboard.
+  A window can show the drawn desktop or a picture the app captures, switched
+  from its toolbar (auto, screen or desktop), and opening the same surface
+  again raises its window instead of opening a copy. Buttons the document
+  shows are inert for now: the viewer is read-only. See
+  [the app contract](docs/CONTRACT.md#app-served-surface-windows).
+
+### Changed
+
+- **Settings has one consistent layout.** Every section now uses the same
+  pattern: a heading, a card of settings, then that group's buttons and
+  messages. Each setting shows its name and a sentence on the left and its
+  control on the right. Every on/off choice is a switch. This replaces the
+  mix of On/Off buttons, checkboxes and chips. Facts like the version or the
+  data folder are rows in the same cards. A save error now appears under the
+  group it belongs to, not at the top or bottom of the window. Text fields,
+  dropdowns and text boxes look the same everywhere in the dashboard.
+  Notification events are switches with a line saying what each one sends.
+  For contributors, settings screens are built from
+  `components/settings/SettingsKit.jsx`, described in
+  [the design system](docs/DESIGN.md#settings-surfaces). Two new check-time
+  guards fail the build if a settings screen goes back to the old classes, or
+  if a stylesheet is never imported.
+
+- **Contributors branch off `dev` for each change.** Work now lands through a
+  short-lived feature branch and a pull request with green checks, merged
+  with a regular merge commit (never squash); only the reviewed `dev` →
+  `main` promotion releases.
+
+### Fixed
+
+- **Opening any desktop window no longer fails on a database an older server
+  release also uses.** Adding the surface window's column changed the views
+  table's shape; writes now name their columns, so they land correctly on
+  both freshly created and in-place migrated databases. (Older releases
+  sharing the file still cannot write to the migrated table — run only one
+  server version against a data directory.)
+
+- **Container deployments honor `VELA_PORT` for the listener.** The
+  container entrypoint read `VELA_PORT` for its gateway configuration but
+  still bound uvicorn to 7700, so a second instance mapped to another host
+  port never answered. It now binds the configured port, and one host can
+  run several Vela containers side by side.
+
+- **The name fields in Settings › General are styled again.** Their styles
+  were in a stylesheet nothing imported, so they showed as plain browser
+  boxes. Buttons in Settings were also drawn at body size instead of button
+  size.
+
+- **The test suite and the download smoke test run on the macOS 15 CI
+  runners.** The macOS image moved to macOS 15, where the system holds the
+  standard-library HTTP server's startup name lookup behind the
+  local-network privacy prompt; a test server that had bound its port then
+  sat unreachable for tens of seconds, so managed-app tests timed out
+  waiting for readiness. The loopback servers the tests stand up — the
+  managed-app fixture and the update and browser-gateway stand-ins — now
+  bind and listen in one step, like the real services they stand in for.
+  No engine or dashboard behavior changes.
+
 ## 0.1.21 - 2026-10-01
 
 No additional release notes were provided.

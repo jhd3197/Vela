@@ -75,6 +75,7 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/chat/conversations/{conversation_id}`
 - `GET /api/chat/conversations/{conversation_id}/run`
 - `GET /api/companions`
+- `GET /api/controller`
 - `GET /api/desk`
 - `GET /api/desktops`
 - `GET /api/desktops/attention`
@@ -85,6 +86,8 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/appearance`
 - `GET /api/desktops/{desktop_id}/approvals`
 - `GET /api/desktops/{desktop_id}/boards`
+- `GET /api/desktops/{desktop_id}/driven-runs/tools`
+- `GET /api/desktops/{desktop_id}/driven-runs/{run_id}/steps/{client_step_id}`
 - `GET /api/desktops/{desktop_id}/events`
 - `GET /api/desktops/{desktop_id}/files`
 - `GET /api/desktops/{desktop_id}/files/{artifact_id}`
@@ -98,6 +101,9 @@ A route change belongs in the same commit as the regenerated list.
 - `GET /api/desktops/{desktop_id}/views`
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame`
 - `GET /api/desktops/{desktop_id}/views/{view_id}/frame/{digest}`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface/capabilities`
+- `GET /api/desktops/{desktop_id}/views/{view_id}/surface/frame`
 - `GET /api/desktops/{desktop_id}/wallpaper`
 - `GET /api/devices`
 - `GET /api/doctor`
@@ -193,6 +199,10 @@ A route change belongs in the same commit as the regenerated list.
 - `POST /api/desktops/{desktop_id}/agent-sessions`
 - `POST /api/desktops/{desktop_id}/approvals/{request_id}`
 - `POST /api/desktops/{desktop_id}/disable-agent`
+- `POST /api/desktops/{desktop_id}/driven-runs`
+- `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/cancel`
+- `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/finish`
+- `POST /api/desktops/{desktop_id}/driven-runs/{run_id}/steps`
 - `POST /api/desktops/{desktop_id}/enable-agent`
 - `POST /api/desktops/{desktop_id}/files`
 - `POST /api/desktops/{desktop_id}/grants`

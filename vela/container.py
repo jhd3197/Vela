@@ -51,10 +51,11 @@ def main():
         proxies = configure()
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    config = load_config()
     # Same first-start fetch as the desktop server: the bundled wallpapers
     # download once and every later start finds them in place.
-    ensure_bundled_wallpapers(load_config().data_dir)
-    uvicorn.run("vela.api:app", host="0.0.0.0", port=7700,
+    ensure_bundled_wallpapers(config.data_dir)
+    uvicorn.run("vela.api:app", host="0.0.0.0", port=config.app_gateway_port,
                 proxy_headers=True, forwarded_allow_ips=proxies,
                 timeout_graceful_shutdown=10)
 

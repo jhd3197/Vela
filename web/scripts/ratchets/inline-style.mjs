@@ -27,6 +27,7 @@ export const GEOMETRY_REASONS = {
   'web/src/desktops/motion/GenieOverlay.jsx': 'animation surface sized to the source frame',
   'web/src/components/ui/ContextMenu.jsx': 'menu position from the pointer',
   'web/src/components/AppIcon.jsx': 'badge text scaled to the icon size it is drawn on',
+  'web/src/components/SurfaceView.jsx': 'grid column count from the surface document',
   'web/src/components/UpdatesSection.jsx': 'the update download bar, filled from live progress',
   'web/src/pages/Launchpad.jsx': 'tile artwork at the icon size the desk is set to',
   'web/src/desktops/SnapLayoutPicker.jsx':

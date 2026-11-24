@@ -10,7 +10,6 @@ import {
   CaretRight,
   Lock,
   Bell,
-  ChartBar,
   PaperPlaneTilt,
   Plus,
   ShieldCheck,
@@ -41,6 +40,14 @@ import useMediaQuery from '../hooks/useMediaQuery.js';
 import { useForm } from '../hooks/useForm.js';
 import { removeLocal } from '../storage.js';
 import PersonaliseFields from '../desk/PersonaliseFields.jsx';
+import {
+  SettingRow,
+  SettingsActions,
+  SettingsGroup,
+  SettingsNote,
+  SettingsPage,
+  SettingsStatus,
+} from '../components/settings/SettingsKit.jsx';
 
 // The shared compact threshold, named in `_breakpoints.scss`. Below it Settings
 // is a screen inside the app; above it, a window on the desk.
@@ -108,11 +115,15 @@ function AiSection({ settings, onPatched, onPendingChange }) {
       .finally(() => setSaving(false));
   };
 
+  const current = settings?.chat_model ?? ai?.chat_model;
+
   return (
-    <section className="panel" id="settings-ai">
-      <div className="panel-head">
-        <h2>Local AI</h2>
-        <span className="panel-head-side">
+    <SettingsGroup
+      id="settings-ai"
+      title="Local AI"
+      description="Vela talks to the AI runtime on this computer. Nothing is sent anywhere else."
+      aside={
+        <>
           {ai && (
             <StatusPill
               state={ai.reachable ? 'ok' : 'bad'}
@@ -129,25 +140,46 @@ function AiSection({ settings, onPatched, onPendingChange }) {
           >
             <ArrowsClockwise size={16} className={refreshing ? 'spin' : undefined} />
           </button>
-        </span>
-      </div>
-      {ai && (
+        </>
+      }
+      footer={
         <>
-          <dl className="fact-grid panel-lead">
-            <div className="fact">
-              <dt>Endpoint</dt>
-              <dd className="mono">{ai.url || '—'}</dd>
-            </div>
-            <div className="fact">
-              <dt>Chat model</dt>
-              <dd className="mono">{settings?.chat_model || ai.chat_model || '—'}</dd>
-            </div>
-          </dl>
-          {ai.reachable && ai.models?.length > 0 && (
-            <div className="chip-row" role="group" aria-label="Chat model">
-              {ai.models.map((m) => {
-                const current = settings?.chat_model ?? ai.chat_model;
-                return (
+          {ai?.hint && <SettingsNote>{ai.hint}</SettingsNote>}
+          <SettingsStatus tone="error">{saveError}</SettingsStatus>
+        </>
+      }
+    >
+      {!ai && (
+        <SettingRow
+          title={failed ? 'Status unavailable' : 'Checking…'}
+          description={
+            failed
+              ? "Couldn't reach the status endpoint."
+              : 'Checking the local AI runtime on this computer.'
+          }
+        />
+      )}
+      {ai && <SettingRow title="Endpoint" value={ai.url || '—'} mono />}
+      {ai && (
+        <SettingRow
+          title="Chat model"
+          titleId="ai-model-label"
+          stacked={ai.reachable && ai.models?.length > 0}
+          description={
+            !ai.reachable
+              ? 'Start the runtime to choose a model.'
+              : ai.models?.length === 0
+                ? 'No models found. Pull one first, for example ollama pull qwen3:8b.'
+                : ai.model_available === false
+                  ? "The selected model isn't installed yet. Pick one below or pull it first."
+                  : 'The model Ask and your bots use.'
+          }
+          value={ai.reachable && ai.models?.length > 0 ? undefined : current || '—'}
+          mono
+          control={
+            ai.reachable && ai.models?.length > 0 ? (
+              <div className="chip-row" role="group" aria-labelledby="ai-model-label">
+                {ai.models.map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -158,40 +190,29 @@ function AiSection({ settings, onPatched, onPendingChange }) {
                   >
                     {m}
                   </button>
-                );
-              })}
-            </div>
-          )}
-          {ai.reachable && ai.models?.length === 0 && (
-            <p className="panel-note">
-              No models found — pull one first, e.g.{' '}
-              <code className="mono">ollama pull qwen3:8b</code>.
-            </p>
-          )}
-          {ai.model_available === false && (
-            <p className="panel-note panel-qualifies">
-              The selected model isn't installed yet — pick one above or pull it first.
-            </p>
-          )}
-          {ai.hint && <p className="panel-note panel-qualifies">{ai.hint}</p>}
-        </>
+                ))}
+              </div>
+            ) : null
+          }
+        />
       )}
-      {!ai && !failed && <p className="panel-note">Checking the local AI runtime…</p>}
-      {failed && !ai && <p className="panel-note">Couldn't reach the status endpoint.</p>}
-      {saveError && (
-        <p className="inline-error" role="alert">
-          {saveError}
-        </p>
-      )}
-    </section>
+    </SettingsGroup>
   );
 }
 
 // ------------------------------------------------------------- Notifications
 
 const NTFY_EVENTS = [
-  { key: 'digest', label: 'Hub digest', icon: ChartBar },
-  { key: 'status_alerts', label: 'Status alerts', icon: Bell },
+  {
+    key: 'digest',
+    label: 'Hub digest',
+    description: 'Once a day after 9:00: which apps are running and how much space Vela uses.',
+  },
+  {
+    key: 'status_alerts',
+    label: 'Status alerts',
+    description: 'When an app that was running stops.',
+  },
 ];
 
 function NotificationsSection({ settings, onPatched, onPendingChange }) {
@@ -301,27 +322,49 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
   const live = !!(form.values.server.trim() && form.values.topic.trim());
 
   return (
-    <section className="panel" id="settings-notifications">
-      <div className="panel-head">
-        <h2>Notifications</h2>
-        <StatusPill state={live ? 'ok' : 'idle'} text={live ? 'Configured' : 'Not set up'} />
-      </div>
-      <p className="panel-note panel-lead">
-        {form.values.topic.trim() ? (
+    <SettingsPage id="settings-notifications">
+      <SettingsGroup
+        title="Notifications"
+        aside={
+          <StatusPill state={live ? 'ok' : 'idle'} text={live ? 'Configured' : 'Not set up'} />
+        }
+        description={
+          form.values.topic.trim() ? (
+            <>
+              Subscribe to{' '}
+              <b className="mono">
+                {form.values.server.trim() || 'https://ntfy.sh'}/{form.values.topic.trim()}
+              </b>{' '}
+              in the ntfy app on your phone.
+            </>
+          ) : (
+            'Push events to your phone through any ntfy server. Subscribe to the topic in the ntfy app.'
+          )
+        }
+        footer={
           <>
-            Subscribe to{' '}
-            <b className="mono">
-              {form.values.server.trim() || 'https://ntfy.sh'}/{form.values.topic.trim()}
-            </b>{' '}
-            in the ntfy app on your phone.
+            <SettingsActions>
+              <Button disabled={sending || !form.dirty} onClick={() => save(false)}>
+                Save
+              </Button>
+              <Button variant="primary" disabled={sending || !live} onClick={() => save(true)}>
+                <PaperPlaneTilt size={14} />
+                {sending ? 'Working…' : 'Send test'}
+              </Button>
+            </SettingsActions>
+            {message && (
+              <SettingsStatus tone={message.kind === 'err' ? 'error' : 'info'}>
+                {message.text}
+              </SettingsStatus>
+            )}
           </>
-        ) : (
-          'Push events to your phone through any ntfy server. Subscribe to the topic in the ntfy app.'
-        )}
-      </p>
-      <div className="form-grid">
-        <div className="field">
-          <FormField label="Server">
+        }
+      >
+        <SettingRow
+          title="Server"
+          htmlFor="ntfy-server"
+          description="Leave empty for ntfy.sh."
+          control={
             <input
               id="ntfy-server"
               value={form.values.server}
@@ -330,10 +373,13 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
               placeholder="https://ntfy.sh"
               autoComplete="off"
             />
-          </FormField>
-        </div>
-        <div className="field">
-          <FormField label="Topic">
+          }
+        />
+        <SettingRow
+          title="Topic"
+          htmlFor="ntfy-topic"
+          description="Anyone who knows the topic can read it, so make it hard to guess."
+          control={
             <input
               id="ntfy-topic"
               value={form.values.topic}
@@ -342,10 +388,13 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
               placeholder="my-vela-alerts"
               autoComplete="off"
             />
-          </FormField>
-        </div>
-        <div className="field">
-          <FormField label="User (optional)">
+          }
+        />
+        <SettingRow
+          title="User"
+          htmlFor="ntfy-user"
+          description="Only if your ntfy server asks for one."
+          control={
             <input
               id="ntfy-user"
               value={form.values.user}
@@ -353,74 +402,57 @@ function NotificationsSection({ settings, onPatched, onPendingChange }) {
               onChange={change('user')}
               autoComplete="off"
             />
-          </FormField>
-        </div>
-        <div className="field">
-          <label htmlFor="ntfy-pass">Password</label>
-          <div className="field-side">
-            <input
-              id="ntfy-pass"
-              type="password"
-              value={form.values.pass}
-              disabled={sending}
-              onChange={change('pass')}
-              placeholder={ntfy.passConfigured ? 'Configured — type to replace' : '••••••'}
-              autoComplete="new-password"
-            />
-            {ntfy.passConfigured && (
-              <Button
-                type="button"
-                size="small"
-                variant="ghost"
+          }
+        />
+        <SettingRow
+          title="Password"
+          htmlFor="ntfy-pass"
+          description={
+            ntfy.passConfigured ? 'Saved. Type a new one to replace it.' : 'Kept on this server.'
+          }
+          control={
+            <span className="set-field-pair">
+              <input
+                id="ntfy-pass"
+                type="password"
+                value={form.values.pass}
                 disabled={sending}
-                onClick={() =>
-                  patchNtfy({ pass: '' }, 'ntfy password cleared.', { passConfigured: false })
-                }
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="chip-row panel-follows" role="group" aria-label="Notification events">
-        {NTFY_EVENTS.map(({ key, label, icon: Icon }) => (
-          <button
+                onChange={change('pass')}
+                placeholder={ntfy.passConfigured ? 'Configured' : '••••••'}
+                autoComplete="new-password"
+              />
+              {ntfy.passConfigured && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={sending}
+                  onClick={() =>
+                    patchNtfy({ pass: '' }, 'ntfy password cleared.', { passConfigured: false })
+                  }
+                >
+                  Clear
+                </Button>
+              )}
+            </span>
+          }
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="What to send" description="Each event saves as soon as you switch it.">
+        {NTFY_EVENTS.map(({ key, label, description }) => (
+          <SettingRow
             key={key}
-            type="button"
-            className={`chip${events[key] ? ' chip-active' : ''}`}
-            aria-pressed={!!events[key]}
-            disabled={sending}
-            onClick={() => patchNtfy({ events: { [key]: !events[key] } })}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
+            title={label}
+            description={description}
+            toggle={{
+              checked: Boolean(events[key]),
+              disabled: sending,
+              onChange: () => patchNtfy({ events: { [key]: !events[key] } }),
+            }}
+          />
         ))}
-      </div>
-      <div className="form-actions">
-        <Button size="small" disabled={sending || !form.dirty} onClick={() => save(false)}>
-          Save
-        </Button>
-        <Button
-          size="small"
-          variant="primary"
-          disabled={sending || !live}
-          onClick={() => save(true)}
-        >
-          <PaperPlaneTilt size={14} />
-          {sending ? 'Working…' : 'Send test'}
-        </Button>
-        {message && (
-          <span
-            className={message.kind === 'err' ? 'inline-error' : 'saved-note'}
-            role={message.kind === 'err' ? 'alert' : 'status'}
-          >
-            {message.text}
-          </span>
-        )}
-      </div>
-    </section>
+      </SettingsGroup>
+    </SettingsPage>
   );
 }
 
@@ -539,144 +571,156 @@ function BackupsSection({ onPendingChange }) {
 
   return (
     <>
-      <section className="panel" id="settings-backups">
-        <div className="panel-head">
-          <h2>Backups</h2>
-          <Button size="small" variant="primary" disabled={busy} onClick={create}>
-            <Plus size={14} />
-            {creating ? 'Creating…' : 'Create backup'}
-          </Button>
-        </div>
-
-        {/* What is protected right now, before anything about how. */}
-        <dl className="fact-grid">
-          <div className="fact">
-            <dt>Last backup</dt>
-            <dd>{stats?.lastSuccessAt ? relTime(stats.lastSuccessAt) : 'Never'}</dd>
-          </div>
-          <div className="fact">
-            <dt>Next backup</dt>
-            <dd>
-              {schedule?.nextRunAt
+      <SettingsPage id="settings-backups">
+        <SettingsGroup
+          title="Backups"
+          description="A backup copies your settings, which apps are installed and what they saved. Logs and wallpapers are not included."
+          aside={
+            <Button size="small" variant="primary" disabled={busy} onClick={create}>
+              <Plus size={14} />
+              {creating ? 'Creating…' : 'Create backup'}
+            </Button>
+          }
+          footer={
+            note && (
+              <SettingsStatus tone={note.kind === 'err' ? 'error' : 'ok'}>
+                {note.text}
+              </SettingsStatus>
+            )
+          }
+        >
+          {/* What is protected right now, before anything about how. */}
+          <SettingRow
+            title="Last backup"
+            value={stats?.lastSuccessAt ? relTime(stats.lastSuccessAt) : 'Never'}
+          />
+          <SettingRow
+            title="Next backup"
+            value={
+              schedule?.nextRunAt
                 ? new Date(schedule.nextRunAt).toLocaleString(undefined, {
                     weekday: 'short',
                     hour: '2-digit',
                     minute: '2-digit',
                   })
-                : 'Not scheduled'}
-            </dd>
-          </div>
-          <div className="fact">
-            <dt>Kept</dt>
-            <dd>{stats ? `${stats.count} · ${formatBytes(stats.totalSize)}` : '—'}</dd>
-          </div>
-        </dl>
-
-        <p className="panel-note">
-          A backup copies your settings, which apps are installed and what they saved. Logs and
-          wallpapers are not included. Verify runs a restore drill in an isolated folder — your live
-          data is never touched by it.
-        </p>
-
-        {note && (
-          <p
-            className={note.kind === 'err' ? 'inline-error' : 'saved-note'}
-            role={note.kind === 'err' ? 'alert' : 'status'}
-          >
-            {note.text}
-          </p>
-        )}
+                : 'Not scheduled'
+            }
+          />
+          <SettingRow
+            title="Kept"
+            value={stats ? `${stats.count} · ${formatBytes(stats.totalSize)}` : '—'}
+          />
+        </SettingsGroup>
 
         {/* The schedule. Off by default: Vela does not start writing copies on
             a timer until someone asks it to. */}
-        <div className="settings-row">
-          <div>
-            <h3 id="backup-schedule-label">Back up automatically</h3>
-            <p>
-              Once a day, at the time you choose
-              {schedule?.timezone ? `, by this computer's clock (${schedule.timezone})` : ''}. A run
-              missed because Vela was off is not made up later.
-            </p>
-          </div>
-          <button
-            className={`switch${schedule?.enabled ? ' switch-on' : ''}`}
-            role="switch"
-            aria-checked={Boolean(schedule?.enabled)}
-            aria-labelledby="backup-schedule-label"
-            disabled={busy || !schedule}
-            onClick={() => saveSchedule({ enabled: !schedule.enabled })}
+        <SettingsGroup title="Schedule">
+          <SettingRow
+            title="Back up automatically"
+            description={`Once a day, at the time you choose${
+              schedule?.timezone ? `, by this computer's clock (${schedule.timezone})` : ''
+            }. A run missed because Vela was off is not made up later.`}
+            toggle={{
+              checked: Boolean(schedule?.enabled),
+              disabled: busy || !schedule,
+              onChange: () => saveSchedule({ enabled: !schedule.enabled }),
+            }}
           />
-        </div>
+          {schedule?.enabled && (
+            <SettingRow
+              title="At"
+              htmlFor="backup-time"
+              control={
+                <input
+                  id="backup-time"
+                  type="time"
+                  value={schedule.time}
+                  disabled={busy}
+                  onChange={(event) => saveSchedule({ time: event.target.value })}
+                />
+              }
+            />
+          )}
+          {schedule?.enabled && (
+            <SettingRow
+              title="Backups to keep"
+              htmlFor="backup-keep"
+              description="Older ones are removed automatically."
+              control={
+                <input
+                  id="backup-keep"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={schedule.keep}
+                  disabled={busy}
+                  onChange={(event) => saveSchedule({ keep: Number(event.target.value) })}
+                />
+              }
+            />
+          )}
+        </SettingsGroup>
 
-        {schedule?.enabled && (
-          <div className="field-row">
-            <FormField label="At">
-              <input
-                type="time"
-                value={schedule.time}
-                disabled={busy}
-                onChange={(event) => saveSchedule({ time: event.target.value })}
-              />
-            </FormField>
-            <FormField label="Backups to keep" hint="Older ones are removed automatically.">
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={schedule.keep}
-                disabled={busy}
-                onChange={(event) => saveSchedule({ keep: Number(event.target.value) })}
-              />
-            </FormField>
-          </div>
-        )}
-
-        {backups === null && <p className="panel-note">Checking…</p>}
-        {backups !== null && backups.length === 0 && (
-          <p className="panel-note">No backups yet. Create the first snapshot.</p>
-        )}
-        {backups !== null && backups.length > 0 && (
-          <ul className="mini-list">
-            {backups.map((b) => {
-              const result = results[b.name];
-              return (
-                <li key={b.name} className="backup-row">
+        <SettingsGroup
+          title="Saved backups"
+          footer={
+            <SettingsNote>
+              Verify runs a restore drill in an isolated folder. Your live data is never touched by
+              it.
+            </SettingsNote>
+          }
+        >
+          {backups === null && <SettingRow title="Checking…" />}
+          {backups !== null && backups.length === 0 && (
+            <SettingRow title="No backups yet" description="Create the first snapshot above." />
+          )}
+          {backups?.map((b) => {
+            const result = results[b.name];
+            return (
+              <SettingRow
+                key={b.name}
+                className="backup-row"
+                lead={
                   <ShieldCheck
-                    size={16}
+                    size={18}
                     className={result ? (result.ok ? 'backup-ok' : 'backup-bad') : undefined}
                   />
-                  <span className="backup-main">
-                    <span className="mini-list-name mono">{b.name}</span>
-                    <span className="backup-meta">
-                      {relTime(b.created_at)} · {formatBytes(b.size)}
-                      {b.safety ? ' · taken before a restore' : ''}
-                      {result && (
-                        <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
-                          {' '}
-                          — {result.text}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                  <Button size="small" disabled={busy} onClick={() => verify(b.name)}>
-                    {verifying === b.name ? 'Verifying…' : 'Verify'}
-                  </Button>
-                  <Button
-                    size="small"
-                    disabled={busy}
-                    onClick={() => {
-                      setConfirmName('');
-                      setDrawer(b.name);
-                    }}
-                  >
-                    Restore
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                }
+                title={<span className="mono">{b.name}</span>}
+                description={
+                  <>
+                    {relTime(b.created_at)} · {formatBytes(b.size)}
+                    {b.safety ? ' · taken before a restore' : ''}
+                    {result && (
+                      <span className={result.ok ? 'backup-note-ok' : 'backup-note-bad'}>
+                        {' '}
+                        — {result.text}
+                      </span>
+                    )}
+                  </>
+                }
+                control={
+                  <>
+                    <Button size="small" disabled={busy} onClick={() => verify(b.name)}>
+                      {verifying === b.name ? 'Verifying…' : 'Verify'}
+                    </Button>
+                    <Button
+                      size="small"
+                      disabled={busy}
+                      onClick={() => {
+                        setConfirmName('');
+                        setDrawer(b.name);
+                      }}
+                    >
+                      Restore
+                    </Button>
+                  </>
+                }
+              />
+            );
+          })}
+        </SettingsGroup>
+      </SettingsPage>
 
       {/* Restoring replaces live files and stops running apps, so it says so in
           full and asks for the name to be typed. */}
@@ -767,22 +811,20 @@ function DeskSection({ settings, onPatched, onPendingChange }) {
   };
 
   return (
-    <section className="panel" id="settings-desk">
-      <div className="panel-head">
-        <h2>Volumes</h2>
-      </div>
-      <p className="panel-note panel-lead">
-        Add a folder here to put a Volume widget for it on your desk. Vela only reports how full it
-        is — it does not read what is inside.
-      </p>
-      {volumes.length > 0 && (
-        <ul className="settings-volume-list">
-          {volumes.map((volume) => (
-            <li key={volume.path}>
-              <span className="settings-volume-text">
-                <span>{volume.label || volume.path}</span>
-                <small className="mono">{volume.path}</small>
-              </span>
+    <SettingsPage id="settings-desk">
+      <SettingsGroup
+        title="Volumes"
+        description="Each folder here gets a Volume widget on your desk. Vela only reports how full it is. It does not read what is inside."
+      >
+        {volumes.length === 0 && (
+          <SettingRow title="No volumes yet" description="Add a folder below to show it." />
+        )}
+        {volumes.map((volume) => (
+          <SettingRow
+            key={volume.path}
+            title={volume.label || volume.path}
+            description={<span className="mono">{volume.path}</span>}
+            control={
               <Button
                 size="icon"
                 variant="ghost"
@@ -792,47 +834,58 @@ function DeskSection({ settings, onPatched, onPendingChange }) {
               >
                 <Trash size={16} aria-hidden="true" />
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form className="form-grid" onSubmit={add}>
-        <div className="field">
-          <FormField label="Folder">
-            <input
-              id="desk-volume-path"
-              value={draft.path}
-              disabled={saving}
-              placeholder="D:\Media"
-              autoComplete="off"
-              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
-            />
-          </FormField>
-        </div>
-        <div className="field">
-          <FormField label="Name (optional)">
-            <input
-              id="desk-volume-label"
-              value={draft.label}
-              disabled={saving}
-              placeholder="Media"
-              autoComplete="off"
-              onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-            />
-          </FormField>
-        </div>
+            }
+          />
+        ))}
+      </SettingsGroup>
+
+      <form onSubmit={add}>
+        <SettingsGroup
+          title="Add a volume"
+          footer={
+            <>
+              <SettingsActions>
+                <Button type="submit" pending={saving} disabled={!draft.path.trim()}>
+                  Add volume
+                </Button>
+              </SettingsActions>
+              <SettingsStatus tone="error">{note}</SettingsStatus>
+            </>
+          }
+        >
+          <SettingRow
+            title="Folder"
+            htmlFor="desk-volume-path"
+            description="A folder on this computer."
+            control={
+              <input
+                id="desk-volume-path"
+                value={draft.path}
+                disabled={saving}
+                placeholder="D:\Media"
+                autoComplete="off"
+                onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
+              />
+            }
+          />
+          <SettingRow
+            title="Display name"
+            htmlFor="desk-volume-label"
+            description="Optional. The folder's name is used otherwise."
+            control={
+              <input
+                id="desk-volume-label"
+                value={draft.label}
+                disabled={saving}
+                placeholder="Media"
+                autoComplete="off"
+                onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
+              />
+            }
+          />
+        </SettingsGroup>
       </form>
-      {note && (
-        <p className="inline-error" role="alert">
-          {note}
-        </p>
-      )}
-      <div className="form-actions">
-        <Button pending={saving} disabled={!draft.path.trim()} onClick={add}>
-          Add volume
-        </Button>
-      </div>
-    </section>
+    </SettingsPage>
   );
 }
 
@@ -889,23 +942,23 @@ function FilesSection({ settings, onPatched, onPendingChange }) {
   };
 
   return (
-    <section className="panel" id="settings-files">
-      <p className="panel-note panel-lead">
-        Add a folder here and the Files app can show it. Nothing outside these folders is ever
-        served, and Vela's own data folder cannot be added. Deleting from Files moves things to a
-        trash that is cleared after 30 days.
-      </p>
-      {shares.length > 0 && (
-        <ul className="settings-volume-list">
-          {shares.map((share) => (
-            <li key={share.id}>
-              <span className="settings-volume-text">
-                <span>
-                  {share.label || share.path}
-                  {share.writable ? '' : ' · read-only'}
-                </span>
-                <small className="mono">{share.path}</small>
-              </span>
+    <SettingsPage id="settings-files">
+      <SettingsGroup
+        title="Shared folders"
+        description="The Files app can show these folders and nothing outside them. Vela's own data folder cannot be added. Deleting from Files moves things to a trash that is cleared after 30 days."
+      >
+        {shares.length === 0 && (
+          <SettingRow
+            title="No shared folders yet"
+            description="Add a folder below to browse it."
+          />
+        )}
+        {shares.map((share) => (
+          <SettingRow
+            key={share.id}
+            title={`${share.label || share.path}${share.writable ? '' : ' · read-only'}`}
+            description={<span className="mono">{share.path}</span>}
+            control={
               <Button
                 size="icon"
                 variant="ghost"
@@ -915,59 +968,67 @@ function FilesSection({ settings, onPatched, onPendingChange }) {
               >
                 <Trash size={16} aria-hidden="true" />
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form className="form-grid" onSubmit={add}>
-        <div className="field">
-          <FormField label="Folder">
-            <input
-              id="files-share-path"
-              value={draft.path}
-              disabled={saving}
-              placeholder="D:\Documents"
-              autoComplete="off"
-              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
-            />
-          </FormField>
-        </div>
-        <div className="field">
-          <FormField label="Name (optional)">
-            <input
-              id="files-share-label"
-              value={draft.label}
-              disabled={saving}
-              placeholder="Documents"
-              autoComplete="off"
-              onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-            />
-          </FormField>
-        </div>
+            }
+          />
+        ))}
+      </SettingsGroup>
+
+      <form onSubmit={add}>
+        <SettingsGroup
+          title="Add a folder"
+          footer={
+            <>
+              <SettingsActions>
+                <Button type="submit" pending={saving} disabled={!draft.path.trim()}>
+                  Add share
+                </Button>
+              </SettingsActions>
+              <SettingsStatus tone="error">{note}</SettingsStatus>
+            </>
+          }
+        >
+          <SettingRow
+            title="Folder"
+            htmlFor="files-share-path"
+            description="A folder on this computer."
+            control={
+              <input
+                id="files-share-path"
+                value={draft.path}
+                disabled={saving}
+                placeholder="D:\Documents"
+                autoComplete="off"
+                onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
+              />
+            }
+          />
+          <SettingRow
+            title="Display name"
+            htmlFor="files-share-label"
+            description="Optional. The folder's name is used otherwise."
+            control={
+              <input
+                id="files-share-label"
+                value={draft.label}
+                disabled={saving}
+                placeholder="Documents"
+                autoComplete="off"
+                onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
+              />
+            }
+          />
+          <SettingRow
+            title="Let Vela change this folder"
+            description="Off means you can look and download, but not add, rename or delete."
+            toggle={{
+              checked: draft.writable,
+              disabled: saving,
+              onChange: (writable) => setDraft((prev) => ({ ...prev, writable })),
+            }}
+          />
+        </SettingsGroup>
       </form>
-      <label className="personalise-row">
-        <span>
-          Let Vela change this folder
-          <small>Off means you can look and download, but not add, rename or delete.</small>
-        </span>
-        <input
-          type="checkbox"
-          checked={draft.writable}
-          disabled={saving}
-          onChange={(event) => setDraft((prev) => ({ ...prev, writable: event.target.checked }))}
-        />
-      </label>
-      {note && (
-        <p className="inline-error" role="alert">
-          {note}
-        </p>
-      )}
-      <div className="form-actions">
-        <Button pending={saving} disabled={!draft.path.trim()} onClick={add}>
-          Add share
-        </Button>
-      </div>
-    </section>
+    </SettingsPage>
   );
 }
 
@@ -1185,6 +1246,12 @@ export default function Settings({
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
   }, [active, listed]);
+
+  // A failed save is reported beside the setting that failed; it does not
+  // follow the reader into another section.
+  useEffect(() => {
+    setSaveError('');
+  }, [active]);
 
   // Asked for a section while already open: go there, as a settings window on
   // any desktop OS does when another part of the system links into it.
@@ -1410,30 +1477,36 @@ export default function Settings({
         )}
         <div className="settings-content" ref={contentRef}>
           {loadError && (
-            <p className="inline-error" role="alert">
+            <SettingsStatus tone="error">
               Could not load settings. Close this window and try again.
-            </p>
+            </SettingsStatus>
           )}
 
-          <section className="panel" id="settings-general" hidden={active !== 'general'}>
+          <SettingsPage id="settings-general" hidden={active !== 'general'}>
             {/* What this server is called and who it belongs to. Both are
-                labels: the address Vela answers on is further down this page,
-                and naming the server here changes nothing about the network. */}
-            <div className="settings-row settings-row-stack">
-              <div>
-                <h3 id="identity-label">Your name and this server's</h3>
-                <p>
-                  Vela greets you by name and shows the server's name on the desk. The server name
-                  is a label, not the address this computer answers on.
-                </p>
-              </div>
-              <div className="identity-fields" role="group" aria-labelledby="identity-label">
-                <label className="field-label" htmlFor="identity-display">
-                  Your name
+                labels: naming the server here changes nothing about the
+                network or the address Vela answers on. */}
+            <SettingsGroup
+              title="Your server"
+              description="Vela greets you by name and shows the server's name on the desk."
+              footer={
+                <>
+                  <SettingsActions>
+                    <Button disabled={pending || !identityChanged} onClick={saveIdentity}>
+                      Save names
+                    </Button>
+                  </SettingsActions>
+                  <SettingsStatus tone="error">{saveError}</SettingsStatus>
+                </>
+              }
+            >
+              <SettingRow
+                title="Your name"
+                htmlFor="identity-display"
+                control={
                   <input
                     id="identity-display"
                     type="text"
-                    className="field"
                     maxLength={60}
                     value={identityDraft.displayName}
                     disabled={pending}
@@ -1445,13 +1518,16 @@ export default function Settings({
                       }))
                     }
                   />
-                </label>
-                <label className="field-label" htmlFor="identity-server">
-                  Server name
+                }
+              />
+              <SettingRow
+                title="Server name"
+                htmlFor="identity-server"
+                description="A label, not the address this computer answers on."
+                control={
                   <input
                     id="identity-server"
                     type="text"
-                    className="field"
                     maxLength={60}
                     value={identityDraft.serverName}
                     disabled={pending}
@@ -1463,141 +1539,128 @@ export default function Settings({
                       }))
                     }
                   />
-                </label>
-                <div className="form-actions">
-                  <Button disabled={pending || !identityChanged} onClick={saveIdentity}>
-                    Save names
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="settings-row">
-              <div>
-                <h3 id="developer-tools-label">Show developer tools</h3>
-                <p>Show app logs, system details, and tools for developing apps in this browser.</p>
-                {!developerToolsPersist() && (
-                  <p className="panel-note">
-                    This browser is not storing preferences, so the choice lasts until you close the
-                    tab.
-                  </p>
-                )}
-              </div>
-              <div className="seg" role="group" aria-labelledby="developer-tools-label">
-                {[true, false].map((value) => (
-                  <button
-                    key={String(value)}
-                    type="button"
-                    aria-pressed={developer === value}
-                    disabled={pending}
-                    className={`seg-opt${developer === value ? ' seg-opt-active' : ''}`}
-                    onClick={() => setDeveloperTools(value)}
-                  >
-                    {value ? 'On' : 'Off'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <dl className="fact-grid">
-              <div className="fact">
-                <dt>Platform</dt>
-                <dd>{platform ? platformLabel(platform.current) : '—'}</dd>
-              </div>
-              <div className="fact">
-                <dt>Vela version</dt>
-                <dd className="mono">{health?.version || '—'}</dd>
-              </div>
-              <div className="fact fact-wide">
-                <dt>Supported platforms</dt>
-                <dd>{platform ? platform.supported.map(platformLabel).join(' · ') : '—'}</dd>
-              </div>
-            </dl>
-            <AddToHomeScreen appName="Vela" forHub />
-            <div className="phone-setup-settings">
-              <Link className="btn" to="/?setup=phone">
-                Set up my phone
-              </Link>
-              <p className="phone-note">Reopen the welcome guide and connect your phone.</p>
-            </div>
-            <DevicesSection />
-          </section>
+                }
+              />
+            </SettingsGroup>
 
-          <section className="panel" id="settings-appearance" hidden={active !== 'appearance'}>
-            <div className="settings-row">
-              <div>
-                <h3>Theme</h3>
-                <p>Choose a light or dark look for your dashboard.</p>
-              </div>
-            </div>
-            <div className="settings-theme-grid" role="group" aria-label="Theme">
-              {['light', 'dark'].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={theme === t}
-                  className={`settings-theme${theme === t ? ' is-selected' : ''}`}
-                  disabled={saving}
-                  onClick={() => pickTheme(t)}
-                >
-                  <span
-                    className={`settings-theme-preview preview-${t}`}
-                    data-theme={t}
-                    aria-hidden="true"
-                  >
-                    <span className="preview-sidebar">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span className="preview-content">
-                      <i />
-                      <span>
-                        <i />
-                        <i />
+            <SettingsGroup title="Phone and home screen">
+              <SettingRow
+                title="Your phone"
+                description="Reopen the welcome guide and connect your phone."
+                control={
+                  <Link className="btn" to="/?setup=phone">
+                    Set up my phone
+                  </Link>
+                }
+              />
+              <AddToHomeScreen appName="Vela" forHub row />
+            </SettingsGroup>
+
+            <DevicesSection />
+
+            <SettingsGroup title="Developer">
+              <SettingRow
+                title="Show developer tools"
+                description={
+                  developerToolsPersist()
+                    ? 'Show app logs, system details, and tools for developing apps in this browser.'
+                    : 'Show app logs, system details, and tools for developing apps in this browser. This browser is not storing preferences, so the choice lasts until you close the tab.'
+                }
+                toggle={{
+                  checked: developer,
+                  disabled: pending,
+                  onChange: setDeveloperTools,
+                }}
+              />
+            </SettingsGroup>
+
+            <SettingsGroup title="About">
+              <SettingRow title="Vela version" value={health?.version || '—'} mono />
+              <SettingRow
+                title="Platform"
+                value={platform ? platformLabel(platform.current) : '—'}
+              />
+              <SettingRow
+                title="Supported platforms"
+                value={platform ? platform.supported.map(platformLabel).join(' · ') : '—'}
+              />
+            </SettingsGroup>
+          </SettingsPage>
+
+          <SettingsPage id="settings-appearance" hidden={active !== 'appearance'}>
+            <SettingsGroup
+              title="Light or dark"
+              footer={<SettingsStatus tone="error">{saveError}</SettingsStatus>}
+            >
+              <SettingRow
+                title="Theme"
+                description="Choose a light or dark look for your dashboard."
+                stacked
+              >
+                <div className="settings-theme-grid" role="group" aria-label="Theme">
+                  {['light', 'dark'].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={theme === t}
+                      className={`settings-theme${theme === t ? ' is-selected' : ''}`}
+                      disabled={saving}
+                      onClick={() => pickTheme(t)}
+                    >
+                      <span
+                        className={`settings-theme-preview preview-${t}`}
+                        data-theme={t}
+                        aria-hidden="true"
+                      >
+                        <span className="preview-sidebar">
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        <span className="preview-content">
+                          <i />
+                          <span>
+                            <i />
+                            <i />
+                          </span>
+                          <i />
+                        </span>
                       </span>
-                      <i />
-                    </span>
-                  </span>
-                  <span className="settings-theme-label">
-                    {t === 'light' ? 'Light' : 'Dark'}
-                    {theme === t && <Check size={16} weight="bold" />}
-                  </span>
-                </button>
-              ))}
-            </div>
+                      <span className="settings-theme-label">
+                        {t === 'light' ? 'Light' : 'Dark'}
+                        {theme === t && <Check size={16} weight="bold" />}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </SettingRow>
+            </SettingsGroup>
             <PersonaliseFields
               weather={settings?.desk?.weather}
               onWeatherChange={(weather) => onPatched({ desk: { weather } })}
             />
-          </section>
+          </SettingsPage>
+
           <div id="settings-security" hidden={active !== 'security'}>
             <SecuritySection onPendingChange={onPendingChange} onSubScreen={onSubScreen} />
           </div>
 
-          <section className="panel" id="settings-chat" hidden={active !== 'chat'}>
-            <div className="settings-row">
-              <div>
-                <h3>Remember chat on this device</h3>
-                <p>
-                  Keeps your last assistant conversation in this browser. Turning it off wipes it
-                  immediately.
-                </p>
-              </div>
-              <div className="seg" role="group" aria-label="Remember chat on this device">
-                {[true, false].map((v) => (
-                  <button
-                    key={String(v)}
-                    type="button"
-                    aria-pressed={chatHistory === v}
-                    disabled={!settings || saving}
-                    className={`seg-opt${chatHistory === v ? ' seg-opt-active' : ''}`}
-                    onClick={() => pickChatHistory(v)}
-                  >
-                    {v ? 'On' : 'Off'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
+          <SettingsPage id="settings-chat" hidden={active !== 'chat'}>
+            <SettingsGroup
+              title="This device"
+              footer={<SettingsStatus tone="error">{saveError}</SettingsStatus>}
+            >
+              <SettingRow
+                title="Remember chat on this device"
+                description="Keeps your last assistant conversation in this browser. Turning it off wipes it immediately."
+                toggle={{
+                  checked: chatHistory,
+                  disabled: !settings || saving,
+                  onChange: pickChatHistory,
+                }}
+              />
+            </SettingsGroup>
+          </SettingsPage>
 
           <div hidden={active !== 'desk'}>
             <DeskSection
@@ -1615,13 +1678,13 @@ export default function Settings({
             />
           </div>
 
-          <div hidden={active !== 'ai'}>
+          <SettingsPage hidden={active !== 'ai'}>
             <AiSection
               settings={settings}
               onPatched={onPatched}
               onPendingChange={onPendingChange}
             />
-          </div>
+          </SettingsPage>
 
           <div hidden={active !== 'notifications'}>
             <fieldset className="settings-fields" disabled={!settings}>
@@ -1641,101 +1704,81 @@ export default function Settings({
             <HealthSection onPendingChange={onPendingChange} />
           </div>
 
-          <div hidden={active !== 'backups'}>
+          <SettingsPage hidden={active !== 'backups'}>
             <BackupsSection onPendingChange={onPendingChange} />
-            <section className="panel">
-              <div className="panel-head">
-                <h2>Storage</h2>
-              </div>
-              <dl className="fact-grid">
-                <div className="fact">
-                  <dt>Used by Vela</dt>
-                  <dd>{engine ? formatBytes(engine.storage_bytes) : '—'}</dd>
-                </div>
-              </dl>
-              <p className="panel-note">
-                Your apps and their data stay on this computer. Removing an app releases the space
-                it was using.
-              </p>
-            </section>
-          </div>
+            <SettingsGroup
+              title="Storage"
+              footer={
+                <SettingsNote>
+                  Your apps and their data stay on this computer. Removing an app releases the space
+                  it was using.
+                </SettingsNote>
+              }
+            >
+              <SettingRow
+                title="Used by Vela"
+                value={engine ? formatBytes(engine.storage_bytes) : '—'}
+              />
+            </SettingsGroup>
+          </SettingsPage>
 
-          <section className="panel" id="settings-developer" hidden={active !== 'developer'}>
+          <SettingsPage id="settings-developer" hidden={active !== 'developer'}>
             {locked ? (
-              <>
-                <div className="panel-head">
-                  <h2 tabIndex={-1} ref={lockedRef}>
-                    Developer tools are off
-                  </h2>
-                </div>
-                <p className="panel-note">
-                  App logs, system details and the tools for developing apps are hidden in this
-                  browser. Turning them on changes what you see here — it does not change any app’s
-                  permissions or start anything.
-                </p>
-                <div className="actions">
-                  <Button
-                    variant="primary"
-                    disabled={pending}
-                    onClick={() => setDeveloperTools(true)}
-                  >
-                    Enable developer tools
-                  </Button>
-                  <Button disabled={pending} onClick={() => setActive('general')}>
-                    Back to General
-                  </Button>
-                </div>
-              </>
+              <SettingsGroup
+                title="Developer tools are off"
+                headingRef={lockedRef}
+                description="App logs, system details and the tools for developing apps are hidden in this browser. Turning them on changes what you see here. It does not change any app's permissions or start anything."
+                footer={
+                  <SettingsActions>
+                    <Button
+                      variant="primary"
+                      disabled={pending}
+                      onClick={() => setDeveloperTools(true)}
+                    >
+                      Enable developer tools
+                    </Button>
+                    <Button disabled={pending} onClick={() => setActive('general')}>
+                      Back to General
+                    </Button>
+                  </SettingsActions>
+                }
+              />
             ) : (
-              <>
-                <div className="panel-head">
-                  <h2>Developer tools</h2>
+              <SettingsGroup
+                title="Developer tools"
+                aside={
                   <Link className="btn btn-small" to="/environments">
                     Open System
                   </Link>
-                </div>
-                <p className="panel-note">
-                  App logs and per-app diagnostics live with each app, under App settings. This
-                  shows the server behind them. System › Logs reads the logs Vela writes, System ›
-                  Errors lists what has failed, and{' '}
-                  <Link to="/environments">Create support bundle</Link> packages both into one
-                  redacted file you can share.
-                </p>
-                <dl className="fact-grid">
-                  <div className="fact">
-                    <dt>Engine endpoint</dt>
-                    <dd className="mono">{engine?.endpoint || '—'}</dd>
-                  </div>
-                  <div className="fact">
-                    <dt>API base</dt>
-                    <dd className="mono">/api (same origin)</dd>
-                  </div>
-                  <div className="fact fact-wide">
-                    <dt>Data directory</dt>
-                    <dd className="mono">{engine?.data_dir || '—'}</dd>
-                  </div>
-                  <div className="fact fact-wide">
-                    <dt>App serving</dt>
-                    <dd className="mono">
-                      /apps/&lt;id&gt;/ (proxied inside the hub — apps never expose ports to the UI)
-                    </dd>
-                  </div>
-                </dl>
-              </>
+                }
+                description={
+                  <>
+                    App logs and per-app diagnostics live with each app, under App settings. This
+                    shows the server behind them. System › Logs reads the logs Vela writes, System ›
+                    Errors lists what has failed, and{' '}
+                    <Link to="/environments">Create support bundle</Link> packages both into one
+                    redacted file you can share.
+                  </>
+                }
+              >
+                <SettingRow title="Engine endpoint" value={engine?.endpoint || '—'} mono />
+                <SettingRow title="API base" value="/api (same origin)" mono />
+                <SettingRow title="Data directory" value={engine?.data_dir || '—'} mono />
+                <SettingRow
+                  title="App serving"
+                  description="Proxied inside the hub. Apps never expose ports to the UI."
+                  value="/apps/<id>/"
+                  mono
+                />
+              </SettingsGroup>
             )}
-          </section>
+          </SettingsPage>
         </div>
-        {(!compact || pending || saveError) && (
+        {(!compact || pending) && (
           <footer className="settings-footer">
-            {saveError ? (
-              <span className="inline-error" role="alert">
-                {saveError}
-              </span>
-            ) : (
-              <span role="status">
-                {pending ? 'Working…' : 'Appearance and chat preferences save automatically.'}
-              </span>
-            )}
+            <span role="status">
+              {pending ? 'Working…' : 'Appearance and chat preferences save automatically.'}
+            </span>
             {/* A phone already has Back and Close in its header; a permanent
               Done footer would only take space from the form. */}
             {!compact && !windowed && (

@@ -311,7 +311,7 @@ try {
     'a saved form is no longer dirty',
   );
   await win.getByRole('button', { name: 'Chat & privacy' }).click();
-  await win.getByRole('button', { name: 'Off', exact: true }).click();
+  await win.getByRole('switch', { name: 'Remember chat on this device' }).click();
   await page.waitForFunction(() => !localStorage.getItem('vela-chat'));
   assert.equal(settings.chat_history, false);
   // Asking again brings the same window forward rather than opening a second.
@@ -388,12 +388,9 @@ try {
   assert.match(await railAvatar.getAttribute('aria-label'), /Marco · vela\.marco\.house/);
   assert.equal(await saveNames.isDisabled(), true, 'saved, so nothing left to save');
 
-  const devSwitch = win.getByRole('group', { name: 'Show developer tools' });
-  assert.equal(
-    await devSwitch.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'),
-    'true',
-  );
-  await devSwitch.getByRole('button', { name: 'On', exact: true }).click();
+  const devSwitch = win.getByRole('switch', { name: 'Show developer tools' });
+  assert.equal(await devSwitch.getAttribute('aria-checked'), 'false');
+  await devSwitch.click();
   await win.getByRole('navigation').getByRole('button', { name: 'Developer tools' }).click();
   await win.getByText('/fixture/data', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('vela-developer-tools')), 'on');
@@ -441,10 +438,7 @@ try {
     .getByRole('navigation')
     .getByRole('button', { name: 'General', exact: true })
     .click();
-  await sealedWindow
-    .getByRole('group', { name: 'Show developer tools' })
-    .getByRole('button', { name: 'On', exact: true })
-    .click();
+  await sealedWindow.getByRole('switch', { name: 'Show developer tools' }).click();
   await sealedWindow
     .getByRole('navigation')
     .getByRole('button', { name: 'Developer tools' })

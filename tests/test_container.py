@@ -55,6 +55,14 @@ class ContainerTests(unittest.TestCase):
                         configure()
                     self.assertFalse((Path(self.directory.name) / "access.json").exists())
 
+    def test_main_binds_the_configured_gateway_port(self):
+        from vela import container
+        with patch.dict(os.environ, {"VELA_PORT": "7701"}), \
+                patch.object(container, "ensure_bundled_wallpapers"), \
+                patch.object(container.uvicorn, "run") as run:
+            container.main()
+        self.assertEqual(run.call_args.kwargs["port"], 7701)
+
     def test_proxy_login_and_untrusted_forwarding(self):
         configure()
         app = ProxyHeadersMiddleware(create_app(load_config()), trusted_hosts=["172.18.0.1"])

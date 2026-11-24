@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { CaretRight, Lock } from '@phosphor-icons/react';
+import { Lock } from '@phosphor-icons/react';
 import { api } from '../../api.js';
 import Button from '../ui/Button.jsx';
+import {
+  SettingRow,
+  SettingsActions,
+  SettingsGroup,
+  SettingsPage,
+  SettingsStatus,
+} from '../settings/SettingsKit.jsx';
 import { useAuth } from '../AuthGate.jsx';
 import { useSecurity } from '../SecurityProvider.jsx';
 import PinPad, { PIN_LENGTH } from './PinPad.jsx';
@@ -19,28 +26,6 @@ const methodName = (method) => (method === 'pattern' ? 'Pattern' : 'PIN');
 // "your PIN", "your pattern": the abbreviation keeps its capitals in a sentence.
 const methodWord = (method) => (method === 'pattern' ? 'pattern' : 'PIN');
 const timeoutLabel = (value) => TIMEOUTS.find((item) => item.value === value)?.label || '5 minutes';
-
-function Row({ title, description, value, onClick, action, children }) {
-  const body = (
-    <>
-      <span className="security-row-text">
-        <span className="security-row-title">{title}</span>
-        {description && <span className="security-row-description">{description}</span>}
-      </span>
-      {value && <span className="security-row-value">{value}</span>}
-      {onClick && <CaretRight size={16} aria-hidden="true" />}
-      {action}
-      {children}
-    </>
-  );
-  return onClick ? (
-    <button type="button" className="security-row security-row-button" onClick={onClick}>
-      {body}
-    </button>
-  ) : (
-    <div className="security-row">{body}</div>
-  );
-}
 
 // App lock: what it protects, how it is set up, and how it is turned off. Every
 // change here verifies the Vela password again, and the engine — not this
@@ -112,90 +97,99 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
 
   // ------------------------------------------------------------------ screens
 
+  // The password every change is confirmed with, as one settings row.
+  const passwordRow = (id) => (
+    <SettingRow
+      title="Vela password"
+      htmlFor={id}
+      control={
+        <input
+          id={id}
+          type="password"
+          autoComplete="current-password"
+          maxLength={256}
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      }
+    />
+  );
+
   if (!available) {
     return (
-      <section className="panel security-panel">
-        <div className="panel-head">
-          <h2>App lock</h2>
-        </div>
-        <p className="panel-note">
-          App lock protects a phone or remote browser session that signs in with your Vela password.
-          You are on the Vela computer itself, where the dashboard opens without signing in, so
-          there is no session here to lock. Use your computer’s own screen lock for this machine.
-        </p>
-      </section>
+      <SettingsPage>
+        <SettingsGroup
+          title="App lock"
+          description="App lock protects a phone or remote browser session that signs in with your Vela password."
+        >
+          <SettingRow
+            title="App lock"
+            description="You are on the Vela computer itself, where the dashboard opens without signing in, so there is no session here to lock. Use your computer’s own screen lock for this machine."
+            value="Not needed here"
+          />
+        </SettingsGroup>
+      </SettingsPage>
     );
   }
 
   if (flow === 'password') {
     const changing = enrolled;
     return (
-      <section className="panel security-panel">
-        <div className="panel-head">
-          <h2 tabIndex={-1} ref={headingRef}>
-            {changing ? `Change your ${methodWord(status.method)}` : 'Set up app lock'}
-          </h2>
-        </div>
-        <p className="panel-note">
-          Confirm your Vela password first. Your quick unlock is only for this signed-in session on
-          this device.
-        </p>
-        <form
-          className="security-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError('');
-            setFlow('enter');
-          }}
+      <form
+        className="set-page"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError('');
+          setFlow('enter');
+        }}
+      >
+        <SettingsGroup
+          title={changing ? `Change your ${methodWord(status.method)}` : 'Set up app lock'}
+          headingRef={headingRef}
+          description="Confirm your Vela password first. Your quick unlock is only for this signed-in session on this device."
+          footer={
+            <>
+              <SettingsStatus tone="error">{error}</SettingsStatus>
+              <SettingsActions>
+                <Button variant="primary" type="submit" disabled={!password}>
+                  Continue
+                </Button>
+                <Button onClick={reset}>Cancel</Button>
+              </SettingsActions>
+            </>
+          }
         >
-          <label htmlFor="security-password">Vela password</label>
-          <input
-            id="security-password"
-            type="password"
-            autoComplete="current-password"
-            maxLength={256}
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <fieldset className="security-methods">
-            <legend>Unlock with</legend>
-            {['pin', 'pattern'].map((option) => (
-              <label key={option} className="security-method">
-                <input
-                  type="radio"
-                  name="security-method"
-                  value={option}
-                  checked={method === option}
-                  onChange={() => setMethod(option)}
-                />
-                <span>
-                  <strong>
-                    {methodName(option)}
-                    {option === 'pin' ? ' (recommended)' : ''}
-                  </strong>
-                  <small>
-                    {option === 'pin'
-                      ? 'Six digits, entered on a keypad.'
-                      : 'Connect at least four of nine dots.'}
-                  </small>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="actions">
-            <Button variant="primary" type="submit" disabled={!password}>
-              Continue
-            </Button>
-            <Button onClick={reset}>Cancel</Button>
-          </div>
-        </form>
-      </section>
+          {passwordRow('security-password')}
+          <SettingRow title="Unlock with" stacked>
+            <fieldset className="security-methods">
+              <legend className="sr-only">Unlock with</legend>
+              {['pin', 'pattern'].map((option) => (
+                <label key={option} className="security-method">
+                  <input
+                    type="radio"
+                    name="security-method"
+                    value={option}
+                    checked={method === option}
+                    onChange={() => setMethod(option)}
+                  />
+                  <span>
+                    <strong>
+                      {methodName(option)}
+                      {option === 'pin' ? ' (recommended)' : ''}
+                    </strong>
+                    <small>
+                      {option === 'pin'
+                        ? 'Six digits, entered on a keypad.'
+                        : 'Connect at least four of nine dots.'}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </SettingRow>
+        </SettingsGroup>
+      </form>
     );
   }
 
@@ -244,189 +238,188 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
       );
     };
     return (
-      <section className="panel security-panel">
-        <div className="panel-head">
-          <h2 tabIndex={-1} ref={headingRef}>
-            {confirming
+      <SettingsPage>
+        <SettingsGroup
+          title={
+            confirming
               ? method === 'pin'
                 ? 'Repeat your new PIN'
                 : 'Draw your pattern again'
               : method === 'pin'
                 ? 'Choose a six-digit PIN'
-                : 'Draw an unlock pattern'}
-          </h2>
-        </div>
-        {method === 'pin' ? (
-          <PinPad
-            autoFocus
-            value={pin}
-            onChange={setPin}
-            disabled={busy}
-            label={confirming ? 'Repeat PIN' : 'New PIN'}
-          />
-        ) : (
-          <PatternPad
-            value={dots}
-            onChange={setDots}
-            disabled={busy}
-            showTrail={showTrail}
-            label={confirming ? 'Repeat pattern' : 'New pattern'}
-          />
-        )}
-        {error && (
-          <p className="inline-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="actions">
-          <Button variant="primary" disabled={!ready || busy} onClick={submit}>
-            {busy ? 'Saving…' : confirming ? 'Turn on app lock' : 'Continue'}
-          </Button>
-          <Button disabled={busy} onClick={reset}>
-            Cancel
-          </Button>
-        </div>
-      </section>
+                : 'Draw an unlock pattern'
+          }
+          headingRef={headingRef}
+          footer={
+            <>
+              <SettingsStatus tone="error">{error}</SettingsStatus>
+              <SettingsActions>
+                <Button variant="primary" disabled={!ready || busy} onClick={submit}>
+                  {busy ? 'Saving…' : confirming ? 'Turn on app lock' : 'Continue'}
+                </Button>
+                <Button disabled={busy} onClick={reset}>
+                  Cancel
+                </Button>
+              </SettingsActions>
+            </>
+          }
+        >
+          <div className="security-pad">
+            {method === 'pin' ? (
+              <PinPad
+                autoFocus
+                value={pin}
+                onChange={setPin}
+                disabled={busy}
+                label={confirming ? 'Repeat PIN' : 'New PIN'}
+              />
+            ) : (
+              <PatternPad
+                value={dots}
+                onChange={setDots}
+                disabled={busy}
+                showTrail={showTrail}
+                label={confirming ? 'Repeat pattern' : 'New pattern'}
+              />
+            )}
+          </div>
+        </SettingsGroup>
+      </SettingsPage>
     );
   }
 
   if (flow === 'timeout') {
     return (
-      <section className="panel security-panel">
-        <div className="panel-head">
-          <h2 tabIndex={-1} ref={headingRef}>
-            Lock after inactivity
-          </h2>
-        </div>
-        <form
-          className="security-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            run(
-              () => api.setSecurityTimeout({ password, timeout: timeout_ }),
-              () => {
-                setNote(`Vela will lock after ${timeoutLabel(timeout_)} without activity.`);
-                reset();
-              },
-            );
-          }}
+      <form
+        className="set-page"
+        onSubmit={(event) => {
+          event.preventDefault();
+          run(
+            () => api.setSecurityTimeout({ password, timeout: timeout_ }),
+            () => {
+              setNote(`Vela will lock after ${timeoutLabel(timeout_)} without activity.`);
+              reset();
+            },
+          );
+        }}
+      >
+        <SettingsGroup
+          title="Lock after inactivity"
+          headingRef={headingRef}
+          footer={
+            <>
+              <SettingsStatus tone="error">{error}</SettingsStatus>
+              <SettingsActions>
+                <Button variant="primary" type="submit" disabled={busy || !password}>
+                  {busy ? 'Saving…' : 'Save'}
+                </Button>
+                <Button disabled={busy} onClick={reset}>
+                  Cancel
+                </Button>
+              </SettingsActions>
+            </>
+          }
         >
-          <fieldset className="security-methods">
-            <legend>Lock this session after</legend>
-            {TIMEOUTS.map((option) => (
-              <label key={option.value} className="security-method">
-                <input
-                  type="radio"
-                  name="security-timeout"
-                  checked={timeout_ === option.value}
-                  onChange={() => setTimeout_(option.value)}
-                />
-                <span>
-                  <strong>{option.label}</strong>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <label htmlFor="security-timeout-password">Vela password</label>
-          <input
-            id="security-timeout-password"
-            type="password"
-            autoComplete="current-password"
-            maxLength={256}
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="actions">
-            <Button variant="primary" type="submit" disabled={busy || !password}>
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
-            <Button disabled={busy} onClick={reset}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </section>
+          <SettingRow title="Lock this session after" stacked>
+            <fieldset className="security-methods">
+              <legend className="sr-only">Lock this session after</legend>
+              {TIMEOUTS.map((option) => (
+                <label key={option.value} className="security-method">
+                  <input
+                    type="radio"
+                    name="security-timeout"
+                    checked={timeout_ === option.value}
+                    onChange={() => setTimeout_(option.value)}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </SettingRow>
+          {passwordRow('security-timeout-password')}
+        </SettingsGroup>
+      </form>
     );
   }
 
   if (flow === 'disable') {
     return (
-      <section className="panel security-panel">
-        <div className="panel-head">
-          <h2 tabIndex={-1} ref={headingRef}>
-            Turn off app lock
-          </h2>
-        </div>
-        <p className="panel-note">
-          This session will stay open until you sign out or it expires. You can turn app lock on
-          again at any time.
-        </p>
-        <form
-          className="security-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            run(
-              () => api.disableSecurity(password),
-              () => {
-                setNote('App lock is off.');
-                reset();
-              },
-            );
-          }}
+      <form
+        className="set-page"
+        onSubmit={(event) => {
+          event.preventDefault();
+          run(
+            () => api.disableSecurity(password),
+            () => {
+              setNote('App lock is off.');
+              reset();
+            },
+          );
+        }}
+      >
+        <SettingsGroup
+          title="Turn off app lock"
+          headingRef={headingRef}
+          description="This session will stay open until you sign out or it expires. You can turn app lock on again at any time."
+          footer={
+            <>
+              <SettingsStatus tone="error">{error}</SettingsStatus>
+              <SettingsActions>
+                <Button variant="primary" type="submit" disabled={busy || !password}>
+                  {busy ? 'Turning off…' : 'Turn off app lock'}
+                </Button>
+                <Button disabled={busy} onClick={reset}>
+                  Cancel
+                </Button>
+              </SettingsActions>
+            </>
+          }
         >
-          <label htmlFor="security-disable-password">Vela password</label>
-          <input
-            id="security-disable-password"
-            type="password"
-            autoComplete="current-password"
-            maxLength={256}
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="actions">
-            <Button variant="primary" type="submit" disabled={busy || !password}>
-              {busy ? 'Turning off…' : 'Turn off app lock'}
-            </Button>
-            <Button disabled={busy} onClick={reset}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </section>
+          {passwordRow('security-disable-password')}
+        </SettingsGroup>
+      </form>
     );
   }
 
   // --------------------------------------------------------------- home rows
 
   return (
-    <section className="panel security-panel">
-      <div className="panel-head">
-        <h2>App lock</h2>
-      </div>
-      <p className="panel-note">
-        A quick unlock for this signed-in session on this device, so a glance at your phone does not
-        show your apps. It does not encrypt files on your Vela computer or lock that computer’s
-        screen.
-      </p>
-      {note && (
-        <p className="panel-note security-note" role="status">
-          {note}
-        </p>
-      )}
-      <div className="security-rows">
-        <Row
+    <SettingsPage>
+      <SettingsGroup
+        title="App lock"
+        description="A quick unlock for this signed-in session on this device, so a glance at your phone does not show your apps. It does not encrypt files on your Vela computer or lock that computer’s screen."
+        footer={
+          <>
+            <SettingsStatus tone="ok">{note}</SettingsStatus>
+            <SettingsStatus tone="error">{error}</SettingsStatus>
+            {(enrolled || remote) && (
+              <SettingsActions>
+                {enrolled && (
+                  <>
+                    <Button disabled={busy} onClick={() => run(() => api.lockNow())}>
+                      <Lock size={16} aria-hidden="true" /> Lock now
+                    </Button>
+                    <Button
+                      disabled={busy}
+                      onClick={() => {
+                        setPassword('');
+                        setNote('');
+                        setFlow('disable');
+                      }}
+                    >
+                      Turn off app lock
+                    </Button>
+                  </>
+                )}
+                {remote && <Button onClick={logout}>Sign out</Button>}
+              </SettingsActions>
+            )}
+          </>
+        }
+      >
+        <SettingRow
           title="App lock"
           description={
             enrolled
@@ -444,7 +437,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
         />
         {enrolled && (
           <>
-            <Row
+            <SettingRow
               title="Unlock method"
               description={`Change your ${methodWord(status.method)}, or switch method.`}
               value={methodName(status.method)}
@@ -455,7 +448,7 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
                 setFlow('password');
               }}
             />
-            <Row
+            <SettingRow
               title="Lock after inactivity"
               description="Background updates do not count as activity."
               value={timeoutLabel(status.timeout)}
@@ -467,54 +460,15 @@ export default function SecuritySection({ onPendingChange, onSubScreen }) {
               }}
             />
             {status.method === 'pattern' && (
-              <Row
+              <SettingRow
                 title="Show pattern trail"
                 description="Draw a visible line between the dots you connect."
-                action={
-                  <div className="seg" role="group" aria-label="Show pattern trail">
-                    {[true, false].map((value) => (
-                      <button
-                        key={String(value)}
-                        type="button"
-                        aria-pressed={showTrail === value}
-                        className={`seg-opt${showTrail === value ? ' seg-opt-active' : ''}`}
-                        onClick={() => setShowTrail(value)}
-                      >
-                        {value ? 'On' : 'Off'}
-                      </button>
-                    ))}
-                  </div>
-                }
+                toggle={{ checked: showTrail, onChange: setShowTrail }}
               />
             )}
           </>
         )}
-      </div>
-      <div className="actions">
-        {enrolled && (
-          <>
-            <Button disabled={busy} onClick={() => run(() => api.lockNow())}>
-              <Lock size={16} aria-hidden="true" /> Lock now
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                setPassword('');
-                setNote('');
-                setFlow('disable');
-              }}
-            >
-              Turn off app lock
-            </Button>
-          </>
-        )}
-        {remote && <Button onClick={logout}>Sign out</Button>}
-      </div>
-      {error && (
-        <p className="inline-error" role="alert">
-          {error}
-        </p>
-      )}
-    </section>
+      </SettingsGroup>
+    </SettingsPage>
   );
 }

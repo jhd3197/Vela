@@ -12,6 +12,12 @@ import { useDesktops } from '../desktops/DesktopsProvider.jsx';
 import ThemeRow from './ThemeRow.jsx';
 import { BUNDLED_WALLPAPERS, dailyWallpaper } from './wallpaper.js';
 import Button from '../components/ui/Button.jsx';
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsNote,
+  SettingsStatus,
+} from '../components/settings/SettingsKit.jsx';
 
 // The eight painted places ship as images; `sage` and `night` are gradients
 // drawn in CSS, so they cost nothing to bundle and stay sharp at any size.
@@ -163,150 +169,149 @@ export default function PersonaliseFields({ weather: savedWeather, onWeatherChan
   };
 
   return (
-    <div className="personalise">
-      {selected ? (
-        <p className="personalise-scope">
-          Desktop: <strong>{selected.name}</strong>
-        </p>
-      ) : null}
-      <section className="personalise-section">
-        <h3 className="section-head">Style</h3>
-        <ThemeRow wallpaper={desk.wallpaper} onUseWallpaper={(id) => patch({ wallpaper: id })} />
-        <p className="panel-note">
-          A style decides what light and dark are made of; which of the two you are in is chosen
-          above. A style never changes your wallpaper on its own, and never loads anything from the
-          internet.
-        </p>
-      </section>
+    <>
+      <SettingsGroup title="Style">
+        <SettingRow
+          title="Colours"
+          description="A style decides what light and dark are made of; which of the two you are in is chosen above. A style never changes your wallpaper on its own, and never loads anything from the internet."
+          stacked
+        >
+          <ThemeRow wallpaper={desk.wallpaper} onUseWallpaper={(id) => patch({ wallpaper: id })} />
+        </SettingRow>
+      </SettingsGroup>
 
-      <section className="personalise-section">
-        <h3 className="section-head">Wallpaper</h3>
-        <div className="personalise-walls" role="group" aria-label="Wallpaper">
-          {choices.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              className={`personalise-wall${desk.wallpaper === choice.id ? ' is-selected' : ''}`}
-              data-wallpaper={choice.id}
-              disabled={busy || (choice.id === 'custom' && desk.wallpaper !== 'custom')}
-              aria-pressed={desk.wallpaper === choice.id}
-              onClick={() => patch({ wallpaper: choice.id })}
-            >
-              <span
-                className="personalise-wall-preview"
-                style={thumb(choice.id)}
-                aria-hidden="true"
-              />
-              <span className="personalise-wall-name">
-                {choice.name}
-                {desk.wallpaper === choice.id && <Check size={14} weight="bold" />}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="form-actions">
-          <Button disabled={busy} onClick={() => file.current?.click()}>
-            <UploadSimple size={15} aria-hidden="true" />
-            Use your own
-          </Button>
-          {desk.wallpaper === 'custom' && (
-            <Button variant="ghost" disabled={busy} onClick={removeCustom}>
-              <Trash size={15} aria-hidden="true" />
-              Remove
+      <SettingsGroup
+        title="Wallpaper"
+        description={
+          selected ? (
+            <>
+              For the desktop <strong>{selected.name}</strong>. The wallpaper, dimming and labels
+              belong to this desktop; your other desktops keep their own.
+            </>
+          ) : (
+            'The wallpaper, dimming and labels belong to this desktop; your other desktops keep their own.'
+          )
+        }
+        footer={
+          <SettingsNote>
+            Daily moves through the painted set, a new one each midnight. Your own image can be
+            JPEG, PNG or WebP, up to 8 MB. It stays on this computer.
+          </SettingsNote>
+        }
+      >
+        <SettingRow title="Picture" stacked>
+          <div className="personalise-walls" role="group" aria-label="Wallpaper">
+            {choices.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className={`personalise-wall${desk.wallpaper === choice.id ? ' is-selected' : ''}`}
+                data-wallpaper={choice.id}
+                disabled={busy || (choice.id === 'custom' && desk.wallpaper !== 'custom')}
+                aria-pressed={desk.wallpaper === choice.id}
+                onClick={() => patch({ wallpaper: choice.id })}
+              >
+                <span
+                  className="personalise-wall-preview"
+                  style={thumb(choice.id)}
+                  aria-hidden="true"
+                />
+                <span className="personalise-wall-name">
+                  {choice.name}
+                  {desk.wallpaper === choice.id && <Check size={14} weight="bold" />}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="set-actions">
+            <Button disabled={busy} onClick={() => file.current?.click()}>
+              <UploadSimple size={15} aria-hidden="true" />
+              Use your own
             </Button>
-          )}
-        </div>
-        <input
-          ref={file}
-          type="file"
-          className="sr-only"
-          accept={TYPES.join(',')}
-          aria-label="Choose a wallpaper image"
-          onChange={upload}
+            {desk.wallpaper === 'custom' && (
+              <Button variant="ghost" disabled={busy} onClick={removeCustom}>
+                <Trash size={15} aria-hidden="true" />
+                Remove
+              </Button>
+            )}
+          </div>
+          <input
+            ref={file}
+            type="file"
+            className="sr-only"
+            accept={TYPES.join(',')}
+            aria-label="Choose a wallpaper image"
+            onChange={upload}
+          />
+        </SettingRow>
+        <SettingRow
+          title="Dim the wallpaper"
+          description="Keeps widget text readable over a bright picture."
+          toggle={{
+            checked: desk.dim !== false,
+            disabled: busy,
+            onChange: (dim) => patch({ dim }),
+          }}
         />
-        <p className="panel-note">
-          The wallpaper, dimming and labels belong to this desktop; your other desktops keep their
-          own. Daily moves through the painted set, a new one each midnight. Your own image can be
-          JPEG, PNG or WebP, up to 8 MB. It stays on this computer.
-        </p>
-      </section>
+        <SettingRow
+          title="Show app names"
+          description="Turn off for icons only."
+          toggle={{
+            checked: desk.labels !== false,
+            disabled: busy,
+            onChange: (labels) => patch({ labels }),
+          }}
+        />
+      </SettingsGroup>
 
-      <section className="personalise-section">
-        <h3 className="section-head">Desk</h3>
-        <label className="personalise-row">
-          <span>
-            Dim the wallpaper
-            <small>Keeps widget text readable over a bright picture.</small>
-          </span>
-          <input
-            type="checkbox"
-            checked={desk.dim !== false}
-            disabled={busy}
-            onChange={(event) => patch({ dim: event.target.checked })}
-          />
-        </label>
-        <label className="personalise-row">
-          <span>
-            Show app names
-            <small>Turn off for icons only.</small>
-          </span>
-          <input
-            type="checkbox"
-            checked={desk.labels !== false}
-            disabled={busy}
-            onChange={(event) => patch({ labels: event.target.checked })}
-          />
-        </label>
-      </section>
-
-      <section className="personalise-section">
-        <h3 className="section-head">Weather</h3>
-        <label className="personalise-row">
-          <span>
-            Show the weather
-            <small>
-              {located
-                ? `The temperature for ${weather.label || 'your place'} on the clock widget.`
-                : 'Name a place below to turn this on.'}
-            </small>
-          </span>
-          <input
-            type="checkbox"
-            checked={Boolean(weather.enabled)}
-            disabled={busy || !located}
-            onChange={(event) => setWeather({ enabled: event.target.checked })}
-          />
-        </label>
-        <form className="personalise-place" onSubmit={findPlace}>
-          <label className="sr-only" htmlFor="personalise-place">
-            Town or city
-          </label>
-          <input
-            id="personalise-place"
-            type="text"
-            className="field"
-            placeholder={located ? weather.label : 'Town or city'}
-            value={place}
-            disabled={busy || locating}
-            onChange={(event) => setPlace(event.target.value)}
-          />
-          <Button type="submit" disabled={busy || locating || !place.trim()}>
-            {locating ? 'Looking…' : 'Find'}
-          </Button>
-        </form>
-        <p className="panel-note">
-          This is the only thing on your desk that leaves this computer. Vela asks Open-Meteo for
-          the temperature at the place you name, at most four times an hour, and sends nothing else
-          — no account, no identifier, and nothing about your apps. The place is looked up once and
-          only its coordinates are kept.
-        </p>
-      </section>
-
-      {note && (
-        <p className="inline-error" role="alert">
-          {note}
-        </p>
-      )}
-    </div>
+      <SettingsGroup
+        title="Weather"
+        footer={
+          <>
+            <SettingsStatus tone="error">{note}</SettingsStatus>
+            <SettingsNote>
+              This is the only thing on your desk that leaves this computer. Vela asks Open-Meteo
+              for the temperature at the place you name, at most four times an hour, and sends
+              nothing else — no account, no identifier, and nothing about your apps. The place is
+              looked up once and only its coordinates are kept.
+            </SettingsNote>
+          </>
+        }
+      >
+        <SettingRow
+          title="Show the weather"
+          description={
+            located
+              ? `The temperature for ${weather.label || 'your place'} on the clock widget.`
+              : 'Name a place below to turn this on.'
+          }
+          toggle={{
+            checked: Boolean(weather.enabled),
+            disabled: busy || !located,
+            onChange: (enabled) => setWeather({ enabled }),
+          }}
+        />
+        <SettingRow
+          title="Place"
+          htmlFor="personalise-place"
+          description={located ? `Now: ${weather.label}.` : 'A town or city.'}
+          control={
+            <form className="set-field-pair" onSubmit={findPlace}>
+              <input
+                id="personalise-place"
+                type="text"
+                placeholder={located ? weather.label : 'Town or city'}
+                value={place}
+                disabled={busy || locating}
+                onChange={(event) => setPlace(event.target.value)}
+              />
+              <Button type="submit" disabled={busy || locating || !place.trim()}>
+                {locating ? 'Looking…' : 'Find'}
+              </Button>
+            </form>
+          }
+        />
+      </SettingsGroup>
+    </>
   );
 }

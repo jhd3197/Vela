@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from ..app_storage import AppServiceError
+from ..connections import _http_path
 from ..errors_http import VelaError
 
 #: The schema version of `desktops.sqlite`. An older Vela cannot read a newer
@@ -158,10 +160,11 @@ def default_appearance() -> dict[str, Any]:
 # ------------------------------------------------------------------ views --
 
 #: What a view can be. `app` is an installed Vela app, `web` an approved site,
-#: `host` one of the owner surfaces below, and `agent` the task window. The last
-#: two are owner chrome: they are never handed to an agent as something to look
-#: at or click, which is why they are a separate kind rather than a flag.
-VIEW_KINDS = ("app", "web", "host", "agent")
+#: `host` one of the owner surfaces below, `agent` the task window, and
+#: `surface` a document an app serves over its http connection that the hub
+#: draws itself. The last three are never handed to an agent as something to
+#: look at or click, which is why they are separate kinds rather than flags.
+VIEW_KINDS = ("app", "web", "host", "agent", "surface")
 
 #: The owner surfaces a `host` view may be. A closed list on purpose — a `host`
 #: view that could name any path would be a way to put the owner's dashboard,
@@ -182,7 +185,6 @@ VIEW_ACTORS = ("human", "agent")
 #: How a desktop's views are arranged. `split` is two panes; either may be empty
 #: while the user decides what goes in it.
 ARRANGEMENTS = ("floating", "maximized", "split")
-
 #: The narrowest either pane may be dragged, as a fraction of the work area.
 MIN_DIVIDER_RATIO = 0.2
 MAX_DIVIDER_RATIO = 0.8
@@ -234,21 +236,34 @@ def validate_view_target(kind: str, target: Any) -> dict[str, Any]:
         app_id = target.get("appId")
         if not isinstance(app_id, str) or not _APP_ID.match(app_id):
             raise DesktopError(422, "An app view names an installed app.")
-        return {"app_id": app_id, "surface_key": None, "url": None}
+        return {"app_id": app_id, "surface_key": None, "url": None, "source": None}
     if kind == "host":
         surface = target.get("surface")
         if surface not in HOST_SURFACES:
             raise DesktopError(422, "That is not a surface this server can open.")
-        return {"app_id": None, "surface_key": surface, "url": None}
+        return {"app_id": None, "surface_key": surface, "url": None, "source": None}
     if kind == "web":
         url = target.get("url")
         if not isinstance(url, str) or not url.startswith(("http://", "https://")):
             raise DesktopError(422, "A web view needs an http or https address.")
         if len(url) > 2000:
             raise DesktopError(422, "That address is too long to store.")
-        return {"app_id": None, "surface_key": None, "url": url}
+        return {"app_id": None, "surface_key": None, "url": url, "source": None}
+    if kind == "surface":
+        app_id = target.get("appId")
+        if not isinstance(app_id, str) or not _APP_ID.match(app_id):
+            raise DesktopError(422, "A surface view names an installed app.")
+        # The path under the app's http connection the document is fetched
+        # from. The same rule the connection itself applies to every path it
+        # sends: one absolute path, no dot segments, no encoded separators —
+        # so a stored view cannot be aimed outside the connection's origin.
+        try:
+            source = _http_path(target.get("source"))
+        except AppServiceError as exc:
+            raise DesktopError(422, str(exc)) from exc
+        return {"app_id": app_id, "surface_key": None, "url": None, "source": source}
     # `agent`: the task window for this desktop. It points at the desktop itself.
-    return {"app_id": None, "surface_key": None, "url": None}
+    return {"app_id": None, "surface_key": None, "url": None, "source": None}
 
 
 def validate_bounds(value: Any) -> dict[str, int] | None:
@@ -320,3 +335,56 @@ def validate_view_state(value: Any) -> dict[str, Any]:
     if len(json.dumps(out)) > 1000:
         raise DesktopError(422, "That view state is too large to store.")
     return out
+
+
+# --------------------------------------------------------------- surfaces --
+
+#: The limits the surface contract puts on one document, enforced when the hub
+#: fetches it. A document over any of them is refused whole — the renderer
+#: never sees the half that did validate.
+MAX_SURFACE_BYTES = 1048576
+MAX_SURFACE_NODES = 1000
+MAX_SURFACE_DEPTH = 8
+
+
+def validate_surface_document(document: Any) -> dict[str, Any]:
+    """A surface document the hub may draw, checked whole before it is served.
+
+    The hub draws the document itself and nothing app-supplied executes, so
+    the checks are about size and shape, not content: a tree too big to walk
+    cheaply is refused rather than trimmed.
+    """
+    if not isinstance(document, dict) or document.get("surface") != 1:
+        raise DesktopError(422, "That surface is in a format this hub cannot draw.")
+    try:
+        size = len(json.dumps(document).encode("utf-8"))
+    except (TypeError, ValueError) as exc:
+        raise DesktopError(422, "That surface document could not be read.") from exc
+    if size > MAX_SURFACE_BYTES:
+        raise DesktopError(422, "That surface document is too large to draw.")
+    nodes, depth = _measure(document.get("root"), 1)
+    if nodes > MAX_SURFACE_NODES:
+        raise DesktopError(422, "That surface has more parts than this hub can draw.")
+    if depth > MAX_SURFACE_DEPTH:
+        raise DesktopError(422, "That surface is nested deeper than this hub can draw.")
+    return document
+
+
+def _measure(value: Any, depth: int = 0) -> tuple[int, int]:
+    """(nodes, deepest level) of a surface tree. Objects are nodes; lists are
+    transparent, so a row in a list nests exactly as deep as the list does."""
+    if isinstance(value, dict):
+        nodes, deepest = 1, depth
+        for child in value.values():
+            child_nodes, child_depth = _measure(child, depth + 1)
+            nodes += child_nodes
+            deepest = max(deepest, child_depth)
+        return nodes, deepest
+    if isinstance(value, list):
+        nodes, deepest = 0, depth
+        for child in value:
+            child_nodes, child_depth = _measure(child, depth)
+            nodes += child_nodes
+            deepest = max(deepest, child_depth)
+        return nodes, deepest
+    return 0, depth

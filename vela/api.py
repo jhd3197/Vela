@@ -160,6 +160,9 @@ def create_app(config: Config | None = None, *, connection_transport=None,
     connected_apps = ConnectedApps(storage)
     app_services = AppServices(registry, auth, storage, guard=guard)
     connections = Connections(registry, storage, transport=connection_transport, guard=guard)
+    # Surface views fetch their documents through this. Attached rather than
+    # passed: the connection service is built from the desktop guard above.
+    desktops.connections = connections
     lifecycle = Lifecycle(config, registry, state, runner, platform, auth, storage, desktops)
     catalog = Catalog(config)
     registry.catalog = catalog

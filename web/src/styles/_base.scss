@@ -53,6 +53,66 @@ a {
   outline-offset: 2px;
 }
 
+/* Every text field, select and textarea starts as a Vela field, never as the
+   browser's default box. `:where()` keeps this at zero specificity, so any
+   component that styles its own field (a search pill, a keypad, a log filter)
+   still wins with a single class, and nothing has to remember to opt in. */
+:where(
+  input:not(
+    [type='checkbox'],
+    [type='radio'],
+    [type='range'],
+    [type='file'],
+    [type='color'],
+    [type='button'],
+    [type='submit'],
+    [type='reset'],
+    [type='image'],
+    [type='hidden']
+  ),
+  select,
+  textarea
+) {
+  min-width: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.4;
+  transition: border-color var(--motion-fast, 140ms) ease;
+}
+
+:where(textarea) {
+  resize: vertical;
+}
+
+:where(input, select, textarea)::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+}
+
+:where(
+  input:not([type='checkbox'], [type='radio'], [type='range']),
+  select,
+  textarea
+):focus-visible {
+  border-color: var(--accent-line);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 0;
+}
+
+:where(input, select, textarea):disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+:where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--accent);
+}
+
 @keyframes velaFlow {
   from {
     background-position: 0% 50%;

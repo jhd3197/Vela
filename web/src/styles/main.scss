@@ -58,11 +58,13 @@
 @use 'components/connected-apps';
 @use 'components/managed-apps';
 @use 'components/settings';
+@use 'components/settings-kit';
 @use 'components/shell-ux';
 @use 'components/security';
 @use 'components/bots';
 @use 'components/desktops';
 @use 'components/agent';
+@use 'components/surface';
 // Last: shared touch, scroll and viewport policies override the modules above.
 @use 'layout/mobile';
 // A television's focus and safe-area policy; inert everywhere else.

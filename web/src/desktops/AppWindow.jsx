@@ -9,6 +9,7 @@ import AppIcon from '../components/AppIcon.jsx';
 import { reportAppActivity } from '../components/SecurityProvider.jsx';
 import { useApps, useAppStatus } from '../store.jsx';
 import { useTopBarItems } from '../shell/TopBarProvider.jsx';
+import { useDesktops } from './DesktopsProvider.jsx';
 import useAppFrame from './view-lifecycle.js';
 
 /** How long the starting state waits before saying so, as the full page does. */
@@ -66,11 +67,26 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBu
   // The top bar's right rail, for as long as this window is open. The bridge
   // sends an empty list on its way out, so nothing has to remember to clear it.
   const topbar = useTopBarItems();
+  const { views } = useDesktops();
   const app = { ...summary, ...status };
   const isolated = summary.schemaVersion === 2;
   const surface = summary.view?.surface || 'embedded';
   const running = Boolean(app.running && app.url && surface === 'embedded' && view.available);
   const [loaded, setLoaded] = useState(false);
+
+  // A surface window the app asks for opens on the desktop this window is on,
+  // and opening the same document again raises it — the server matches on
+  // (appId, source).
+  const openSurface = useCallback(
+    async ({ appId, source, title }) => {
+      if (!views || views.desktopId !== view.desktopId)
+        throw Object.assign(new Error('This window cannot open surfaces right now'), {
+          status: 409,
+        });
+      return views.open({ kind: 'surface', appId, source, title });
+    },
+    [views, view.desktopId],
+  );
 
   // The context a window sends is smaller than the page's: a window has no
   // seamless mode and no exit control inside the frame, so there is no host
@@ -89,6 +105,7 @@ function AppWindowContent({ view, summary, frameRef, onDirty, onDisconnect, onBu
       onDirty?.(state);
     },
     onTopBarItems: (items) => topbar.publish(view.id, view.appId, items),
+    onOpenSurface: openSurface,
   });
 
   contextRef.current = () => ({

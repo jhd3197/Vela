@@ -6,6 +6,13 @@ import { api, relTime } from '../api.js';
 import { useApps } from '../store.jsx';
 import Button from './ui/Button.jsx';
 import Dialog from './ui/Dialog.jsx';
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsNote,
+  SettingsPage,
+  SettingsStatus,
+} from './settings/SettingsKit.jsx';
 
 // Settings › Updates. The copy has to be exact about what leaves this
 // computer, because one request a day to a third party is the only network
@@ -193,112 +200,72 @@ export default function UpdatesSection({ onPendingChange }) {
   const installable = CAN_INSTALL.has(status?.capability);
 
   return (
-    <section className="panel" id="settings-updates">
-      <div className="panel-head">
-        <h2>Updates</h2>
-        <Button size="small" pending={checking} disabled={!status?.check || busy} onClick={check}>
-          <ArrowsClockwise size={14} aria-hidden="true" />
-          Check now
-        </Button>
-      </div>
-
-      {/* What the last update did, said once on the first visit after it. */}
-      {report && (
-        <p
-          className={report.outcome === 'updated' ? 'saved-note' : 'inline-error'}
-          role={report.outcome === 'updated' ? 'status' : 'alert'}
-        >
-          {report.outcome === 'updated'
-            ? `Updated to ${report.to}.`
-            : report.outcome === 'failed'
-              ? `The update to ${report.to} did not finish, and Vela is still on ${report.from}. Nothing was lost — your data was backed up first.`
-              : `The last update stopped: ${report.message}`}
-        </p>
-      )}
-
-      <dl className="fact-grid">
-        <div className="fact">
-          <dt>This server</dt>
-          <dd className="mono">{status?.current || '—'}</dd>
-        </div>
-        <div className="fact">
-          <dt>Latest release</dt>
-          <dd className="mono">{status?.latest || 'Not checked'}</dd>
-        </div>
-        <div className="fact">
-          <dt>Last checked</dt>
-          <dd>{status?.checkedAt ? relTime(status.checkedAt) : 'Never'}</dd>
-        </div>
-      </dl>
-
-      {status?.error && (
-        <p className="panel-note">
-          The last check did not get through: {status.error}. Vela kept what it knew before.
-        </p>
-      )}
-
-      {/* The switch, next to the sentence that says exactly what it stops. */}
-      <div className="settings-row">
-        <div>
-          <h3 id="update-check-label">Check for new versions</h3>
-          <p>
-            Once a day, Vela asks GitHub which release is newest — one anonymous request to
-            github.com. It sends no identifier, no version report and nothing about your apps or
-            your data. Turn this off and Vela makes no request at all; you can still check by hand
-            from the releases page.
-          </p>
-        </div>
-        <button
-          className={`switch${status?.check ? ' switch-on' : ''}`}
-          role="switch"
-          aria-checked={Boolean(status?.check)}
-          aria-labelledby="update-check-label"
-          disabled={busy || !status}
-          onClick={() => save({ check: !status.check })}
+    <SettingsPage id="settings-updates">
+      <SettingsGroup
+        title="This server"
+        aside={
+          <Button size="small" pending={checking} disabled={!status?.check || busy} onClick={check}>
+            <ArrowsClockwise size={14} aria-hidden="true" />
+            Check now
+          </Button>
+        }
+        footer={
+          <>
+            {/* What the last update did, said once on the first visit after it. */}
+            {report && (
+              <SettingsStatus tone={report.outcome === 'updated' ? 'ok' : 'error'}>
+                {report.outcome === 'updated'
+                  ? `Updated to ${report.to}.`
+                  : report.outcome === 'failed'
+                    ? `The update to ${report.to} did not finish, and Vela is still on ${report.from}. Nothing was lost — your data was backed up first.`
+                    : `The last update stopped: ${report.message}`}
+              </SettingsStatus>
+            )}
+            {status?.error && (
+              <SettingsStatus tone="error">
+                The last check did not get through: {status.error}. Vela kept what it knew before.
+              </SettingsStatus>
+            )}
+            {job?.state === 'error' && <SettingsStatus tone="error">{job.message}</SettingsStatus>}
+            {!status?.available && (
+              <SettingsNote>
+                {!status?.check
+                  ? 'Vela is not checking for new versions.'
+                  : status?.checkedAt
+                    ? `Vela ${status.current} is the latest release.`
+                    : 'Vela has not checked yet.'}
+              </SettingsNote>
+            )}
+          </>
+        }
+      >
+        <SettingRow title="Version" value={status?.current || '—'} mono />
+        <SettingRow title="Latest release" value={status?.latest || 'Not checked'} mono />
+        <SettingRow
+          title="Last checked"
+          value={status?.checkedAt ? relTime(status.checkedAt) : 'Never'}
         />
-      </div>
+        {/* Rolling back is offered only where there is a previous version kept. */}
+        {job?.rollback && (
+          <SettingRow
+            title="Previous version"
+            description="Vela kept the version it replaced."
+            control={
+              <Button disabled={busy || working} onClick={rollback}>
+                Go back to the previous version
+              </Button>
+            }
+          />
+        )}
+      </SettingsGroup>
 
-      {/* Installing without being asked is a bigger step than noticing, so it
-          is its own choice and it is off until someone makes it. */}
-      {status?.check && installable && (
-        <div className="settings-row">
-          <div>
-            <h3 id="update-mode-label">When an update is available</h3>
-            <p>
-              Installing automatically happens at {String(status.hour).padStart(2, '0')}:00, and
-              only when nothing is running: no open app, no automation, and no failing health check.
-              Otherwise Vela waits and tries the next day.
-            </p>
-          </div>
-          <div className="seg" role="group" aria-labelledby="update-mode-label">
-            {[
-              ['notify', 'Tell me'],
-              ['auto', 'Install automatically'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={status.mode === value}
-                disabled={busy}
-                className={`seg-opt${status.mode === value ? ' seg-opt-active' : ''}`}
-                onClick={() => save({ mode: value })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {status?.available ? (
-        <>
-          <div className="update-banner">
-            <h3>Vela {status.latest} is available</h3>
-            <p className="panel-note">
-              You are running {status.current}. {CAPABILITY_NOTE[status.capability] || ''}
-            </p>
-            <div className="actions">
-              {installable ? (
+      {status?.available && (
+        <SettingsGroup title={`Vela ${status.latest} is available`}>
+          <SettingRow
+            title="Update"
+            description={`You are running ${status.current}. ${CAPABILITY_NOTE[status.capability] || ''}`}
+            control={
+              installable ? (
                 <Button
                   variant="primary"
                   disabled={busy || restarting}
@@ -310,42 +277,62 @@ export default function UpdatesSection({ onPendingChange }) {
                 <a className="btn btn-primary" href={DOWNLOADS} target="_blank" rel="noreferrer">
                   {status.asset ? `Download ${status.asset.name}` : 'Open the releases page'}
                 </a>
-              )}
-            </div>
+              )
+            }
+          />
+        </SettingsGroup>
+      )}
+
+      {status?.available && status.notes && (
+        <SettingsGroup title="Release notes">
+          <div className="update-notes">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+              {status.notes}
+            </ReactMarkdown>
           </div>
-          {status.notes && (
-            <div className="update-notes">
-              <h3>Release notes</h3>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                {status.notes}
-              </ReactMarkdown>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="panel-note">
-          {!status?.check
-            ? 'Vela is not checking for new versions.'
-            : status?.checkedAt
-              ? `Vela ${status.current} is the latest release.`
-              : 'Vela has not checked yet.'}
-        </p>
+        </SettingsGroup>
       )}
 
-      {job?.state === 'error' && (
-        <p className="inline-error" role="alert">
-          {job.message}
-        </p>
-      )}
-
-      {/* Rolling back is offered only where there is a previous version kept. */}
-      {job?.rollback && (
-        <div className="actions">
-          <Button disabled={busy || working} onClick={rollback}>
-            Go back to the previous version
-          </Button>
-        </div>
-      )}
+      <SettingsGroup title="Automatic updates">
+        {/* The switch, next to the sentence that says exactly what it stops. */}
+        <SettingRow
+          title="Check for new versions"
+          description="Once a day, Vela asks GitHub which release is newest — one anonymous request to github.com. It sends no identifier, no version report and nothing about your apps or your data. Turn this off and Vela makes no request at all; you can still check by hand from the releases page."
+          toggle={{
+            checked: Boolean(status?.check),
+            disabled: busy || !status,
+            onChange: () => save({ check: !status.check }),
+          }}
+        />
+        {/* Installing without being asked is a bigger step than noticing, so it
+            is its own choice and it is off until someone makes it. */}
+        {status?.check && installable && (
+          <SettingRow
+            title="When an update is available"
+            titleId="update-mode-label"
+            description={`Installing automatically happens at ${String(status.hour).padStart(2, '0')}:00, and only when nothing is running: no open app, no automation, and no failing health check. Otherwise Vela waits and tries the next day.`}
+            control={
+              <div className="seg" role="group" aria-labelledby="update-mode-label">
+                {[
+                  ['notify', 'Tell me'],
+                  ['auto', 'Install automatically'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={status.mode === value}
+                    disabled={busy}
+                    className={`seg-opt${status.mode === value ? ' seg-opt-active' : ''}`}
+                    onClick={() => save({ mode: value })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+        )}
+      </SettingsGroup>
 
       {/* Installing replaces Vela with another copy of Vela, so it says what
           will happen before it starts. */}
@@ -395,6 +382,6 @@ export default function UpdatesSection({ onPendingChange }) {
           </div>
         </div>
       )}
-    </section>
+    </SettingsPage>
   );
 }

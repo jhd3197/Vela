@@ -13,13 +13,12 @@ from typing import Any
 
 from ..app_storage import AppServiceError
 from ..desktops.models import DesktopError, validate_id
+from .driver import Driver
 from .model import OllamaAdapter
 from .retention import Retention
-from .store import RunStore
+from .store import MAX_CLIENT_REQUEST_ID, RunStore
 from .supervisor import Supervisor
 from .viewer import Viewer
-
-MAX_CLIENT_REQUEST_ID = 100
 
 
 class AgentRuns:
@@ -40,6 +39,12 @@ class AgentRuns:
         # answers to "who has control".
         self.viewer = Viewer(desktops, self)
         self.supervisor.leases = self.viewer.leases
+        # The controller-driven counterpart of the loop above: the controller
+        # decides, Vela executes through the same tools, checks and budgets.
+        # Built after the viewer because taking over has to stop a driven run
+        # exactly as it stops a loop run.
+        self.driver = Driver(desktops, self.store, self.supervisor)
+        self.supervisor.driver = self.driver
         # Deciding whether a website request may be sent has to name the run it
         # belongs to, and that decision is made inside the desktop service where
         # the policy and the grants are.

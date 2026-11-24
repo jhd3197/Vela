@@ -135,9 +135,84 @@ function SecretForm({ app, setupOnly }) {
   );
 }
 
+// An app whose service is self-hosted: the owner supplies the address (a
+// public https URL, or a LAN address), then the secret. Changing the address
+// clears the saved key — the engine drops it, because the old key belongs to
+// the old origin — and this says so where the change is made.
+function SelfHostedForm({ app, setupOnly }) {
+  const [endpoint, setEndpoint] = useState('');
+  const [updated, setUpdated] = useState(null);
+  const load = useCallback((options) => api.getConnection(app.id, options), [app.id]);
+  const { data, error: loadError, loading } = useResource(load);
+  const { run, pending, error } = useAsyncAction();
+  const status = updated ?? data;
+
+  useEffect(() => {
+    if (data) setEndpoint(data.endpoint || '');
+  }, [data]);
+
+  const saveAddress = async () => {
+    const result = await run(() => api.bindConnection(app.id, endpoint.trim()));
+    if (result) setUpdated(result.value);
+  };
+  const failure = error || (!updated && loadError);
+
+  const addressSet = Boolean(status?.addressSet);
+  const configured = Boolean(status?.secret?.configured);
+  const spec = status?.secret ?? app.connection.secret;
+  const done = addressSet && (configured || !spec?.required);
+  // Above the app, only an unfinished setup earns space.
+  if (setupOnly && done) return null;
+
+  const host = status?.endpoint ? new URL(status.endpoint).host : null;
+  return (
+    <>
+      <details className="app-migration" open={!addressSet}>
+        <summary>Service address {host ? `· ${host}` : '· Setup'}</summary>
+        <p>
+          Where this {app.name} service runs: a public https address, or an http or https address on
+          this network. It is reached from your Vela engine.
+          {configured
+            ? ' Changing the address clears the saved key, and you will save it again for the new one.'
+            : ''}
+        </p>
+        <FormField label="Service address">
+          <input
+            id={`endpoint-${app.id}`}
+            className="connection-input"
+            value={endpoint}
+            placeholder="https://panel.example.com or http://192.168.1.20:8080"
+            disabled={pending || loading}
+            onChange={(event) => setEndpoint(event.target.value)}
+          />
+        </FormField>
+        <div className="actions">
+          <Button
+            size="small"
+            pending={pending}
+            disabled={loading || !endpoint.trim()}
+            onClick={saveAddress}
+          >
+            Save address
+          </Button>
+        </div>
+        {failure && <p role="alert">{failure.message}</p>}
+      </details>
+      {/* Remounted when the address changes, so the key form learns that the
+          saved key went with the old address. */}
+      {addressSet ? (
+        <SecretForm key={`${app.id}-${status?.endpoint}`} app={app} setupOnly={setupOnly} />
+      ) : null}
+    </>
+  );
+}
+
 export default function AppConnection({ app, setupOnly = false }) {
   if (!app.connection || !app.installed) return null;
-  if (app.connection.provider === 'http')
+  if (app.connection.provider === 'http') {
+    if (app.connection.selfHosted)
+      return <SelfHostedForm key={app.id} app={app} setupOnly={setupOnly} />;
     return <SecretForm key={app.id} app={app} setupOnly={setupOnly} />;
+  }
   return <ConnectionForm key={app.id} app={app} setupOnly={setupOnly} />;
 }

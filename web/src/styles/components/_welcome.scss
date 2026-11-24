@@ -197,27 +197,28 @@
     min-height: 44px;
   }
 }
-.phone-setup-settings {
-  padding: 0 var(--space-7) var(--space-7);
+/* The phone handoff drawn inside a settings row (Settings › General): the row
+   already spaces its body, so the handoff adds no margin of its own. */
+.welcome-handoff-inline {
+  margin-top: 0;
 }
-.settings-devices {
-  padding-bottom: var(--space-7);
-  border-top: 1px solid var(--border);
-  > .phone-note,
-  > .welcome-handoff,
-  > .settings-devices-tv {
-    padding: 0 var(--space-7);
-  }
-}
-.settings-devices-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
+/* Pairing a TV, in the body of its settings row. */
 .settings-devices-tv {
   display: grid;
   gap: var(--space-3);
-  margin-bottom: var(--space-5);
+  max-width: 460px;
+  p,
+  h3 {
+    margin: 0;
+  }
+  h3 {
+    font-size: var(--text-md);
+  }
+  p {
+    color: var(--text-dim);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+  }
 }
 
 .phone-connection-details {

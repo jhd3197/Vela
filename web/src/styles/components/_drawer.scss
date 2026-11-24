@@ -233,26 +233,8 @@
 }
 /* ---------- Personalise ---------- */
 
-.personalise-section + .personalise-section {
-  margin-top: var(--space-7);
-}
-
-/* In Settings › Appearance, under light and dark: which desktop these choices
-   dress, since each desktop keeps its own. */
-.personalise {
-  margin-top: var(--space-7);
-}
-
-.personalise-scope {
-  margin: 0 0 var(--space-5);
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.personalise-scope strong {
-  color: var(--text);
-  font-weight: 600;
-}
+/* The pickers below sit in the body of a settings-kit row (Settings ›
+   Appearance); the rows, switches and fields around them are the kit's. */
 
 /* ---------- the theme picker ---------- */
 
@@ -261,7 +243,6 @@
    are using. The strip is drawn from the theme's own tokens rather than from a
    picture, so a theme shows what it will actually do. */
 .personalise-themes {
-  margin-top: var(--space-4);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   gap: var(--space-4);
@@ -335,7 +316,6 @@
 }
 
 .personalise-walls {
-  margin-top: var(--space-4);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: var(--space-4);
@@ -393,50 +373,6 @@
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-sm);
-}
-
-.personalise-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13.5px;
-}
-
-.personalise-row:last-child {
-  border-bottom: none;
-}
-
-.personalise-row span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.personalise-row small {
-  color: var(--text-faint);
-  font-size: var(--text-xs);
-}
-
-.personalise-row input[type='checkbox'] {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
-}
-
-/* Naming the place the weather is for. A field and its button on one row. */
-.personalise-place {
-  display: flex;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 0;
-}
-
-.personalise-place .field {
-  flex: 1;
-  min-width: 0;
 }
 
 /* The two names asked once on first run, above the phone handoff. */
