@@ -6,6 +6,8 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-24
+
 ### Added
 
 - **Controller mode: watchers, an activity line, richer take-over input, and
