@@ -216,9 +216,11 @@ POST /api/desktops/{id}/driven-runs/{runId}/steps
   person (a sign-in, a challenge). The run is paused; it continues only when
   someone says carry on (see below).
 
-Every answer also carries `"budget"`, the run's live counters. Steps are
-idempotent on `clientStepId`: a retried POST returns the recorded answer and
-never repeats the call's effect; the same id with a different call is a `409`.
+Every answer also carries `"budget"`, the run's counters as that step
+answered. Steps are idempotent on `clientStepId`: a retried POST returns the
+recorded answer — the same body and the same counters, never a second
+execution of the call; the same id with a different call is a `409`. The
+run's live counters are on its record: `GET /api/desktops/{id}/tasks/{runId}`.
 
 ### Approvals: ask, wait, read back
 

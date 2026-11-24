@@ -139,6 +139,14 @@ until the release workflow prepares a tested server version.
   bind and listen in one step, like the real services they stand in for.
   No engine or dashboard behavior changes.
 
+- **A retried driven-run step returns the recorded answer, budget included.**
+  `POST .../driven-runs/{runId}/steps` is idempotent on `clientStepId`, but
+  the replayed answer rebuilt the run's budget live, so a retry could report
+  different `activeSeconds` than the answer it was repeating. The budget is
+  now recorded with the step's answer and returned unchanged on a retry; the
+  run record (`GET /api/desktops/{id}/tasks/{runId}`) remains the place for
+  the run's live counters.
+
 ## 0.1.21 - 2026-10-01
 
 No additional release notes were provided.
