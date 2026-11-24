@@ -60,7 +60,7 @@ class TerminalUnitTests(unittest.TestCase):
     """The pieces that need no server: the env contract, clipping, the listing."""
 
     def test_the_shell_environment_is_built_never_inherited(self):
-        workspace = Path(tempfile.mkdtemp(prefix="vela-env-"))
+        workspace = Path(tempfile.mkdtemp(prefix="vela-env-")).resolve()
         env = shell_env(workspace, "/bin/sh")
         # Everything points at the workspace; PATH starts at its .local/bin so
         # what a bot installs there is what the shell finds first.
@@ -115,7 +115,10 @@ class ControllerTerminalTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-terminal-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        # Resolved, because the terminal reports real paths and this root is
+        # compared to them: the temp directory can be a symlink (on macOS
+        # /var is /private/var).
+        root = Path(self.directory.name).resolve()
         self.workspace = root / "workspace"
         self.token_file = write_token_file(root)
         self.environment = patch.dict(os.environ, {
@@ -580,7 +583,7 @@ class ModeBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-terminal-mode-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        root = Path(self.directory.name).resolve()
         self.workspace = root / "workspace"
         self.environment = patch.dict(os.environ, {
             "VELA_DATA_DIR": str(root / "data"),
@@ -634,7 +637,7 @@ class UnsupportedPlatformTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-terminal-nopty-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        root = Path(self.directory.name).resolve()
         self.workspace = root / "workspace"
         self.token_file = write_token_file(root)
         self.environment = patch.dict(os.environ, {
