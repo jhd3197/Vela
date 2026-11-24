@@ -142,7 +142,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace["writable"])
         self.assertTrue(workspace["reachable"])
         # It browses through the ordinary Files app routes.
-        (self.workspace / "hello.txt").write_text("hi", encoding="utf-8")
+        (self.workspace / "hello.txt").write_bytes(b"hi")
         (self.workspace / "src").mkdir()
         listed = self.client.get("/api/files/workspace", headers=self.headers)
         self.assertEqual(listed.status_code, 200, listed.text)
@@ -152,7 +152,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
 
     def test_workspace_delete_uses_the_existing_trash(self):
         victim = self.workspace / "gone.txt"
-        victim.write_text("bye", encoding="utf-8")
+        victim.write_bytes(b"bye")
         deleted = self.client.delete(
             "/api/files/workspace", headers=self.headers, params={"path": "gone.txt"}
         )
@@ -192,7 +192,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.finish(run["id"])
 
     def test_reads_are_sliced_and_capped(self):
-        (self.workspace / "big.txt").write_text("0123456789" * 5000, encoding="utf-8")
+        (self.workspace / "big.txt").write_bytes(b"0123456789" * 5000)
         run = self.create().json()
         sliced = self.tool_result(
             run["id"], "workspace_read", {"path": "big.txt", "offset": 5, "limit": 10}
@@ -226,7 +226,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         # Bigger than the editor opens, smaller than a read refuses: the read
         # tool pages through it, the editor says why it will not show it.
         big = self.workspace / "big.txt"
-        big.write_text("x" * (MAX_FILE_BYTES + 1), encoding="utf-8")
+        big.write_bytes(b"x" * (MAX_FILE_BYTES + 1))
         run = self.create().json()
         read = self.tool_result(run["id"], "workspace_read", {"path": "big.txt", "limit": 10})
         self.assertEqual(read["content"], "x" * 10)
@@ -250,8 +250,8 @@ class ControllerWorkspaceTests(unittest.TestCase):
 
     def test_paths_cannot_leave_the_workspace(self):
         outside = Path(self.directory.name) / "outside.txt"
-        outside.write_text("secret", encoding="utf-8")
-        (self.workspace / "in.txt").write_text("in", encoding="utf-8")
+        outside.write_bytes(b"secret")
+        (self.workspace / "in.txt").write_bytes(b"in")
         run = self.create().json()
         for path in ("../outside.txt", "..", "/etc/passwd" if os.name == "posix"
                      else str(Path("C:/Windows/system.ini").root) + "Windows"):
@@ -269,7 +269,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
 
     def test_a_symlink_pointing_out_of_the_workspace_is_refused(self):
         outside = Path(self.directory.name) / "outside.txt"
-        outside.write_text("secret", encoding="utf-8")
+        outside.write_bytes(b"secret")
         link = self.workspace / "link.txt"
         try:
             link.symlink_to(outside)
@@ -283,12 +283,12 @@ class ControllerWorkspaceTests(unittest.TestCase):
     # ---- revisions and conflicts
 
     def test_a_stale_save_is_refused_with_a_clear_conflict(self):
-        (self.workspace / "notes.txt").write_text("first\n", encoding="utf-8")
+        (self.workspace / "notes.txt").write_bytes(b"first\n")
         run = self.create().json()
         read = self.tool_result(run["id"], "workspace_read", {"path": "notes.txt"})
 
         # Somebody else saves first.
-        (self.workspace / "notes.txt").write_text("second\n", encoding="utf-8")
+        (self.workspace / "notes.txt").write_bytes(b"second\n")
 
         stale = self.tool_refusal(
             run["id"], "workspace_write",
@@ -297,7 +297,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.assertEqual(stale["code"], "conflict")
         self.assertIn("Read it again", stale["detail"])
         # The refused save changed nothing.
-        self.assertEqual((self.workspace / "notes.txt").read_text(encoding="utf-8"), "second\n")
+        self.assertEqual((self.workspace / "notes.txt").read_bytes(), b"second\n")
 
         # The fresh revision saves.
         fresh = self.tool_result(
@@ -316,10 +316,38 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.assertTrue(blind["revision"])
         self.finish(run["id"])
 
+    def test_a_save_round_trips_newlines_exactly(self):
+        # The bytes on disk are the bytes that were sent, whichever door the
+        # save came through: no CRLF translation on any platform.
+        mixed = "unix\nwindows\r\nlone\rcarriage\n"
+        run = self.create().json()
+        saved = self.tool_result(
+            run["id"], "workspace_write", {"path": "mixed.txt", "content": mixed}
+        )
+        self.assertEqual(saved["revision"], revision_of(mixed.encode("utf-8")))
+        self.assertEqual(
+            (self.workspace / "mixed.txt").read_bytes(), mixed.encode("utf-8")
+        )
+        read = self.tool_result(run["id"], "workspace_read", {"path": "mixed.txt"})
+        self.assertEqual(read["content"], mixed)
+
+        replaced = "carriage\rreturn\n"
+        put = self.client.put(
+            f"/api/desktops/{self.desktop}/editor/content",
+            headers=self.headers,
+            json={"path": "mixed.txt", "content": replaced,
+                  "expectedRevision": read["revision"]},
+        )
+        self.assertEqual(put.status_code, 200, put.text)
+        self.assertEqual(
+            (self.workspace / "mixed.txt").read_bytes(), replaced.encode("utf-8")
+        )
+        self.finish(run["id"])
+
     # ---- the editor window
 
     def test_editor_open_focuses_one_window_and_frames_serve_a_watcher(self):
-        (self.workspace / "plan.txt").write_text("step one\n", encoding="utf-8")
+        (self.workspace / "plan.txt").write_bytes(b"step one\n")
         run = self.create().json()
         opened = self.tool_result(run["id"], "editor_open", {"path": "plan.txt"})
         self.assertEqual(opened["path"], "plan.txt")
@@ -382,7 +410,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.finish(run["id"])
 
     def test_closing_the_window_closes_the_editor(self):
-        (self.workspace / "plan.txt").write_text("text\n", encoding="utf-8")
+        (self.workspace / "plan.txt").write_bytes(b"text\n")
         run = self.create().json()
         opened = self.tool_result(run["id"], "editor_open", {"path": "plan.txt"})
         closed = self.client.delete(
@@ -403,7 +431,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
             return {"controlEpoch": 1}
 
         self.desktops.runtime.command = fake_command
-        (self.workspace / "draft.txt").write_text("bot words\n", encoding="utf-8")
+        (self.workspace / "draft.txt").write_bytes(b"bot words\n")
         run = self.create().json()
         opened = self.tool_result(run["id"], "editor_open", {"path": "draft.txt"})
 
@@ -428,7 +456,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         )
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(
-            (self.workspace / "draft.txt").read_text(encoding="utf-8"), "person words\n"
+            (self.workspace / "draft.txt").read_bytes(), b"person words\n"
         )
 
         # Clicks are not something an editor takes.
@@ -459,7 +487,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
     # ---- the controller's own routes
 
     def test_the_controller_content_routes_read_and_write_with_revision(self):
-        (self.workspace / "doc.txt").write_text("before\n", encoding="utf-8")
+        (self.workspace / "doc.txt").write_bytes(b"before\n")
         read = self.client.get(
             f"/api/desktops/{self.desktop}/editor/content",
             headers=self.headers,
@@ -486,7 +514,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         )
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(saved.json()["revision"], revision_of(b"after\n"))
-        self.assertEqual((self.workspace / "doc.txt").read_text(encoding="utf-8"), "after\n")
+        self.assertEqual((self.workspace / "doc.txt").read_bytes(), b"after\n")
 
         # The ordinary routes keep the same refusals.
         missing = self.client.get(
@@ -497,7 +525,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 403, missing.text)
 
     def test_the_editor_route_opens_and_focuses(self):
-        (self.workspace / "doc.txt").write_text("words\n", encoding="utf-8")
+        (self.workspace / "doc.txt").write_bytes(b"words\n")
         opened = self.client.post(
             f"/api/desktops/{self.desktop}/editor",
             headers=self.headers,
@@ -525,7 +553,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
     # ---- events and discovery
 
     def test_activity_is_written_to_the_event_line(self):
-        (self.workspace / "plan.txt").write_text("one\n", encoding="utf-8")
+        (self.workspace / "plan.txt").write_bytes(b"one\n")
         run = self.create().json()
         self.tool_result(run["id"], "editor_open", {"path": "plan.txt"})
         self.tool_result(run["id"], "workspace_read", {"path": "plan.txt"})
@@ -566,7 +594,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
     # ---- lifecycle
 
     def test_editor_windows_die_with_the_desktop(self):
-        (self.workspace / "plan.txt").write_text("one\n", encoding="utf-8")
+        (self.workspace / "plan.txt").write_bytes(b"one\n")
         run = self.create().json()
         opened = self.tool_result(run["id"], "editor_open", {"path": "plan.txt"})
         self.finish(run["id"])
@@ -579,7 +607,7 @@ class ControllerWorkspaceTests(unittest.TestCase):
         ).json()["views"]
         self.assertNotIn(opened["viewId"], [item["id"] for item in views])
         # The file it showed is untouched, of course.
-        self.assertEqual((self.workspace / "plan.txt").read_text(encoding="utf-8"), "one\n")
+        self.assertEqual((self.workspace / "plan.txt").read_bytes(), b"one\n")
 
 
 class ModeBoundaryTests(unittest.TestCase):
