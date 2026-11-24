@@ -56,6 +56,32 @@ TEXT_FLOW = document(
 )
 
 
+def frozen_clock(moment):
+    """A datetime whose now() never moves, for patching a module's clock."""
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            local = moment.astimezone()
+            return local.astimezone(tz) if tz else local.replace(tzinfo=None)
+    return Frozen
+
+
+def use_timezone(case, name):
+    """Run one test in another timezone, putting the process back after."""
+    previous = os.environ.get('TZ')
+    os.environ['TZ'] = name
+    time.tzset()
+
+    def restore():
+        if previous is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = previous
+        time.tzset()
+
+    case.addCleanup(restore)
+
+
 class DocumentTests(unittest.TestCase):
     """Validation decides what can be stored and what can be run."""
 
@@ -332,16 +358,27 @@ class AutomationApiTests(unittest.TestCase):
 
         workflow = self.create('Counted')
         self.save(workflow, TEXT_FLOW)
-        now = datetime.now(timezone.utc)
+        # "Today" is the server's local day, so the rows are placed around the
+        # local start of day and the service's clock is stopped: the counts
+        # must come out the same at any wall-clock hour, in any timezone the
+        # suite runs under. The date is one no clock change touches, and the
+        # rows are stored as UTC instants, the way the store writes them.
+        moment = datetime(2026, 6, 15, 14, 0, tzinfo=timezone.utc)
+        midnight = datetime.combine(moment.astimezone().date(),
+                                    datetime.min.time()).astimezone()
+
+        def at(local):
+            return local.astimezone(timezone.utc).isoformat()
+
         rows = [
-            # Queued a minute ago: today, succeeded, two seconds long.
-            ((now - timedelta(minutes=1)).isoformat(), 'succeeded',
-             (now - timedelta(minutes=1)).isoformat(),
-             (now - timedelta(minutes=1) + timedelta(seconds=2)).isoformat()),
-            # Also today, and failed.
-            ((now - timedelta(minutes=2)).isoformat(), 'failed', None, None),
-            # Yesterday: outside the window, so neither count moves.
-            ((now - timedelta(days=1, hours=2)).isoformat(), 'succeeded', None, None),
+            # A minute into the local day: today, succeeded, two seconds long.
+            (at(midnight + timedelta(minutes=1)), 'succeeded',
+             at(midnight + timedelta(minutes=1)),
+             at(midnight + timedelta(minutes=1, seconds=2))),
+            # Later the same day, and failed.
+            (at(midnight + timedelta(hours=2)), 'failed', None, None),
+            # A minute before the local day began: yesterday, outside the window.
+            (at(midnight - timedelta(minutes=1)), 'succeeded', None, None),
         ]
         store = self.client.app.state.automations.store
         with store.connection() as db:
@@ -351,7 +388,8 @@ class AutomationApiTests(unittest.TestCase):
                     'started_at, finished_at) VALUES (?,?,?,?,?,?,?,?)',
                     (f'run-{index}', workflow['id'], 1, state, 'manual', queued, started, finished))
 
-        status = self.client.get('/api/automations/status', headers=self.hub).json()
+        with mock.patch('vela.automations.service.datetime', frozen_clock(moment)):
+            status = self.client.get('/api/automations/status', headers=self.hub).json()
         self.assertEqual(status['runsToday'], 2)
         self.assertEqual(status['failuresToday'], 1)
         self.assertEqual(status['averageDurationMs'], 2000)
@@ -365,6 +403,41 @@ class AutomationApiTests(unittest.TestCase):
         self.assertEqual(week[-1], 2, 'today is the last bar')
         self.assertEqual(week[-2], 1, "yesterday's run is still on the chart")
         self.assertEqual(week[:5], [0, 0, 0, 0, 0])
+
+    @unittest.skipUnless(hasattr(time, 'tzset'), 'time.tzset is not available on Windows')
+    def test_the_week_chart_follows_local_days_across_a_clock_change(self):
+        """Each bar is one local day, so a midnight on the far side of a clock
+        change is still where that day's runs are counted."""
+        use_timezone(self, 'America/New_York')
+        workflow = self.create('Clock change')
+        self.save(workflow, TEXT_FLOW)
+        # US clocks fell back on 1 November 2026, so that day's midnight was
+        # an hour ahead of the offset the 3rd is on. Fixed "now": noon on the
+        # 3rd, local.
+        moment = datetime(2026, 11, 3, 17, 0, tzinfo=timezone.utc)
+        rows = [
+            # 00:30 local on 1 November, while the offset was still -04:00.
+            ('2026-11-01T04:30:00+00:00', 'succeeded'),
+            # 00:30 local on 2 November, already on the new offset.
+            ('2026-11-02T05:30:00+00:00', 'succeeded'),
+            # This morning, local.
+            ('2026-11-03T14:00:00+00:00', 'failed'),
+        ]
+        store = self.client.app.state.automations.store
+        with store.connection() as db:
+            for index, (queued, state) in enumerate(rows):
+                db.execute(
+                    'INSERT INTO runs (id, workflow_id, revision, status, trigger, queued_at) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (f'run-{index}', workflow['id'], 1, state, 'manual', queued))
+
+        with mock.patch('vela.automations.service.datetime', frozen_clock(moment)):
+            status = self.client.get('/api/automations/status', headers=self.hub).json()
+        self.assertEqual(status['runsToday'], 1)
+        self.assertEqual(status['failuresToday'], 1)
+        # 28 October through 3 November: the run from the hour a fixed offset
+        # gets wrong stays on 1 November's bar.
+        self.assertEqual(status['runsPerDay'], [0, 0, 0, 0, 1, 1, 1])
 
     def test_the_week_of_runs_does_not_change_the_listing(self):
         """The desk asked for per-day counts; nothing else did.

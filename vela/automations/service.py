@@ -143,17 +143,15 @@ class Automations:
         converted before it is compared.
         """
         now = datetime.now().astimezone()
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         # Each local day's own midnight, then the instant the last one ends.
-        # Built from local dates rather than by subtracting 24 hours, so a week
-        # containing a clock change still has seven days in it.
-        starts = [
-            datetime.combine((midnight - timedelta(days=offset)).date(), dtime(),
-                             tzinfo=now.tzinfo)
-            for offset in range(6, -1, -1)
-        ]
-        bounds = [moment.astimezone(timezone.utc).isoformat()
-                  for moment in starts + [midnight + timedelta(days=1)]]
+        # Every boundary is its own date's midnight by the local clock rather
+        # than a fixed offset carried over from now, so a week containing a
+        # clock change still has seven days in it, one of them an hour shorter
+        # or longer than the rest.
+        dates = [now.date() - timedelta(days=offset) for offset in range(6, -1, -1)]
+        dates.append(now.date() + timedelta(days=1))
+        bounds = [datetime.combine(day, dtime()).astimezone(timezone.utc).isoformat()
+                  for day in dates]
         stats = self.store.run_statistics(bounds[-2], bounds)
         average = stats.get('averageSeconds')
         # Seven entries, oldest first, with a zero for a day nothing ran. A gap
