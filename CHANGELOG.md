@@ -6,21 +6,6 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
-### Fixed
-
-- **Opening any desktop window no longer fails on a database an older server
-  release also uses.** Adding the surface window's column changed the views
-  table's shape; writes now name their columns, so they land correctly on
-  both freshly created and in-place migrated databases. (Older releases
-  sharing the file still cannot write to the migrated table — run only one
-  server version against a data directory.)
-
-- **Container deployments honor `VELA_PORT` for the listener.** The
-  container entrypoint read `VELA_PORT` for its gateway configuration but
-  still bound uvicorn to 7700, so a second instance mapped to another host
-  port never answered. It now binds the configured port, and one host can
-  run several Vela containers side by side.
-
 ### Added
 
 - **Controller mode: a driver API for step-by-step agent runs.** A
@@ -102,6 +87,56 @@ until the release workflow prepares a tested server version.
   shows are inert for now: the viewer is read-only. See
   [the app contract](docs/CONTRACT.md#app-served-surface-windows).
 
+### Changed
+
+- **Settings has one consistent layout.** Every section now uses the same
+  pattern: a heading, a card of settings, then that group's buttons and
+  messages. Each setting shows its name and a sentence on the left and its
+  control on the right. Every on/off choice is a switch. This replaces the
+  mix of On/Off buttons, checkboxes and chips. Facts like the version or the
+  data folder are rows in the same cards. A save error now appears under the
+  group it belongs to, not at the top or bottom of the window. Text fields,
+  dropdowns and text boxes look the same everywhere in the dashboard.
+  Notification events are switches with a line saying what each one sends.
+  For contributors, settings screens are built from
+  `components/settings/SettingsKit.jsx`, described in
+  [the design system](docs/DESIGN.md#settings-surfaces). Two new check-time
+  guards fail the build if a settings screen goes back to the old classes, or
+  if a stylesheet is never imported.
+
+- **Contributors branch off `dev` for each change.** Work now lands through a
+  short-lived feature branch and a pull request with green checks, merged
+  with a regular merge commit (never squash); only the reviewed `dev` →
+  `main` promotion releases.
+
+### Fixed
+
+- **Opening any desktop window no longer fails on a database an older server
+  release also uses.** Adding the surface window's column changed the views
+  table's shape; writes now name their columns, so they land correctly on
+  both freshly created and in-place migrated databases. (Older releases
+  sharing the file still cannot write to the migrated table — run only one
+  server version against a data directory.)
+
+- **Container deployments honor `VELA_PORT` for the listener.** The
+  container entrypoint read `VELA_PORT` for its gateway configuration but
+  still bound uvicorn to 7700, so a second instance mapped to another host
+  port never answered. It now binds the configured port, and one host can
+  run several Vela containers side by side.
+
+- **The name fields in Settings › General are styled again.** Their styles
+  were in a stylesheet nothing imported, so they showed as plain browser
+  boxes. Buttons in Settings were also drawn at body size instead of button
+  size.
+
+## 0.1.21 - 2026-10-01
+
+No additional release notes were provided.
+
+## 0.1.20 - 2026-09-30
+
+### Added
+
 - **Apps can use web APIs that need a key or token.** An app can now declare
   one public HTTPS service it talks to, such as `api.github.com`. The install
   review names that address. Paste the service's API key or token into the
@@ -141,21 +176,6 @@ until the release workflow prepares a tested server version.
   in front, minimized, maximized or in one half.
 
 ### Changed
-
-- **Settings has one consistent layout.** Every section now uses the same
-  pattern: a heading, a card of settings, then that group's buttons and
-  messages. Each setting shows its name and a sentence on the left and its
-  control on the right. Every on/off choice is a switch. This replaces the
-  mix of On/Off buttons, checkboxes and chips. Facts like the version or the
-  data folder are rows in the same cards. A save error now appears under the
-  group it belongs to, not at the top or bottom of the window. Text fields,
-  dropdowns and text boxes look the same everywhere in the dashboard.
-  Notification events are switches with a line saying what each one sends.
-  For contributors, settings screens are built from
-  `components/settings/SettingsKit.jsx`, described in
-  [the design system](docs/DESIGN.md#settings-surfaces). Two new check-time
-  guards fail the build if a settings screen goes back to the old classes, or
-  if a stylesheet is never imported.
 
 - **The top bar sits beside the rail.** The rail now runs the full height of
   the window and the top bar starts beside it. The bar stays blank on an empty
@@ -201,11 +221,6 @@ until the release workflow prepares a tested server version.
   tests` still runs the same suite serially.
 
 ### Fixed
-
-- **The name fields in Settings › General are styled again.** Their styles
-  were in a stylesheet nothing imported, so they showed as plain browser
-  boxes. Buttons in Settings were also drawn at body size instead of button
-  size.
 
 - **Settings on a phone respects reduced motion.** With reduced motion turned
   on, the Settings screens no longer slide in.
