@@ -64,7 +64,9 @@ class ControllerWorkspaceTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-editor-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        # Resolved, because the share's reported path is compared to this and
+        # the temp directory can be a symlink (on macOS /var is /private/var).
+        root = Path(self.directory.name).resolve()
         self.workspace = root / "workspace"
         self.workspace.mkdir()
         self.token_file = write_token_file(root)
@@ -615,7 +617,7 @@ class ModeBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-editor-mode-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        root = Path(self.directory.name).resolve()
         self.workspace = root / "workspace"
         self.workspace.mkdir()
         self.environment = patch.dict(os.environ, {

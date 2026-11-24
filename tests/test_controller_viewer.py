@@ -418,7 +418,10 @@ class ControllerViewerTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="vela-vp6-")
         self.addCleanup(self.directory.cleanup)
-        root = Path(self.directory.name)
+        # Resolved, because paths under this root reach the server through
+        # VELA_WORKSPACE_DIR and the temp directory can be a symlink (on
+        # macOS /var is /private/var).
+        root = Path(self.directory.name).resolve()
         self.catalog = root / "catalog"
         shutil.copytree(FIXTURE_APPS / "notes", self.catalog / "notes")
         self.workspace = root / "workspace"
