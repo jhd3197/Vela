@@ -14,8 +14,7 @@ until the release workflow prepares a tested server version.
   `person` or `controller` kind, a 20-second expiry — and
   `GET /api/desktops/{id}/viewer` reports the current watchers as counts and
   kinds only (never ids), so watching can keep a bot's computer awake; the
-  dashboard's own viewer heartbeats while it watches, and the route works in
-  every mode. The same read now carries `activity`: one short line derived
+  route works in every mode. The same read now carries `activity`: one short line derived
   from the step actually running ("Running npm run dev", "Clicking 'Re-run
   failed jobs'" from the observed control's own name), written by both the
   driven-run protocol and Vela's own loop, shown only while the run is
