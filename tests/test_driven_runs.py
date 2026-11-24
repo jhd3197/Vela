@@ -308,6 +308,19 @@ class ControllerDrivenTests(unittest.TestCase):
         conflict = self.step(run["id"], "desktop.observe", {}, "save-1")
         self.assertEqual(conflict.status_code, 409, conflict.text)
 
+    def test_a_retried_step_reads_back_the_recorded_budget(self):
+        run = self.create().json()
+        first = self.step(run["id"], "desktop.observe", {}, "look-1")
+        self.assertEqual(first.status_code, 200, first.text)
+        # Time the run spends after answering belongs to the run record, not
+        # to the answer a retry reads back: the budget was recorded with the
+        # answer, so the retry is the same answer however much later it comes.
+        self.runs.supervisor._budgets[run["id"]].seconds_used += 5
+        second = self.step(run["id"], "desktop.observe", {}, "look-1")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json(), first.json())
+        self.assertEqual(len(self.runs.supervisor.tools.calls), 1)
+
     def test_a_refused_call_comes_back_as_a_refusal_a_controller_can_act_on(self):
         self.runs.supervisor.tools = runs_base.RecordingTools(
             {"desktop.click": ToolError(

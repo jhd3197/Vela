@@ -15,10 +15,11 @@ taking over stops it exactly as a run stops. The one thing it adds is the
 decision itself, and the decision was never the part Vela enforces.
 
 **Every step answers one of four ways,** and the HTTP call that carries it is
-idempotent so a retried call never repeats an effect: `result` for a call that
-ran, `refusal` for one that was refused (with a code, a sentence, and whether
-looking again is worth anything), `approval` for a change now waiting on the
-owner, and `needsPerson` for a task that has handed itself back. An approval
+idempotent so a retried call never repeats an effect and reads back what the
+first call recorded: `result` for a call that ran, `refusal` for one that was
+refused (with a code, a sentence, and whether looking again is worth
+anything), `approval` for a change now waiting on the owner, and
+`needsPerson` for a task that has handed itself back. An approval
 settles when the step is read back: the read returns the pending approval
 while the owner decides, and the first read after the answer settles the step
 — re-executing the exact call if the answer was yes, with the grant behind it.
@@ -160,8 +161,8 @@ class Driver:
         """Execute exactly one tool call for a driven run.
 
         The answer is one of `result`, `refusal`, `approval` or `needsPerson`,
-        and the same client step id always answers the same way without the
-        call happening twice.
+        and the same client step id always reads back the recorded answer —
+        budget included — without the call happening twice.
         """
         desktop_id = validate_id(desktop_id)
         self._driven_run(desktop_id, run_id)
@@ -186,10 +187,13 @@ class Driver:
             record = known.get(client_step_id)
             if record is not None:
                 # The retried POST for a step already taken: the recorded
-                # answer, never a second execution of the call.
+                # answer, never a second execution of the call — and the
+                # budget recorded with that answer, not the run's live
+                # counters, so the same step never answers differently twice.
                 if record["tool"] != name or record["arguments"] != arguments:
                     raise AppServiceError(409, "That step id was already used for a different call.")
-                return {**self._read(record), "budget": self._budget(run).as_dict()}
+                budget = record.get("budget") or self._budget(run).as_dict()
+                return {**self._read(record), "budget": budget}
             if run["state"] in TERMINAL:
                 raise AppServiceError(409, f"That task already {run['state'].replace('_', ' ')}.")
             if run["state"] == "waiting_approval":
@@ -207,8 +211,12 @@ class Driver:
             }
             known[client_step_id] = record
             if refusal is not None:
-                record.update(status="settled", refusal=refusal["refusal"])
-                return {**self._read(record), "budget": self._budget(run).as_dict()}
+                record.update(
+                    status="settled",
+                    refusal=refusal["refusal"],
+                    budget=self._budget(run).as_dict(),
+                )
+                return {**self._read(record), "budget": record["budget"]}
             budget = self._budget(run)
             try:
                 budget.check()
@@ -228,7 +236,7 @@ class Driver:
                 await self.supervisor.after_run_ended(desktop_id, run_id)
                 raise AppServiceError(409, f"That task ended: {exc.detail}")
             await self._execute(desktop_id, run, name, arguments, budget, record)
-            return {**self._read(record), "budget": budget.as_dict()}
+            return {**self._read(record), "budget": record["budget"]}
 
     async def _execute(
         self,
@@ -387,7 +395,9 @@ class Driver:
             run_id=run_id,
         )
         budget.spend_step(progressed=progressed)
-        record.update(status="settled", **body)
+        # The budget is recorded with the answer: what the run had spent once
+        # this step was counted is part of what a retried POST reads back.
+        record.update(status="settled", budget=budget.as_dict(), **body)
 
     # ------------------------------------------------------------ approvals --
 
@@ -441,10 +451,14 @@ class Driver:
                 tags=["question"],
                 priority=4,
             )
+        # The budget was suspended above, so the counters recorded here hold
+        # still while the change waits: a retried POST reads back the same
+        # answer the first call got.
         record.update(
             status="waiting_approval",
             approval=public,
             observation_spent=getattr(pending, "observation_spent", False),
+            budget=budget.as_dict(),
         )
         return {"approval": public}
 
