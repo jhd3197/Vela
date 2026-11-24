@@ -31,6 +31,12 @@ NO_PROGRESS_LIMIT = 5
 #: this without limit, and the last few dozen steps are what explains a failure.
 KEEP_ACTIONS = 60
 
+#: Control names remembered per view, so the activity line can say what a click
+#: is aimed at ("Clicking 'Save'") rather than which reference it holds. The
+#: worker already bounds how many controls an observation names; this bounds it
+#: again so a page with an unbounded control list cannot grow this without one.
+KEEP_CONTROL_NAMES = 300
+
 
 class StalledError(Exception):
     """Nothing has changed for long enough that continuing is not worth it."""
@@ -78,6 +84,10 @@ class ObservationLog:
         self._keep = max(1, int(keep))
         #: (desktop, view) -> the last fingerprint and how many times running.
         self._views: dict[tuple[str, str], dict[str, Any]] = {}
+        #: (desktop, view) -> control reference -> the name the last observation
+        #: gave it. What lets a later click on that reference be described by
+        #: what it is rather than by its handle.
+        self._names: dict[tuple[str, str], dict[str, str]] = {}
         #: (desktop, run) -> bounded action evidence.
         self._actions: dict[tuple[str, str], list[dict[str, Any]]] = {}
 
@@ -100,6 +110,7 @@ class ObservationLog:
             "observationId": observation.get("observationId"),
             "at": time.time(),
         }
+        self._names[key] = _control_names(observation)
         if repeats >= self._limit:
             # Cleared, so a deliberate retry after a change of approach starts
             # from zero rather than failing on its first look.
@@ -113,6 +124,10 @@ class ObservationLog:
 
     def latest(self, desktop_id: str, view_id: str) -> dict[str, Any] | None:
         return self._views.get((desktop_id, view_id))
+
+    def control_names(self, desktop_id: str, view_id: str) -> dict[str, str]:
+        """What the last observation called each control, for the activity line."""
+        return dict(self._names.get((desktop_id, view_id)) or {})
 
     def progressed(self, desktop_id: str, view_id: str) -> None:
         """Something changed the view, so the run of identical looks is over."""
@@ -155,8 +170,23 @@ class ObservationLog:
     def forget_desktop(self, desktop_id: str) -> None:
         for key in [key for key in self._views if key[0] == desktop_id]:
             self._views.pop(key, None)
+        for key in [key for key in self._names if key[0] == desktop_id]:
+            self._names.pop(key, None)
         for key in [key for key in self._actions if key[0] == desktop_id]:
             self._actions.pop(key, None)
+
+
+def _control_names(observation: dict[str, Any]) -> dict[str, str]:
+    """Reference -> accessible name, from the observation's own control list."""
+    page = observation.get("page") or {}
+    names: dict[str, str] = {}
+    for control in page.get("controls") or []:
+        if len(names) >= KEEP_CONTROL_NAMES:
+            break
+        ref, name = control.get("ref"), control.get("name")
+        if isinstance(ref, str) and ref and isinstance(name, str) and name:
+            names[ref] = name
+    return names
 
 
 def _compact(value: Any) -> Any:

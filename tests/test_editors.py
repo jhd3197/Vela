@@ -546,12 +546,11 @@ class ControllerWorkspaceTests(unittest.TestCase):
                 kinds,
             )
 
-    def test_discovery_reports_protocol_4_and_the_workspace_and_editor(self):
+    def test_discovery_reports_the_protocol_and_the_workspace_and_editor(self):
         response = self.client.get("/api/controller", headers=self.headers)
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
         self.assertEqual(body["protocol"], CONTROLLER_PROTOCOL)
-        self.assertEqual(body["protocol"], 4)
         self.assertEqual(body["features"]["workspace"], True)
         self.assertEqual(body["features"]["editor"], True)
 

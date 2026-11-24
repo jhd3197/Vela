@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -161,6 +161,15 @@ class ControlTask(BaseModel):
 
 class TakeOver(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    viewId: str | None = Field(default=None, max_length=64)
+
+
+class ViewerHeartbeat(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    #: The watcher's own name for itself — a random id from its tab or
+    #: process — so a refreshed beat replaces itself rather than counting twice.
+    viewerId: str = Field(min_length=1, max_length=64)
+    kind: str | None = Field(default=None, max_length=16)
     viewId: str | None = Field(default=None, max_length=64)
 
 
@@ -467,8 +476,67 @@ def router(desktops, *, runs=None, config=None) -> APIRouter:
 
     @api.get("/{desktop_id}/viewer")
     def viewer_status(desktop_id: str) -> dict:
-        """Who is watching, and who — if anyone — is typing."""
+        """Who is watching, who — if anyone — is typing, and what is happening."""
         return _runs().viewer.status(desktop_id)
+
+    @api.post("/{desktop_id}/viewer/heartbeat")
+    def viewer_heartbeat(desktop_id: str, payload: ViewerHeartbeat) -> dict:
+        """A watcher says it is still watching; the answer is who else is.
+
+        Heartbeats expire on their own, so a watcher that went away stops
+        counting without anybody having to say it left. Works in every mode: a
+        person's own dashboard counts exactly like a controller's viewers do.
+        """
+        return _runs().viewer.heartbeat(
+            desktop_id,
+            payload.model_dump(exclude_none=True),
+            controller=bool(config is not None and config.controller_mode),
+        )
+
+    def _desktop_frames():
+        """The composited preview, which exists only where it was opted into.
+
+        The routes are mounted in every mode so the path is one well-known
+        address; anywhere the preview is not on — every mode but controller
+        mode, and controller mode without the opt-in — they answer 404 rather
+        than 403, because to a caller that may not have it the address simply
+        does not exist. The auth middleware has already required the
+        controller token before any handler runs.
+        """
+        service = _runs()
+        if not service.desktop_frames.enabled:
+            raise NotFound(
+                "The full-desktop preview exists only in controller mode, switched "
+                "on by the controller, and this Vela does not offer it.",
+                code="desktops.desktop_frame_unavailable",
+            )
+        return service.desktop_frames
+
+    @api.get("/{desktop_id}/frame")
+    async def desktop_frame(desktop_id: str, request: Request):
+        """Controller mode only, opted in only: one picture of the whole desktop.
+
+        A composite of the per-view frames the watcher route already serves,
+        placed by the desktop's own layout — never a screen capture, and never
+        a window the per-view route would refuse. Named by its content: a
+        preview that has not changed answers 304 to the ETag it gave out.
+        """
+        frames = _desktop_frames()
+        record = await frames.frame(desktop_id)
+        etag = f'"{record["digest"]}"'
+        offered = request.headers.get("if-none-match", "")
+        if etag in [tag.strip() for tag in offered.split(",")]:
+            return Response(status_code=304, headers={"ETag": etag})
+        return Response(
+            content=record["bytes"],
+            media_type="image/png",
+            headers={
+                "ETag": etag,
+                "Cache-Control": "no-store, private",
+                "X-Content-Type-Options": "nosniff",
+                "X-Vela-Frame-Revision": str(record["revision"]),
+            },
+        )
 
     @api.get("/{desktop_id}/views/{view_id}/frame")
     async def view_frame(desktop_id: str, view_id: str, maxAgeMs: int = 400) -> dict:

@@ -8,6 +8,39 @@ until the release workflow prepares a tested server version.
 
 ### Added
 
+- **Controller mode: watchers, an activity line, richer take-over input, and
+  an opt-in desktop preview.** A watcher now says it is watching with
+  `POST /api/desktops/{id}/viewer/heartbeat` — a self-chosen viewer id, a
+  `person` or `controller` kind, a 20-second expiry — and
+  `GET /api/desktops/{id}/viewer` reports the current watchers as counts and
+  kinds only (never ids), so watching can keep a bot's computer awake; the
+  dashboard's own viewer heartbeats while it watches, and the route works in
+  every mode. The same read now carries `activity`: one short line derived
+  from the step actually running ("Running npm run dev", "Clicking 'Re-run
+  failed jobs'" from the observed control's own name), written by both the
+  driven-run protocol and Vela's own loop, shown only while the run is
+  working, expiring on its own, and mirrored as `desktop.activity` events.
+  Take-over input gains a right click (`button: "right"`, the long-press a
+  touch viewer sends) and wheel/drag scrolling (`kind: "scroll"` with the
+  wheel's own `dx`/`dy`, bounded at 4000 pixels) through the same one-writer
+  lease as every other person input; buttons outside `left`/`right`/`middle`
+  and scrolls with no direction are refused with `422` before they can reach
+  the browser, and terminals and editors keep refusing clicks and scrolls
+  with their plain sentences. And `GET /api/desktops/{id}/frame` answers one
+  PNG of the whole desktop — only in controller mode, only to the controller
+  token, and only when the controller set `VELA_CONTROLLER_DESKTOP_FRAME=1`
+  (off by default everywhere, the `computer` image included). It is a
+  composite of the existing per-window frames placed by the desktop's own
+  layout at 1280×800 — never a screen capture — so windows the per-view
+  frame route refuses (owner surfaces, the approval prompt) stay out of it
+  by construction; the answer carries a content `ETag` with `304` support
+  and a revision header, and composing is rate-limited and cached.
+  Discovery (`GET /api/controller`) now reports `protocol: 5` and advertises
+  `desktopFrame` only while the preview is switched on, and the `computer`
+  image label carries the same protocol. Everywhere outside controller mode
+  the never-capture-the-desktop rule stands exactly as before. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#who-is-watching-and-what-it-is-doing).
+
 - **Controller mode: workspace files and a plain-text editor.** A
   controller-mode Vela (and only a controller-mode Vela) now serves its
   workspace as a built-in **Workspace** share through the existing Files

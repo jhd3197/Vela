@@ -264,6 +264,10 @@ class Driver:
             {"runId": run_id, "tool": name, "step": budget.steps_used + 1},
             run_id=run_id,
         )
+        # The same one-line "what it is doing" the loop writes at the same
+        # point: the preview a controller shows should not care which of the
+        # two decided the step.
+        self.supervisor.note_activity(desktop_id, run_id, name, arguments)
         refusal: dict[str, Any] | None = None
         result: dict[str, Any] | None = None
         try:
