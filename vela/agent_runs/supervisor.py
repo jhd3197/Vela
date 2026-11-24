@@ -29,11 +29,12 @@ import time
 from typing import Any
 
 from ..app_storage import AppServiceError
+from .activity import describe_step
 from .approvals import ApprovalPending
 from .budget import Budget, BudgetExhausted, STEP_TIMEOUT_SECONDS, clip_output
 from .model import ModelError, ModelUnavailable, SYSTEM_PROMPT, parse_call, tool_definitions
 from .observations import StalledError
-from .tools import TOOLS, TOOL_NAMES, ToolError
+from .tools import ToolError, tools_for
 
 #: Runs working at once, across every desktop on this server. Two browsers cost
 #: about a gigabyte on the machine this was measured on, so two is the starting
@@ -91,6 +92,9 @@ class Supervisor:
         #: Attached by the run service. Resuming has to know whether a person
         #: still has control, and stopping has to take it back.
         self.leases = None
+        #: Attached by the run service. The one line saying what a desktop is
+        #: doing, written here at every step and cleared when the run ends.
+        self.activity = None
         #: Attached by the run service. Stopping a driven run ends it through
         #: the driver, which owns no task of its own to cancel.
         self.driver = None
@@ -114,6 +118,43 @@ class Supervisor:
 
     def emit(self, desktop_id: str, kind: str, payload: dict[str, Any], *, run_id=None) -> dict:
         return self.store.append(desktop_id, kind, payload, run_id=run_id)
+
+    def note_activity(
+        self, desktop_id: str, run_id: str, tool: str, arguments: dict[str, Any]
+    ) -> None:
+        """Say what this step is, in one line, for whoever is watching the desktop.
+
+        Derived from the call itself — the command, the path, the control's own
+        name from the last observation — never invented, and gone the moment
+        the run stops working. Both loops call this at the same point they
+        emit `step.started`, so the line and the event stream never disagree.
+        """
+        if self.activity is None:
+            return
+        names: dict[str, str] = {}
+        view_id = arguments.get("viewId") if isinstance(arguments.get("viewId"), str) else None
+        log = getattr(self.tools, "log", None)
+        if view_id and log is not None and hasattr(log, "control_names"):
+            names = log.control_names(desktop_id, view_id)
+        record = self.activity.note(
+            desktop_id,
+            describe_step(tool, arguments, names=names),
+            view_id=view_id,
+            run_id=run_id,
+        )
+        self.emit(
+            desktop_id,
+            "desktop.activity",
+            {"text": record["text"], "viewId": record["viewId"]},
+            run_id=run_id,
+        )
+
+    def clear_activity(self, desktop_id: str, run_id: str) -> None:
+        """The run went idle; the line about it goes with the working state."""
+        if self.activity is None:
+            return
+        if self.activity.clear(desktop_id, run_id=run_id):
+            self.emit(desktop_id, "desktop.activity", {"text": None}, run_id=run_id)
 
     def announce(self, title: str, message: str, *, tags=None, priority: int = 3) -> None:
         """One line to the person, through the channel they already configured.
@@ -252,7 +293,11 @@ class Supervisor:
             if task:
                 task.cancel()
             # Dispatch stops now; what already committed stays committed, and an
-            # external result nobody could confirm stays unknown.
+            # external result nobody could confirm stays unknown. The terminals
+            # this run started go with it — a cancelled task's shells are not
+            # something the next task inherits.
+            if getattr(self.desktops, "terminals", None) is not None:
+                self.desktops.terminals.close_run(desktop_id, run_id)
             self.desktops.revoke_run(desktop_id, run_id, reason="you stopped this task")
             if self.leases is not None:
                 self.leases.drop(desktop_id)
@@ -423,7 +468,9 @@ class Supervisor:
         )
         budget.resume()
 
-        definitions = tool_definitions(TOOLS)
+        declared = tools_for(self.desktops.terminals, self.desktops.editors)
+        declared_names = tuple(tool["name"] for tool in declared)
+        definitions = tool_definitions(declared)
         refused_finishes = 0
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -481,7 +528,7 @@ class Supervisor:
             name, arguments = parse_call(answer["calls"][0])
             messages.append({"role": "assistant", "content": answer["content"], "tool_calls": answer["calls"][:1]})
 
-            if name not in TOOL_NAMES:
+            if name not in declared_names:
                 messages.append(_tool_message(name, {"error": "unknown_tool", "detail": f"There is no tool called {name}."}))
                 budget.spend_step(progressed=False)
                 continue
@@ -491,6 +538,7 @@ class Supervisor:
                 {"runId": run_id, "tool": name, "step": budget.steps_used + 1},
                 run_id=run_id,
             )
+            self.note_activity(desktop_id, run_id, name, arguments)
 
             outcome = await self._dispatch(run_id, desktop_id, name, arguments, budget)
             messages.append(_tool_message(name, outcome["message"]))
@@ -900,6 +948,10 @@ class Supervisor:
                 outcome=outcome,
                 budget=budget.as_dict() if budget else None,
             )
+        # The line about what it was doing goes first, so the task's own
+        # ending stays the last event a viewer reads.
+        with contextlib.suppress(Exception):
+            self.clear_activity(desktop_id, run_id)
         self.emit(
             desktop_id,
             f"task.{state}",

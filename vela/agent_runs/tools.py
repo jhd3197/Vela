@@ -4,12 +4,27 @@ This is the whole surface. Thirteen tools: look at a view, open an app or an
 approved site, choose which view is in front, click, type, press one of a dozen
 keys, scroll, wait for one named condition, attach one of this desktop's own
 files, hand the task back to a person, invoke a named app action, and declare
-the task finished. There is no evaluate, no shell, no file read and no raw
-request, and there is no path from anything a model says to a script that runs
-in a page — the only inspection code that runs in a controlled view is the
-host's own, in `scripts/browser-worker/src/observe.mjs`.
+the task finished. There is no evaluate, no file read and no raw request, and
+there is no path from anything a model says to a script that runs in a page —
+the only inspection code that runs in a controlled view is the host's own, in
+`scripts/browser-worker/src/observe.mjs`.
 
-Files are the newest place that rule had to be defended. An agent names an
+There is one deliberate exception, and it exists only in controller mode: the
+five `terminal_*` tools below, a shell inside the bot's own computer. A
+controller-mode Vela is one bot's container and the container is the sandbox,
+so a shell there is the feature, not a breach. Outside controller mode the
+tools are not listed and not callable — on an ordinary Vela the no-shell rule
+stands exactly as it always has (docs/AGENT-DESKTOPS.md).
+
+There is a second, and it is the same argument one more time: the four
+`workspace_*` and `editor_*` tools, which browse, read and edit the bot's own
+workspace files and open one in a plain-text editor window. The workspace is
+the bot's volume, reachable through the same share and path rules as any
+shared folder, and nothing here gives an agent a path to anywhere else. These
+tools exist only in controller mode too; anywhere else they are not listed
+and refuse as unknown.
+
+Files are the newest place the base rule had to be defended. An agent names an
 artifact id and never a path; Vela turns the id into the file it stored under a
 name it generated; the page receives that. There is no file picker an agent can
 open and no directory it can name.
@@ -170,6 +185,124 @@ TOOLS: tuple[dict[str, Any], ...] = (
 
 TOOL_NAMES = tuple(tool["name"] for tool in TOOLS)
 
+#: The controller-mode-only surface: a terminal inside the bot's own computer.
+#: Not part of `TOOLS` on purpose — whether these exist is a property of the
+#: server (controller mode, a POSIX pty), not of the desktop — so the listing
+#: and the enforcement both consult `tools_for`.
+TERMINAL_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "terminal_open",
+        "summary": "Open a terminal on this desktop: a real shell rooted at "
+        "the workspace (controller mode only).",
+        "arguments": {
+            "title": "string, optional — a name for the window",
+            "cwd": "string, optional — where it starts, inside the workspace",
+        },
+        "changes": False,
+    },
+    {
+        "name": "terminal_run",
+        "summary": "Run one command line in a terminal and wait as asked. The "
+        "command keeps running after the call returns.",
+        "arguments": {
+            "terminalId": "string",
+            "command": "string, one line",
+            "timeoutSeconds": "number, optional — capped, default 10",
+            "waitFor": "'exit' (default), 'output' or 'none'",
+        },
+        "changes": False,
+    },
+    {
+        "name": "terminal_read",
+        "summary": "Read a terminal's output since a cursor.",
+        "arguments": {"terminalId": "string", "sinceCursor": "number, optional — default 0"},
+        "changes": False,
+    },
+    {
+        "name": "terminal_write",
+        "summary": "Send text or one named key (ctrl-c and the like) to a terminal.",
+        "arguments": {
+            "terminalId": "string",
+            "text": "string, optional — literal text to type",
+            "keys": "string, optional — one named key, e.g. 'ctrl-c'",
+        },
+        "changes": False,
+    },
+    {
+        "name": "terminal_close",
+        "summary": "Close a terminal and everything running in it.",
+        "arguments": {"terminalId": "string"},
+        "changes": False,
+    },
+)
+
+TERMINAL_TOOL_NAMES = tuple(tool["name"] for tool in TERMINAL_TOOLS)
+
+#: The controller-mode-only surface for the bot's own workspace: browsing,
+#: reading and writing files inside it, and opening one in an editor window.
+#: Like the terminal tools, whether these exist is a property of the server
+#: (controller mode), not of the desktop, so the listing and the enforcement
+#: both consult `tools_for`. Paths are workspace-relative; the share rules
+#: refuse anything that leaves the workspace.
+WORKSPACE_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "workspace_list",
+        "summary": "List the files and folders at a path inside the workspace.",
+        "arguments": {
+            "path": "string, optional — a folder inside the workspace, default its root"
+        },
+        "changes": False,
+    },
+    {
+        "name": "workspace_read",
+        "summary": "Read a UTF-8 text file inside the workspace, with its revision.",
+        "arguments": {
+            "path": "string",
+            "offset": "number, optional — characters to skip from the start",
+            "limit": "number, optional — characters to read, capped",
+        },
+        "changes": False,
+    },
+    {
+        "name": "workspace_write",
+        "summary": "Write a text file inside the workspace atomically. Name the "
+        "revision a read returned, and the save is refused when somebody "
+        "changed the file first.",
+        "arguments": {
+            "path": "string",
+            "content": "string, the file's new text",
+            "expectedRevision": "string, optional — the revision this save expects",
+        },
+        "changes": True,
+    },
+    {
+        "name": "editor_open",
+        "summary": "Open a workspace file in a plain-text editor window on this "
+        "desktop, or focus the one already open.",
+        "arguments": {"path": "string"},
+        "changes": False,
+    },
+)
+
+WORKSPACE_TOOL_NAMES = tuple(tool["name"] for tool in WORKSPACE_TOOLS)
+
+
+def tools_for(terminals: Any, editors: Any = None) -> tuple[dict[str, Any], ...]:
+    """The declared surface for this server.
+
+    The thirteen, plus the workspace tools when the editor service is enabled
+    — controller mode — and the terminal tools when the terminal service is,
+    which additionally needs a POSIX pty. The catalogue a controller registers
+    and the checks `call` enforces read this one list, so a tool the server
+    will not run is never a tool the server lists.
+    """
+    tools = TOOLS
+    if editors is not None and editors.supported:
+        tools += WORKSPACE_TOOLS
+    if terminals is not None and terminals.supported:
+        tools += TERMINAL_TOOLS
+    return tools
+
 #: Bounds on what may arrive as an argument, before anything is done with it.
 MAX_TEXT = 4000
 MAX_SUMMARY = 2000
@@ -232,6 +365,16 @@ class AgentTools:
         self.desktops = desktops
         self.log = log or ObservationLog()
 
+    @property
+    def terminals(self):
+        """The terminal service, when this server has one (controller mode)."""
+        return getattr(self.desktops, "terminals", None)
+
+    @property
+    def editors(self):
+        """The workspace/editor service, when this server has one (controller mode)."""
+        return getattr(self.desktops, "editors", None)
+
     # ------------------------------------------------------------ calling --
 
     async def call(
@@ -250,7 +393,9 @@ class AgentTools:
         exceptions with three different vocabularies is not something a model
         can be expected to act on sensibly.
         """
-        if name not in TOOL_NAMES:
+        terminal_tool = name in TERMINAL_TOOL_NAMES and self._terminals_available()
+        workspace_tool = name in WORKSPACE_TOOL_NAMES and self._workspace_available()
+        if name not in TOOL_NAMES and not terminal_tool and not workspace_tool:
             raise ToolError("unknown_tool", f"{name} is not a tool this desktop has.")
         arguments = arguments if isinstance(arguments, dict) else {}
         if not isinstance(run_id, str) or not run_id:
@@ -709,6 +854,174 @@ class AgentTools:
             "actions": self.log.evidence(desktop_id, run_id),
         }
 
+    # ----------------------------------------------------------- terminals --
+
+    def _terminals_available(self) -> bool:
+        terminals = self.terminals
+        return terminals is not None and terminals.supported
+
+    def _require_terminals(self):
+        if not self._terminals_available():
+            raise ToolError("unknown_tool", "Terminal tools are not available on this server.")
+
+    async def _terminal_open(self, desktop_id, arguments, *, run_id, actor_id):
+        """A shell inside the bot's own computer — controller mode only.
+
+        The window, the shell and the workspace-rooted environment are made
+        together; the refusal when terminals do not exist here is the tool
+        boundary's own, exactly as for any name this surface does not carry.
+        """
+        self._require_terminals()
+        title = arguments.get("title")
+        if title is not None and not isinstance(title, str):
+            raise ToolError("protocol_error", "A terminal's title is a string.")
+        opened = self.terminals.open(
+            desktop_id, title=title, cwd=arguments.get("cwd"), run_id=run_id
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="terminal_open", target=opened["terminalId"],
+            expected="open a terminal rooted at the workspace",
+            result={"viewId": opened["viewId"], "cwd": opened["cwd"]},
+        )
+        return opened
+
+    async def _terminal_run(self, desktop_id, arguments, *, run_id, actor_id):
+        self._require_terminals()
+        result = await self.terminals.run(
+            desktop_id,
+            arguments.get("terminalId"),
+            arguments.get("command"),
+            timeout_seconds=arguments.get("timeoutSeconds"),
+            wait_for=arguments.get("waitFor"),
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="terminal_run",
+            target=str(arguments.get("terminalId")), expected="run one command line",
+            result={"exitCode": result.get("exitCode"), "running": result.get("running")},
+        )
+        return result
+
+    async def _terminal_read(self, desktop_id, arguments, *, run_id, actor_id):
+        self._require_terminals()
+        result = self.terminals.read(
+            desktop_id, arguments.get("terminalId"), arguments.get("sinceCursor")
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="terminal_read",
+            target=str(arguments.get("terminalId")), expected="read its output",
+        )
+        return result
+
+    async def _terminal_write(self, desktop_id, arguments, *, run_id, actor_id):
+        self._require_terminals()
+        result = self.terminals.write(
+            desktop_id,
+            arguments.get("terminalId"),
+            text=arguments.get("text"),
+            keys=arguments.get("keys"),
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="terminal_write",
+            target=str(arguments.get("terminalId")),
+            expected="send keys" if arguments.get("keys") else "type into it",
+        )
+        return result
+
+    async def _terminal_close(self, desktop_id, arguments, *, run_id, actor_id):
+        self._require_terminals()
+        result = self.terminals.close(desktop_id, arguments.get("terminalId"))
+        self.log.note_action(
+            desktop_id, run_id, tool="terminal_close",
+            target=str(arguments.get("terminalId")),
+            expected="close it and what it was running", outcome="committed",
+        )
+        return result
+
+    # ----------------------------------------------------------- workspace --
+
+    def _workspace_available(self) -> bool:
+        editors = self.editors
+        return editors is not None and editors.supported
+
+    def _require_workspace(self):
+        if not self._workspace_available():
+            raise ToolError("unknown_tool", "Workspace tools are not available on this server.")
+
+    async def _workspace_list(self, desktop_id, arguments, *, run_id, actor_id):
+        """The entries at a workspace folder, in the Files app's shape."""
+        self._require_workspace()
+        path = arguments.get("path")
+        if path is not None and not isinstance(path, str):
+            raise ToolError("protocol_error", "A folder path is a string.")
+        # An empty string names the workspace root, the way the Files app
+        # reads a missing path.
+        result = self.editors.list(path if isinstance(path, str) and path.strip() else None)
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_list", target=path or "/",
+            expected="list what is inside this folder",
+        )
+        return result
+
+    async def _workspace_read(self, desktop_id, arguments, *, run_id, actor_id):
+        """A workspace file's text with its revision, sliced as asked."""
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        offset = arguments.get("offset")
+        limit = arguments.get("limit")
+        if offset is not None and (isinstance(offset, bool) or not isinstance(offset, (int, float))):
+            raise ToolError("protocol_error", "offset is a number of characters.")
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
+            raise ToolError("protocol_error", "limit is a number of characters.")
+        result = self.editors.read(path, offset=offset, limit=limit)
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_read", target=path,
+            expected="read this file",
+            result={"revision": result.get("revision"), "truncated": result.get("truncated")},
+        )
+        return result
+
+    async def _workspace_write(self, desktop_id, arguments, *, run_id, actor_id):
+        """One workspace file, replaced atomically.
+
+        A save that names the revision it expected is refused when somebody
+        saved first — the conflict travels as the tool vocabulary's
+        `conflict`, which says to look again, not to push the same save harder.
+        """
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        content = arguments.get("content")
+        if not isinstance(content, str):
+            raise ToolError("protocol_error", "Writing needs the file's new text.")
+        expected = arguments.get("expectedRevision")
+        if expected is not None and not isinstance(expected, str):
+            raise ToolError("protocol_error", "A revision is the string a read returned.")
+        result = self.editors.write(
+            path, content, expected_revision=expected, actor=f"run:{run_id}"
+        )
+        self.log.note_action(
+            desktop_id, run_id, tool="workspace_write", target=path,
+            expected="replace this file with the text given",
+            outcome="committed", result={"revision": result.get("revision")},
+        )
+        return result
+
+    async def _editor_open(self, desktop_id, arguments, *, run_id, actor_id):
+        """A workspace file in an editor window on this desktop.
+
+        The file is checked whole — there, a file, UTF-8 text, inside the size
+        cap — before the window exists, and asking for a file whose window is
+        open brings that window forward rather than opening a second one.
+        """
+        self._require_workspace()
+        path = _string(arguments.get("path"), "path", 400)
+        opened = self.editors.open(desktop_id, path, run_id=run_id)
+        self.log.note_action(
+            desktop_id, run_id, tool="editor_open", target=path,
+            expected="open this file in an editor window",
+            result={"viewId": opened["viewId"]},
+        )
+        return opened
+
     # ----------------------------------------------------------- helpers --
 
     def _view(self, desktop_id: str, view_id: Any, *, allow_default: bool = False):
@@ -825,6 +1138,7 @@ def _code_for(status: int) -> str:
         404: "not_found",
         409: "conflict",
         413: "too_large",
+        415: "unsupported",
         422: "protocol_error",
         503: "runtime_unavailable",
         504: "timed_out",

@@ -24,7 +24,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from vela import __version__
 from vela.api import create_app
-from vela.config import load_config, load_controller_token
+from vela.config import CONTROLLER_PROTOCOL, load_config, load_controller_token
 from vela.container import configure as configure_container
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,9 +177,18 @@ class ControllerModeTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/controller").status_code, 401)
         response = self.client.get("/api/controller", headers=self.headers)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"mode": "controller", "version": __version__,
-                                           "protocol": 2,
-                                           "features": {"controller": True, "driver": True}})
+        body = response.json()
+        self.assertEqual(body["mode"], "controller")
+        self.assertEqual(body["version"], __version__)
+        self.assertEqual(body["protocol"], CONTROLLER_PROTOCOL)
+        self.assertEqual(body["features"]["controller"], True)
+        self.assertEqual(body["features"]["driver"], True)
+        # The terminal needs a POSIX pty: advertised where one exists, absent
+        # where it does not (the windows-latest CI leg included).
+        if os.name == "posix":
+            self.assertEqual(body["features"]["terminal"], True)
+        else:
+            self.assertNotIn("terminal", body["features"])
 
     def test_person_sign_in_lock_phone_and_pairing_routes_are_refused(self):
         refused = [

@@ -13,6 +13,7 @@ from typing import Any
 
 from ..app_storage import AppServiceError
 from ..desktops.models import DesktopError, validate_id
+from .desktop_frame import DesktopFrames
 from .driver import Driver
 from .model import OllamaAdapter
 from .retention import Retention
@@ -24,7 +25,7 @@ from .viewer import Viewer
 class AgentRuns:
     """The task surface for one Vela."""
 
-    def __init__(self, desktops, data_dir, *, settings=None, log=None, notifier=None):
+    def __init__(self, desktops, data_dir, *, settings=None, log=None, notifier=None, config=None):
         self.desktops = desktops
         self.store = RunStore(
             data_dir / "agent-runs.sqlite",
@@ -39,6 +40,11 @@ class AgentRuns:
         # answers to "who has control".
         self.viewer = Viewer(desktops, self)
         self.supervisor.leases = self.viewer.leases
+        self.supervisor.activity = self.viewer.activity
+        # The composited desktop preview. Inert unless the server is in
+        # controller mode with the opt-in switched on; built here because what
+        # it composes is the viewer's frames.
+        self.desktop_frames = DesktopFrames(desktops, self.viewer, config)
         # The controller-driven counterpart of the loop above: the controller
         # decides, Vela executes through the same tools, checks and budgets.
         # Built after the viewer because taking over has to stop a driven run
@@ -90,6 +96,10 @@ class AgentRuns:
                 continue
             self.desktops.revoke_desktop(desktop["id"], reason=reason)
             self.viewer.forget_desktop(desktop["id"])
+            if self.desktops.terminals is not None:
+                self.desktops.terminals.close_desktop(desktop["id"])
+            if self.desktops.editors is not None:
+                self.desktops.editors.close_desktop(desktop["id"])
             closed.append(desktop["id"])
         await self.desktops.stop_runtime()
         # Every browser lifetime is over, so every site grant bound to one is
@@ -306,6 +316,7 @@ class AgentRuns:
     def forget_desktop(self, desktop_id: str) -> None:
         self.store.forget_desktop(desktop_id)
         self.viewer.forget_desktop(desktop_id)
+        self.desktop_frames.forget_desktop(desktop_id)
 
     def files(self, desktop_id: str, *, run_id: str | None = None) -> dict[str, Any]:
         """The files this desktop holds, and how much room is left.

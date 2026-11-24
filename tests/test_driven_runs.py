@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 from scripts.fixture_apps import APPS as FIXTURE_APPS
 from vela.agent_runs.approvals import ApprovalPending
 from vela.agent_runs.store import TERMINAL, RunStore
-from vela.agent_runs.tools import TOOL_NAMES, ToolError
+from vela.agent_runs.tools import TOOL_NAMES, TERMINAL_TOOL_NAMES, WORKSPACE_TOOL_NAMES, ToolError
 from vela.api import create_app
 from vela.config import load_config
 
@@ -274,7 +274,13 @@ class ControllerDrivenTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.text)
         offered = {entry["function"]["name"]: entry["function"] for entry in response.json()["tools"]}
-        self.assertEqual(set(offered), set(TOOL_NAMES))
+        # Controller mode also carries the workspace tools — and the terminal
+        # tools on a POSIX host; the catalogue is what `AgentTools` will
+        # accept, so it must list them.
+        expected = set(TOOL_NAMES) | set(WORKSPACE_TOOL_NAMES)
+        if os.name == "posix":
+            expected |= set(TERMINAL_TOOL_NAMES)
+        self.assertEqual(set(offered), expected)
         for name, function in offered.items():
             self.assertTrue(function["description"], name)
             self.assertEqual(function["parameters"]["type"], "object", name)
@@ -307,6 +313,19 @@ class ControllerDrivenTests(unittest.TestCase):
         # The same id naming a different call is a conflict, not a retry.
         conflict = self.step(run["id"], "desktop.observe", {}, "save-1")
         self.assertEqual(conflict.status_code, 409, conflict.text)
+
+    def test_a_retried_step_reads_back_the_recorded_budget(self):
+        run = self.create().json()
+        first = self.step(run["id"], "desktop.observe", {}, "look-1")
+        self.assertEqual(first.status_code, 200, first.text)
+        # Time the run spends after answering belongs to the run record, not
+        # to the answer a retry reads back: the budget was recorded with the
+        # answer, so the retry is the same answer however much later it comes.
+        self.runs.supervisor._budgets[run["id"]].seconds_used += 5
+        second = self.step(run["id"], "desktop.observe", {}, "look-1")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json(), first.json())
+        self.assertEqual(len(self.runs.supervisor.tools.calls), 1)
 
     def test_a_refused_call_comes_back_as_a_refusal_a_controller_can_act_on(self):
         self.runs.supervisor.tools = runs_base.RecordingTools(

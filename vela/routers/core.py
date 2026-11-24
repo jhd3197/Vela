@@ -13,6 +13,7 @@ from .. import __version__
 from ..config import CONTROLLER_PROTOCOL, dir_size
 from ..errors_http import Forbidden
 from ..manifest import SUPPORTED_PLATFORMS
+from ..terminals import pty_supported
 
 
 class LoginRequest(BaseModel):
@@ -56,9 +57,20 @@ def router(auth, registry, connected_apps, config, platform) -> APIRouter:
         if not config.controller_mode:
             raise Forbidden("This Vela is not running in controller mode",
                             code="controller.not_controller_mode")
+        features = {"controller": True, "driver": True, "workspace": True, "editor": True}
+        # The terminal needs a POSIX pty; said only when it is true, so a
+        # controller on a platform without one never sees a feature that
+        # refuses to work. The workspace and the editor are files and windows,
+        # not processes: they exist in controller mode on every platform.
+        if pty_supported():
+            features["terminal"] = True
+        # The full-desktop preview is opt-in; advertised only when the
+        # controller switched it on, so the flag never names an address that
+        # would answer 404.
+        if config.controller_desktop_frame:
+            features["desktopFrame"] = True
         return {"mode": "controller", "version": __version__,
-                "protocol": CONTROLLER_PROTOCOL,
-                "features": {"controller": True, "driver": True}}
+                "protocol": CONTROLLER_PROTOCOL, "features": features}
 
     @api.get("/platforms")
     def platforms() -> dict:

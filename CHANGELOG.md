@@ -6,6 +6,113 @@ until the release workflow prepares a tested server version.
 
 ## Unreleased
 
+### Added
+
+- **Controller mode: watchers, an activity line, richer take-over input, and
+  an opt-in desktop preview.** A watcher now says it is watching with
+  `POST /api/desktops/{id}/viewer/heartbeat` — a self-chosen viewer id, a
+  `person` or `controller` kind, a 20-second expiry — and
+  `GET /api/desktops/{id}/viewer` reports the current watchers as counts and
+  kinds only (never ids), so watching can keep a bot's computer awake; the
+  route works in every mode. The same read now carries `activity`: one short line derived
+  from the step actually running ("Running npm run dev", "Clicking 'Re-run
+  failed jobs'" from the observed control's own name), written by both the
+  driven-run protocol and Vela's own loop, shown only while the run is
+  working, expiring on its own, and mirrored as `desktop.activity` events.
+  Take-over input gains a right click (`button: "right"`, the long-press a
+  touch viewer sends) and wheel/drag scrolling (`kind: "scroll"` with the
+  wheel's own `dx`/`dy`, bounded at 4000 pixels) through the same one-writer
+  lease as every other person input; buttons outside `left`/`right`/`middle`
+  and scrolls with no direction are refused with `422` before they can reach
+  the browser, and terminals and editors keep refusing clicks and scrolls
+  with their plain sentences. And `GET /api/desktops/{id}/frame` answers one
+  PNG of the whole desktop — only in controller mode, only to the controller
+  token, and only when the controller set `VELA_CONTROLLER_DESKTOP_FRAME=1`
+  (off by default everywhere, the `computer` image included). It is a
+  composite of the existing per-window frames placed by the desktop's own
+  layout at 1280×800 — never a screen capture — so windows the per-view
+  frame route refuses (owner surfaces, the approval prompt) stay out of it
+  by construction; the answer carries a content `ETag` with `304` support
+  and a revision header, and composing is rate-limited and cached.
+  Discovery (`GET /api/controller`) now reports `protocol: 5` and advertises
+  `desktopFrame` only while the preview is switched on, and the `computer`
+  image label carries the same protocol. Everywhere outside controller mode
+  the never-capture-the-desktop rule stands exactly as before. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#who-is-watching-and-what-it-is-doing).
+
+- **Controller mode: workspace files and a plain-text editor.** A
+  controller-mode Vela (and only a controller-mode Vela) now serves its
+  workspace as a built-in **Workspace** share through the existing Files
+  app routes and rules — browsing, download and trash behave exactly as
+  they do for any share, and `..`, absolute paths, drive letters and
+  symlinks pointing out refuse with the same `403`. The driven-run tool
+  catalogue and Vela's own loop gain four controller-mode-only tools on the
+  same surface as the terminal's: `workspace_list`, `workspace_read`
+  (UTF-8 text with the file's content-hash revision, sliced by `offset`/
+  `limit`, capped with a head-and-tail marker), `workspace_write` (atomic,
+  1 MB cap, and a save naming the revision it expected is refused with a
+  `conflict` when somebody saved first) and `editor_open` (one workspace
+  file in a plain-text editor window, opened or focused). The editor is a
+  view: a watcher reads a text frame — the file's current content and
+  revision — from the existing frame route, and a person edits through the
+  same take-over lease as any other view, sending the file's whole new text
+  while they hold control; a driver's steps answer `person_driving` in that
+  time. For the controller itself, `POST /api/desktops/{id}/editor` opens
+  or focuses the editor window for a path, and `GET`/`PUT
+  /api/desktops/{id}/editor/content` read and atomically write a file's
+  content with its revision, the PUT refusing a stale `expectedRevision`
+  with `409`. Editor windows close with their desktop, on agent off, on
+  restore quiesce and on shutdown, keeping no process behind them. Outside
+  controller mode nothing changes: there is no share, the tools are not
+  listed and refuse as unknown, the routes answer `404`, and the no-paths
+  rule for agents stands exactly as before. Discovery (`GET /api/controller`)
+  now reports `protocol: 4` with `workspace` and `editor` features, and the
+  `computer` image label carries the same protocol. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#workspace-files-and-a-plain-text-editor).
+
+- **Controller mode: a terminal inside the bot's computer.** A controller-mode
+  Vela (and only a controller-mode Vela) now offers its agent a real shell
+  through five tools on the driven-run surface and Vela's own loop:
+  `terminal_open` (a window, a `bash`-or-`sh` shell on a pseudo-terminal, and
+  an environment rooted at the workspace — `cwd` in `/workspace`,
+  `HOME=/workspace/.home`, npm prefix, `PYTHONUSERBASE` and PIP user installs
+  under `/workspace/.local`, `PATH` starting at its `bin` — built fresh so no
+  Vela secret reaches it), `terminal_run` (one command line, capped timeout,
+  `waitFor: exit|output|none`, returning the real exit code when finished and
+  capped head/tail output), `terminal_read` (incremental, cursor-based),
+  `terminal_write` (text or one named key, Ctrl-C included) and
+  `terminal_close`. Terminals are views: a watcher reads a text frame from the
+  existing frame route, and a person's input goes through the same take-over
+  lease as any other view, so a person holding control still answers a
+  driver's steps with `person_driving`. Up to four terminals per desktop,
+  256 KB of scrollback each, everything killed with the desktop, on agent
+  off, on restore quiesce and on shutdown; cancelling a run kills only the
+  terminals that run started, while a finished run leaves its dev servers
+  running. Outside controller mode nothing changes: the tools are not listed
+  and refuse as unknown, the no-shell rule for agent desktops stands exactly
+  as before, and a controller-mode Vela without a POSIX pty reports no
+  `terminal` feature and refuses cleanly. Discovery (`GET /api/controller`)
+  now reports `protocol: 3` with a `terminal` feature, and the `computer`
+  image label carries the same protocol. See
+  [the controller mode guide](docs/CONTROLLER-MODE.md#a-terminal-inside-the-computer).
+
+### Fixed
+
+- **A retried driven-run step returns the recorded answer, budget included.**
+  `POST .../driven-runs/{runId}/steps` is idempotent on `clientStepId`, but
+  the replayed answer rebuilt the run's budget live, so a retry could report
+  different `activeSeconds` than the answer it was repeating. The budget is
+  now recorded with the step's answer and returned unchanged on a retry; the
+  run record (`GET /api/desktops/{id}/tasks/{runId}`) remains the place for
+  the run's live counters.
+
+- **The desk's Flows widget counts runs by the local day across a clock
+  change.** The "today" counts and the week of bars behind
+  `GET /api/automations/status` carried today's UTC offset across the whole
+  week, so right after a clock change a run from the first hour of a day was
+  charted on the day before. Each day's boundary is now that date's own
+  local midnight.
+
 ## 0.2.0 - 2026-11-24
 
 ### Added

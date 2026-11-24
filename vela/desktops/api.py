@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -123,6 +123,22 @@ class CreateDrivenRun(BaseModel):
     clientRequestId: str | None = Field(default=None, max_length=100)
 
 
+class OpenEditor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    #: A workspace-relative path, checked against the workspace share rules
+    #: before the window exists.
+    path: str = Field(min_length=1, max_length=400)
+
+
+class PutEditorContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(min_length=1, max_length=400)
+    content: str
+    #: The revision a previous read returned. When the file has changed since,
+    #: the save is refused with a 409 instead of landing on somebody's edit.
+    expectedRevision: str | None = Field(default=None, max_length=64)
+
+
 class DrivenStep(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tool: str = Field(min_length=1, max_length=64)
@@ -145,6 +161,15 @@ class ControlTask(BaseModel):
 
 class TakeOver(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    viewId: str | None = Field(default=None, max_length=64)
+
+
+class ViewerHeartbeat(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    #: The watcher's own name for itself — a random id from its tab or
+    #: process — so a refreshed beat replaces itself rather than counting twice.
+    viewerId: str = Field(min_length=1, max_length=64)
+    kind: str | None = Field(default=None, max_length=16)
     viewId: str | None = Field(default=None, max_length=64)
 
 
@@ -451,8 +476,67 @@ def router(desktops, *, runs=None, config=None) -> APIRouter:
 
     @api.get("/{desktop_id}/viewer")
     def viewer_status(desktop_id: str) -> dict:
-        """Who is watching, and who — if anyone — is typing."""
+        """Who is watching, who — if anyone — is typing, and what is happening."""
         return _runs().viewer.status(desktop_id)
+
+    @api.post("/{desktop_id}/viewer/heartbeat")
+    def viewer_heartbeat(desktop_id: str, payload: ViewerHeartbeat) -> dict:
+        """A watcher says it is still watching; the answer is who else is.
+
+        Heartbeats expire on their own, so a watcher that went away stops
+        counting without anybody having to say it left. Works in every mode: a
+        person's own dashboard counts exactly like a controller's viewers do.
+        """
+        return _runs().viewer.heartbeat(
+            desktop_id,
+            payload.model_dump(exclude_none=True),
+            controller=bool(config is not None and config.controller_mode),
+        )
+
+    def _desktop_frames():
+        """The composited preview, which exists only where it was opted into.
+
+        The routes are mounted in every mode so the path is one well-known
+        address; anywhere the preview is not on — every mode but controller
+        mode, and controller mode without the opt-in — they answer 404 rather
+        than 403, because to a caller that may not have it the address simply
+        does not exist. The auth middleware has already required the
+        controller token before any handler runs.
+        """
+        service = _runs()
+        if not service.desktop_frames.enabled:
+            raise NotFound(
+                "The full-desktop preview exists only in controller mode, switched "
+                "on by the controller, and this Vela does not offer it.",
+                code="desktops.desktop_frame_unavailable",
+            )
+        return service.desktop_frames
+
+    @api.get("/{desktop_id}/frame")
+    async def desktop_frame(desktop_id: str, request: Request):
+        """Controller mode only, opted in only: one picture of the whole desktop.
+
+        A composite of the per-view frames the watcher route already serves,
+        placed by the desktop's own layout — never a screen capture, and never
+        a window the per-view route would refuse. Named by its content: a
+        preview that has not changed answers 304 to the ETag it gave out.
+        """
+        frames = _desktop_frames()
+        record = await frames.frame(desktop_id)
+        etag = f'"{record["digest"]}"'
+        offered = request.headers.get("if-none-match", "")
+        if etag in [tag.strip() for tag in offered.split(",")]:
+            return Response(status_code=304, headers={"ETag": etag})
+        return Response(
+            content=record["bytes"],
+            media_type="image/png",
+            headers={
+                "ETag": etag,
+                "Cache-Control": "no-store, private",
+                "X-Content-Type-Options": "nosniff",
+                "X-Vela-Frame-Revision": str(record["revision"]),
+            },
+        )
 
     @api.get("/{desktop_id}/views/{view_id}/frame")
     async def view_frame(desktop_id: str, view_id: str, maxAgeMs: int = 400) -> dict:
@@ -692,4 +776,53 @@ def router(desktops, *, runs=None, config=None) -> APIRouter:
     async def cancel_driven_run(desktop_id: str, run_id: str) -> dict:
         """Controller mode only: stop the run where it is."""
         return await _driver().cancel(desktop_id, run_id)
+
+    # ------------------------------------- workspace files and the editor --
+    # The protocol these routes speak is documented in docs/CONTROLLER-MODE.md.
+
+    def _editors():
+        """The workspace/editor surface, which exists only in controller mode.
+
+        The routes are mounted in every mode so the path is one well-known
+        address; outside controller mode they answer 404 rather than 403,
+        because to a caller that is not a controller the address simply does
+        not exist. The auth middleware already required the controller token
+        before any handler runs.
+        """
+        if config is None or not config.controller_mode:
+            raise NotFound(
+                "Workspace files and the editor are a controller-mode API, and "
+                "this Vela is not running in controller mode.",
+                code="desktops.editors_unavailable",
+            )
+        return desktops.editors
+
+    @api.post("/{desktop_id}/editor", status_code=201)
+    def open_editor(desktop_id: str, payload: OpenEditor) -> dict:
+        """Controller mode only: open (or focus) an editor window for a workspace file.
+
+        The file is checked whole before the window exists — there, a file,
+        UTF-8 text, inside the editor's size cap — and asking for a file whose
+        window is open brings that window forward instead of opening a second
+        editor for one file.
+        """
+        return _editors().open(desktop_id, payload.path)
+
+    @api.get("/{desktop_id}/editor/content")
+    def read_editor_content(desktop_id: str, path: str = "") -> dict:
+        """Controller mode only: a workspace file's text and its revision."""
+        desktops.store.get(desktop_id)
+        return _editors().read(path)
+
+    @api.put("/{desktop_id}/editor/content")
+    def write_editor_content(desktop_id: str, payload: PutEditorContent) -> dict:
+        """Controller mode only: replace a workspace file, atomically.
+
+        With `expectedRevision` named, a file somebody saved first answers 409
+        instead of being overwritten — read it again, then save.
+        """
+        desktops.store.get(desktop_id)
+        return _editors().write(
+            payload.path, payload.content, expected_revision=payload.expectedRevision
+        )
     return api
