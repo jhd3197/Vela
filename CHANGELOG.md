@@ -64,6 +64,20 @@ until the release workflow prepares a tested server version.
   image label carries the same protocol. See
   [the controller mode guide](docs/CONTROLLER-MODE.md#a-terminal-inside-the-computer).
 
+### Fixed
+
+- **A retried driven-run step returns the recorded answer, budget included.**
+  `POST .../driven-runs/{runId}/steps` is idempotent on `clientStepId`, but
+  the replayed answer rebuilt the run's budget live, so a retry could report
+  different `activeSeconds` than the answer it was repeating. The budget is
+  now recorded with the step's answer and returned unchanged on a retry; the
+  run record (`GET /api/desktops/{id}/tasks/{runId}`) remains the place for
+  the run's live counters.
+
+## 0.2.0 - 2026-11-24
+
+### Added
+
 - **Controller mode: a driver API for step-by-step agent runs.** A
   controller application (such as CachiBot) can now drive an agent desktop
   one tool call at a time while Vela keeps enforcing everything its own
@@ -194,14 +208,6 @@ until the release workflow prepares a tested server version.
   managed-app fixture and the update and browser-gateway stand-ins — now
   bind and listen in one step, like the real services they stand in for.
   No engine or dashboard behavior changes.
-
-- **A retried driven-run step returns the recorded answer, budget included.**
-  `POST .../driven-runs/{runId}/steps` is idempotent on `clientStepId`, but
-  the replayed answer rebuilt the run's budget live, so a retry could report
-  different `activeSeconds` than the answer it was repeating. The budget is
-  now recorded with the step's answer and returned unchanged on a retry; the
-  run record (`GET /api/desktops/{id}/tasks/{runId}`) remains the place for
-  the run's live counters.
 
 ## 0.1.21 - 2026-10-01
 
